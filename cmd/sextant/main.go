@@ -12,12 +12,17 @@ import (
 	"syscall"
 	"time"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/nix"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/api"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/mw"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/config"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/health"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/logging"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/metrics"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/server"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
 func main() {
@@ -45,6 +50,31 @@ func run(args []string, getenv config.Getenv) error {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		fmt.Fprintln(w, "Sextant - declarative fleet control-plane for NixOS")
 	})
+
+	// Configuration plane: mounted when an overlay repo is given.
+	if cfg.RepoDir != "" {
+		repo, err := git.Open(cfg.RepoDir, cfg.GitRemote)
+		if err != nil {
+			return err
+		}
+		var gate ports.Gate = nix.NewEvalGate()
+		if cfg.GateMode == "none" {
+			log.Warn("validation gate disabled (--gate none): edits are not checked against the generator")
+			gate = ports.GateFunc(func(context.Context, string, []string) error { return nil })
+		}
+		svc, err := app.NewConfigService(repo, gate)
+		if err != nil {
+			return err
+		}
+		api.New(svc, cfg.APIToken, cfg.Write, log).Routes(mux)
+		checks.Register("config-repo", func(context.Context) error {
+			_, err := repo.ReadFile(app.FleetFile)
+			return err
+		})
+		log.Info("config plane mounted", "repo", cfg.RepoDir,
+			"write", cfg.Write, "gate", cfg.GateMode, "remote", cfg.GitRemote,
+			"api", cfg.APIToken != "")
+	}
 
 	handler := mw.Chain(mux,
 		mw.Recover(log),

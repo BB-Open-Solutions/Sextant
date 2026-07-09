@@ -23,6 +23,24 @@ type Config struct {
 	// ShutdownGrace bounds how long a graceful shutdown may take before
 	// in-flight requests are cut off.
 	ShutdownGrace time.Duration
+
+	// RepoDir is the organisation's overlay working tree (the config plane).
+	// Empty runs the server without a configuration plane (health/metrics
+	// only), useful for probes and smoke tests.
+	RepoDir string
+	// Write enables the write path (mutations, commits). Off by default:
+	// a read-only console can never change the fleet.
+	Write bool
+	// GateMode selects the validation gate: "eval" (nix eval, the default)
+	// or "none" (no gate; for tests and repos without a flake).
+	GateMode string
+	// GitRemote names the push remote for the HA write path ("" = local
+	// commits only).
+	GitRemote string
+
+	// APIToken guards /api/v1 (bearer). Environment-only (SEXTANT_API_TOKEN):
+	// secrets never appear on the command line. Empty disables the API.
+	APIToken string
 }
 
 // Getenv is the environment lookup used by Load. Injected so tests can supply
@@ -38,6 +56,10 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		LogLevel:      envOr(getenv, "LOG_LEVEL", "info"),
 		LogFormat:     envOr(getenv, "LOG_FORMAT", "text"),
 		ShutdownGrace: 15 * time.Second,
+		RepoDir:       envOr(getenv, "REPO", ""),
+		GateMode:      envOr(getenv, "GATE", "eval"),
+		GitRemote:     envOr(getenv, "GIT_REMOTE", ""),
+		APIToken:      getenv(EnvPrefix + "API_TOKEN"), // env-only secret
 	}
 	if v := getenv(EnvPrefix + "SHUTDOWN_GRACE"); v != "" {
 		d, err := time.ParseDuration(v)
@@ -52,6 +74,10 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level: debug|info|warn|error")
 	fs.StringVar(&cfg.LogFormat, "log-format", cfg.LogFormat, "log format: text|json")
 	fs.DurationVar(&cfg.ShutdownGrace, "shutdown-grace", cfg.ShutdownGrace, "graceful shutdown timeout")
+	fs.StringVar(&cfg.RepoDir, "repo", cfg.RepoDir, "overlay working tree (the config plane)")
+	fs.BoolVar(&cfg.Write, "write", cfg.Write, "enable the write path (mutations, commits)")
+	fs.StringVar(&cfg.GateMode, "gate", cfg.GateMode, "validation gate: eval|none")
+	fs.StringVar(&cfg.GitRemote, "git-remote", cfg.GitRemote, "push remote for the HA write path")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
@@ -77,6 +103,14 @@ func (c *Config) validate() error {
 	}
 	if c.ShutdownGrace <= 0 {
 		return fmt.Errorf("shutdown-grace must be positive")
+	}
+	switch c.GateMode {
+	case "eval", "none":
+	default:
+		return fmt.Errorf("gate %q: must be eval|none", c.GateMode)
+	}
+	if c.Write && c.RepoDir == "" {
+		return fmt.Errorf("--write needs --repo")
 	}
 	return nil
 }
