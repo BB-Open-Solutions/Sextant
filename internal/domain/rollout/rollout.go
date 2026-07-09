@@ -1,0 +1,169 @@
+// Package rollout is the pure decision engine for staged rollouts. Rings
+// are ordered groups; each ring pins to the target revision, soaks, and must
+// converge healthy before the next ring promotes. All I/O (reading
+// convergence, committing pins, the clock) lives in the application layer;
+// this package only decides the next action.
+package rollout
+
+import (
+	"fmt"
+	"time"
+)
+
+// Ring is one wave of the rollout: a device group plus its promotion gates.
+type Ring struct {
+	// Group is the device group this ring pins.
+	Group string `json:"group"`
+	// SoakMinutes is the minimum time the ring must run on the target after
+	// converging before the next ring may promote.
+	SoakMinutes int `json:"soakMinutes,omitempty"`
+	// MinHealthyPercent gates promotion of the NEXT ring: at least this
+	// share of the ring's devices must be healthy on the target. Zero means
+	// 100 (every device healthy).
+	MinHealthyPercent int `json:"minHealthyPercent,omitempty"`
+}
+
+func (r Ring) minHealthy() int {
+	if r.MinHealthyPercent <= 0 {
+		return 100
+	}
+	return r.MinHealthyPercent
+}
+
+// RunStatus is the lifecycle of one rollout run.
+type RunStatus string
+
+const (
+	Active    RunStatus = "active"
+	Halted    RunStatus = "halted" // gate failed; needs a human decision
+	Completed RunStatus = "completed"
+	Cancelled RunStatus = "cancelled"
+)
+
+// State is the durable record of one rollout run.
+type State struct {
+	// Target is the revision every ring converges to.
+	Target string `json:"target"`
+	// Ring is the index of the ring currently being rolled out.
+	Ring int `json:"ring"`
+	// PromotedAt records when each ring's pin was committed (keyed by ring
+	// index); the soak clock starts at convergence-after-promotion.
+	PromotedAt map[int]time.Time `json:"promotedAt,omitempty"`
+	// ConvergedAt records when each ring was first observed fully converged
+	// on the target; soak counts from here.
+	ConvergedAt map[int]time.Time `json:"convergedAt,omitempty"`
+	Status      RunStatus         `json:"status"`
+	// Reason explains a halt.
+	Reason  string    `json:"reason,omitempty"`
+	Started time.Time `json:"started"`
+	Updated time.Time `json:"updated"`
+}
+
+// NewState starts a rollout run at ring 0.
+func NewState(target string, now time.Time) *State {
+	return &State{
+		Target: target, Ring: 0, Status: Active,
+		PromotedAt:  map[int]time.Time{},
+		ConvergedAt: map[int]time.Time{},
+		Started:     now, Updated: now,
+	}
+}
+
+// Normalize repairs maps lost to JSON omitempty on a round trip through a
+// store. Call after loading persisted state.
+func (s *State) Normalize() {
+	if s.PromotedAt == nil {
+		s.PromotedAt = map[int]time.Time{}
+	}
+	if s.ConvergedAt == nil {
+		s.ConvergedAt = map[int]time.Time{}
+	}
+}
+
+// RingStatus is the observed convergence of one ring (from the observed
+// plane): device totals for the ring's group on the target revision.
+type RingStatus struct {
+	Total    int // devices in the ring
+	OnTarget int // devices reporting the target revision
+	Healthy  int // devices on target and healthy (checked in recently, no errors)
+}
+
+// ActionKind is what the engine wants done next.
+type ActionKind string
+
+const (
+	// Promote commits the current ring's pin to the target revision.
+	Promote ActionKind = "promote"
+	// Wait means observe and try again later (converging or soaking).
+	Wait ActionKind = "wait"
+	// Advance moves to the next ring.
+	Advance ActionKind = "advance"
+	// Halt stops the run: the health gate failed.
+	Halt ActionKind = "halt"
+	// Done means every ring converged: the run is complete.
+	Done ActionKind = "done"
+)
+
+// Action is the engine's decision plus its reasoning (surfaced in the UI).
+type Action struct {
+	Kind   ActionKind
+	Reason string
+}
+
+// Decide returns the next action for the run. Callers execute the action
+// (commit a pin, persist state) and call Decide again on the next tick.
+func Decide(rings []Ring, s *State, ringStatus RingStatus, now time.Time) Action {
+	if s.Status != Active {
+		return Action{Kind: Done, Reason: fmt.Sprintf("run is %s", s.Status)}
+	}
+	if s.Ring >= len(rings) {
+		return Action{Kind: Done, Reason: "all rings rolled out"}
+	}
+	ring := rings[s.Ring]
+
+	// Not yet promoted: commit the pin first.
+	if _, promoted := s.PromotedAt[s.Ring]; !promoted {
+		return Action{Kind: Promote, Reason: fmt.Sprintf("pin ring %d (%s) to %s", s.Ring, ring.Group, s.Target)}
+	}
+
+	// An empty ring cannot converge; treat as done to avoid wedging the run,
+	// but say so.
+	if ringStatus.Total == 0 {
+		return Action{Kind: Advance, Reason: fmt.Sprintf("ring %d (%s) has no devices", s.Ring, ring.Group)}
+	}
+
+	// Health gate: too many unhealthy devices on the target halts the run.
+	// Only meaningful once devices started converging.
+	if ringStatus.OnTarget > 0 {
+		healthyPct := ringStatus.Healthy * 100 / ringStatus.OnTarget
+		if healthyPct < ring.minHealthy() {
+			return Action{Kind: Halt, Reason: fmt.Sprintf(
+				"ring %d (%s): only %d%% of converged devices healthy (gate %d%%)",
+				s.Ring, ring.Group, healthyPct, ring.minHealthy())}
+		}
+	}
+
+	// Still converging?
+	if ringStatus.OnTarget < ringStatus.Total {
+		return Action{Kind: Wait, Reason: fmt.Sprintf(
+			"ring %d (%s): %d/%d on target", s.Ring, ring.Group, ringStatus.OnTarget, ringStatus.Total)}
+	}
+
+	// Converged: soak from first full convergence.
+	converged, seen := s.ConvergedAt[s.Ring]
+	if !seen {
+		// The caller records ConvergedAt when it observes this Wait.
+		return Action{Kind: Wait, Reason: fmt.Sprintf(
+			"ring %d (%s): converged, starting soak", s.Ring, ring.Group)}
+	}
+	soak := time.Duration(ring.SoakMinutes) * time.Minute
+	if now.Sub(converged) < soak {
+		return Action{Kind: Wait, Reason: fmt.Sprintf(
+			"ring %d (%s): soaking until %s", s.Ring, ring.Group, converged.Add(soak).Format(time.RFC3339))}
+	}
+
+	if s.Ring == len(rings)-1 {
+		return Action{Kind: Done, Reason: "last ring converged and soaked"}
+	}
+	return Action{Kind: Advance, Reason: fmt.Sprintf("ring %d (%s) healthy and soaked", s.Ring, ring.Group)}
+}

@@ -37,6 +37,9 @@ type Config struct {
 	// GitRemote names the push remote for the HA write path ("" = local
 	// commits only).
 	GitRemote string
+	// StateDir holds durable control-plane state (change requests, rollout
+	// runs). Empty defaults to <repo>/.sextant-state.
+	StateDir string
 
 	// APIToken guards /api/v1 (bearer). Environment-only (SEXTANT_API_TOKEN):
 	// secrets never appear on the command line. Empty disables the API.
@@ -78,6 +81,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.BoolVar(&cfg.Write, "write", cfg.Write, "enable the write path (mutations, commits)")
 	fs.StringVar(&cfg.GateMode, "gate", cfg.GateMode, "validation gate: eval|none")
 	fs.StringVar(&cfg.GitRemote, "git-remote", cfg.GitRemote, "push remote for the HA write path")
+	fs.StringVar(&cfg.StateDir, "state-dir", cfg.StateDir, "durable control-plane state dir (default <repo>/.sextant-state)")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}

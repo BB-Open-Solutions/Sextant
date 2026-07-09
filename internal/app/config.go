@@ -102,38 +102,57 @@ func (s *ConfigService) Apply(ctx context.Context, mut fleet.Mutation, msg strin
 	return fmt.Errorf("gave up after %d push conflicts: %w", maxPushRetries, lastErr)
 }
 
-// applyOnce is the core transaction: load -> mutate -> write -> gate ->
-// commit. Gate failure rolls the working file back to its original bytes.
+// applyOnce runs the shared transaction against the service repo and
+// refreshes the snapshot on success.
 func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg string, a ports.Author, hosts []string) error {
-	orig, err := s.repo.ReadFile(FleetFile)
+	f, err := applyTx(ctx, s.repo, s.gate, mut, msg, a, hosts)
 	if err != nil {
-		return err
-	}
-	f, err := fleet.Decode(orig)
-	if err != nil {
-		return err
-	}
-	if err := mut(f); err != nil {
-		return err
-	}
-	next, err := f.Encode()
-	if err != nil {
-		return err
-	}
-	if err := s.repo.WriteFile(FleetFile, next); err != nil {
-		return err
-	}
-	if err := s.gate.Validate(ctx, s.repo.Dir(), hosts); err != nil {
-		if werr := s.repo.WriteFile(FleetFile, orig); werr != nil {
-			// The working tree now holds the rejected edit, which would
-			// become the base of the next write. Surface it loudly.
-			return errors.Join(err, fmt.Errorf("ROLLBACK FAILED, working tree dirty: %w", werr))
-		}
-		return err
-	}
-	if err := s.repo.Commit(ctx, msg, a, FleetFile); err != nil {
 		return err
 	}
 	s.snap.Store(f)
 	return nil
+}
+
+// Reload re-reads the working tree into the snapshot (e.g. after a change
+// request merged behind the service's back).
+func (s *ConfigService) Reload() error {
+	_, err := s.reload()
+	return err
+}
+
+// applyTx is the core write transaction, shared by direct writes and
+// change-request edits (which run it against a worktree repo):
+// load -> mutate -> write -> gate -> commit. Gate failure rolls the working
+// file back to its original bytes; nothing invalid ever gets committed.
+func applyTx(ctx context.Context, repo ports.ConfigRepo, gate ports.Gate, mut fleet.Mutation, msg string, a ports.Author, hosts []string) (*fleet.Fleet, error) {
+	orig, err := repo.ReadFile(FleetFile)
+	if err != nil {
+		return nil, err
+	}
+	f, err := fleet.Decode(orig)
+	if err != nil {
+		return nil, err
+	}
+	if err := mut(f); err != nil {
+		return nil, err
+	}
+	next, err := f.Encode()
+	if err != nil {
+		return nil, err
+	}
+	if err := repo.WriteFile(FleetFile, next); err != nil {
+		return nil, err
+	}
+	if err := gate.Validate(ctx, repo.Dir(), hosts); err != nil {
+		if werr := repo.WriteFile(FleetFile, orig); werr != nil {
+			// The working tree now holds the rejected edit, which would
+			// become the base of the next write. Surface it loudly.
+			return nil, errors.Join(err, fmt.Errorf("ROLLBACK FAILED, working tree dirty: %w", werr))
+		}
+		return nil, err
+	}
+	if err := repo.Commit(ctx, msg, a, FleetFile); err != nil {
+		return nil, err
+	}
+	return f, nil
 }

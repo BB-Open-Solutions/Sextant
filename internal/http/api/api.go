@@ -14,19 +14,30 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
-// API is the /api/v1 handler group for one configuration service.
+// Services bundles the use-case services the API exposes. Changes and
+// Rollouts are optional: nil leaves their endpoints unregistered.
+type Services struct {
+	Config   *app.ConfigService
+	Changes  *app.ChangeService
+	Rollouts *app.RolloutService
+}
+
+// API is the /api/v1 handler group.
 type API struct {
-	cfg   *app.ConfigService
-	token string
-	write bool
-	log   *slog.Logger
+	cfg      *app.ConfigService
+	changes  *app.ChangeService
+	rollouts *app.RolloutService
+	token    string
+	write    bool
+	log      *slog.Logger
 }
 
 // New builds the API. An empty token disables the whole surface (403), so
 // an unconfigured deployment exposes nothing by accident. write=false
 // serves reads only.
-func New(cfg *app.ConfigService, token string, write bool, log *slog.Logger) *API {
-	return &API{cfg: cfg, token: token, write: write, log: log}
+func New(s Services, token string, write bool, log *slog.Logger) *API {
+	return &API{cfg: s.Config, changes: s.Changes, rollouts: s.Rollouts,
+		token: token, write: write, log: log}
 }
 
 // Routes registers the API on mux.
@@ -50,6 +61,22 @@ func (a *API) Routes(mux *http.ServeMux) {
 	rw("DELETE", "/api/v1/assignments", a.deleteAssignment)
 	rw("PUT", "/api/v1/filters/{id}", a.putFilter)
 	rw("DELETE", "/api/v1/filters/{id}", a.deleteFilter)
+
+	if a.changes != nil {
+		get("/api/v1/changes", a.getChanges)
+		get("/api/v1/changes/{id}", a.getChange)
+		rw("POST", "/api/v1/changes", a.postChange)
+		rw("POST", "/api/v1/changes/{id}/edits", a.postChangeEdit)
+		rw("POST", "/api/v1/changes/{id}/submit", a.postChangeSubmit)
+		rw("POST", "/api/v1/changes/{id}/merge", a.postChangeMerge)
+		rw("POST", "/api/v1/changes/{id}/abandon", a.postChangeAbandon)
+	}
+	if a.rollouts != nil {
+		get("/api/v1/rollout", a.getRollout)
+		rw("POST", "/api/v1/rollout", a.postRollout)
+		rw("POST", "/api/v1/rollout/tick", a.postRolloutTick)
+		rw("DELETE", "/api/v1/rollout", a.deleteRollout)
+	}
 }
 
 // wrap enforces bearer auth (and write mode for mutating routes), then maps
@@ -94,6 +121,8 @@ func (a *API) fail(w http.ResponseWriter, r *http.Request, err error) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": verr.Detail})
 	case errors.Is(err, ports.ErrConflict):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+	case errors.Is(err, ports.ErrUnavailable):
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 	case errors.As(err, new(*badRequest)):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:

@@ -133,6 +133,21 @@ func SetGroupParent(group, parent string) Mutation {
 	}
 }
 
+// SetGroupPin pins a group (a rollout ring) to a target revision; an empty
+// target unpins (the group follows HEAD). The pin is config-as-data: it
+// rides the gated write transaction and lands as an audited commit.
+func SetGroupPin(group, target string) Mutation {
+	return func(f *Fleet) error {
+		g, ok := f.Groups[group]
+		if !ok {
+			return fmt.Errorf("unknown group %q", group)
+		}
+		g.Pin = target
+		f.Groups[group] = g
+		return nil
+	}
+}
+
 // SetAcceptance documents a risk acceptance (comply-or-explain) at a scope.
 // An empty justification is rejected: the explanation is the point.
 func SetAcceptance(ref, key, reason string) Mutation {

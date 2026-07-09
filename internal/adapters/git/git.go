@@ -23,9 +23,10 @@ type Repo struct {
 }
 
 // Open returns a Repo for an existing working tree. The directory must
-// contain a git repository; callers provision repos out of band.
+// contain a git repository (a .git directory, or a .git file for a linked
+// worktree); callers provision repos out of band.
 func Open(dir, remote string) (*Repo, error) {
-	if fi, err := os.Stat(filepath.Join(dir, ".git")); err != nil || !fi.IsDir() {
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		return nil, fmt.Errorf("%s is not a git working tree", dir)
 	}
 	return &Repo{dir: dir, remote: remote}, nil

@@ -6,6 +6,7 @@ package ports
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // Author identifies who made a change (from the SSO session or API client),
@@ -19,6 +20,10 @@ type Author struct {
 // non-fast-forward push). The transaction may re-run its mutation on the
 // fresh base and retry.
 var ErrConflict = errors.New("write conflict: remote advanced")
+
+// ErrUnavailable marks a dependency that is not configured or reachable
+// (e.g. the observed plane before Postgres is wired). Maps to 503.
+var ErrUnavailable = errors.New("dependency unavailable")
 
 // ValidationError means proposed configuration was rejected by the gate (the
 // generator's injection-safe asserts / the NixOS module system). It is a
@@ -48,6 +53,36 @@ type ConfigRepo interface {
 	// Push pushes HEAD to the remote branch. A lost race (remote advanced)
 	// is reported as an error wrapping ErrConflict. No-op without remote.
 	Push(ctx context.Context) error
+}
+
+// BranchRepo extends a config repo with the branch/worktree operations the
+// change-request flow needs. The git adapter implements both.
+type BranchRepo interface {
+	// CreateBranch creates a branch at the current HEAD.
+	CreateBranch(ctx context.Context, name string) error
+	// DeleteBranch force-deletes a branch.
+	DeleteBranch(ctx context.Context, name string) error
+	// AddWorktree checks a branch out into dir as a linked worktree, so
+	// change-request edits commit in isolation from the main tree.
+	AddWorktree(ctx context.Context, dir, branch string) error
+	// RemoveWorktree tears a linked worktree down.
+	RemoveWorktree(ctx context.Context, dir string) error
+	// MergeNoFF merges a branch into the current branch with a merge commit
+	// (audit trail). On conflict it aborts, leaves the tree clean and
+	// returns an error wrapping ErrConflict.
+	MergeNoFF(ctx context.Context, branch, msg string, a Author) error
+}
+
+// Builder runs the heavy build gate for a change: build the affected hosts'
+// systems from the repo at dir. Implementations shell nix build (or a remote
+// builder); tests inject fakes.
+type Builder interface {
+	Build(ctx context.Context, repoDir string, hosts []string) error
+}
+
+// Clock supplies time so services stay deterministic under test.
+type Clock interface {
+	Now() time.Time
 }
 
 // Gate validates a proposed configuration before it may be committed.

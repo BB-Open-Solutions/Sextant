@@ -138,20 +138,21 @@ type FilterRule struct {
 	Values []string `json:"values,omitempty"` // for op "in"
 }
 
-// Phase is one wave of a staged rollout.
-type Phase struct {
-	Name        string `json:"name"`
-	Percent     int    `json:"percent,omitempty"`
-	Count       int    `json:"count,omitempty"`
-	WaitMinutes int    `json:"waitMinutes,omitempty"`
-	GateMetric  string `json:"gateMetric,omitempty"`
+// RolloutPolicy is the organisation's staged-rollout plan: rings promote in
+// order, each gated on convergence, health and soak (see domain/rollout).
+// Ring definitions live in the rollout package; they are pure data here.
+type RolloutPolicy struct {
+	// Rings lists group names with their gates, in promotion order.
+	Rings []RolloutRing `json:"rings,omitempty"`
+	// ApproveRole is the minimum role required to start a rollout.
+	ApproveRole string `json:"approveRole,omitempty"`
 }
 
-// RolloutPolicy is the organisation's staged-rollout plan.
-type RolloutPolicy struct {
-	Mode        string  `json:"mode"` // "standard" | "manual"
-	Phases      []Phase `json:"phases,omitempty"`
-	ApproveRole string  `json:"approveRole,omitempty"`
+// RolloutRing mirrors rollout.Ring in the config document.
+type RolloutRing struct {
+	Group             string `json:"group"`
+	SoakMinutes       int    `json:"soakMinutes,omitempty"`
+	MinHealthyPercent int    `json:"minHealthyPercent,omitempty"`
 }
 
 // Decode parses a fleet document. It rejects unknown schema versions so an

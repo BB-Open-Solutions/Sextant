@@ -1,0 +1,193 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"sync"
+	"time"
+
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
+)
+
+// RolloutService drives staged rollouts: on every tick it asks the pure
+// engine for the next action and executes it - committing ring pins through
+// the gated write transaction, so every promotion is an audited commit.
+type RolloutService struct {
+	cfg   *ConfigService
+	store ports.RolloutStore
+	conv  ports.ConvergenceSource
+	clock ports.Clock
+	log   *slog.Logger
+	mu    sync.Mutex // one tick / start / cancel at a time
+}
+
+// NewRolloutService wires the rollout engine.
+func NewRolloutService(cfg *ConfigService, store ports.RolloutStore,
+	conv ports.ConvergenceSource, clock ports.Clock, log *slog.Logger) *RolloutService {
+	return &RolloutService{cfg: cfg, store: store, conv: conv, clock: clock, log: log}
+}
+
+// rings reads the ring plan from the fleet document.
+func (s *RolloutService) rings() ([]rollout.Ring, error) {
+	f := s.cfg.Fleet()
+	if f.Rollout == nil || len(f.Rollout.Rings) == 0 {
+		return nil, fmt.Errorf("no rollout rings configured (fleet.rollout.rings)")
+	}
+	out := make([]rollout.Ring, 0, len(f.Rollout.Rings))
+	for _, r := range f.Rollout.Rings {
+		if _, ok := f.Groups[r.Group]; !ok {
+			return nil, fmt.Errorf("rollout ring names unknown group %q", r.Group)
+		}
+		out = append(out, rollout.Ring{
+			Group: r.Group, SoakMinutes: r.SoakMinutes, MinHealthyPercent: r.MinHealthyPercent,
+		})
+	}
+	return out, nil
+}
+
+// Start begins a rollout to the target revision. One run at a time.
+func (s *RolloutService) Start(ctx context.Context, target string, _ ports.Author) (*rollout.State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if target == "" {
+		return nil, fmt.Errorf("rollout needs a target revision")
+	}
+	if _, err := s.rings(); err != nil {
+		return nil, err
+	}
+	cur, err := s.store.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if cur != nil && cur.Status == rollout.Active {
+		return nil, fmt.Errorf("a rollout to %s is already active", cur.Target)
+	}
+	st := rollout.NewState(target, s.clock.Now())
+	return st, s.store.Put(ctx, st)
+}
+
+// Status returns the current run (nil when none) plus live ring convergence.
+func (s *RolloutService) Status(ctx context.Context) (*rollout.State, []rollout.RingStatus, error) {
+	st, err := s.store.Get(ctx)
+	if err != nil || st == nil {
+		return st, nil, err
+	}
+	rings, err := s.rings()
+	if err != nil {
+		return st, nil, nil // plan changed under the run; state still readable
+	}
+	statuses := make([]rollout.RingStatus, len(rings))
+	for i, r := range rings {
+		rs, err := s.conv.RingStatus(ctx, r.Group, st.Target)
+		if err != nil {
+			return st, nil, err
+		}
+		statuses[i] = rs
+	}
+	return st, statuses, nil
+}
+
+// Cancel stops the active run. Pins already committed stay (config is
+// truth); the operator decides how to proceed.
+func (s *RolloutService) Cancel(ctx context.Context) (*rollout.State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, err := s.store.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if st == nil || st.Status != rollout.Active {
+		return nil, fmt.Errorf("no active rollout")
+	}
+	st.Status = rollout.Cancelled
+	st.Updated = s.clock.Now()
+	return st, s.store.Put(ctx, st)
+}
+
+// Tick advances the run by at most one action. Safe to call from a timer
+// and from the API; the engine is idempotent between observations.
+func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, err := s.store.Get(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if st == nil || st.Status != rollout.Active {
+		return nil, st, nil // nothing to do
+	}
+	st.Normalize() // stored state may have lost empty maps to omitempty
+	rings, err := s.rings()
+	if err != nil {
+		return nil, st, err
+	}
+
+	now := s.clock.Now()
+	rs := rollout.RingStatus{}
+	if _, promoted := st.PromotedAt[st.Ring]; promoted && st.Ring < len(rings) {
+		if rs, err = s.conv.RingStatus(ctx, rings[st.Ring].Group, st.Target); err != nil {
+			return nil, st, err
+		}
+	}
+
+	act := rollout.Decide(rings, st, rs, now)
+	switch act.Kind {
+	case rollout.Promote:
+		ring := rings[st.Ring]
+		msg := fmt.Sprintf("rollout: pin ring %d (%s) to %s", st.Ring, ring.Group, st.Target)
+		author := ports.Author{Name: "sextant-rollout", Email: "rollout@sextant"}
+		if err := s.cfg.Apply(ctx, fleet.SetGroupPin(ring.Group, st.Target), msg, author,
+			AffectedHosts(s.cfg.Fleet(), "group:"+ring.Group)...); err != nil {
+			return &act, st, fmt.Errorf("pin commit failed: %w", err)
+		}
+		st.PromotedAt[st.Ring] = now
+	case rollout.Wait:
+		// Record first full convergence so the soak clock starts.
+		if rs.Total > 0 && rs.OnTarget == rs.Total {
+			if _, seen := st.ConvergedAt[st.Ring]; !seen {
+				st.ConvergedAt[st.Ring] = now
+			}
+		}
+	case rollout.Advance:
+		st.Ring++
+	case rollout.Halt:
+		st.Status = rollout.Halted
+		st.Reason = act.Reason
+	case rollout.Done:
+		st.Status = rollout.Completed
+		st.Reason = act.Reason
+	}
+	st.Updated = now
+	if err := s.store.Put(ctx, st); err != nil {
+		return &act, st, err
+	}
+	s.log.Info("rollout tick", "action", string(act.Kind), "reason", act.Reason,
+		"ring", st.Ring, "status", string(st.Status))
+	return &act, st, nil
+}
+
+// Run ticks the engine on an interval until ctx is cancelled. Wire it next
+// to the HTTP server so shutdown drains it.
+func (s *RolloutService) Run(ctx context.Context, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if _, _, err := s.Tick(ctx); err != nil {
+				s.log.Error("rollout tick failed", "err", err)
+			}
+		}
+	}
+}
+
+// SystemClock is the production clock.
+type SystemClock struct{}
+
+// Now implements ports.Clock.
+func (SystemClock) Now() time.Time { return time.Now() }
