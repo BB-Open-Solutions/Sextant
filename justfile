@@ -1,0 +1,33 @@
+# Sextant task runner. `just ci` is the same gate CI runs.
+
+default: ci
+
+# Full quality gate: format check, vet, lint, race tests with coverage, build.
+ci: fmt-check vet lint test build
+
+fmt:
+    gofmt -w cmd internal
+
+fmt-check:
+    @test -z "$(gofmt -l cmd internal)" || (gofmt -l cmd internal && echo "gofmt: files need formatting" && exit 1)
+
+vet:
+    go vet ./...
+
+lint:
+    golangci-lint run ./...
+
+test:
+    go test -race -coverprofile=coverage.out ./...
+
+cover: test
+    go tool cover -func=coverage.out | tail -1
+
+build:
+    go build -trimpath -o sextant ./cmd/sextant
+
+run: build
+    ./sextant --addr 127.0.0.1:8080
+
+clean:
+    rm -f sextant dfctl coverage.out coverage.html

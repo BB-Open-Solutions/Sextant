@@ -1,0 +1,18 @@
+# Binaries
+/sextant
+/dfctl
+/dist/
+
+# Test and coverage artifacts
+*.test
+coverage.out
+coverage.html
+
+# Nix
+/result
+/result-*
+
+# Local environment
+.env
+.pg_password
+.direnv/

@@ -1,0 +1,35 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: nixos
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Format check
+        run: |
+          nix develop --command bash -c 'test -z "$(gofmt -l cmd internal)" || (gofmt -l cmd internal && exit 1)'
+
+      - name: Vet
+        run: nix develop --command go vet ./...
+
+      - name: Lint
+        run: nix develop --command golangci-lint run ./...
+
+      - name: Test (race + coverage)
+        run: |
+          nix develop --command go test -race -coverprofile=coverage.out ./...
+          nix develop --command bash -c '
+            total=$(go tool cover -func=coverage.out | tail -1 | awk "{print \$3}" | tr -d "%")
+            echo "total coverage: ${total}%"
+            awk -v t="$total" "BEGIN { exit (t < 70) ? 1 : 0 }" || (echo "coverage below 70% floor" && exit 1)
+          '
+
+      - name: Build
+        run: nix develop --command go build -trimpath ./...
+
+      - name: Nix package
+        run: nix build .#sextant
