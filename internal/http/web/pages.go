@@ -16,10 +16,17 @@ import (
 // --- pages ---
 
 func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
-	f := s.svc.Config.Fleet()
+	// Every page renders the visible slice of the document, never the
+	// whole fleet: per-scope read-confidentiality.
+	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 	var status []app.StatusView
 	if s.svc.Inventory != nil {
-		status, _ = s.svc.Inventory.StatusAll(r.Context())
+		all, _ := s.svc.Inventory.StatusAll(r.Context())
+		for _, st := range all {
+			if v.canView("device:" + st.Tag) {
+				status = append(status, st)
+			}
+		}
 	}
 	online := 0
 	type attention struct{ Kind, Detail string }
@@ -33,7 +40,8 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 		}
 	}
 	openChanges := 0
-	if s.svc.Changes != nil {
+	// Change requests span the whole document; only org-wide viewers see them.
+	if s.svc.Changes != nil && v.canView("org") {
 		crs, _ := s.svc.Changes.List(r.Context())
 		for _, cr := range crs {
 			if cr.Open() {
@@ -56,7 +64,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 }
 
 func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
-	f := s.svc.Config.Fleet()
+	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 	statuses := map[string]app.StatusView{}
 	if s.svc.Inventory != nil {
 		all, _ := s.svc.Inventory.StatusAll(r.Context())
@@ -117,7 +125,8 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	tag := r.PathValue("tag")
 	f := s.svc.Config.Fleet()
 	d, ok := f.Devices[tag]
-	if !ok {
+	// An invisible device answers exactly like a missing one.
+	if !ok || !v.canView("device:"+tag) {
 		http.NotFound(w, r)
 		return
 	}
@@ -138,7 +147,7 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 }
 
 func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
-	f := s.svc.Config.Fleet()
+	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 	type prow struct {
 		ID, Description string
 		Settings        map[string]any
@@ -175,6 +184,11 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 }
 
 func (s *Server) changesPage(w http.ResponseWriter, r *http.Request, v view) {
+	// Diffs expose every scope: org-wide read required.
+	if err := s.requireWeb(v, "org", identity.Viewer); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	crs, err := s.svc.Changes.List(r.Context())
 	data := map[string]any{"Title": "Changes", "Nav": "changes", "Changes": crs,
 		"CanEdit": v.roleAt("org").Meets(identity.Editor)}
@@ -186,6 +200,10 @@ func (s *Server) changesPage(w http.ResponseWriter, r *http.Request, v view) {
 
 // diffPage shows an approver what a change would apply.
 func (s *Server) diffPage(w http.ResponseWriter, r *http.Request, v view) {
+	if err := s.requireWeb(v, "org", identity.Viewer); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	id := r.PathValue("id")
 	cr, ok, err := s.svc.Changes.Get(r.Context(), id)
 	if err != nil || !ok {
@@ -202,6 +220,11 @@ func (s *Server) diffPage(w http.ResponseWriter, r *http.Request, v view) {
 }
 
 func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
+	// The plan enumerates rings and groups: org-wide read required.
+	if err := s.requireWeb(v, "org", identity.Viewer); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	f := s.svc.Config.Fleet()
 	data := map[string]any{"Title": "Rollout", "Nav": "rollout",
 		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
@@ -233,7 +256,7 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 }
 
 func (s *Server) accessPage(w http.ResponseWriter, _ *http.Request, v view) {
-	f := s.svc.Config.Fleet()
+	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 	groups := make([]string, 0, len(f.Groups))
 	for g := range f.Groups {
 		groups = append(groups, g)

@@ -109,6 +109,10 @@ type view struct {
 
 func (v view) roleAt(ref string) identity.Role { return v.rv.RoleAt(v.User, ref) }
 
+// canView is the read-visibility predicate for fleet.VisibleTo: pages render
+// only the scopes the user may see (per-scope read-confidentiality).
+func (v view) canView(ref string) bool { return v.roleAt(ref).Meets(identity.Viewer) }
+
 // authed resolves the session or sends the visitor to /login.
 func (s *Server) authed(w http.ResponseWriter, r *http.Request) (view, bool) {
 	if s.sessions == nil {
@@ -171,6 +175,9 @@ func (s *Server) action(h func(http.ResponseWriter, *http.Request, view) error) 
 func (s *Server) render(w http.ResponseWriter, name string, data map[string]any, v view) {
 	data["User"] = v.User
 	data["CSRF"] = v.CSRF
+	// Org-wide pages (changes, rollout) refuse scoped viewers; hide the
+	// links instead of offering a door that only opens with a 403.
+	data["CanOrgView"] = v.canView("org")
 	if _, ok := data["Error"]; !ok {
 		data["Error"] = ""
 	}

@@ -9,8 +9,13 @@ import (
 )
 
 // --- change requests ---
+// Change requests operate on the whole document (their diffs expose every
+// scope), so reading them requires org-wide Viewer.
 
 func (a *API) getChanges(w http.ResponseWriter, r *http.Request) error {
+	if err := a.require(r, "org", identity.Viewer); err != nil {
+		return err
+	}
 	crs, err := a.changes.List(r.Context())
 	if err != nil {
 		return err
@@ -20,6 +25,9 @@ func (a *API) getChanges(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *API) getChange(w http.ResponseWriter, r *http.Request) error {
+	if err := a.require(r, "org", identity.Viewer); err != nil {
+		return err
+	}
 	cr, ok, err := a.changes.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return reject(err)
@@ -34,6 +42,9 @@ func (a *API) getChange(w http.ResponseWriter, r *http.Request) error {
 
 // getChangeDiff returns the unified diff an approver reviews before merge.
 func (a *API) getChangeDiff(w http.ResponseWriter, r *http.Request) error {
+	if err := a.require(r, "org", identity.Viewer); err != nil {
+		return err
+	}
 	diff, err := a.changes.Diff(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return wrapChangeErr(err)
@@ -160,6 +171,10 @@ func wrapChangeErr(err error) error {
 // --- rollout ---
 
 func (a *API) getRollout(w http.ResponseWriter, r *http.Request) error {
+	// The plan enumerates rings and groups: org-wide read.
+	if err := a.require(r, "org", identity.Viewer); err != nil {
+		return err
+	}
 	st, rings, err := a.rollouts.Status(r.Context())
 	if err != nil {
 		return err

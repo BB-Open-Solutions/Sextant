@@ -11,8 +11,10 @@ import (
 
 // --- reads ---
 
-func (a *API) getFleet(w http.ResponseWriter, _ *http.Request) error {
-	writeJSON(w, http.StatusOK, a.cfg.Fleet())
+func (a *API) getFleet(w http.ResponseWriter, r *http.Request) error {
+	// Read-confidentiality: the document is narrowed to the caller's
+	// visible scopes; a group-A viewer never learns group B exists.
+	writeJSON(w, http.StatusOK, a.cfg.Fleet().VisibleTo(a.canView(r)))
 	return nil
 }
 
@@ -24,10 +26,14 @@ type deviceSummary struct {
 	AssignedUser string   `json:"assignedUser,omitempty"`
 }
 
-func (a *API) getDevices(w http.ResponseWriter, _ *http.Request) error {
+func (a *API) getDevices(w http.ResponseWriter, r *http.Request) error {
 	f := a.cfg.Fleet()
+	canView := a.canView(r)
 	out := make([]deviceSummary, 0, len(f.Devices))
 	for _, tag := range f.DeviceTags() {
+		if !canView("device:" + tag) {
+			continue
+		}
 		d := f.Devices[tag]
 		out = append(out, deviceSummary{
 			Tag: tag, Groups: d.Groups, Class: d.Class,
@@ -42,7 +48,9 @@ func (a *API) getDevice(w http.ResponseWriter, r *http.Request) error {
 	tag := r.PathValue("tag")
 	f := a.cfg.Fleet()
 	d, ok := f.Devices[tag]
-	if !ok {
+	// An invisible device answers exactly like a missing one: a scoped
+	// viewer cannot probe other departments' tag namespace.
+	if !ok || !a.canView(r)("device:"+tag) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown device " + tag})
 		return nil
 	}

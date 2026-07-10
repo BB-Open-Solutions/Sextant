@@ -44,8 +44,11 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 		scope = "org"
 	}
 	own, enforced, err := f.ScopeSettings(scope)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+	// An invisible scope answers exactly like a missing one. Org is the
+	// exception: it is every user's root, its own settings are part of
+	// their devices' effective config anyway.
+	if err != nil || (scope != "org" && !v.canView(scope)) {
+		http.NotFound(w, r)
 		return
 	}
 	locked := map[string]bool{}
@@ -75,7 +78,9 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 
 	groups := make([]string, 0, len(f.Groups))
 	for g := range f.Groups {
-		groups = append(groups, g)
+		if v.canView("group:" + g) {
+			groups = append(groups, g)
+		}
 	}
 	sort.Strings(groups)
 	s.render(w, "settings", map[string]any{

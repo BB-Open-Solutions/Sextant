@@ -104,6 +104,22 @@ func (a *API) require(r *http.Request, ref string, role identity.Role) error {
 	return nil
 }
 
+// canView builds the read-visibility predicate for the request principal:
+// Viewer or better at the ref, after the token ceiling clamp. Derived from
+// the FULL document; feed it to fleet.VisibleTo for output filtering only.
+func (a *API) canView(r *http.Request) func(ref string) bool {
+	p := principalFrom(r.Context())
+	rv := a.cfg.Fleet().IdentityResolver(
+		a.authz.BaselineViewer, a.authz.BaselineEditor, a.authz.BaselineOwner)
+	return func(ref string) bool {
+		got := rv.RoleAt(p.user, ref)
+		if p.hasCap && p.ceiling < got {
+			got = p.ceiling
+		}
+		return got.Meets(identity.Viewer)
+	}
+}
+
 // verifyCSRF guards session-authenticated mutations: the browser must echo
 // the session CSRF token in a header. Service principals (bearer token, no
 // ambient credential) are exempt.
