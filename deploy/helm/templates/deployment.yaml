@@ -118,14 +118,19 @@ spec:
             {{- end }}
           envFrom:
             - secretRef: { name: {{ .Values.secretName }} }
-          {{- if .Values.cnpg.enabled }}
           env:
+            {{- if .Values.gitRemote.url }}
+            # git reads /data/.netrc (written by the init container) for
+            # the overlay remote's credentials.
+            - { name: HOME, value: /data }
+            {{- end }}
+            {{- if .Values.cnpg.enabled }}
             - name: SEXTANT_PG_DSN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.cnpg.name }}-app
                   key: uri
-          {{- end }}
+            {{- end }}
           ports:
             - { containerPort: 8080, name: http }
           startupProbe:
