@@ -88,7 +88,20 @@ func (a *API) postDevice(w http.ResponseWriter, r *http.Request) error {
 	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.AddDevice(in.Tag, d)), msg, author(r), in.Tag); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "enrolled", "tag": in.Tag})
+	out := map[string]string{"status": "enrolled", "tag": in.Tag}
+	// Issue a per-device credential the device uses to check in as itself
+	// (ADR 0008). Shown once. Enrollment succeeds even if issuing fails -
+	// the device can be re-issued - but report the gap honestly.
+	if a.devCreds != nil {
+		if secret, err := a.devCreds.Issue(r.Context(), in.Tag); err != nil {
+			a.log.Error("device enrolled but credential not issued", "tag", in.Tag, "err", err)
+			out["credentialError"] = "credential not issued; re-issue before the device checks in"
+		} else {
+			out["credential"] = secret
+			out["notice"] = "store this device credential now; it is not shown again"
+		}
+	}
+	writeJSON(w, http.StatusCreated, out)
 	return nil
 }
 
@@ -101,6 +114,12 @@ func (a *API) deleteDevice(w http.ResponseWriter, r *http.Request) error {
 	msg := "devices: remove " + tag
 	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.RemoveDevice(tag)), msg, author(r)); err != nil {
 		return err
+	}
+	// Revoke the device credential so a removed device cannot check in.
+	if a.devCreds != nil {
+		if err := a.devCreds.Revoke(r.Context(), tag); err != nil {
+			a.log.Warn("device removed but credential revoke failed", "tag", tag, "err", err)
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
 	return nil

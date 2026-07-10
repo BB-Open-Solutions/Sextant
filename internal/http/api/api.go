@@ -22,6 +22,7 @@ type Services struct {
 	Rollouts  *app.RolloutService
 	Inventory *app.InventoryService
 	Tokens    *app.TokenService
+	DevCreds  *app.DeviceCredentials
 }
 
 // API is the /api/v1 handler group.
@@ -29,6 +30,7 @@ type API struct {
 	manifest []string
 	cfg      *app.ConfigService
 	tokens   *app.TokenService
+	devCreds *app.DeviceCredentials
 	changes  *app.ChangeService
 	rollouts *app.RolloutService
 	inv      *app.InventoryService
@@ -44,7 +46,7 @@ type API struct {
 // exposes nothing by accident. write=false serves reads only.
 func New(s Services, authz Authz, token string, write bool, log *slog.Logger) *API {
 	return &API{cfg: s.Config, changes: s.Changes, rollouts: s.Rollouts,
-		inv: s.Inventory, tokens: s.Tokens, authz: authz, token: token, write: write, log: log}
+		inv: s.Inventory, tokens: s.Tokens, devCreds: s.DevCreds, authz: authz, token: token, write: write, log: log}
 }
 
 // Routes registers the API on mux.

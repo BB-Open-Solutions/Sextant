@@ -28,6 +28,10 @@ const (
 	Personal Kind = "personal"
 	// Service tokens carry explicit bindings in the access list.
 	Service Kind = "service"
+	// Device credentials authenticate one device to the check-in endpoint.
+	// Subject is the device tag; a device can only ever be itself, closing
+	// the shared-token impersonation gap (ADR 0008).
+	Device Kind = "device"
 )
 
 // prefix identifies a Sextant token at a glance (and lets secret scanners
@@ -76,7 +80,7 @@ func Mint(id, name string, kind Kind, subject string, groups []string, ceiling s
 	if id == "" || name == "" || subject == "" {
 		return Token{}, "", fmt.Errorf("token needs id, name and subject")
 	}
-	if kind != Personal && kind != Service {
+	if kind != Personal && kind != Service && kind != Device {
 		return Token{}, "", fmt.Errorf("unknown token kind %q", kind)
 	}
 	if ceiling != "" {
@@ -148,6 +152,24 @@ func (t Token) Verify(secret string) bool {
 // LooksLikeToken reports whether a bearer value is a Sextant token (cheap
 // pre-check so the store is only queried for plausible tokens).
 func LooksLikeToken(bearer string) bool { return strings.HasPrefix(bearer, prefix) }
+
+// dummyHash is a fixed argon2id hash used to burn the same work as a real
+// verify when no token record exists, so authentication time does not
+// reveal whether a token id is registered.
+var dummyHash, _ = hashSecret("sxt_dummy_0000000000000000000000000000000000")
+
+// DummyVerify runs one argon2 comparison against a fixed hash and discards
+// the result. It exists solely to equalize the store-miss timing with the
+// hit path; the return value is always false.
+func DummyVerify(secret string) bool {
+	d, err := decodeHash(dummyHash)
+	if err != nil {
+		return false
+	}
+	got := argon2.IDKey([]byte(secret), d.salt,
+		argonTime, argonMemory, argonThreads, argonKeyLen)
+	return subtle.ConstantTimeCompare(got, d.key) == 1
+}
 
 // idRe constrains a token id (also a path/log-safe slug).
 var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)

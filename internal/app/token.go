@@ -83,6 +83,9 @@ func (s *TokenService) Revoke(ctx context.Context, id string) error {
 // hash, checks expiry, and records last-used best-effort. The returned
 // user carries an optional ceiling the caller applies through the
 // resolver - never widening the owner's rights.
+//
+// A store miss runs a dummy verify so response time does not reveal
+// whether a well-formed token id exists (no enumeration oracle).
 func (s *TokenService) Authenticate(ctx context.Context, secret string) (identity.User, identity.Role, bool) {
 	id := token.IDFromSecret(secret)
 	if id == "" {
@@ -90,6 +93,13 @@ func (s *TokenService) Authenticate(ctx context.Context, secret string) (identit
 	}
 	tok, ok, err := s.store.Get(ctx, id)
 	if err != nil || !ok {
+		token.DummyVerify(secret) // equalize timing with the hit path
+		return identity.User{}, identity.None, false
+	}
+	// Device credentials share the store but must never authenticate the
+	// operator API - they belong to the check-in path only (ADR 0008).
+	if tok.Kind == token.Device {
+		token.DummyVerify(secret)
 		return identity.User{}, identity.None, false
 	}
 	now := s.clock.Now()

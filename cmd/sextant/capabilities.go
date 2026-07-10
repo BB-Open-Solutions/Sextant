@@ -44,6 +44,7 @@ type deps struct {
 	rollouts *app.RolloutService
 	inv      *app.InventoryService
 	tokens   *app.TokenService
+	devCreds *app.DeviceCredentials
 	authz    api.Authz
 	cleanup  []func()
 }
@@ -122,6 +123,7 @@ func (d *deps) buildConfigPlane() error {
 		d.cleanup = append(d.cleanup, pg.Close)
 		d.inv = app.NewInventoryService(pg, pg, clock, app.DefaultTenant)
 		d.tokens = app.NewTokenService(pg.Tokens(), clock, 0)
+		d.devCreds = app.NewDeviceCredentials(pg.Tokens(), clock)
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
 			return svc.Fleet().GroupDevices(group)
@@ -147,7 +149,7 @@ func (d *deps) observedCapability() capability.Capability {
 		EnabledFn: func() bool { return d.inv != nil },
 		RoutesFn: func(mux *http.ServeMux) {
 			inner := http.NewServeMux()
-			api.NewCheckin(d.inv, d.cfg.CheckinToken).Routes(inner)
+			api.NewCheckin(d.inv, d.devCreds, d.cfg.CheckinToken).Routes(inner)
 			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40)(inner))
 		},
 	}
@@ -229,7 +231,7 @@ func (d *deps) apiCapability() capability.Capability {
 		CapName: "api",
 		RoutesFn: func(mux *http.ServeMux) {
 			api.New(api.Services{Config: d.svc, Changes: d.changes,
-				Rollouts: d.rollouts, Inventory: d.inv, Tokens: d.tokens},
+				Rollouts: d.rollouts, Inventory: d.inv, Tokens: d.tokens, DevCreds: d.devCreds},
 				d.authz, d.cfg.APIToken, d.cfg.Write, d.log).Routes(mux)
 		},
 	}

@@ -116,3 +116,13 @@ func TestHashUniquePerMint(t *testing.T) {
 		t.Error("token verified another token's secret")
 	}
 }
+
+func TestDummyVerifyAlwaysFalse(t *testing.T) {
+	// It must burn work but never authenticate.
+	if DummyVerify("sxt_x_whatever") {
+		t.Error("dummy verify returned true")
+	}
+	if DummyVerify("") {
+		t.Error("dummy verify true for empty")
+	}
+}

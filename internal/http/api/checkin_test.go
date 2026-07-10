@@ -124,7 +124,7 @@ func newCheckinServer(t *testing.T, token string) (*httptest.Server, *fakeObserv
 	fo := newFakeObserved()
 	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
 	mux := http.NewServeMux()
-	NewCheckin(inv, token).Routes(mux)
+	NewCheckin(inv, nil, token).Routes(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv, fo
@@ -215,5 +215,60 @@ func TestStatusEndpoints(t *testing.T) {
 	}
 	if code, _ := call(t, s2, "GET", "/api/v1/status/ghost", nil, testToken); code != 404 {
 		t.Errorf("unknown device status = %d", code)
+	}
+}
+
+// fakeDevAuth verifies a device credential against a claimed tag.
+type fakeDevAuth struct{ creds map[string]string } // secret -> tag
+
+func (f *fakeDevAuth) AuthenticateTag(_ context.Context, secret, tag string) bool {
+	got, ok := f.creds[secret]
+	return ok && got == tag
+}
+
+func TestCheckinPerDeviceCredentialClosesImpersonation(t *testing.T) {
+	fo := newFakeObserved()
+	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
+	devs := &fakeDevAuth{creds: map[string]string{
+		"cred-lt1": "lt-1",
+		"cred-lt2": "lt-2",
+	}}
+	mux := http.NewServeMux()
+	NewCheckin(inv, devs, "").Routes(mux) // no shared token: device creds only
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	// lt-1 checks in as itself: ok.
+	if got := post(t, srv.URL+"/api/checkin", "cred-lt1",
+		`{"tag":"lt-1","revision":"v1","phase":"running"}`); got != 204 {
+		t.Errorf("lt-1 self check-in = %d, want 204", got)
+	}
+	// lt-1's credential reporting tag lt-2: rejected (the gap is closed).
+	if got := post(t, srv.URL+"/api/checkin", "cred-lt1",
+		`{"tag":"lt-2","revision":"v1","phase":"running"}`); got != 401 {
+		t.Errorf("lt-1 impersonating lt-2 = %d, want 401", got)
+	}
+	// Unknown credential: rejected.
+	if got := post(t, srv.URL+"/api/checkin", "cred-ghost",
+		`{"tag":"lt-1"}`); got != 401 {
+		t.Errorf("unknown credential = %d, want 401", got)
+	}
+}
+
+func TestCheckinSharedTokenBridgeStillWorks(t *testing.T) {
+	fo := newFakeObserved()
+	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
+	// No device creds, only the shared bridge token (migration mode).
+	mux := http.NewServeMux()
+	NewCheckin(inv, nil, "bridge-tok").Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
+		`{"tag":"any-device","revision":"v1"}`); got != 204 {
+		t.Errorf("bridge token = %d, want 204", got)
+	}
+	if got := post(t, srv.URL+"/api/checkin", "wrong", `{"tag":"x"}`); got != 401 {
+		t.Errorf("wrong shared token = %d, want 401", got)
 	}
 }
