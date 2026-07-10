@@ -64,6 +64,9 @@ type Config struct {
 	SessionKey       []byte
 	// SecureCookies marks cookies Secure (set behind TLS).
 	SecureCookies bool
+	// DevAuth substitutes a synthetic owner session (no IdP). Loopback
+	// only; the server refuses to start with dev auth on a public address.
+	DevAuth bool
 	// Baseline org-wide role groups (server config; the fleet document's
 	// access list adds per-scope bindings on top).
 	ViewerGroups []string
@@ -130,6 +133,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.StringVar(&cfg.OIDCRedirectURL, "oidc-redirect-url", cfg.OIDCRedirectURL, "OIDC redirect URL (https://host/callback)")
 	fs.StringVar(&cfg.OIDCGroupsClaim, "oidc-groups-claim", cfg.OIDCGroupsClaim, "ID-token claim carrying groups (default groups)")
 	fs.BoolVar(&cfg.SecureCookies, "secure-cookies", cfg.SecureCookies, "mark cookies Secure (set behind TLS)")
+	fs.BoolVar(&cfg.DevAuth, "dev-auth", false, "synthetic owner session without an IdP (loopback only)")
 	viewers := fs.String("viewer-groups", "", "comma-separated IdP groups with org-wide viewer role")
 	editors := fs.String("editor-groups", "", "comma-separated IdP groups with org-wide editor role")
 	owners := fs.String("owner-groups", "", "comma-separated IdP groups with org-wide owner role")
@@ -187,6 +191,20 @@ func (c *Config) validate() error {
 		}
 		if len(c.SessionKey) != 32 {
 			return fmt.Errorf("oidc needs SEXTANT_SESSION_KEY (base64 of 32 random bytes)")
+		}
+	}
+	if c.DevAuth {
+		host := c.Addr
+		if i := strings.LastIndex(host, ":"); i >= 0 {
+			host = host[:i]
+		}
+		switch host {
+		case "127.0.0.1", "localhost", "::1", "[::1]":
+		default:
+			return fmt.Errorf("--dev-auth requires a loopback --addr, got %s", c.Addr)
+		}
+		if c.OIDCIssuer != "" {
+			return fmt.Errorf("--dev-auth and --oidc-issuer are mutually exclusive")
 		}
 	}
 	return nil

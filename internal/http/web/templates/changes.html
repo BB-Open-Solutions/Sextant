@@ -1,0 +1,50 @@
+{{define "content"}}
+<h1>Changes</h1>
+
+{{if .CanEdit}}
+<div class="panel">
+  <form method="post" action="/changes">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input name="id" placeholder="change id (slug)" required pattern="[a-z0-9][a-z0-9-]*">
+    <input name="title" placeholder="title" required size="40">
+    <button type="submit">Open change</button>
+  </form>
+</div>
+{{end}}
+
+<div class="panel">
+  <table>
+    <tr><th>Change</th><th>Status</th><th>Author</th><th>Updated</th><th>Actions</th></tr>
+    {{range .Changes}}
+    <tr>
+      <td><strong>{{.ID}}</strong><div class="muted">{{.Title}}</div>
+        {{with .Error}}<div class="tag bad">{{.}}</div>{{end}}</td>
+      <td><span class="tag {{if eq .Status "ready"}}ok{{else if eq .Status "failed"}}bad{{else if eq .Status "merged"}}ok{{end}}">{{.Status}}</span></td>
+      <td>{{.Author}}</td>
+      <td>{{.Updated.Format "2006-01-02 15:04"}}</td>
+      <td>
+        {{if $.CanEdit}}
+        {{if or (eq .Status "draft") (eq .Status "failed")}}
+        <form class="inline" method="post" action="/changes/{{.ID}}/submit">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}"><button>Build</button>
+        </form>
+        {{end}}
+        {{if eq .Status "ready"}}
+        <form class="inline" method="post" action="/changes/{{.ID}}/merge">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}"><button>Merge</button>
+        </form>
+        {{end}}
+        {{if .Open}}
+        <form class="inline" method="post" action="/changes/{{.ID}}/abandon">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="quiet">Abandon</button>
+        </form>
+        {{end}}
+        {{end}}
+      </td>
+    </tr>
+    {{else}}
+    <tr><td colspan="5" class="muted">No changes yet.</td></tr>
+    {{end}}
+  </table>
+</div>
+{{end}}

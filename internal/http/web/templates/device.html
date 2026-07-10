@@ -1,0 +1,66 @@
+{{define "content"}}
+<h1>Device {{.Tag}}</h1>
+
+<div class="grid">
+  <div class="panel">
+    <h2 style="margin-top:0">Identity</h2>
+    <table>
+      <tr><td class="muted">Groups</td><td>{{range .Device.Groups}}<span class="tag">{{.}}</span> {{end}}</td></tr>
+      <tr><td class="muted">Class</td><td>{{.Device.Class}}</td></tr>
+      <tr><td class="muted">Hardware</td><td>{{.Device.Hardware}}</td></tr>
+      <tr><td class="muted">Assigned user</td><td>{{.Device.AssignedUser}}</td></tr>
+    </table>
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">Observed</h2>
+    {{if .HasStatus}}
+    <table>
+      <tr><td class="muted">State</td><td>{{if .Status.Online}}<span class="tag ok">online</span>{{else}}<span class="tag bad">offline</span>{{end}}</td></tr>
+      <tr><td class="muted">Revision</td><td>{{.Status.Revision}}</td></tr>
+      <tr><td class="muted">Phase</td><td>{{.Status.Phase}}</td></tr>
+      <tr><td class="muted">Last seen</td><td>{{.Status.LastSeen.Format "2006-01-02 15:04:05"}}</td></tr>
+      {{with .Status.Error}}<tr><td class="muted">Error</td><td class="tag bad">{{.}}</td></tr>{{end}}
+    </table>
+    {{else}}<p class="muted">No check-in received.</p>{{end}}
+  </div>
+</div>
+
+<h2>Effective configuration</h2>
+<div class="panel">
+  <table>
+    <tr><th>Setting</th><th>Value</th><th>Source</th><th></th></tr>
+    {{range .Resolved}}
+    <tr>
+      <td>{{.Key}}</td>
+      <td><code>{{printf "%v" .Value}}</code></td>
+      <td class="provenance">{{.Source}}</td>
+      <td>{{if .Enforced}}<span class="tag lock">locked</span>{{end}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4" class="muted">Nothing configured yet.</td></tr>
+    {{end}}
+  </table>
+</div>
+
+{{if .CanEdit}}
+<h2>Set a device setting</h2>
+<div class="panel">
+  <form method="post" action="/devices/{{.Tag}}/settings">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input name="key" placeholder="setting key (e.g. apps.office)" required>
+    <input name="value" placeholder="value (true, false, a string)" required>
+    <button type="submit">Apply</button>
+    <span class="muted">Applies through the validation gate and commits to git.</span>
+  </form>
+</div>
+{{end}}
+
+<h2>Apps</h2>
+<div class="panel">
+  <table>
+    <tr><td class="muted">Packages</td><td>{{range .Packages}}<span class="tag">{{.}}</span> {{end}}</td></tr>
+    <tr><td class="muted">Flatpaks</td><td>{{range .Flatpaks}}<span class="tag">{{.}}</span> {{end}}</td></tr>
+    <tr><td class="muted">Overlays</td><td>{{range .Overlays}}<span class="tag">{{.}}</span> {{end}}</td></tr>
+  </table>
+</div>
+{{end}}

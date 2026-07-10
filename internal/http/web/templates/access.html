@@ -1,0 +1,47 @@
+{{define "content"}}
+<h1>Access</h1>
+<p class="muted">Role bindings grant IdP groups a role at a scope. Bindings are part of the
+fleet configuration: every change is a gated, audited git commit.</p>
+
+<div class="panel">
+  <table>
+    <tr><th>IdP group</th><th>Role</th><th>Scope</th><th></th></tr>
+    {{range .Bindings}}
+    <tr>
+      <td>{{.Group}}</td>
+      <td><span class="tag">{{.Role}}</span></td>
+      <td><code>{{.Scope}}</code></td>
+      <td>{{if $.CanOwn}}
+        <form class="inline" method="post" action="/access/revoke">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <input type="hidden" name="group" value="{{.Group}}">
+          <input type="hidden" name="scope" value="{{.Scope}}">
+          <button class="quiet">Revoke</button>
+        </form>{{end}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4" class="muted">No bindings; only server-configured baseline groups apply.</td></tr>
+    {{end}}
+  </table>
+</div>
+
+{{if .CanOwn}}
+<h2>Grant</h2>
+<div class="panel">
+  <form method="post" action="/access/grant">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input name="group" placeholder="IdP group" required>
+    <select name="role">
+      <option value="viewer">viewer</option>
+      <option value="editor">editor</option>
+      <option value="owner">owner</option>
+    </select>
+    <select name="scope">
+      <option value="org">org</option>
+      {{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}
+    </select>
+    <button type="submit">Grant</button>
+  </form>
+</div>
+{{end}}
+{{end}}

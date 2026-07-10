@@ -1,0 +1,34 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} - Sextant</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+<header>
+  <span class="brand">Sextant</span>
+  <nav>
+    <a href="/" {{if eq .Nav "overview"}}class="active"{{end}}>Overview</a>
+    <a href="/devices" {{if eq .Nav "devices"}}class="active"{{end}}>Devices</a>
+    <a href="/policies" {{if eq .Nav "policies"}}class="active"{{end}}>Policies</a>
+    <a href="/changes" {{if eq .Nav "changes"}}class="active"{{end}}>Changes</a>
+    <a href="/rollout" {{if eq .Nav "rollout"}}class="active"{{end}}>Rollout</a>
+    <a href="/access" {{if eq .Nav "access"}}class="active"{{end}}>Access</a>
+  </nav>
+  <span class="who">
+    {{.User.Name}}
+    <form class="inline" method="post" action="/logout">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button class="quiet" type="submit">Sign out</button>
+    </form>
+  </span>
+</header>
+<main>
+  {{with .Error}}<div class="error">{{.}}</div>{{end}}
+  {{template "content" .}}
+</main>
+</body>
+</html>{{end}}

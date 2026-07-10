@@ -1,0 +1,39 @@
+{{define "content"}}
+<h1>Overview</h1>
+<div class="grid">
+  <div class="panel"><div class="stat">{{.Stats.Devices}}</div><div class="muted">Devices</div></div>
+  <div class="panel"><div class="stat">{{.Stats.Online}}</div><div class="muted">Online</div></div>
+  <div class="panel"><div class="stat">{{.Stats.Groups}}</div><div class="muted">Groups</div></div>
+  <div class="panel"><div class="stat">{{.Stats.Policies}}</div><div class="muted">Policies</div></div>
+  <div class="panel"><div class="stat">{{.Stats.OpenChanges}}</div><div class="muted">Open changes</div></div>
+</div>
+
+{{if .Attention}}
+<h2>Needs attention</h2>
+<div class="panel">
+  <table>
+    <tr><th>What</th><th>Detail</th></tr>
+    {{range .Attention}}
+    <tr><td><span class="tag bad">{{.Kind}}</span></td><td>{{.Detail}}</td></tr>
+    {{end}}
+  </table>
+</div>
+{{end}}
+
+<h2>Device status</h2>
+<div class="panel">
+  <table>
+    <tr><th>Device</th><th>Revision</th><th>Phase</th><th>Seen</th></tr>
+    {{range .Status}}
+    <tr>
+      <td><a href="/devices/{{.Tag}}">{{.Tag}}</a></td>
+      <td>{{.Revision}}</td>
+      <td>{{.Phase}}</td>
+      <td>{{if .Online}}<span class="tag ok">online</span>{{else}}<span class="tag bad">offline</span>{{end}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4" class="muted">No check-ins yet.</td></tr>
+    {{end}}
+  </table>
+</div>
+{{end}}

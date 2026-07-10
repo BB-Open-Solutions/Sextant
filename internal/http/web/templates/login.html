@@ -1,0 +1,20 @@
+{{define "login"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in - Sextant</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="login-box panel">
+  <h1>Sextant</h1>
+  <p class="muted">Declarative fleet control-plane for NixOS.</p>
+  {{if .SSO}}
+  <p><a href="/login/start"><button>Sign in with SSO</button></a></p>
+  {{else}}
+  <p class="error">No identity provider configured.</p>
+  {{end}}
+</div>
+</body>
+</html>{{end}}

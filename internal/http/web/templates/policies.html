@@ -1,0 +1,36 @@
+{{define "content"}}
+<h1>Policies</h1>
+
+<div class="panel">
+  <table>
+    <tr><th>Policy</th><th>Settings</th><th>Locked keys</th><th>Assigned to</th></tr>
+    {{range .Policies}}
+    <tr>
+      <td><strong>{{.ID}}</strong>{{with .Description}}<div class="muted">{{.}}</div>{{end}}</td>
+      <td>{{range $k, $v := .Settings}}<div><code>{{$k}} = {{printf "%v" $v}}</code></div>{{end}}</td>
+      <td>{{range .Enforced}}<span class="tag lock">{{.}}</span> {{end}}</td>
+      <td>{{range .Assignments}}<div><span class="tag">{{.Target}}</span>{{with .Filter}} filter <span class="tag">{{.}}</span>{{end}}</div>{{end}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4" class="muted">No policies defined.</td></tr>
+    {{end}}
+  </table>
+</div>
+
+<h2>Filters</h2>
+<div class="panel">
+  <table>
+    <tr><th>Filter</th><th>Match</th><th>Rules</th></tr>
+    {{range .Filters}}
+    <tr>
+      <td><strong>{{.ID}}</strong></td>
+      <td>{{.Match}}</td>
+      <td>{{range .Rules}}<div><code>{{.Attr}} {{.Op}} {{.Value}}{{range .Values}}{{.}} {{end}}</code></div>{{end}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="3" class="muted">No filters defined.</td></tr>
+    {{end}}
+  </table>
+</div>
+<p class="muted">Create and assign policies via the API (dfctl or /api/v1); the editor UI follows.</p>
+{{end}}

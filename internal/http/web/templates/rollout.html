@@ -1,0 +1,47 @@
+{{define "content"}}
+<h1>Rollout</h1>
+
+{{if .State}}
+<div class="panel">
+  <table>
+    <tr><td class="muted">Target</td><td><code>{{.State.Target}}</code></td></tr>
+    <tr><td class="muted">Status</td><td><span class="tag {{if eq (printf "%s" .State.Status) "active"}}ok{{else if eq (printf "%s" .State.Status) "halted"}}bad{{end}}">{{.State.Status}}</span>
+      {{with .State.Reason}}<span class="muted">{{.}}</span>{{end}}</td></tr>
+    <tr><td class="muted">Current ring</td><td>{{.State.Ring}}</td></tr>
+  </table>
+  {{if .CanOwn}}
+  <form class="inline" method="post" action="/rollout/tick" style="margin-top:0.8rem">
+    <input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">Advance now</button>
+  </form>
+  <form class="inline" method="post" action="/rollout/cancel">
+    <input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">Cancel run</button>
+  </form>
+  {{end}}
+</div>
+
+<h2>Rings</h2>
+<div class="panel">
+  <table>
+    <tr><th>#</th><th>Group</th><th>Soak</th><th>Health gate</th><th>Convergence</th></tr>
+    {{range $i, $r := .Rings}}
+    <tr>
+      <td>{{$i}}</td><td>{{$r.Ring.Group}}</td>
+      <td>{{$r.Ring.SoakMinutes}}m</td>
+      <td>{{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}%{{else}}100%{{end}}</td>
+      <td>{{$r.Status.OnTarget}}/{{$r.Status.Total}} on target, {{$r.Status.Healthy}} healthy</td>
+    </tr>
+    {{end}}
+  </table>
+</div>
+{{else}}
+<div class="panel"><p class="muted">No rollout run. {{if not .HasRings}}Configure rollout rings in the fleet document first.{{end}}</p>
+{{if and .CanOwn .HasRings}}
+<form method="post" action="/rollout">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input name="target" placeholder="target revision" required>
+  <button type="submit">Start rollout</button>
+</form>
+{{end}}
+</div>
+{{end}}
+{{end}}

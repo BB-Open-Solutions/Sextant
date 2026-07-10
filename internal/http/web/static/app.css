@@ -1,0 +1,47 @@
+/* Sextant console. One small stylesheet, system fonts, no build step. */
+:root {
+  --bg: #f6f7f9; --panel: #fff; --ink: #1a2330; --muted: #5b6577;
+  --line: #dde2e9; --accent: #1f5bd8; --ok: #197a4b; --warn: #a15c07; --bad: #b3261e;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+header { background: var(--panel); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 1.5rem; padding: 0 1.5rem; }
+header .brand { font-weight: 700; padding: 0.9rem 0; }
+header nav { display: flex; gap: 1rem; }
+header nav a { color: var(--ink); padding: 0.9rem 0.2rem; border-bottom: 2px solid transparent; }
+header nav a.active { border-color: var(--accent); color: var(--accent); }
+header .who { margin-left: auto; color: var(--muted); font-size: 0.9em;
+  display: flex; align-items: center; gap: 0.8rem; }
+main { max-width: 72rem; margin: 1.5rem auto; padding: 0 1.5rem; }
+h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
+.panel { background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.85em;
+  padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); }
+td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+.tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 99px;
+  font-size: 0.8em; background: var(--bg); border: 1px solid var(--line); }
+.tag.ok { color: var(--ok); border-color: var(--ok); }
+.tag.warn { color: var(--warn); border-color: var(--warn); }
+.tag.bad { color: var(--bad); border-color: var(--bad); }
+.tag.lock { color: var(--warn); }
+form.inline { display: inline; }
+input, select { padding: 0.35rem 0.5rem; border: 1px solid var(--line);
+  border-radius: 6px; font: inherit; background: var(--panel); }
+button { padding: 0.4rem 0.9rem; border: 1px solid var(--accent); border-radius: 6px;
+  background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+button.quiet { background: var(--panel); color: var(--ink); border-color: var(--line); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; }
+.stat { font-size: 1.6rem; font-weight: 700; }
+.muted { color: var(--muted); }
+.error { background: #fdecea; border: 1px solid var(--bad); color: var(--bad);
+  border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 1rem; }
+.provenance { font-size: 0.8em; color: var(--muted); }
+.login-box { max-width: 22rem; margin: 6rem auto; text-align: center; }

@@ -23,6 +23,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/api"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/mw"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/web"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/config"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/health"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/logging"
@@ -52,10 +53,7 @@ func run(args []string, getenv config.Getenv) error {
 	mux.Handle("GET /healthz", checks.Liveness())
 	mux.Handle("GET /readyz", checks.Readiness())
 	mux.Handle("GET /metrics", m.Handler())
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprintln(w, "Sextant - declarative fleet control-plane for NixOS")
-	})
+	consoleMounted := false
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
@@ -140,6 +138,28 @@ func run(args []string, getenv config.Getenv) error {
 			log.Info("oidc session auth mounted", "issuer", cfg.OIDCIssuer)
 		}
 
+		if cfg.DevAuth {
+			log.Warn("dev auth enabled: synthetic owner session, loopback only")
+			authz.Sessions = web.DevSessions{}
+			mux.HandleFunc("POST /logout", func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+			})
+		}
+
+		// Human console (SSR) when session auth is available.
+		if authz.Sessions != nil {
+			console, err := web.New(
+				web.Services{Config: svc, Changes: changes, Rollouts: rollouts, Inventory: inv},
+				authz.Sessions.(web.Sessions), cfg.Write,
+				cfg.ViewerGroups, cfg.EditorGroups, cfg.OwnerGroups, log)
+			if err != nil {
+				return err
+			}
+			console.Routes(mux)
+			consoleMounted = true
+			log.Info("console mounted")
+		}
+
 		api.New(api.Services{Config: svc, Changes: changes, Rollouts: rollouts, Inventory: inv},
 			authz, cfg.APIToken, cfg.Write, log).Routes(mux)
 		checks.Register("config-repo", func(context.Context) error {
@@ -149,6 +169,13 @@ func run(args []string, getenv config.Getenv) error {
 		log.Info("config plane mounted", "repo", cfg.RepoDir,
 			"write", cfg.Write, "gate", cfg.GateMode, "remote", cfg.GitRemote,
 			"state", stateDir, "api", cfg.APIToken != "")
+	}
+
+	if !consoleMounted {
+		mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprintln(w, "Sextant - declarative fleet control-plane for NixOS")
+		})
 	}
 
 	handler := mw.Chain(mux,
