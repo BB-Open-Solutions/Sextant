@@ -25,7 +25,7 @@ data the interface manages from then on. See ADR 0005.
 | 6 | Remote actions | Declarative intents: lock, cryptographic wipe, retire (see below) | Design pending |
 | 7 | Provisioning (inspoelstraat) | Stations, PXE discoveries -> enroll queue, image builds | Not yet ported from the PoC |
 | 8 | Compliance | Posture against profiles (BIO), comply-or-explain register | Deliberately later; acceptance register exists in the domain |
-| 9 | Multi-organisation | Model B: one overlay repo per org, org provisioning | Storage tenant-ready; runtime later |
+| 9 | Multi-organisation | Instance-per-tenant cells, centrally managed as declarative data (ADR 0009); global admin plane separate from tenant consoles | Cell = current deployment unit; provisioning tooling and admin plane pending |
 | 10 | Assurance and evidence | Four-eyes approvals, segregation of duties, gate pipeline, audit evidence export (ADR 0007) | Approvals partly built (merge = owner); evidence export pending |
 | 11 | API and credential security | Scoped service accounts, per-device credentials, one authorization path (ADR 0008) | Sessions/RBAC built; service accounts and device credentials pending |
 
