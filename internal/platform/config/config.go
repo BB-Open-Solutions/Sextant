@@ -59,6 +59,8 @@ type Config struct {
 	OIDCClientID    string
 	OIDCRedirectURL string
 	OIDCGroupsClaim string
+	// OIDCScopes is a comma-separated scope list ("" = openid,profile,email).
+	OIDCScopes []string
 	// OIDCClientSecret and SessionKey are environment-only secrets.
 	OIDCClientSecret string
 	SessionKey       []byte
@@ -132,6 +134,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.StringVar(&cfg.OIDCClientID, "oidc-client-id", cfg.OIDCClientID, "OIDC client id")
 	fs.StringVar(&cfg.OIDCRedirectURL, "oidc-redirect-url", cfg.OIDCRedirectURL, "OIDC redirect URL (https://host/callback)")
 	fs.StringVar(&cfg.OIDCGroupsClaim, "oidc-groups-claim", cfg.OIDCGroupsClaim, "ID-token claim carrying groups (default groups)")
+	scopes := fs.String("oidc-scopes", envOr(getenv, "OIDC_SCOPES", ""), "comma-separated OIDC scopes (default openid,profile,email)")
 	fs.BoolVar(&cfg.SecureCookies, "secure-cookies", cfg.SecureCookies, "mark cookies Secure (set behind TLS)")
 	fs.BoolVar(&cfg.DevAuth, "dev-auth", false, "synthetic owner session without an IdP (loopback only)")
 	viewers := fs.String("viewer-groups", "", "comma-separated IdP groups with org-wide viewer role")
@@ -140,6 +143,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
+	cfg.OIDCScopes = splitList(*scopes)
 	cfg.ViewerGroups = splitList(*viewers)
 	cfg.EditorGroups = splitList(*editors)
 	cfg.OwnerGroups = splitList(*owners)

@@ -78,6 +78,9 @@ spec:
             {{- with .Values.oidc.groupsClaim }}
             - --oidc-groups-claim={{ . }}
             {{- end }}
+            {{- with .Values.oidc.scopes }}
+            - --oidc-scopes={{ . }}
+            {{- end }}
             {{- with .Values.viewerGroups }}
             - --viewer-groups={{ . }}
             {{- end }}

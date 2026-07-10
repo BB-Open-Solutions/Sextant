@@ -128,6 +128,7 @@ func run(args []string, getenv config.Getenv) error {
 				ClientSecret: cfg.OIDCClientSecret,
 				RedirectURL:  cfg.OIDCRedirectURL,
 				GroupsClaim:  cfg.OIDCGroupsClaim,
+				Scopes:       cfg.OIDCScopes,
 				SessionKey:   cfg.SessionKey,
 				Secure:       cfg.SecureCookies,
 				Authorize: func(u identity.User) bool {
