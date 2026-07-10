@@ -1,10 +1,11 @@
 {{- if .Values.cnpg.enabled }}
-# Platform pattern (see allow-odoo-to-cnpg): pod egress to the CNPG cluster
-# must be explicitly allowed.
+# Platform pattern (see allow-odoo-to-cnpg): once any egress policy selects
+# the pod, Cilium denies all other egress - so this policy carries the FULL
+# egress set: DNS, the CNPG cluster, and 443 for the OIDC provider.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: allow-{{ .Release.Name }}-to-cnpg
+  name: allow-{{ .Release.Name }}-egress
 spec:
   endpointSelector:
     matchLabels:
@@ -12,9 +13,27 @@ spec:
   egress:
     - toEndpoints:
         - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
             cnpg.io/cluster: {{ .Values.cnpg.name }}
       toPorts:
         - ports:
             - port: "5432"
+              protocol: TCP
+    # OIDC issuer (id.bb-open.com) and other HTTPS egress (git remotes).
+    - toEntities:
+        - world
+        - cluster
+      toPorts:
+        - ports:
+            - port: "443"
               protocol: TCP
 {{- end }}
