@@ -44,6 +44,13 @@ type Config struct {
 	// APIToken guards /api/v1 (bearer). Environment-only (SEXTANT_API_TOKEN):
 	// secrets never appear on the command line. Empty disables the API.
 	APIToken string
+	// CheckinToken guards POST /api/checkin (device-facing, its own
+	// credential). Environment-only. Empty disables check-in.
+	CheckinToken string
+	// PgDSN connects the observed plane to Postgres. Environment-only
+	// (SEXTANT_PG_DSN, carries a password). Empty disables the observed
+	// plane (check-in, status, rollout convergence).
+	PgDSN string
 }
 
 // Getenv is the environment lookup used by Load. Injected so tests can supply
@@ -62,7 +69,9 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		RepoDir:       envOr(getenv, "REPO", ""),
 		GateMode:      envOr(getenv, "GATE", "eval"),
 		GitRemote:     envOr(getenv, "GIT_REMOTE", ""),
-		APIToken:      getenv(EnvPrefix + "API_TOKEN"), // env-only secret
+		APIToken:      getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
+		CheckinToken:  getenv(EnvPrefix + "CHECKIN_TOKEN"), // env-only secret
+		PgDSN:         getenv(EnvPrefix + "PG_DSN"),        // env-only secret
 	}
 	if v := getenv(EnvPrefix + "SHUTDOWN_GRACE"); v != "" {
 		d, err := time.ParseDuration(v)

@@ -2,8 +2,10 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 )
 
@@ -27,4 +29,25 @@ type RolloutStore interface {
 // "no devices".
 type ConvergenceSource interface {
 	RingStatus(ctx context.Context, group, target string) (rollout.RingStatus, error)
+}
+
+// StatusStore persists device check-ins, namespaced by tenant. Upserts are
+// the hot path (every device every minute); implementations batch and
+// index accordingly.
+type StatusStore interface {
+	// Upsert records a check-in observed at now.
+	Upsert(ctx context.Context, tenant string, c observed.CheckIn, now time.Time) error
+	// Get returns one device's observed state.
+	Get(ctx context.Context, tenant, tag string) (observed.DeviceStatus, bool, error)
+	// List returns every device's observed state for a tenant, tag-sorted.
+	List(ctx context.Context, tenant string) ([]observed.DeviceStatus, error)
+	// Ping reports store reachability (deep readiness).
+	Ping(ctx context.Context) error
+}
+
+// InventoryStore persists device hardware facts (nixos-facter reports),
+// merge-on-write so a light check-in never clobbers rich data.
+type InventoryStore interface {
+	PutFacts(ctx context.Context, tenant, tag string, facts []byte, now time.Time) error
+	GetFacts(ctx context.Context, tenant, tag string) ([]byte, time.Time, bool, error)
 }

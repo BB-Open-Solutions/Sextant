@@ -14,12 +14,14 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
-// Services bundles the use-case services the API exposes. Changes and
-// Rollouts are optional: nil leaves their endpoints unregistered.
+// Services bundles the use-case services the API exposes. Changes,
+// Rollouts and Inventory are optional: nil leaves their endpoints
+// unregistered.
 type Services struct {
-	Config   *app.ConfigService
-	Changes  *app.ChangeService
-	Rollouts *app.RolloutService
+	Config    *app.ConfigService
+	Changes   *app.ChangeService
+	Rollouts  *app.RolloutService
+	Inventory *app.InventoryService
 }
 
 // API is the /api/v1 handler group.
@@ -27,6 +29,7 @@ type API struct {
 	cfg      *app.ConfigService
 	changes  *app.ChangeService
 	rollouts *app.RolloutService
+	inv      *app.InventoryService
 	token    string
 	write    bool
 	log      *slog.Logger
@@ -37,7 +40,7 @@ type API struct {
 // serves reads only.
 func New(s Services, token string, write bool, log *slog.Logger) *API {
 	return &API{cfg: s.Config, changes: s.Changes, rollouts: s.Rollouts,
-		token: token, write: write, log: log}
+		inv: s.Inventory, token: token, write: write, log: log}
 }
 
 // Routes registers the API on mux.
@@ -76,6 +79,11 @@ func (a *API) Routes(mux *http.ServeMux) {
 		rw("POST", "/api/v1/rollout", a.postRollout)
 		rw("POST", "/api/v1/rollout/tick", a.postRolloutTick)
 		rw("DELETE", "/api/v1/rollout", a.deleteRollout)
+	}
+	if a.inv != nil {
+		get("/api/v1/status", a.getStatusAll)
+		get("/api/v1/status/{tag}", a.getStatus)
+		get("/api/v1/facts/{tag}", a.getFacts)
 	}
 }
 

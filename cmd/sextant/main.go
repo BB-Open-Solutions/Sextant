@@ -15,6 +15,7 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/nix"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/postgres"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/state"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
@@ -86,13 +87,30 @@ func run(args []string, getenv config.Getenv) error {
 		clock := app.SystemClock{}
 		openWT := func(dir string) (ports.ConfigRepo, error) { return git.Open(dir, "") }
 		changes := app.NewChangeService(repo, st.Changes(), gate, builder, clock, openWT, svc)
-		// The convergence source arrives with the observed plane (Postgres);
-		// until then a rollout can start but ticks report the gap honestly.
-		rollouts := app.NewRolloutService(svc, st.Rollouts(),
-			noConvergence{}, clock, log)
+
+		// Observed plane: Postgres when a DSN is given; without it check-in
+		// and status stay off and rollout ticks report the gap honestly.
+		var conv ports.ConvergenceSource = noConvergence{}
+		var inv *app.InventoryService
+		if cfg.PgDSN != "" {
+			pg, err := postgres.Open(ctx, cfg.PgDSN)
+			if err != nil {
+				return err
+			}
+			defer pg.Close()
+			inv = app.NewInventoryService(pg, pg, clock, app.DefaultTenant)
+			conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
+				return svc.Fleet().GroupDevices(group)
+			})
+			checks.Register("postgres", pg.Ping)
+			api.NewCheckin(inv, cfg.CheckinToken).Routes(mux)
+			log.Info("observed plane mounted", "checkin", cfg.CheckinToken != "")
+		}
+
+		rollouts := app.NewRolloutService(svc, st.Rollouts(), conv, clock, log)
 		go rollouts.Run(ctx, 30*time.Second)
 
-		api.New(api.Services{Config: svc, Changes: changes, Rollouts: rollouts},
+		api.New(api.Services{Config: svc, Changes: changes, Rollouts: rollouts, Inventory: inv},
 			cfg.APIToken, cfg.Write, log).Routes(mux)
 		checks.Register("config-repo", func(context.Context) error {
 			_, err := repo.ReadFile(app.FleetFile)
