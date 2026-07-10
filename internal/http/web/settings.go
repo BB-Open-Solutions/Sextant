@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -35,7 +36,9 @@ type settingSection struct {
 
 // settingsPage renders the editor for one scope (?scope=org|group:x|device:y).
 func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
-	f := s.svc.Config.Fleet()
+	// One snapshot for fleet AND catalog: separate loads could join a fleet
+	// from one revision with the vocabulary of another mid-reload.
+	f, cat := s.svc.Config.Snapshot()
 	scope := r.URL.Query().Get("scope")
 	if scope == "" {
 		scope = "org"
@@ -54,7 +57,6 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 		resolved = f.Resolve(tag)
 	}
 
-	cat := s.svc.Config.Catalog()
 	var sections []settingSection
 	for _, name := range cat.Categories() {
 		sec := settingSection{Name: name}
@@ -106,7 +108,14 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 		mut = fleet.ClearScopeSetting(scope, key)
 		msg = fmt.Sprintf("settings: clear %s at %s", key, scope)
 	case "set":
-		val, err := entry.ParseValue(strings.TrimSpace(r.FormValue("value")))
+		raw := strings.TrimSpace(r.FormValue("value"))
+		// An untouched widget submits "" (the inherit placeholder). Never
+		// coerce that into a real value - a bare Apply (e.g. to flip the
+		// enforce checkbox) must not silently pin false or "".
+		if raw == "" {
+			return fmt.Errorf("no value chosen for %s; pick a value, or use Clear to inherit", key)
+		}
+		val, err := entry.ParseValue(raw)
 		if err != nil {
 			return err
 		}
@@ -131,7 +140,7 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 		app.AffectedHosts(s.svc.Config.Fleet(), scope)...); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/settings?scope="+scope, http.StatusSeeOther)
+	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
 	return nil
 }
 

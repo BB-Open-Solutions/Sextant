@@ -144,11 +144,27 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 		t.Fatalf("after clear: own=%v", own)
 	}
 
+	// Group and device scopes take writes too.
+	post(url.Values{"scope": {"group:pilot"}, "key": {"desktop"},
+		"action": {"set"}, "value": {"gnome"}})
+	own, _, _ = cfg.Fleet().ScopeSettings("group:pilot")
+	if own["desktop"] != "gnome" {
+		t.Fatalf("group set: own=%v", own)
+	}
+	post(url.Values{"scope": {"device:lt-1"}, "key": {"desktop"},
+		"action": {"set"}, "value": {"cosmic"}})
+	if res := cfg.Fleet().Resolve("lt-1"); res["desktop"].Value != "cosmic" {
+		t.Fatalf("device set not resolved: %+v", res["desktop"])
+	}
+
 	// Guard rails: unknown key, bad value, bad action, bad csrf.
 	for name, f := range map[string]url.Values{
 		"unknown key": {"scope": {"org"}, "key": {"nope"}, "action": {"set"}, "value": {"true"}},
 		"bad value":   {"scope": {"org"}, "key": {"apps.office"}, "action": {"set"}, "value": {"maybe"}},
 		"bad action":  {"scope": {"org"}, "key": {"apps.office"}, "action": {"zap"}},
+		// Untouched widget submits "": must never coerce to false or "".
+		"empty value bool": {"scope": {"org"}, "key": {"apps.office"}, "action": {"set"}, "value": {""}},
+		"empty value text": {"scope": {"org"}, "key": {"desktop"}, "action": {"set"}, "value": {""}},
 	} {
 		if resp := post(f); resp.StatusCode != 400 {
 			t.Errorf("%s: status = %d, want 400", name, resp.StatusCode)

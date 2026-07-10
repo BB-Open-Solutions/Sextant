@@ -152,6 +152,9 @@ func (s *Server) action(h func(http.ResponseWriter, *http.Request, view) error) 
 			http.Error(w, "server is read-only", http.StatusForbidden)
 			return
 		}
+		// Console forms are small; bound the body before ParseForm buffers
+		// it, mirroring the API's request caps.
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		if subtle.ConstantTimeCompare([]byte(r.FormValue("csrf")), []byte(v.CSRF)) != 1 || v.CSRF == "" {
 			http.Error(w, "invalid csrf token", http.StatusForbidden)
 			return

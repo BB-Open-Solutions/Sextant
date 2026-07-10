@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -59,26 +60,30 @@ func (f *Fleet) withScope(ref string, edit func(settings *map[string]any, enforc
 
 // ScopeSettings reads a scope's own inline settings and enforced list (the
 // values set at exactly this scope, not the resolved chain). Read-only
-// counterpart of withScope for editors that show current state.
+// counterpart of withScope. Returns copies: fleet snapshots are shared and
+// immutable, and this API must not hand out a mutable window into one.
 func (f *Fleet) ScopeSettings(ref string) (map[string]any, []string, error) {
+	copied := func(settings map[string]any, enforced []string) (map[string]any, []string, error) {
+		return maps.Clone(settings), slices.Clone(enforced), nil
+	}
 	switch {
 	case ref == "org":
 		if f.Org == nil {
 			return nil, nil, nil
 		}
-		return f.Org.Settings, f.Org.Enforced, nil
+		return copied(f.Org.Settings, f.Org.Enforced)
 	case strings.HasPrefix(ref, "group:"):
 		g, ok := f.Groups[strings.TrimPrefix(ref, "group:")]
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown group %q", strings.TrimPrefix(ref, "group:"))
 		}
-		return g.Settings, g.Enforced, nil
+		return copied(g.Settings, g.Enforced)
 	case strings.HasPrefix(ref, "device:"):
 		d, ok := f.Devices[strings.TrimPrefix(ref, "device:")]
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown device %q", strings.TrimPrefix(ref, "device:"))
 		}
-		return d.Settings, d.Enforced, nil
+		return copied(d.Settings, d.Enforced)
 	}
 	return nil, nil, fmt.Errorf("bad scope %q (want org|group:<name>|device:<tag>)", ref)
 }

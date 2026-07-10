@@ -72,12 +72,14 @@ func (e CatalogEntry) Widget() Widget {
 }
 
 // Options lists the allowed values for a select entry. Nix renders enums
-// as `one of "a", "b", "c"`.
+// as `one of "a", "b", "c"`. Prefix detection matches Widget's
+// (case-insensitive), so a select never renders with zero options.
 func (e CatalogEntry) Options() []string {
-	t := strings.TrimPrefix(e.Type, "one of ")
-	if t == e.Type {
+	const prefix = "one of "
+	if !strings.HasPrefix(strings.ToLower(e.Type), prefix) {
 		return nil
 	}
+	t := e.Type[len(prefix):]
 	var out []string
 	for _, part := range strings.Split(t, ",") {
 		v := strings.Trim(strings.TrimSpace(part), `"`)
@@ -115,6 +117,15 @@ func (e CatalogEntry) ParseValue(s string) (any, error) {
 		if _, err := fmt.Sscanf(s, "%d", &n); err != nil || fmt.Sprint(n) != s {
 			return nil, fmt.Errorf("%s expects an integer", e.Name)
 		}
+		// Honor the range the nix type states, so the obvious mistake fails
+		// here instead of minutes later at the gate.
+		t := strings.ToLower(e.Type)
+		if strings.Contains(t, "positive") && n <= 0 {
+			return nil, fmt.Errorf("%s expects a positive integer", e.Name)
+		}
+		if (strings.Contains(t, "unsigned") || strings.Contains(t, "non-negative")) && n < 0 {
+			return nil, fmt.Errorf("%s expects a non-negative integer", e.Name)
+		}
 		return n, nil
 	case WidgetSelect:
 		for _, opt := range e.Options() {
@@ -146,6 +157,12 @@ func ParseCatalog(b []byte) (*Catalog, error) {
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	c := &Catalog{Entries: entries, byName: make(map[string]CatalogEntry, len(entries))}
 	for _, e := range entries {
+		// A duplicate name means the rendered row and the POST-time lookup
+		// could disagree on type and options; refuse the whole catalog
+		// rather than serve a UI that lies.
+		if _, dup := c.byName[e.Name]; dup {
+			return nil, fmt.Errorf("parse %s: duplicate entry %q", CatalogFile, e.Name)
+		}
 		c.byName[e.Name] = e
 	}
 	return c, nil

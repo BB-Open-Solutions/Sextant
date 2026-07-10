@@ -35,16 +35,18 @@ type ConfigService struct {
 	// The PoC ran this unlocked - the race was real, this is the fix.
 	writeMu sync.Mutex
 
-	// snap is the copy-on-write read snapshot. Readers get a consistent
-	// *fleet.Fleet without touching disk; every successful write or sync
-	// replaces it atomically. Readers must treat it as immutable.
-	snap atomic.Pointer[fleet.Fleet]
+	// snap is the copy-on-write read snapshot: the fleet document and its
+	// settings vocabulary (catalog.json, ADR 0005) from the same working
+	// tree state, swapped as ONE pointer so readers can never observe a
+	// fleet from one revision joined with a catalog from another. Readers
+	// must treat both as immutable.
+	snap atomic.Pointer[configSnapshot]
+}
 
-	// catalog is the settings vocabulary snapshot (catalog.json in the
-	// overlay repo, ADR 0005). Reloaded together with fleet.json so the UI
-	// vocabulary always matches the config revision. Never nil; empty when
-	// the overlay ships no catalog yet.
-	catalog atomic.Pointer[fleet.Catalog]
+// configSnapshot pairs the fleet document with the catalog it shipped with.
+type configSnapshot struct {
+	fleet   *fleet.Fleet
+	catalog *fleet.Catalog
 }
 
 // NewConfigService loads the initial snapshot and returns the service.
@@ -58,13 +60,21 @@ func NewConfigService(repo ports.ConfigRepo, gate ports.Gate) (*ConfigService, e
 
 // Fleet returns the current read snapshot. The returned document is shared
 // and immutable; mutate only through Apply.
-func (s *ConfigService) Fleet() *fleet.Fleet { return s.snap.Load() }
+func (s *ConfigService) Fleet() *fleet.Fleet { return s.snap.Load().fleet }
 
 // Catalog returns the settings vocabulary snapshot (never nil).
-func (s *ConfigService) Catalog() *fleet.Catalog { return s.catalog.Load() }
+func (s *ConfigService) Catalog() *fleet.Catalog { return s.snap.Load().catalog }
+
+// Snapshot returns fleet and catalog from the same revision. Handlers that
+// join the two must use this, not separate Fleet()/Catalog() calls, or a
+// concurrent reload could hand them mismatched halves.
+func (s *ConfigService) Snapshot() (*fleet.Fleet, *fleet.Catalog) {
+	sn := s.snap.Load()
+	return sn.fleet, sn.catalog
+}
 
 // reload re-reads fleet.json and catalog.json from the working tree into
-// the snapshots.
+// the snapshot.
 func (s *ConfigService) reload() (*fleet.Fleet, error) {
 	raw, err := s.repo.ReadFile(FleetFile)
 	if err != nil {
@@ -84,8 +94,7 @@ func (s *ConfigService) reload() (*fleet.Fleet, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.snap.Store(f)
-	s.catalog.Store(cat)
+	s.snap.Store(&configSnapshot{fleet: f, catalog: cat})
 	return f, nil
 }
 
@@ -134,7 +143,8 @@ func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg s
 	if err != nil {
 		return err
 	}
-	s.snap.Store(f)
+	// A write only touches fleet.json; the catalog rides along unchanged.
+	s.snap.Store(&configSnapshot{fleet: f, catalog: s.snap.Load().catalog})
 	return nil
 }
 
