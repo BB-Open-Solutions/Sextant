@@ -25,6 +25,7 @@ type Services struct {
 
 // API is the /api/v1 handler group.
 type API struct {
+	manifest []string
 	cfg      *app.ConfigService
 	changes  *app.ChangeService
 	rollouts *app.RolloutService
@@ -47,11 +48,14 @@ func New(s Services, authz Authz, token string, write bool, log *slog.Logger) *A
 // Routes registers the API on mux.
 func (a *API) Routes(mux *http.ServeMux) {
 	get := func(p string, h func(http.ResponseWriter, *http.Request) error) {
+		a.manifest = append(a.manifest, "GET "+p)
 		mux.Handle("GET "+p, a.wrap(h, false))
 	}
 	rw := func(method, p string, h func(http.ResponseWriter, *http.Request) error) {
+		a.manifest = append(a.manifest, method+" "+p)
 		mux.Handle(method+" "+p, a.wrap(h, true))
 	}
+	specRoutes(mux)
 
 	get("/api/v1/fleet", a.getFleet)
 	get("/api/v1/devices", a.getDevices)
