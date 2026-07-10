@@ -32,6 +32,7 @@ Resources and verbs:
   tokens    list | mint NAME [-ceiling R] [-ttl-days N] | revoke ID
   me        [prefs [TIMEZONE LOCALE]]   (who am I; get/set preferences)
   audit     (config commit trail)
+  evidence  [FROM TO]   (audit bundle, RFC 3339; default last 30 days)
   fleet     get
 
 SCOPE is org | group:<name> | device:<tag>. VALUE parses as JSON when
@@ -145,6 +146,17 @@ func dispatch(c *client, asJSON bool, args []string) error {
 	case "audit":
 		var out any
 		if err := c.do("GET", "/api/v1/audit", nil, &out); err != nil {
+			return err
+		}
+		printJSON(out)
+		return nil
+	case "evidence":
+		path := "/api/v1/evidence"
+		if len(rest) == 2 { // evidence FROM TO (RFC 3339)
+			path += "?from=" + rest[0] + "&to=" + rest[1]
+		}
+		var out any
+		if err := c.do("GET", path, nil, &out); err != nil {
 			return err
 		}
 		printJSON(out)

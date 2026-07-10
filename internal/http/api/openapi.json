@@ -497,6 +497,17 @@
           }
         }
       }
+    },
+    "/api/v1/evidence": {
+      "get": {
+        "summary": "Audit evidence export",
+        "description": "Self-contained JSON bundle for a period (?from=&to=, RFC 3339; default last 30 days): configuration commits, change requests with authorship, rollout promotions, and the controls in force. Org-wide viewer.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   }
 }

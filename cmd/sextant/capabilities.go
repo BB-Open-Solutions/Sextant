@@ -48,6 +48,7 @@ type deps struct {
 	devCreds *app.DeviceCredentials
 	prefs    ports.PrefsStore
 	dir      ports.Directory
+	evidence *app.EvidenceService
 	authz    api.Authz
 	cleanup  []func()
 }
@@ -153,6 +154,7 @@ func (d *deps) buildConfigPlane() error {
 	// The update funnel (ADR 0011): the same repo adapter moves the
 	// machine-owned rings/<group> branches devices follow.
 	d.rollouts = app.NewRolloutService(svc, st.Rollouts(), conv, clock, log).WithRefs(repo)
+	d.evidence = app.NewEvidenceService(svc, d.changes, clock)
 	go d.rollouts.Run(d.ctx, 30*time.Second)
 	d.checks.Register("config-repo", func(context.Context) error {
 		_, err := repo.ReadFile(app.FleetFile)
@@ -260,7 +262,8 @@ func (d *deps) apiCapability() capability.Capability {
 		RoutesFn: func(mux *http.ServeMux) {
 			api.New(api.Services{Config: d.svc, Changes: d.changes,
 				Rollouts: d.rollouts, Inventory: d.inv, Tokens: d.tokens,
-				DevCreds: d.devCreds, Prefs: d.prefs, Directory: d.dir},
+				DevCreds: d.devCreds, Prefs: d.prefs, Directory: d.dir,
+				Evidence: d.evidence},
 				d.authz, d.cfg.APIToken, d.cfg.Write, d.log).Routes(mux)
 		},
 	}
