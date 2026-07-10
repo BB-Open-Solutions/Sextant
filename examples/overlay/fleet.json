@@ -1,0 +1,43 @@
+{
+  "version": 3,
+  "org": {
+    "settings": {
+      "secureboot": true
+    },
+    "enforced": [
+      "secureboot"
+    ]
+  },
+  "groups": {
+    "pilot": {
+      "settings": {
+        "desktop": "gnome"
+      }
+    }
+  },
+  "devices": {
+    "lt-1": {
+      "groups": [
+        "pilot"
+      ],
+      "hardware": "demo-vm",
+      "class": "laptop",
+      "overlays": [
+        "corp-branding"
+      ]
+    }
+  },
+  "policies": {
+    "office-everywhere": {
+      "settings": {
+        "apps.office": true
+      }
+    }
+  },
+  "assignments": [
+    {
+      "policy": "office-everywhere",
+      "target": "org"
+    }
+  ]
+}

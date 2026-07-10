@@ -14,6 +14,15 @@ secretName: sextant-v2
 
 write: true
 gateMode: none # the seed overlay carries no flake; switch to eval per org
+
+# Git remote as the source of truth (M1): when url is set, the init
+# container clones it instead of self-seeding, and the server runs with
+# --git-remote=origin (sync loop + HA push). netrcSecret must contain a
+# `netrc` key with credentials for the remote host.
+gitRemote:
+  url: ""
+  branch: main
+  netrcSecret: ""
 logFormat: json
 
 oidc:

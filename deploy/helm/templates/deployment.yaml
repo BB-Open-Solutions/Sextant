@@ -32,6 +32,16 @@ spec:
           args:
             - |
               set -eu
+              {{- if .Values.gitRemote.url }}
+              if [ ! -d /data/overlay/.git ]; then
+                export HOME=/data
+                {{- if .Values.gitRemote.netrcSecret }}
+                install -m 0600 /netrc-secret/netrc /data/.netrc
+                {{- end }}
+                git clone --branch {{ .Values.gitRemote.branch }}                   {{ .Values.gitRemote.url }} /data/overlay
+                git -C /data/overlay remote rename origin origin 2>/dev/null || true
+              fi
+              {{- else }}
               if [ ! -d /data/overlay/.git ]; then
                 mkdir -p /data/overlay
                 cd /data/overlay
@@ -47,11 +57,15 @@ spec:
                 git add fleet.json
                 git -c user.name=sextant -c user.email=seed@sextant commit -qm "seed overlay"
               fi
+              {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: [ALL] }
           volumeMounts:
             - { name: data, mountPath: /data }
+            {{- if and .Values.gitRemote.url .Values.gitRemote.netrcSecret }}
+            - { name: netrc, mountPath: /netrc-secret, readOnly: true }
+            {{- end }}
       containers:
         - name: sextant
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -64,6 +78,9 @@ spec:
             - --write
             {{- end }}
             - --gate={{ .Values.gateMode }}
+            {{- if .Values.gitRemote.url }}
+            - --git-remote=origin
+            {{- end }}
             - --log-format={{ .Values.logFormat }}
             - --secure-cookies
             {{- with .Values.oidc.issuer }}
@@ -125,6 +142,11 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if and .Values.gitRemote.url .Values.gitRemote.netrcSecret }}
+        - name: netrc
+          secret:
+            secretName: {{ .Values.gitRemote.netrcSecret }}
+        {{- end }}
         - name: data
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:

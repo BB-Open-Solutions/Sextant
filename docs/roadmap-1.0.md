@@ -39,11 +39,13 @@ Status legend: [x] done, [~] partial, [ ] not started.
 - [ ] Device login story documented per provider (SSSD/Kerberos in image)
 
 ### B. Config plane as source of truth
-- [ ] Overlay lives in a git remote (Forgejo), not a PVC; HA push mode on
+- [~] Overlay in a git remote: server + chart support done (gitRemote
+      values, init clone, --git-remote); production cutover pending
 - [x] Sync loop so external commits refresh the snapshot (30s, write-locked)
 - [x] The v3 nix generator + `resolve.nix` twin + parity harness in CI
       (nix/ in this repo; overlays import via the sextant flake input)
-- [ ] `gate=eval` on by default against a real overlay
+- [~] gate=eval proven end to end against the reference overlay
+      (examples/overlay + gate_e2e_test); production flip rides the cutover
 - [~] Catalog export mechanism (lib.exportCatalog over documented dawo.*
       options); annotating the real core options remains
 - [x] Diff view (API + UI): what a change alters, before merge
