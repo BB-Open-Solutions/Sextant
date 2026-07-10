@@ -1,0 +1,20 @@
+{{- if .Values.cnpg.enabled }}
+# Platform pattern (see allow-odoo-to-cnpg): pod egress to the CNPG cluster
+# must be explicitly allowed.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-{{ .Release.Name }}-to-cnpg
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: {{ .Values.cnpg.name }}
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+{{- end }}
