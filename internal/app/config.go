@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -38,6 +39,12 @@ type ConfigService struct {
 	// *fleet.Fleet without touching disk; every successful write or sync
 	// replaces it atomically. Readers must treat it as immutable.
 	snap atomic.Pointer[fleet.Fleet]
+
+	// catalog is the settings vocabulary snapshot (catalog.json in the
+	// overlay repo, ADR 0005). Reloaded together with fleet.json so the UI
+	// vocabulary always matches the config revision. Never nil; empty when
+	// the overlay ships no catalog yet.
+	catalog atomic.Pointer[fleet.Catalog]
 }
 
 // NewConfigService loads the initial snapshot and returns the service.
@@ -53,7 +60,11 @@ func NewConfigService(repo ports.ConfigRepo, gate ports.Gate) (*ConfigService, e
 // and immutable; mutate only through Apply.
 func (s *ConfigService) Fleet() *fleet.Fleet { return s.snap.Load() }
 
-// reload re-reads fleet.json from the working tree into the snapshot.
+// Catalog returns the settings vocabulary snapshot (never nil).
+func (s *ConfigService) Catalog() *fleet.Catalog { return s.catalog.Load() }
+
+// reload re-reads fleet.json and catalog.json from the working tree into
+// the snapshots.
 func (s *ConfigService) reload() (*fleet.Fleet, error) {
 	raw, err := s.repo.ReadFile(FleetFile)
 	if err != nil {
@@ -63,7 +74,18 @@ func (s *ConfigService) reload() (*fleet.Fleet, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A missing catalog is a valid state (overlay predates the export); a
+	// malformed one is not - the UI would silently lose its vocabulary.
+	craw, err := s.repo.ReadFile(fleet.CatalogFile)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	cat, err := fleet.ParseCatalog(craw)
+	if err != nil {
+		return nil, err
+	}
 	s.snap.Store(f)
+	s.catalog.Store(cat)
 	return f, nil
 }
 

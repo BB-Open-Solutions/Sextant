@@ -23,7 +23,7 @@ let
         type = lib.types.bool;
         default = false;
         description = "Office suite (LibreOffice).";
-      };
+      } // { riskClass = "high"; };
       internal.plumbing = lib.mkOption {
         type = lib.types.int;
         default = 1;
@@ -103,4 +103,13 @@ in
     (lib.head (lib.filter (e: e.name == "secureboot") entries)).type == "boolean";
   # ...and undocumented options stay out.
   catalogHidesUndocumented = !(lib.elem "internal.plumbing" names);
+  # Defaults export when JSON-representable...
+  catalogCarriesDefault =
+    (lib.head (lib.filter (e: e.name == "desktop") entries)).default == "kde";
+  # ...and the riskClass annotation (mkOption // { riskClass = ...; })
+  # travels into the entry; unannotated options carry none.
+  catalogCarriesRiskClass =
+    (lib.head (lib.filter (e: e.name == "apps.office") entries)).riskClass == "high";
+  catalogOmitsRiskClassByDefault =
+    !((lib.head (lib.filter (e: e.name == "secureboot") entries)) ? riskClass);
 }

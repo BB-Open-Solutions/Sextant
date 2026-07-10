@@ -57,6 +57,32 @@ func (f *Fleet) withScope(ref string, edit func(settings *map[string]any, enforc
 	return fmt.Errorf("bad scope %q (want org|group:<name>|device:<tag>)", ref)
 }
 
+// ScopeSettings reads a scope's own inline settings and enforced list (the
+// values set at exactly this scope, not the resolved chain). Read-only
+// counterpart of withScope for editors that show current state.
+func (f *Fleet) ScopeSettings(ref string) (map[string]any, []string, error) {
+	switch {
+	case ref == "org":
+		if f.Org == nil {
+			return nil, nil, nil
+		}
+		return f.Org.Settings, f.Org.Enforced, nil
+	case strings.HasPrefix(ref, "group:"):
+		g, ok := f.Groups[strings.TrimPrefix(ref, "group:")]
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown group %q", strings.TrimPrefix(ref, "group:"))
+		}
+		return g.Settings, g.Enforced, nil
+	case strings.HasPrefix(ref, "device:"):
+		d, ok := f.Devices[strings.TrimPrefix(ref, "device:")]
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown device %q", strings.TrimPrefix(ref, "device:"))
+		}
+		return d.Settings, d.Enforced, nil
+	}
+	return nil, nil, fmt.Errorf("bad scope %q (want org|group:<name>|device:<tag>)", ref)
+}
+
 // SetScopeSetting sets one setting key at a scope.
 func SetScopeSetting(ref, key string, value any) Mutation {
 	return func(f *Fleet) error {

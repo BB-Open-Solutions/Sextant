@@ -45,12 +45,14 @@
 {{if .CanEdit}}
 <h2>Set a device setting</h2>
 <div class="panel">
+  <p><a href="/settings?scope=device:{{.Tag}}">Open the settings editor for this device</a>
+  <span class="muted">(catalog-driven, with provenance)</span></p>
   <form method="post" action="/devices/{{.Tag}}/settings">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <input name="key" placeholder="setting key (e.g. apps.office)" required>
     <input name="value" placeholder="value (true, false, a string)" required>
     <button type="submit">Apply</button>
-    <span class="muted">Applies through the validation gate and commits to git.</span>
+    <span class="muted">Free-form key; applies through the validation gate and commits to git.</span>
   </form>
 </div>
 {{end}}

@@ -1,0 +1,33 @@
+[
+    {
+        "default": false,
+        "description": "Media playback (VLC).",
+        "name": "apps.media",
+        "type": "boolean"
+    },
+    {
+        "default": false,
+        "description": "Office suite (LibreOffice).",
+        "name": "apps.office",
+        "type": "boolean"
+    },
+    {
+        "default": "plasma",
+        "description": "Desktop environment for this device.",
+        "name": "desktop",
+        "type": "one of \"plasma\", \"gnome\""
+    },
+    {
+        "default": false,
+        "description": "Enforce Secure Boot with machine-owned keys.",
+        "name": "secureboot",
+        "riskClass": "high",
+        "type": "boolean"
+    },
+    {
+        "default": 3,
+        "description": "Maximum SSH authentication attempts per connection.",
+        "name": "ssh.maxAuthTries",
+        "type": "positive integer, meaning >0"
+    }
+]

@@ -9,11 +9,13 @@
       default = "plasma";
       description = "Desktop environment for this device.";
     };
+    # riskClass (appended after mkOption) surfaces as a warning badge in
+    # the console settings editor.
     secureboot = lib.mkOption {
       type = lib.types.bool;
       default = false;
       description = "Enforce Secure Boot with machine-owned keys.";
-    };
+    } // { riskClass = "high"; };
     apps.office = lib.mkOption {
       type = lib.types.bool;
       default = false;
