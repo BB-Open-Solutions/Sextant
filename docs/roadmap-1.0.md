@@ -59,8 +59,8 @@ Status legend: [x] done, [~] partial, [ ] not started.
 - [ ] App catalog (assign packages/flatpaks/overlays as data)
 - [ ] Foundation tier UX (owner-only, change-request-required)
 - [ ] Localization: message catalog (EN default, NL first translation)
-      and timezone-aware timestamps (org-level timezone setting, e.g.
-      Europe/Amsterdam; the console currently renders UTC)
+      and timezone-aware timestamps: per-user preference with the org
+      timezone as default (console currently renders UTC)
 
 ### D. Lifecycle, agent and provisioning
 - [ ] Device lifecycle states (discovered -> enrolled -> active -> retired)
