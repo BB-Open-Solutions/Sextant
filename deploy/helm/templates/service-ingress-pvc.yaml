@@ -59,6 +59,10 @@ metadata:
   name: {{ .Values.cnpg.name }}
 spec:
   instances: {{ .Values.cnpg.instances }}
+  # Kyverno require-resource-limits (Enforce) rejects pods without limits.
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 1Gi }
   storage:
     size: {{ .Values.cnpg.storage }}
     {{- with .Values.cnpg.storageClass }}
