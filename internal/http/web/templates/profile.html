@@ -1,0 +1,100 @@
+{{define "content"}}
+<h1>Profile</h1>
+
+{{with .MintedSecret}}
+<div class="panel" style="border-color:#3a6">
+  <h2 style="margin-top:0">New token created</h2>
+  <p><strong>Store this secret now; it is not shown again.</strong></p>
+  <p><code>{{.}}</code></p>
+</div>
+{{end}}
+
+<div class="grid">
+  <div class="panel">
+    <h2 style="margin-top:0">Identity</h2>
+    <table>
+      <tr><td class="muted">Name</td><td>{{.User.Name}}</td></tr>
+      <tr><td class="muted">Email</td><td>{{.User.Email}}</td></tr>
+      <tr><td class="muted">Subject</td><td><code>{{.User.Subject}}</code></td></tr>
+      <tr><td class="muted">IdP groups</td><td>{{range .User.Groups}}<span class="tag">{{.}}</span> {{end}}</td></tr>
+    </table>
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">My roles</h2>
+    <table>
+      <tr><th>Scope</th><th>Role</th></tr>
+      {{range $scope, $role := .Roles}}
+      <tr><td><code>{{$scope}}</code></td><td><span class="tag">{{$role}}</span></td></tr>
+      {{else}}
+      <tr><td colspan="2" class="muted">No roles.</td></tr>
+      {{end}}
+    </table>
+  </div>
+</div>
+
+{{if .HasPrefs}}
+<h2>Preferences</h2>
+<div class="panel">
+  <form method="post" action="/profile/prefs">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label class="muted" for="timezone">Timezone</label>
+    <input id="timezone" name="timezone" value="{{.Prefs.Timezone}}"
+           placeholder="organisation default (e.g. Europe/Amsterdam)" list="tz-common">
+    <datalist id="tz-common">
+      <option value="Europe/Amsterdam"><option value="Europe/Brussels">
+      <option value="Europe/Paris"><option value="Europe/Berlin"><option value="UTC">
+    </datalist>
+    <label class="muted" for="locale">Language</label>
+    <select id="locale" name="locale">
+      <option value="" {{if not .Prefs.Locale}}selected{{end}}>organisation default</option>
+      {{$cur := .Prefs.Locale}}
+      {{range .Locales}}<option value="{{.}}" {{if eq $cur .}}selected{{end}}>{{.}}</option>{{end}}
+    </select>
+    <button type="submit">Save</button>
+  </form>
+</div>
+{{end}}
+
+{{if .HasTokens}}
+<h2>My API tokens</h2>
+<div class="panel">
+  <table>
+    <tr><th>Name</th><th>ID</th><th>Ceiling</th><th>Created</th><th>Expires</th><th>Last used</th><th></th></tr>
+    {{$csrf := .CSRF}}
+    {{range .Tokens}}
+    <tr>
+      <td>{{.Name}}</td>
+      <td><code>{{.ID}}</code></td>
+      <td>{{with .Ceiling}}<span class="tag">{{.}}</span>{{else}}<span class="muted">-</span>{{end}}</td>
+      <td>{{.Created.Format "2006-01-02"}}</td>
+      <td>{{.Expires.Format "2006-01-02"}}</td>
+      <td>{{if .LastUsed}}{{.LastUsed.Format "2006-01-02 15:04"}}{{else}}<span class="muted">never</span>{{end}}</td>
+      <td>
+        <form method="post" action="/profile/tokens/{{.ID}}/revoke" class="inline">
+          <input type="hidden" name="csrf" value="{{$csrf}}">
+          <button type="submit" class="quiet">Revoke</button>
+        </form>
+      </td>
+    </tr>
+    {{else}}
+    <tr><td colspan="7" class="muted">No personal tokens.</td></tr>
+    {{end}}
+  </table>
+
+  <h3>Create a personal token</h3>
+  <p class="muted">The token acts as you, with your current groups snapshotted.
+  A ceiling can only narrow what it may do. The secret is shown once.</p>
+  <form method="post" action="/profile/tokens">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input name="name" placeholder="what is this token for?" required>
+    <select name="ceiling">
+      <option value="">no ceiling (my full rights)</option>
+      <option value="viewer">viewer</option>
+      <option value="editor">editor</option>
+    </select>
+    <input name="ttlDays" type="number" min="1" placeholder="days (default 90)">
+    <button type="submit">Create</button>
+  </form>
+</div>
+{{end}}
+{{end}}

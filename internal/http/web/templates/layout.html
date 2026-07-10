@@ -22,7 +22,7 @@
     <a href="/access" {{if eq .Nav "access"}}class="active"{{end}}>Access</a>
   </nav>
   <span class="who">
-    {{.User.Name}}
+    <a href="/profile" {{if eq .Nav "profile"}}class="active"{{end}}>{{.User.Name}}</a>
     <form class="inline" method="post" action="/logout">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <button class="quiet" type="submit">Sign out</button>

@@ -12,6 +12,7 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
 //go:embed templates/*.html static/*
@@ -29,6 +30,8 @@ type Services struct {
 	Changes   *app.ChangeService
 	Rollouts  *app.RolloutService
 	Inventory *app.InventoryService
+	Tokens    *app.TokenService
+	Prefs     ports.PrefsStore
 }
 
 // Server renders the console.
@@ -46,7 +49,7 @@ type Server struct {
 // groups.
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
-	pages := []string{"overview", "devices", "device", "settings", "policies", "changes", "diff", "rollout", "access"}
+	pages := []string{"overview", "devices", "device", "settings", "policies", "changes", "diff", "rollout", "access", "profile"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -85,6 +88,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/changes/{id}/diff", s.diffPage)
 	get("/rollout", s.rolloutPage)
 	get("/access", s.accessPage)
+	get("/profile", s.profilePage)
 
 	post("/devices", s.postDeviceEnroll)
 	post("/devices/{tag}/settings", s.postDeviceSetting)
@@ -98,6 +102,9 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/rollout/cancel", s.postRolloutCancel)
 	post("/access/grant", s.postAccessGrant)
 	post("/access/revoke", s.postAccessRevoke)
+	post("/profile/prefs", s.postProfilePrefs)
+	post("/profile/tokens", s.postProfileTokenMint)
+	post("/profile/tokens/{id}/revoke", s.postProfileTokenRevoke)
 }
 
 // view is the per-request context every page gets.
