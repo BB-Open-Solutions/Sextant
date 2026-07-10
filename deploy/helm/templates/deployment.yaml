@@ -33,13 +33,22 @@ spec:
             - |
               set -eu
               {{- if .Values.gitRemote.url }}
+              export HOME=/data
+              {{- if .Values.gitRemote.netrcSecret }}
+              install -m 0600 /netrc-secret/netrc /data/.netrc
+              {{- end }}
               if [ ! -d /data/overlay/.git ]; then
-                export HOME=/data
-                {{- if .Values.gitRemote.netrcSecret }}
-                install -m 0600 /netrc-secret/netrc /data/.netrc
-                {{- end }}
-                git clone --branch {{ .Values.gitRemote.branch }}                   {{ .Values.gitRemote.url }} /data/overlay
-                git -C /data/overlay remote rename origin origin 2>/dev/null || true
+                # Fresh volume: clone the source of truth.
+                git clone --branch {{ .Values.gitRemote.branch }} \
+                  {{ .Values.gitRemote.url }} /data/overlay
+              else
+                # Existing volume: ensure it points at the remote and is in
+                # sync (idempotent - safe on every restart).
+                git -C /data/overlay remote get-url origin >/dev/null 2>&1 \
+                  || git -C /data/overlay remote add origin {{ .Values.gitRemote.url }}
+                git -C /data/overlay remote set-url origin {{ .Values.gitRemote.url }}
+                git -C /data/overlay fetch -q origin {{ .Values.gitRemote.branch }}
+                git -C /data/overlay branch --set-upstream-to=origin/{{ .Values.gitRemote.branch }} {{ .Values.gitRemote.branch }} 2>/dev/null || true
               fi
               {{- else }}
               if [ ! -d /data/overlay/.git ]; then
