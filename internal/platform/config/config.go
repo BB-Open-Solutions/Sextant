@@ -84,6 +84,10 @@ type Config struct {
 	LDAPBaseDN      string
 	LDAPGroupFilter string
 	LDAPNameAttr    string
+
+	// Organisation presentation defaults; per-user preferences override.
+	DefaultLocale   string
+	DefaultTimezone string
 }
 
 // Getenv is the environment lookup used by Load. Injected so tests can supply
@@ -116,6 +120,8 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		LDAPBaseDN:       envOr(getenv, "LDAP_BASE_DN", ""),
 		LDAPGroupFilter:  envOr(getenv, "LDAP_GROUP_FILTER", ""),
 		LDAPNameAttr:     envOr(getenv, "LDAP_NAME_ATTR", ""),
+		DefaultLocale:    envOr(getenv, "DEFAULT_LOCALE", "en"),
+		DefaultTimezone:  envOr(getenv, "DEFAULT_TIMEZONE", "UTC"),
 	}
 	if v := getenv(EnvPrefix + "SHUTDOWN_GRACE"); v != "" {
 		d, err := time.ParseDuration(v)

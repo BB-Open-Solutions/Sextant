@@ -247,6 +247,7 @@ func (d *deps) consoleCapability() capability.Capability {
 				d.log.Error("console templates failed; console NOT mounted", "err", err)
 				return
 			}
+			console.SetDefaults(d.cfg.DefaultLocale, d.cfg.DefaultTimezone)
 			console.Routes(mux)
 		},
 	}

@@ -8,7 +8,7 @@
     <tr><th>When</th><th>Who</th><th>What</th><th>Commit</th></tr>
     {{range .Entries}}
     <tr>
-      <td>{{.When.Format "2006-01-02 15:04:05"}}</td>
+      <td>{{$.L.TimeSec .When}}</td>
       <td>{{.Author}} <span class="muted">{{.Email}}</span></td>
       <td>{{.Subject}}</td>
       <td><code>{{printf "%.10s" .Hash}}</code></td>

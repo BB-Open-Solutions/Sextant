@@ -45,6 +45,20 @@ type Server struct {
 	write    bool
 
 	baseViewer, baseEditor, baseOwner []string
+
+	// Organisation presentation defaults; user preferences override.
+	defaultLocale, defaultTZ string
+}
+
+// SetDefaults configures the organisation's presentation defaults
+// (locale and IANA timezone) applied when a user has no preference.
+func (s *Server) SetDefaults(locale, tz string) {
+	if locale != "" {
+		s.defaultLocale = locale
+	}
+	if tz != "" {
+		s.defaultTZ = tz
+	}
 }
 
 // New builds the console server. Baselines mirror the API's org-wide role
@@ -66,7 +80,8 @@ func New(svc Services, sessions Sessions, write bool,
 	}
 	tmpl["login"] = login
 	return &Server{svc: svc, sessions: sessions, tmpl: tmpl, log: log, write: write,
-		baseViewer: baseViewer, baseEditor: baseEditor, baseOwner: baseOwner}, nil
+		baseViewer: baseViewer, baseEditor: baseEditor, baseOwner: baseOwner,
+		defaultLocale: "en", defaultTZ: "UTC"}, nil
 }
 
 // Routes registers the console.
@@ -133,6 +148,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 type view struct {
 	User identity.User
 	CSRF string
+	L    Localizer
 	rv   identity.Resolver
 }
 
@@ -158,7 +174,16 @@ func (s *Server) authed(w http.ResponseWriter, r *http.Request) (view, bool) {
 		http.Error(w, "no role grants console access to your account", http.StatusForbidden)
 		return view{}, false
 	}
-	return view{User: u, CSRF: csrf, rv: rv}, true
+	// Presentation preferences; a store error falls back to org defaults
+	// (a broken prefs table must not lock anyone out).
+	var prefs identity.Preferences
+	if s.svc.Prefs != nil {
+		if p, ok, err := s.svc.Prefs.GetPrefs(r.Context(), app.DefaultTenant, u.Subject); err == nil && ok {
+			prefs = p
+		}
+	}
+	l := newLocalizer(prefs, s.defaultLocale, s.defaultTZ)
+	return view{User: u, CSRF: csrf, L: l, rv: rv}, true
 }
 
 // page wraps a GET handler with session auth.
@@ -204,6 +229,7 @@ func (s *Server) action(h func(http.ResponseWriter, *http.Request, view) error) 
 func (s *Server) render(w http.ResponseWriter, name string, data map[string]any, v view) {
 	data["User"] = v.User
 	data["CSRF"] = v.CSRF
+	data["L"] = v.L
 	// Org-wide pages (changes, rollout) refuse scoped viewers; hide the
 	// links instead of offering a door that only opens with a 403.
 	data["CanOrgView"] = v.canView("org")

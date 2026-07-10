@@ -27,7 +27,7 @@
       <tr><td class="muted">State</td><td>{{if .Status.Online}}<span class="tag ok">online</span>{{else}}<span class="tag bad">offline</span>{{end}}</td></tr>
       <tr><td class="muted">Revision</td><td>{{.Status.Revision}}</td></tr>
       <tr><td class="muted">Phase</td><td>{{.Status.Phase}}</td></tr>
-      <tr><td class="muted">Last seen</td><td>{{.Status.LastSeen.Format "2006-01-02 15:04:05"}}</td></tr>
+      <tr><td class="muted">Last seen</td><td>{{$.L.TimeSec .Status.LastSeen}}</td></tr>
       {{with .Status.Error}}<tr><td class="muted">Error</td><td class="tag bad">{{.}}</td></tr>{{end}}
     </table>
     {{else}}<p class="muted">No check-in received.</p>{{end}}
@@ -127,7 +127,7 @@
 {{with .Facts}}
 <h2>Hardware facts</h2>
 <div class="panel">
-  <p class="muted">Reported {{$.FactsAt.Format "2006-01-02 15:04"}} (nixos-facter)</p>
+  <p class="muted">Reported {{$.L.Time $.FactsAt}} (nixos-facter)</p>
   <details><summary class="muted">raw document</summary><pre style="max-height:24em;overflow:auto">{{.}}</pre></details>
 </div>
 {{end}}

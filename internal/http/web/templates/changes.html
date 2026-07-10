@@ -21,7 +21,7 @@
         {{with .Error}}<div class="tag bad">{{.}}</div>{{end}}</td>
       <td><span class="tag {{if eq .Status "ready"}}ok{{else if eq .Status "failed"}}bad{{else if eq .Status "merged"}}ok{{end}}">{{.Status}}</span></td>
       <td>{{.Author}}</td>
-      <td>{{.Updated.Format "2006-01-02 15:04"}}</td>
+      <td>{{$.L.Time .Updated}}</td>
       <td>
         {{if .Open}}<a href="/changes/{{.ID}}/diff">diff</a> {{end}}
         {{if $.CanEdit}}
