@@ -2,7 +2,7 @@
 # an existing Secret (secretName) with SEXTANT_* keys.
 image:
   repository: forgejo.bb-open.com/bb-open/sextant
-  tag: "0.9.0"
+  tag: "0.10.0"
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 
