@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/nix"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/oidc"
@@ -103,7 +105,10 @@ func run(args []string, getenv config.Getenv) error {
 				return svc.Fleet().GroupDevices(group)
 			})
 			checks.Register("postgres", pg.Ping)
-			api.NewCheckin(inv, cfg.CheckinToken).Routes(mux)
+			// Check-in is device-facing and brute-forceable: rate limit it.
+			checkinMux := http.NewServeMux()
+			api.NewCheckin(inv, cfg.CheckinToken).Routes(checkinMux)
+			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40)(checkinMux))
 			log.Info("observed plane mounted", "checkin", cfg.CheckinToken != "")
 		}
 
@@ -133,7 +138,13 @@ func run(args []string, getenv config.Getenv) error {
 			if err != nil {
 				return err
 			}
-			authn.Routes(mux)
+			// The login flow is brute-forceable: rate limit it.
+			authMux := http.NewServeMux()
+			authn.Routes(authMux)
+			limited := mw.RateLimit(rate.Limit(2), 10)(authMux)
+			mux.Handle("GET /login/start", limited)
+			mux.Handle("GET /callback", limited)
+			mux.Handle("POST /logout", limited)
 			authz.Sessions = authn
 			log.Info("oidc session auth mounted", "issuer", cfg.OIDCIssuer)
 		}

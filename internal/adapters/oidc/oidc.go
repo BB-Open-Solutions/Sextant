@@ -120,9 +120,10 @@ func New(ctx context.Context, c Config) (*Authenticator, error) {
 	}, nil
 }
 
-// Routes registers the login flow.
+// Routes registers the login flow. The /login page itself belongs to the
+// console; /login/start begins the IdP redirect.
 func (a *Authenticator) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /login", a.Login)
+	mux.HandleFunc("GET /login/start", a.Login)
 	mux.HandleFunc("GET /callback", a.Callback)
 	mux.HandleFunc("POST /logout", a.Logout)
 }

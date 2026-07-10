@@ -77,3 +77,11 @@ Designed for 1,000,000 devices across tenants:
   application code never iterates devices.
 
 See docs/adr/ for the decisions behind this design.
+
+## Deferred (tracked)
+
+- Go-to-nix parity harness: lands together with the v3 overlay generator
+  (resolve.nix twin). Until an overlay consumes the v3 document there is
+  no second implementation to prove parity against.
+- Multi-tenant runtime (model B): storage is tenant-namespaced today;
+  the tenant registry and per-org mounting follow.
