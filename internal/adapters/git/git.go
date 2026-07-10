@@ -177,3 +177,47 @@ func (r *Repo) Log(ctx context.Context, limit int) ([]ports.AuditEntry, error) {
 	}
 	return entries, nil
 }
+
+// SetRef implements ports.RefUpdater.
+func (r *Repo) SetRef(ctx context.Context, name, rev string) (bool, error) {
+	ref := "refs/heads/" + name
+	cur, _ := exec.CommandContext(ctx, "git", "-C", r.dir, "rev-parse", "--verify", "-q", ref).Output()
+	// Resolve rev to a full hash so short revisions compare correctly.
+	full, err := exec.CommandContext(ctx, "git", "-C", r.dir, "rev-parse", "--verify", rev+"^{commit}").Output()
+	if err != nil {
+		return false, fmt.Errorf("git rev-parse %s: unknown revision", rev)
+	}
+	target := strings.TrimSpace(string(full))
+	if strings.TrimSpace(string(cur)) == target {
+		return false, nil
+	}
+	if out, err := exec.CommandContext(ctx, "git", "-C", r.dir,
+		"update-ref", ref, target).CombinedOutput(); err != nil {
+		return false, fmt.Errorf("git update-ref: %s", strings.TrimSpace(string(out)))
+	}
+	return true, nil
+}
+
+// PushRef implements ports.RefUpdater. Ring refs are machine-owned: the
+// rollout engine is the only writer, so a force push is safe and needed
+// (a re-targeted rollout can move a ref backwards).
+func (r *Repo) PushRef(ctx context.Context, name string) error {
+	if r.remote == "" {
+		return nil
+	}
+	ref := "refs/heads/" + name
+	if out, err := exec.CommandContext(ctx, "git", "-C", r.dir,
+		"push", "--force", r.remote, ref+":"+ref).CombinedOutput(); err != nil {
+		return fmt.Errorf("git push ref %s: %s", name, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// Head implements ports.RefUpdater.
+func (r *Repo) Head(ctx context.Context) (string, error) {
+	out, err := exec.CommandContext(ctx, "git", "-C", r.dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}

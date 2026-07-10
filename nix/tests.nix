@@ -117,6 +117,25 @@ in
     (lib.head (lib.filter (e: e.name == "apps.office") entries)).riskClass == "high";
   catalogOmitsRiskClassByDefault =
     !((lib.head (lib.filter (e: e.name == "secureboot") entries)) ? riskClass);
+  # Update funnel (ADR 0011): a device inside a ring subtree follows its
+  # ring branch; the ring covers children via ancestry.
+  cominBranchFollowsRing =
+    let
+      ringFleet = fleet // {
+        rollout.rings = [{ group = "zaanstad"; }];
+      };
+      ev = lib.evalModules {
+        modules = [ core site ] ++ generator.mkModules {
+          fleet = ringFleet;
+          tag = "lt-1"; # member of frontoffice, child of zaanstad
+        };
+        specialArgs = { pkgs = fakePkgs; };
+      };
+    in
+    ev.config.sextant.cominBranch == "rings/zaanstad";
+  # ...and a device outside every ring stays on main.
+  cominBranchDefaultsToMain = cfg.sextant.cominBranch == "main";
+
   # Lifecycle: a retired device has no host attribute (attrNames is lazy,
   # so the dummy nixpkgs is never forced).
   retiredDeviceHasNoHost =

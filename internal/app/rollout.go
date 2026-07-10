@@ -21,13 +21,71 @@ type RolloutService struct {
 	conv  ports.ConvergenceSource
 	clock ports.Clock
 	log   *slog.Logger
-	mu    sync.Mutex // one tick / start / cancel at a time
+	// refs steers the rings/<group> branches devices follow (ADR 0011);
+	// nil disables the funnel (pins remain data-only).
+	refs ports.RefUpdater
+	mu   sync.Mutex // one tick / start / cancel at a time
 }
 
 // NewRolloutService wires the rollout engine.
 func NewRolloutService(cfg *ConfigService, store ports.RolloutStore,
 	conv ports.ConvergenceSource, clock ports.Clock, log *slog.Logger) *RolloutService {
 	return &RolloutService{cfg: cfg, store: store, conv: conv, clock: clock, log: log}
+}
+
+// WithRefs enables the update funnel: ring branches move on promotion and
+// follow HEAD while no run is active.
+func (s *RolloutService) WithRefs(refs ports.RefUpdater) *RolloutService {
+	s.refs = refs
+	return s
+}
+
+// RingBranch names the machine-owned branch a ring group's devices follow.
+func RingBranch(group string) string { return "rings/" + group }
+
+// moveRingRef points one ring branch at rev and pushes when changed.
+func (s *RolloutService) moveRingRef(ctx context.Context, group, rev string) error {
+	changed, err := s.refs.SetRef(ctx, RingBranch(group), rev)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+	if err := s.refs.PushRef(ctx, RingBranch(group)); err != nil {
+		return err
+	}
+	s.log.Info("ring branch moved", "branch", RingBranch(group), "rev", rev)
+	return nil
+}
+
+// FollowHead fast-forwards every UNPINNED ring branch to HEAD, so idle
+// rings track main and a fresh commit reaches them without a rollout run.
+// Pinned rings stay put: an active or halted rollout holds them in place.
+func (s *RolloutService) FollowHead(ctx context.Context) error {
+	if s.refs == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f := s.cfg.Fleet()
+	if f.Rollout == nil {
+		return nil
+	}
+	head, err := s.refs.Head(ctx)
+	if err != nil {
+		return err
+	}
+	for _, ring := range f.Rollout.Rings {
+		g, ok := f.Groups[ring.Group]
+		if !ok || g.Pin != "" {
+			continue // pinned: the engine owns this ref via promotions
+		}
+		if err := s.moveRingRef(ctx, ring.Group, head); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // rings reads the ring plan from the fleet document.
@@ -143,6 +201,13 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 			AffectedHosts(s.cfg.Fleet(), "group:"+ring.Group)...); err != nil {
 			return &act, st, fmt.Errorf("pin commit failed: %w", err)
 		}
+		// The funnel (ADR 0011): move the ring's branch so its devices
+		// actually receive the target. Pin commit first (audit), then ref.
+		if s.refs != nil {
+			if err := s.moveRingRef(ctx, ring.Group, st.Target); err != nil {
+				return &act, st, fmt.Errorf("ring branch move failed: %w", err)
+			}
+		}
 		st.PromotedAt[st.Ring] = now
 	case rollout.Wait:
 		// Record first full convergence so the soak clock starts.
@@ -181,6 +246,11 @@ func (s *RolloutService) Run(ctx context.Context, every time.Duration) {
 		case <-t.C:
 			if _, _, err := s.Tick(ctx); err != nil {
 				s.log.Error("rollout tick failed", "err", err)
+			}
+			// Idle rings follow HEAD so ordinary commits still reach
+			// their devices between rollout runs.
+			if err := s.FollowHead(ctx); err != nil && ctx.Err() == nil {
+				s.log.Error("ring follow failed", "err", err)
 			}
 		}
 	}

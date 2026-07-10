@@ -56,8 +56,32 @@ let
         type = lib.types.str;
         description = "The fleet asset tag of this device.";
       };
+      cominBranch = lib.mkOption {
+        type = lib.types.str;
+        default = "main";
+        description = ''
+          The overlay branch this device converges from. Ring devices
+          follow their machine-owned rings/<group> branch, which the
+          rollout engine promotes (ADR 0011); everything else follows
+          main. The core wires this into services.comin.
+        '';
+      };
     };
   };
+
+  # ringBranchFor: the first ring (plan order) whose group covers the
+  # device via its group ancestry decides the branch; no ring means main.
+  ringBranchFor = fleet: tag:
+    let
+      dev = fleet.devices.${tag} or { };
+      rings = (fleet.rollout or { }).rings or [ ];
+      ancestry = g:
+        let parent = (fleet.groups.${g} or { }).parent or ""; in
+        [ g ] ++ lib.optionals (parent != "") (ancestry parent);
+      covered = lib.concatMap ancestry (dev.groups or [ ]);
+      matching = lib.filter (r: lib.elem r.group covered) rings;
+    in
+    if matching == [ ] then "main" else "rings/${(lib.head matching).group}";
 
   # mkModules: the pure module list for one device - testable with
   # lib.evalModules, no nixosSystem required.
@@ -83,6 +107,7 @@ let
       ({ pkgs, ... }: {
         config = lib.recursiveUpdate (settingsModule fleet tag) {
           sextant.deviceTag = tag;
+          sextant.cominBranch = ringBranchFor fleet tag;
           sextant.flatpaks = apps.flatpaks;
           environment.systemPackages = map
             (name:

@@ -150,7 +150,9 @@ func (d *deps) buildConfigPlane() error {
 		log.Info("directory browse mounted", "ldap", cfg.LDAPURL, "base", cfg.LDAPBaseDN)
 	}
 
-	d.rollouts = app.NewRolloutService(svc, st.Rollouts(), conv, clock, log)
+	// The update funnel (ADR 0011): the same repo adapter moves the
+	// machine-owned rings/<group> branches devices follow.
+	d.rollouts = app.NewRolloutService(svc, st.Rollouts(), conv, clock, log).WithRefs(repo)
 	go d.rollouts.Run(d.ctx, 30*time.Second)
 	d.checks.Register("config-repo", func(context.Context) error {
 		_, err := repo.ReadFile(app.FleetFile)

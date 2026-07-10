@@ -136,3 +136,17 @@ type Directory interface {
 	// bounded by the adapter.
 	ListGroups(ctx context.Context, query string) ([]DirectoryGroup, error)
 }
+
+// RefUpdater moves machine-owned git refs (the rings/<group> branches the
+// update funnel steers, ADR 0011). Distinct from ConfigRepo writes: no
+// working tree, no gate - these refs only ever point at commits that
+// already passed the gate on main.
+type RefUpdater interface {
+	// SetRef points refs/heads/<name> at rev; reports whether it changed.
+	SetRef(ctx context.Context, name, rev string) (bool, error)
+	// PushRef force-pushes the ref to the remote (machine-owned; the
+	// engine is the only writer). No-op without a remote.
+	PushRef(ctx context.Context, name string) error
+	// Head returns the current HEAD revision.
+	Head(ctx context.Context) (string, error)
+}
