@@ -36,6 +36,20 @@
           };
         };
         default = sextant;
+
+        # The device agent (ADR 0010): Rust, static-friendly, observes and
+        # reports only - comin does the converging.
+        sextant-agent = pkgs.rustPlatform.buildRustPackage {
+          pname = "sextant-agent";
+          version = "0.1.0";
+          src = ./agent;
+          cargoLock.lockFile = ./agent/Cargo.lock;
+          meta = {
+            description = "Sextant device agent: check-in and hardware facts";
+            homepage = "https://code.overheid.nl/MinBZK/DAWO-Sextant";
+            mainProgram = "sextant-agent";
+          };
+        };
       });
 
       devShells = forAll (pkgs: {
@@ -49,6 +63,9 @@
           ];
         };
       });
+
+      # Device-side agent module (ADR 0010).
+      nixosModules.agent = import ./deploy/nixos/agent.nix { inherit self; };
 
       nixosModules.default = { config, lib, pkgs, ... }:
         let cfg = config.services.sextant;
