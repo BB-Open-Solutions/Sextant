@@ -58,6 +58,81 @@ func (a *API) getDevice(w http.ResponseWriter, r *http.Request) error {
 
 // --- writes: every mutation rides the safe transaction ---
 
+// postDevice enrolls a device. Requires editor at every target group (or at
+// org for a groupless device).
+func (a *API) postDevice(w http.ResponseWriter, r *http.Request) error {
+	var in struct {
+		Tag          string            `json:"tag"`
+		Hardware     string            `json:"hardware"`
+		Class        string            `json:"class,omitempty"`
+		Groups       []string          `json:"groups,omitempty"`
+		AssignedUser string            `json:"assignedUser,omitempty"`
+		Labels       map[string]string `json:"labels,omitempty"`
+	}
+	if err := decode(r, &in); err != nil {
+		return err
+	}
+	if len(in.Groups) == 0 {
+		if err := a.require(r, "org", identity.Editor); err != nil {
+			return err
+		}
+	}
+	for _, g := range in.Groups {
+		if err := a.require(r, "group:"+g, identity.Editor); err != nil {
+			return err
+		}
+	}
+	d := fleet.Device{Hardware: in.Hardware, Class: in.Class, Groups: in.Groups,
+		AssignedUser: in.AssignedUser, Labels: in.Labels}
+	msg := fmt.Sprintf("devices: enroll %s (%s)", in.Tag, in.Hardware)
+	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.AddDevice(in.Tag, d)), msg, author(r), in.Tag); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "enrolled", "tag": in.Tag})
+	return nil
+}
+
+// deleteDevice unenrolls a device. Requires editor at the device scope.
+func (a *API) deleteDevice(w http.ResponseWriter, r *http.Request) error {
+	tag := r.PathValue("tag")
+	if err := a.require(r, "device:"+tag, identity.Editor); err != nil {
+		return err
+	}
+	msg := "devices: remove " + tag
+	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.RemoveDevice(tag)), msg, author(r)); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
+	return nil
+}
+
+// postGroup creates a group. Requires owner at the parent scope (org for a
+// root group).
+func (a *API) postGroup(w http.ResponseWriter, r *http.Request) error {
+	var in struct {
+		Name     string `json:"name"`
+		Parent   string `json:"parent,omitempty"`
+		IdpGroup string `json:"idpGroup,omitempty"`
+	}
+	if err := decode(r, &in); err != nil {
+		return err
+	}
+	scope := "org"
+	if in.Parent != "" {
+		scope = "group:" + in.Parent
+	}
+	if err := a.require(r, scope, identity.Owner); err != nil {
+		return err
+	}
+	msg := "groups: add " + in.Name
+	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.AddGroup(in.Name,
+		fleet.Group{Parent: in.Parent, IdpGroup: in.IdpGroup})), msg, author(r)); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "created"})
+	return nil
+}
+
 func (a *API) postSetting(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Scope   string `json:"scope"`

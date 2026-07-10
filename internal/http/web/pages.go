@@ -77,7 +77,40 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 			AssignedUser: d.AssignedUser, Groups: d.Groups,
 			HasStatus: has, Online: st.Online, Revision: st.Revision})
 	}
-	s.render(w, "devices", map[string]any{"Title": "Devices", "Nav": "devices", "Devices": rows}, v)
+	groups := make([]string, 0, len(f.Groups))
+	for g := range f.Groups {
+		groups = append(groups, g)
+	}
+	sort.Strings(groups)
+	s.render(w, "devices", map[string]any{"Title": "Devices", "Nav": "devices",
+		"Devices": rows, "Groups": groups,
+		"CanEdit": v.roleAt("org").Meets(identity.Editor)}, v)
+}
+
+// postDeviceEnroll enrolls a device from the console form.
+func (s *Server) postDeviceEnroll(w http.ResponseWriter, r *http.Request, v view) error {
+	tag := strings.TrimSpace(r.FormValue("tag"))
+	group := r.FormValue("group")
+	scope := "org"
+	var groups []string
+	if group != "" {
+		scope = "group:" + group
+		groups = []string{group}
+	}
+	if err := s.requireWeb(v, scope, identity.Editor); err != nil {
+		return err
+	}
+	d := fleet.Device{
+		Hardware: strings.TrimSpace(r.FormValue("hardware")),
+		Class:    strings.TrimSpace(r.FormValue("class")),
+		Groups:   groups,
+	}
+	msg := fmt.Sprintf("devices: enroll %s (%s)", tag, d.Hardware)
+	if err := s.svc.Config.Apply(r.Context(), fleet.AddDevice(tag, d), msg, webAuthor(v), tag); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
+	return nil
 }
 
 func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {

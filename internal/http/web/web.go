@@ -84,6 +84,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/rollout", s.rolloutPage)
 	get("/access", s.accessPage)
 
+	post("/devices", s.postDeviceEnroll)
 	post("/devices/{tag}/settings", s.postDeviceSetting)
 	post("/changes", s.postChange)
 	post("/changes/{id}/submit", s.postChangeSubmit)
