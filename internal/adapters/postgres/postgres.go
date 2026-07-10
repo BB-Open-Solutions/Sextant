@@ -42,25 +42,27 @@ func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
 // (a light heartbeat never erases richer state).
 func (s *Store) Upsert(ctx context.Context, tenant string, c observed.CheckIn, now time.Time) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO device_status (tenant, tag, revision, phase, error, last_seen)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO device_status (tenant, tag, revision, phase, error, last_seen, sb_state, tpm2_state)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (tenant, tag) DO UPDATE SET
-			revision  = CASE WHEN EXCLUDED.revision = '' THEN device_status.revision ELSE EXCLUDED.revision END,
-			phase     = CASE WHEN EXCLUDED.phase = ''    THEN device_status.phase    ELSE EXCLUDED.phase    END,
-			error     = EXCLUDED.error,
-			last_seen = EXCLUDED.last_seen`,
-		tenant, c.Tag, c.Revision, string(c.Phase), c.Error, now)
+			revision   = CASE WHEN EXCLUDED.revision = ''   THEN device_status.revision   ELSE EXCLUDED.revision   END,
+			phase      = CASE WHEN EXCLUDED.phase = ''       THEN device_status.phase      ELSE EXCLUDED.phase      END,
+			error      = EXCLUDED.error,
+			last_seen  = EXCLUDED.last_seen,
+			sb_state   = CASE WHEN EXCLUDED.sb_state = ''    THEN device_status.sb_state   ELSE EXCLUDED.sb_state   END,
+			tpm2_state = CASE WHEN EXCLUDED.tpm2_state = ''  THEN device_status.tpm2_state ELSE EXCLUDED.tpm2_state END`,
+		tenant, c.Tag, c.Revision, string(c.Phase), c.Error, now, string(c.SB), string(c.TPM2))
 	return err
 }
 
 // Get implements ports.StatusStore.
 func (s *Store) Get(ctx context.Context, tenant, tag string) (observed.DeviceStatus, bool, error) {
 	var st observed.DeviceStatus
-	var phase string
+	var phase, sb, tpm2 string
 	err := s.pool.QueryRow(ctx, `
-		SELECT tag, revision, phase, error, last_seen
+		SELECT tag, revision, phase, error, last_seen, sb_state, tpm2_state
 		FROM device_status WHERE tenant = $1 AND tag = $2`, tenant, tag).
-		Scan(&st.Tag, &st.Revision, &phase, &st.Error, &st.LastSeen)
+		Scan(&st.Tag, &st.Revision, &phase, &st.Error, &st.LastSeen, &sb, &tpm2)
 	if err == pgx.ErrNoRows {
 		return observed.DeviceStatus{}, false, nil
 	}
@@ -68,13 +70,14 @@ func (s *Store) Get(ctx context.Context, tenant, tag string) (observed.DeviceSta
 		return observed.DeviceStatus{}, false, err
 	}
 	st.Phase = observed.Phase(phase)
+	st.SB, st.TPM2 = observed.SBState(sb), observed.TPM2State(tpm2)
 	return st, true, nil
 }
 
 // List implements ports.StatusStore.
 func (s *Store) List(ctx context.Context, tenant string) ([]observed.DeviceStatus, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT tag, revision, phase, error, last_seen
+		SELECT tag, revision, phase, error, last_seen, sb_state, tpm2_state
 		FROM device_status WHERE tenant = $1 ORDER BY tag`, tenant)
 	if err != nil {
 		return nil, err
@@ -83,11 +86,12 @@ func (s *Store) List(ctx context.Context, tenant string) ([]observed.DeviceStatu
 	var out []observed.DeviceStatus
 	for rows.Next() {
 		var st observed.DeviceStatus
-		var phase string
-		if err := rows.Scan(&st.Tag, &st.Revision, &phase, &st.Error, &st.LastSeen); err != nil {
+		var phase, sb, tpm2 string
+		if err := rows.Scan(&st.Tag, &st.Revision, &phase, &st.Error, &st.LastSeen, &sb, &tpm2); err != nil {
 			return nil, err
 		}
 		st.Phase = observed.Phase(phase)
+		st.SB, st.TPM2 = observed.SBState(sb), observed.TPM2State(tpm2)
 		out = append(out, st)
 	}
 	return out, rows.Err()

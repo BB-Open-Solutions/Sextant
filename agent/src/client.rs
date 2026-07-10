@@ -13,6 +13,10 @@ pub struct CheckIn<'a> {
     pub phase: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<&'a str>,
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub sb: &'a str,
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub tpm2: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facts: Option<&'a serde_json::Value>,
 }
@@ -131,6 +135,8 @@ mod tests {
             revision: "rev-9",
             phase: "running",
             error: None,
+            sb: "",
+            tpm2: "",
             facts: None,
         };
         assert_eq!(c.send(&body), Outcome::Ok);

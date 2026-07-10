@@ -34,6 +34,44 @@
   </div>
 </div>
 
+{{with .Posture}}
+{{if or .WantSB .WantTPM2}}
+<h2>Security posture</h2>
+<div class="panel">
+  {{if not .Reported}}
+  <p class="muted">Waiting for a posture-aware check-in from the device agent.</p>
+  {{else}}
+  <table>
+    {{if .WantSB}}
+    <tr><td class="muted">Secure Boot</td>
+      <td>
+        {{if eq (printf "%s" .SB) "enforcing"}}<span class="tag ok">enforcing</span>
+        {{else if eq (printf "%s" .SB) "audit"}}<span class="tag">audit mode</span>
+        {{else if eq (printf "%s" .SB) "off"}}<span class="tag bad">off</span>
+        {{else}}<span class="muted">unknown</span>{{end}}
+      </td></tr>
+    {{end}}
+    {{if .WantTPM2}}
+    <tr><td class="muted">TPM2 unlock</td>
+      <td>
+        {{if eq (printf "%s" .TPM2) "enrolled"}}<span class="tag ok">enrolled</span>
+        {{else if eq (printf "%s" .TPM2) "present"}}<span class="tag">present, not bound</span>
+        {{else if eq (printf "%s" .TPM2) "absent"}}<span class="tag bad">absent</span>
+        {{else}}<span class="muted">unknown</span>{{end}}
+      </td></tr>
+    {{end}}
+  </table>
+  {{if .Complete}}
+  <p><span class="tag ok">complete</span> {{.StepText}}</p>
+  {{else}}
+  <p><strong>Next:</strong> {{.StepText}}
+    {{if .Warn}}<span class="tag bad">attention</span>{{end}}</p>
+  {{end}}
+  {{end}}
+</div>
+{{end}}
+{{end}}
+
 <h2>Effective configuration</h2>
 <div class="panel">
   <table>

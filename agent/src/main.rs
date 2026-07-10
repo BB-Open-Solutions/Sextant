@@ -10,6 +10,7 @@
 mod client;
 mod collect;
 mod config;
+mod posture;
 
 use client::{CheckIn, Client, Outcome};
 use std::collections::hash_map::RandomState;
@@ -45,11 +46,14 @@ fn main() -> ExitCode {
         };
 
         let revision = collect::revision();
+        let post = posture::probe(&posture::default_root());
         let beat = CheckIn {
             tag: &cfg.tag,
             revision: &revision,
             phase: "running",
             error: None,
+            sb: post.sb,
+            tpm2: post.tpm2,
             facts: facts.as_ref(),
         };
         match client.send(&beat) {

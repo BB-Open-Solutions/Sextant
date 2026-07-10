@@ -169,6 +169,7 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	if s.svc.Inventory != nil {
 		if st, has, _ := s.svc.Inventory.Status(r.Context(), tag); has {
 			data["HasStatus"], data["Status"] = true, st
+			data["Posture"] = s.postureView(f, tag, st)
 		}
 		if facts, at, has, _ := s.svc.Inventory.Facts(r.Context(), tag); has {
 			data["Facts"], data["FactsAt"] = string(facts), at

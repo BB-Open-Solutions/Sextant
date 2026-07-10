@@ -40,6 +40,10 @@ type CheckIn struct {
 	Revision string `json:"revision"`
 	Phase    Phase  `json:"phase"`
 	Error    string `json:"error,omitempty"`
+	// SB and TPM2 are the observed security posture (design 0001);
+	// empty means the agent did not report it (old agent / probe failed).
+	SB   SBState   `json:"sb,omitempty"`
+	TPM2 TPM2State `json:"tpm2,omitempty"`
 }
 
 // Validate rejects malformed check-ins before they reach storage.
@@ -56,7 +60,7 @@ func (c CheckIn) Validate() error {
 	if len(c.Revision) > 128 || len(c.Error) > 4096 {
 		return fmt.Errorf("check-in field too long")
 	}
-	return nil
+	return validatePosture(c.SB, c.TPM2)
 }
 
 // DeviceStatus is the stored, per-device observed state.
@@ -66,6 +70,8 @@ type DeviceStatus struct {
 	Phase    Phase     `json:"phase,omitempty"`
 	Error    string    `json:"error,omitempty"`
 	LastSeen time.Time `json:"lastSeen"`
+	SB       SBState   `json:"sb,omitempty"`
+	TPM2     TPM2State `json:"tpm2,omitempty"`
 }
 
 // OnlineWindow is how recently a device must have checked in to count as
