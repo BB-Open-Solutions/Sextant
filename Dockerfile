@@ -5,7 +5,6 @@ COPY go.mod go.sum ./
 COPY vendor/ vendor/
 COPY cmd/ cmd/
 COPY internal/ internal/
-COPY web/ web/
 RUN CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/sextant ./cmd/sextant \
  && CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/dfctl ./cmd/dfctl
 

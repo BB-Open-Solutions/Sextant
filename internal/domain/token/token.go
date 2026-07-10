@@ -149,10 +149,6 @@ func (t Token) Verify(secret string) bool {
 	return subtle.ConstantTimeCompare(got, want.key) == 1
 }
 
-// LooksLikeToken reports whether a bearer value is a Sextant token (cheap
-// pre-check so the store is only queried for plausible tokens).
-func LooksLikeToken(bearer string) bool { return strings.HasPrefix(bearer, prefix) }
-
 // dummyHash is a fixed argon2id hash used to burn the same work as a real
 // verify when no token record exists, so authentication time does not
 // reveal whether a token id is registered.

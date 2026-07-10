@@ -19,15 +19,15 @@ data the interface manages from then on. See ADR 0005.
 |---|-----------|----------------|--------|
 | 1 | Identity and access | OIDC SSO, per-scope RBAC (viewer/editor/owner), audited attribution | Built |
 | 2 | Configuration management | Scope tree (org -> groups -> device), policies + assignments + filters, enforce semantics, eval gate, git audit trail | Domain built; becomes real with the v3 nix generator |
-| 3 | Enrollment and lifecycle | Device lifecycle: discovered -> enrolled -> active -> retired; group management | Enroll built; lifecycle states and retire pending |
-| 4 | Status and inventory | Check-ins, online/offline, deployed revision, drift, hardware facts (nixos-facter) | Basis built; facter enrichment and drift detection pending |
-| 5 | Updates and rollout | Flake input updates -> change request -> build gate -> staged rings with soak and health gates | Rollout engine built; update funnel pending |
+| 3 | Enrollment and lifecycle | Device lifecycle: discovered -> enrolled -> active -> retired; group management | Built: enroll with per-device credential, retire/reactivate as audited commits |
+| 4 | Status and inventory | Check-ins, online/offline, deployed revision, drift, hardware facts (nixos-facter) | Built: Rust agent reports check-ins and nixos-facter documents; drift detection pending |
+| 5 | Updates and rollout | Flake input updates -> change request -> build gate -> staged rings with soak and health gates | Built: rollout engine + update funnel via ring branches (ADR 0011) |
 | 6 | Remote actions | Declarative intents: lock, cryptographic wipe, retire (see below) | Design pending |
 | 7 | Provisioning (inspoelstraat) | Stations, PXE discoveries -> enroll queue, image builds | Not yet ported from the PoC |
 | 8 | Compliance | Posture against profiles (BIO), comply-or-explain register | Deliberately later; acceptance register exists in the domain |
 | 9 | Multi-organisation | Instance-per-tenant cells, centrally managed as declarative data (ADR 0009); global admin plane separate from tenant consoles | Cell = current deployment unit; provisioning tooling and admin plane pending |
-| 10 | Assurance and evidence | Four-eyes approvals, segregation of duties, gate pipeline, audit evidence export (ADR 0007) | Approvals partly built (merge = owner); evidence export pending |
-| 11 | API and credential security | Scoped service accounts, per-device credentials, one authorization path (ADR 0008) | Sessions/RBAC built; service accounts and device credentials pending |
+| 10 | Assurance and evidence | Four-eyes approvals, segregation of duties, gate pipeline, audit evidence export (ADR 0007) | Four-eyes SoD built (config-as-data); evidence export pending |
+| 11 | API and credential security | Scoped service accounts, per-device credentials, one authorization path (ADR 0008) | Built: scoped personal/service tokens, per-device credentials, one authorization path |
 
 ## Remote actions: honest semantics
 

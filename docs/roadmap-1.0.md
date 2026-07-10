@@ -10,73 +10,75 @@ Status legend: [x] done, [~] partial, [ ] not started.
 
 ## Self-audit findings folded in (gaps beyond the known list)
 
-- [ ] Config repo is a pod PVC = single point of failure. Git remote
-      (Forgejo) must become the source of truth; HA push path exists in
-      code but is not the deploy mode.
+- [x] Config repo is a pod PVC = single point of failure. Git remote
+      (Forgejo) is the source of truth in production (init clone +
+      sync loop + push).
 - [x] External commits to the overlay are not picked up (snapshot only
       refreshes on the console's own writes/merges). Need a sync loop or
       forge webhook, with conflict handling.
 - [x] `dfctl` is a stub - the "API/CLI-first" claim needs a real CLI.
 - [x] No diff view: an approver cannot see what a change alters before
       merge. Git has it; API and UI must surface it.
-- [ ] Entra groups "overage": >150 groups sends a Graph link instead of
-      the claim; RBAC fails silently on large AD tenants without handling.
+- [x] Entra groups "overage": Graph transitiveMemberOf fallback with
+      paging (M2.3).
 - [x] No OpenAPI spec or contract tests - required for a frozen,
       documented, future-proof API.
-- [ ] The agent is loose parts (check-in timer + comin + scripts); must
-      become one designed component.
+- [x] The agent is one designed component: the Rust sextant-agent
+      (ADR 0010) - check-in, facts, retirement handling, nix module.
 
 ## Work streams
 
 ### A. Identity and IAM (IdP-agnostic)
 - [x] OIDC + PKCE, encrypted sessions, per-scope RBAC
 - [x] Claim shapes: Keycloak arrays, Zitadel roles map, Entra app roles
-- [ ] Entra/AD groups overage handling (Graph fallback)
-- [ ] Group discovery/browse per provider (pick real IdP groups in the UI,
-      not free-text)
+- [x] Entra/AD groups overage handling (Graph fallback)
+- [x] Group discovery/browse via the optional LDAP directory port
+      (Zitadel = login, LDAP = groups; free text remains without it)
 - [ ] LDAP/AD direct bind as an auth source (not only OIDC) where required
 - [ ] SCIM inbound (optional) for user/group provisioning from the IdP
 - [ ] Device login story documented per provider (SSSD/Kerberos in image)
 
 ### B. Config plane as source of truth
-- [~] Overlay in a git remote: server + chart support done (gitRemote
-      values, init clone, --git-remote); production cutover pending
+- [x] Overlay in a git remote (production: sextant-overlay-bbopen on
+      Forgejo; init clone, sync loop, HA push)
 - [x] Sync loop so external commits refresh the snapshot (30s, write-locked)
 - [x] The v3 nix generator + `resolve.nix` twin + parity harness in CI
       (nix/ in this repo; overlays import via the sextant flake input)
-- [~] gate=eval proven end to end against the reference overlay
-      (examples/overlay + gate_e2e_test); production flip rides the cutover
-- [~] Catalog export mechanism (lib.exportCatalog over documented dawo.*
-      options); annotating the real core options remains
+- [~] gate=eval proven end to end (examples/overlay + the production
+      overlay v3 flake evaluates); the prod flip needs the gate-runner
+      decision (nix in the console image vs a sandboxed runner)
+- [x] Catalog export (exportCatalog + exportCatalogFromOptions over an
+      evaluated host); production catalog.json carries the real core
+      options with defaults and riskClass
 - [x] Diff view (API + UI): what a change alters, before merge
 - [ ] Backup/restore drill documented (git mirror + CNPG WAL)
 
 ### C. Settings and capability surface (Odoo model, ADR 0005/0006)
 - [x] Capability registry refactor (main wiring -> registry)
-- [ ] Generic catalog renderer (type -> widget, category, risk class)
-- [ ] Settings editor per scope with enforce/lock toggle
-- [ ] Policy/filter editor (currently read-only)
-- [ ] App catalog (assign packages/flatpaks/overlays as data)
+- [x] Generic catalog renderer (type -> widget, category, risk class)
+- [x] Settings editor per scope with enforce/lock toggle
+- [x] Policy/assignment/filter editors in the console
+- [x] App lists per scope (packages/flatpaks/overlays as data)
 - [ ] Foundation tier UX (owner-only, change-request-required)
-- [ ] Localization: message catalog (EN default, NL first translation)
-      and timezone-aware timestamps: per-user preference with the org
-      timezone as default (console currently renders UTC)
+- [x] Localization: EN/NL message catalog and per-user timezone
+      rendering (org defaults as fallback)
 
 ### D. Lifecycle, agent and provisioning
-- [ ] Device lifecycle states (discovered -> enrolled -> active -> retired)
-- [ ] The agent as one designed component: check-in, facter inventory,
-      deploy status, remote-action intents; versioned, packaged in the
-      image, configured declaratively
-- [ ] Per-device credentials issued at enrollment (ADR 0008)
+- [x] Device lifecycle states (active/retired; retire = audited commit,
+      credential revoke, 410 on check-in, no host in the generator)
+- [x] The agent as one designed component: Rust sextant-agent (check-in,
+      facter inventory, retirement, jitter; flake package + nix module)
+- [x] Per-device credentials issued at enrollment (ADR 0008)
 - [ ] Inspoelstraat plane: stations, PXE discoveries -> enroll queue,
       image builds (port + redesign from the PoC)
 - [ ] Remote actions: lock, cryptographic wipe, retire (declarative)
-- [ ] Update funnel: flake input updates -> change -> build -> rollout
+- [x] Update funnel: machine-owned rings/<group> branches steered by the
+      rollout engine (ADR 0011)
 
 ### E. Assurance and security (ADR 0007/0008)
 - [x] Four-eyes at merge (owner), gated pipeline
-- [ ] Personal API tokens acting as their user + service accounts
-- [ ] Segregation of duties enforced (author != approver for foundation)
+- [x] Personal API tokens acting as their user + service accounts
+- [x] Segregation of duties enforced (four-eyes: author != approver)
 - [ ] Evidence export (period -> who/what/tested/approved/rolled out)
 - [ ] Threat model doc + security-review gate in CI
 - [ ] Secret handling review (rotation, no plaintext at rest) end to end
@@ -84,7 +86,8 @@ Status legend: [x] done, [~] partial, [ ] not started.
 ### F. Platform hardening and future-proofing
 - [x] OpenAPI spec published (/api/v1/openapi.json); contract tests both
       directions; additive-only policy stated in the spec
-- [ ] CI actually runs the suite on push (Forgejo Actions) + coverage gate
+- [x] CI runs the suite on push (Forgejo Actions): Go + agent + nix,
+      coverage gate 70%
 - [ ] Observability: metrics dashboards, tracing, deep readiness per dep
 - [ ] Multi-tenant = cells (ADR 0009): per-customer instance provisioning
       runbook + tooling over the platform GitOps repo; thin global admin

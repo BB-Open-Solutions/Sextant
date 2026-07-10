@@ -44,5 +44,5 @@ Common types: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`.
   handled and tested, not assumed.
 
 ## Build and test
-See the "Run (demo, loopback)" and "Build / test" sections in `README.md`,
+See the "Build and test" section in `README.md`,
 or run `just ci`.

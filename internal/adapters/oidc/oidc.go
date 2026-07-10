@@ -236,12 +236,6 @@ func (a *Authenticator) SessionUser(r *http.Request) (identity.User, string, boo
 	return identity.User{Subject: sd.Subject, Name: sd.Name, Email: sd.Email, Groups: sd.Groups}, sd.CSRF, true
 }
 
-// VerifyCSRF constant-time compares a submitted token to the session token.
-func VerifyCSRF(sessionToken, submitted string) bool {
-	return sessionToken != "" &&
-		subtle.ConstantTimeCompare([]byte(sessionToken), []byte(submitted)) == 1
-}
-
 func randString(n int) string {
 	b := make([]byte, n)
 	_, _ = rand.Read(b)

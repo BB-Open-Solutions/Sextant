@@ -15,8 +15,8 @@ func TestMintAndVerify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !LooksLikeToken(secret) {
-		t.Errorf("secret has no prefix: %q", secret)
+	if IDFromSecret(secret) == "" {
+		t.Errorf("secret carries no recoverable id: %q", secret)
 	}
 	if tok.Hash == secret || tok.Hash == "" {
 		t.Fatal("secret stored in the clear or hash empty")

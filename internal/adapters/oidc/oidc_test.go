@@ -155,12 +155,3 @@ func TestSessionUser(t *testing.T) {
 		t.Fatal("cookieless request accepted")
 	}
 }
-
-func TestVerifyCSRF(t *testing.T) {
-	if !VerifyCSRF("tok", "tok") {
-		t.Error("matching token rejected")
-	}
-	if VerifyCSRF("tok", "other") || VerifyCSRF("", "") {
-		t.Error("bad token accepted")
-	}
-}

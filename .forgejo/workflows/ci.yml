@@ -7,20 +7,29 @@ jobs:
   test:
     runs-on: nixos
     steps:
-      - uses: actions/checkout@v4
+      # Plain git clone: actions/checkout is a Node action and the NixOS
+      # runner deliberately carries no Node runtime.
+      - name: Checkout
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/src"
+          git clone --depth 1 --branch "${GITHUB_REF_NAME:-main}" \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" "$GITHUB_WORKSPACE/src"
+          git -C "$GITHUB_WORKSPACE/src" log -1 --oneline
 
       - name: Format check
         run: |
+          cd "$GITHUB_WORKSPACE/src"
           nix develop --command bash -c 'test -z "$(gofmt -l cmd internal)" || (gofmt -l cmd internal && exit 1)'
 
       - name: Vet
-        run: nix develop --command go vet ./...
+        run: cd "$GITHUB_WORKSPACE/src" && nix develop --command go vet ./...
 
       - name: Lint
-        run: nix develop --command golangci-lint run ./...
+        run: cd "$GITHUB_WORKSPACE/src" && nix develop --command golangci-lint run ./...
 
       - name: Test (race + coverage)
         run: |
+          cd "$GITHUB_WORKSPACE/src"
           nix develop --command go test -race -coverprofile=coverage.out ./...
           nix develop --command bash -c '
             total=$(go tool cover -func=coverage.out | tail -1 | awk "{print \$3}" | tr -d "%")
@@ -29,7 +38,18 @@ jobs:
           '
 
       - name: Build
-        run: nix develop --command go build -trimpath ./...
+        run: cd "$GITHUB_WORKSPACE/src" && nix develop --command go build -trimpath ./...
 
       - name: Nix package
-        run: nix build .#sextant
+        run: cd "$GITHUB_WORKSPACE/src" && nix build .#sextant
+
+      - name: Agent (fmt + clippy + test)
+        run: |
+          cd "$GITHUB_WORKSPACE/src/agent"
+          nix shell nixpkgs#cargo nixpkgs#rustc nixpkgs#clippy nixpkgs#rustfmt --command bash -c '
+            cargo fmt --check &&
+            cargo clippy --all-targets -- -D warnings &&
+            cargo test'
+
+      - name: Agent package
+        run: cd "$GITHUB_WORKSPACE/src" && nix build .#sextant-agent

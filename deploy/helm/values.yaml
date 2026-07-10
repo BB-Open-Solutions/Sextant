@@ -9,7 +9,9 @@ imagePullSecrets: []
 replicaCount: 1
 
 # Existing Secret with SEXTANT_API_TOKEN, SEXTANT_CHECKIN_TOKEN,
-# SEXTANT_SESSION_KEY, SEXTANT_OIDC_CLIENT_SECRET.
+# SEXTANT_SESSION_KEY, SEXTANT_OIDC_CLIENT_SECRET; optionally
+# SEXTANT_LDAP_BIND_PASSWORD, and SEXTANT_PG_DSN when cnpg.enabled=false
+# (external Postgres).
 secretName: sextant-v2
 
 write: true
@@ -33,6 +35,20 @@ oidc:
 editorGroups: ""
 ownerGroups: ""
 viewerGroups: ""
+
+# Organisation presentation defaults; per-user preferences override.
+defaultLocale: "" # en|nl; empty = en
+defaultTimezone: "" # IANA name; empty = UTC
+
+# Optional LDAP directory browse (group pickers). The app runs fully
+# without it: empty url leaves the surface off and access bindings stay
+# free-text. Bind password goes in the secret as SEXTANT_LDAP_BIND_PASSWORD.
+ldap:
+  url: ""
+  bindDn: ""
+  baseDn: ""
+  groupFilter: ""
+  nameAttr: ""
 
 # CloudNativePG single-instance cluster for the observed plane. The
 # operator must be installed cluster-wide. DSN comes from the generated
