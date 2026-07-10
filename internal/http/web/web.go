@@ -32,6 +32,7 @@ type Services struct {
 	Inventory *app.InventoryService
 	Tokens    *app.TokenService
 	Prefs     ports.PrefsStore
+	DevCreds  *app.DeviceCredentials
 }
 
 // Server renders the console.
@@ -93,6 +94,11 @@ func (s *Server) Routes(mux *http.ServeMux) {
 
 	post("/devices", s.postDeviceEnroll)
 	post("/devices/{tag}/settings", s.postDeviceSetting)
+	post("/devices/{tag}/retire", s.postDeviceRetire)
+	post("/devices/{tag}/reactivate", s.postDeviceReactivate)
+	post("/devices/{tag}/remove", s.postDeviceRemove)
+	post("/devices/{tag}/credential", s.postDeviceCredential)
+	post("/devices/{tag}/update", s.postDeviceUpdate)
 	post("/settings", s.postSetting)
 	post("/groups", s.postGroupAdd)
 	post("/groups/{name}/update", s.postGroupUpdate)

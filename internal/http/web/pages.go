@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 
@@ -117,6 +118,15 @@ func (s *Server) postDeviceEnroll(w http.ResponseWriter, r *http.Request, v view
 	if err := s.svc.Config.Apply(r.Context(), fleet.AddDevice(tag, d), msg, webAuthor(v), tag); err != nil {
 		return err
 	}
+	// Issue the per-device credential (ADR 0008) and show it once on the
+	// device page; enrollment still succeeds if issuing fails (re-issue).
+	if s.svc.DevCreds != nil {
+		if secret, err := s.svc.DevCreds.Issue(r.Context(), tag); err != nil {
+			s.log.Error("device enrolled but credential not issued", "tag", tag, "err", err)
+		} else {
+			setDevCredCookie(w, tag, secret)
+		}
+	}
 	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
 	return nil
 }
@@ -132,16 +142,35 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	data := map[string]any{
 		"Title": "Device " + tag, "Nav": "devices",
-		"Tag": tag, "Device": d,
+		"Tag": tag, "Device": d, "Retired": d.Retired(),
 		"Resolved": f.ResolveSorted(tag),
 		"CanEdit":  v.roleAt("device:" + tag).Meets(identity.Editor),
 	}
+	type groupOpt struct {
+		Name   string
+		Member bool
+	}
+	groups := make([]groupOpt, 0, len(f.Groups))
+	for g := range f.Groups {
+		groups = append(groups, groupOpt{Name: g, Member: slices.Contains(d.Groups, g)})
+	}
+	sort.Slice(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
+	data["GroupOpts"] = groups
 	pkgs, flats, ovs := f.ResolveApps(tag)
 	data["Packages"], data["Flatpaks"], data["Overlays"] = pkgs, flats, ovs
 	if s.svc.Inventory != nil {
 		if st, has, _ := s.svc.Inventory.Status(r.Context(), tag); has {
 			data["HasStatus"], data["Status"] = true, st
 		}
+		if facts, at, has, _ := s.svc.Inventory.Facts(r.Context(), tag); has {
+			data["Facts"], data["FactsAt"] = string(facts), at
+		}
+	}
+	// One-shot device credential from enroll/re-issue/reactivate.
+	if c, err := r.Cookie(devCredCookie); err == nil && c.Value != "" {
+		data["Credential"] = c.Value
+		http.SetCookie(w, &http.Cookie{Name: devCredCookie, Value: "",
+			Path: "/devices/" + tag, MaxAge: -1, HttpOnly: true, Secure: true})
 	}
 	s.render(w, "device", data, v)
 }

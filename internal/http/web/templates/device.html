@@ -1,5 +1,14 @@
 {{define "content"}}
-<h1>Device {{.Tag}}</h1>
+<h1>Device {{.Tag}} {{if .Retired}}<span class="tag bad">retired</span>{{end}}</h1>
+
+{{with .Credential}}
+<div class="panel" style="border-color:#3a6">
+  <h2 style="margin-top:0">Device credential</h2>
+  <p><strong>Store this credential now; it is not shown again.</strong>
+  The device uses it to check in as itself.</p>
+  <p><code>{{.}}</code></p>
+</div>
+{{end}}
 
 <div class="grid">
   <div class="panel">
@@ -43,6 +52,55 @@
 </div>
 
 {{if .CanEdit}}
+<h2>Manage</h2>
+<div class="panel">
+  <form method="post" action="/devices/{{.Tag}}/update" class="inline">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="setclass" value="1">
+    <input name="class" value="{{.Device.Class}}" placeholder="class (laptop, kiosk)">
+    <button type="submit" class="quiet">Set class</button>
+  </form>
+  <form method="post" action="/devices/{{.Tag}}/update" class="inline">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="setuser" value="1">
+    <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="assigned user">
+    <button type="submit" class="quiet">Assign</button>
+  </form>
+  <form method="post" action="/devices/{{.Tag}}/update" class="inline">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="setgroups" value="1">
+    <select name="groups" multiple size="3">
+      {{range .GroupOpts}}
+      <option value="{{.Name}}" {{if .Member}}selected{{end}}>{{.Name}}</option>
+      {{end}}
+    </select>
+    <button type="submit" class="quiet">Set groups</button>
+  </form>
+  <hr>
+  {{if .Retired}}
+  <form method="post" action="/devices/{{.Tag}}/reactivate" class="inline">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit">Reactivate</button>
+    <span class="muted">returns to service with a fresh credential</span>
+  </form>
+  {{else}}
+  <form method="post" action="/devices/{{.Tag}}/credential" class="inline">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="quiet">Re-issue credential</button>
+  </form>
+  <form method="post" action="/devices/{{.Tag}}/retire" class="inline"
+        onsubmit="return confirm('Retire {{.Tag}}? Builds and check-ins stop; the record stays for audit.')">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="quiet">Retire</button>
+  </form>
+  {{end}}
+  <form method="post" action="/devices/{{.Tag}}/remove" class="inline"
+        onsubmit="return confirm('Remove {{.Tag}} entirely? This unenrolls the device.')">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="quiet">Remove</button>
+  </form>
+</div>
+
 <h2>Set a device setting</h2>
 <div class="panel">
   <p><a href="/settings?scope=device:{{.Tag}}">Open the settings editor for this device</a>
@@ -65,4 +123,12 @@
     <tr><td class="muted">Overlays</td><td>{{range .Overlays}}<span class="tag">{{.}}</span> {{end}}</td></tr>
   </table>
 </div>
+
+{{with .Facts}}
+<h2>Hardware facts</h2>
+<div class="panel">
+  <p class="muted">Reported {{$.FactsAt.Format "2006-01-02 15:04"}} (nixos-facter)</p>
+  <details><summary class="muted">raw document</summary><pre style="max-height:24em;overflow:auto">{{.}}</pre></details>
+</div>
+{{end}}
 {{end}}
