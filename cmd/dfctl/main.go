@@ -17,7 +17,12 @@ import (
 const usage = `dfctl - Sextant fleet CLI
 
 Resources and verbs:
-  devices   list | get TAG | enroll TAG -hardware H [-group G] [-class C] | remove TAG
+  devices   list | get TAG | enroll TAG -hardware H [-group G] [-class C] |
+            update TAG [-hardware H] [-class C] [-user U] [-groups a,b] |
+            retire TAG | reactivate TAG | remove TAG
+  groups    add NAME [-parent P] [-idp G] | update NAME [-parent P|-] [-idp G] |
+            remove NAME
+  apps      set SCOPE KIND [NAME ...]   (kind: packages|flatpaks|overlays)
   settings  set SCOPE KEY VALUE [-enforce] | clear SCOPE KEY
   changes   list | open ID TITLE | edit ID SCOPE KEY VALUE | diff ID |
             submit ID | merge ID | abandon ID
@@ -97,6 +102,10 @@ func dispatch(c *client, asJSON bool, args []string) error {
 	switch res {
 	case "devices":
 		return devicesCmd(c, asJSON, verb, rest)
+	case "groups":
+		return groupsCmd(c, verb, rest)
+	case "apps":
+		return appsCmd(c, verb, rest)
 	case "settings":
 		return settingsCmd(c, verb, rest)
 	case "changes":
@@ -172,8 +181,106 @@ func devicesCmd(c *client, asJSON bool, verb string, rest []string) error {
 			return usagef("devices remove TAG")
 		}
 		return c.do("DELETE", "/api/v1/devices/"+rest[0], nil, nil)
+	case "update":
+		fs := flag.NewFlagSet("update", flag.ContinueOnError)
+		hw := fs.String("hardware", "", "hardware profile")
+		class := fs.String("class", "", "class")
+		user := fs.String("user", "", "assigned user")
+		groups := fs.String("groups", "", "comma-separated group list (replaces)")
+		if len(rest) < 1 {
+			return usagef("devices update TAG [-hardware H] [-class C] [-user U] [-groups a,b]")
+		}
+		if err := fs.Parse(rest[1:]); err != nil {
+			return usagef("update flags: %v", err)
+		}
+		in := map[string]any{}
+		for k, v := range map[string]*string{"hardware": hw, "class": class, "assignedUser": user} {
+			if *v != "" {
+				in[k] = *v
+			}
+		}
+		if *groups != "" {
+			in["groups"] = strings.Split(*groups, ",")
+		}
+		if len(in) == 0 {
+			return usagef("nothing to update")
+		}
+		return c.do("PATCH", "/api/v1/devices/"+rest[0], in, nil)
+	case "retire":
+		if len(rest) != 1 {
+			return usagef("devices retire TAG")
+		}
+		return c.do("POST", "/api/v1/devices/"+rest[0]+"/retire", nil, nil)
+	case "reactivate":
+		if len(rest) != 1 {
+			return usagef("devices reactivate TAG")
+		}
+		var out any
+		if err := c.do("POST", "/api/v1/devices/"+rest[0]+"/reactivate", nil, &out); err != nil {
+			return err
+		}
+		printJSON(out) // includes the fresh credential, shown once
+		return nil
 	}
 	return usagef("devices: unknown verb %q", verb)
+}
+
+// groupsCmd manages the group tree.
+func groupsCmd(c *client, verb string, rest []string) error {
+	switch verb {
+	case "add":
+		fs := flag.NewFlagSet("add", flag.ContinueOnError)
+		parent := fs.String("parent", "", "parent group")
+		idp := fs.String("idp", "", "IdP group mapping")
+		if len(rest) < 1 {
+			return usagef("groups add NAME [-parent P] [-idp G]")
+		}
+		if err := fs.Parse(rest[1:]); err != nil {
+			return usagef("add flags: %v", err)
+		}
+		return c.do("POST", "/api/v1/groups",
+			map[string]any{"name": rest[0], "parent": *parent, "idpGroup": *idp}, nil)
+	case "update":
+		fs := flag.NewFlagSet("update", flag.ContinueOnError)
+		parent := fs.String("parent", "", "new parent (\"-\" detaches to root)")
+		idp := fs.String("idp", "", "IdP group mapping")
+		if len(rest) < 1 {
+			return usagef("groups update NAME [-parent P|-] [-idp G]")
+		}
+		if err := fs.Parse(rest[1:]); err != nil {
+			return usagef("update flags: %v", err)
+		}
+		in := map[string]any{}
+		if *parent != "" {
+			p := *parent
+			if p == "-" {
+				p = ""
+			}
+			in["parent"] = p
+		}
+		if *idp != "" {
+			in["idpGroup"] = *idp
+		}
+		if len(in) == 0 {
+			return usagef("nothing to update")
+		}
+		return c.do("PATCH", "/api/v1/groups/"+rest[0], in, nil)
+	case "remove":
+		if len(rest) != 1 {
+			return usagef("groups remove NAME")
+		}
+		return c.do("DELETE", "/api/v1/groups/"+rest[0], nil, nil)
+	}
+	return usagef("groups: unknown verb %q (add|update|remove)", verb)
+}
+
+// appsCmd replaces an additive app list at a scope.
+func appsCmd(c *client, verb string, rest []string) error {
+	if verb != "set" || len(rest) < 2 {
+		return usagef("apps set SCOPE KIND [NAME ...]  (kind: packages|flatpaks|overlays)")
+	}
+	return c.do("PUT", "/api/v1/apps",
+		map[string]any{"scope": rest[0], "kind": rest[1], "names": rest[2:]}, nil)
 }
 
 func settingsCmd(c *client, verb string, rest []string) error {

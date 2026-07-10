@@ -63,6 +63,11 @@ let
       hardware = "hw";
       settings.desktop = "plasma";
     };
+    devices.lt-parked = {
+      groups = [ "frontoffice" ];
+      hardware = "hw";
+      state = "retired";
+    };
     policies.vpnpol = { settings = { "apps.office" = false; }; };
     filters.laptops = {
       rules = [{ attr = "tag"; op = "eq"; value = "lt-1"; }];
@@ -112,4 +117,17 @@ in
     (lib.head (lib.filter (e: e.name == "apps.office") entries)).riskClass == "high";
   catalogOmitsRiskClassByDefault =
     !((lib.head (lib.filter (e: e.name == "secureboot") entries)) ? riskClass);
+  # Lifecycle: a retired device has no host attribute (attrNames is lazy,
+  # so the dummy nixpkgs is never forced).
+  retiredDeviceHasNoHost =
+    let
+      hosts = lib.attrNames (generator.mkFleet {
+        nixpkgs = null;
+        system = "x86_64-linux";
+        inherit fleet;
+        coreModules = [ core ];
+        hardwareProfiles = { hw = { }; };
+      });
+    in
+    hosts == [ "lt-1" ];
 }

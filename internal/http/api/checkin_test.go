@@ -272,3 +272,24 @@ func TestCheckinSharedTokenBridgeStillWorks(t *testing.T) {
 		t.Errorf("wrong shared token = %d, want 401", got)
 	}
 }
+
+func TestCheckinRetiredDeviceGone(t *testing.T) {
+	fo := newFakeObserved()
+	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
+	mux := http.NewServeMux()
+	// Even a valid credential (here: the bridge token) cannot resurrect a
+	// retired tag - lifecycle beats auth.
+	NewCheckin(inv, nil, "bridge-tok").
+		WithLifecycle(func(tag string) bool { return tag == "parked" }).Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
+		`{"tag":"parked","revision":"v1"}`); got != 410 {
+		t.Errorf("retired check-in = %d, want 410", got)
+	}
+	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
+		`{"tag":"active-1","revision":"v1"}`); got != 204 {
+		t.Errorf("active check-in = %d, want 204", got)
+	}
+}

@@ -133,6 +133,47 @@ func SetScopeEnforce(ref, key string, on bool) Mutation {
 	}
 }
 
+// SetRolloutPlan replaces the staged-rollout plan. Every ring must name an
+// existing group exactly once with sane soak and health bounds; nil clears
+// the plan entirely.
+func SetRolloutPlan(p *RolloutPolicy) Mutation {
+	return func(f *Fleet) error {
+		if p == nil {
+			f.Rollout = nil
+			return nil
+		}
+		if len(p.Rings) == 0 {
+			return fmt.Errorf("rollout plan needs at least one ring (or clear the plan)")
+		}
+		seen := map[string]bool{}
+		for i, ring := range p.Rings {
+			if _, ok := f.Groups[ring.Group]; !ok {
+				return fmt.Errorf("ring %d: unknown group %q", i, ring.Group)
+			}
+			if seen[ring.Group] {
+				return fmt.Errorf("ring %d: group %q appears twice", i, ring.Group)
+			}
+			seen[ring.Group] = true
+			if ring.SoakMinutes < 0 {
+				return fmt.Errorf("ring %d: negative soak", i)
+			}
+			if ring.MinHealthyPercent < 0 || ring.MinHealthyPercent > 100 {
+				return fmt.Errorf("ring %d: minHealthyPercent must be 0-100", i)
+			}
+		}
+		f.Rollout = p
+		return nil
+	}
+}
+
+// SetAssurance replaces the audit-control configuration.
+func SetAssurance(a Assurance) Mutation {
+	return func(f *Fleet) error {
+		f.Assurance = &a
+		return nil
+	}
+}
+
 // SetGroupParent re-parents a group; a link that would form a cycle is
 // refused. Empty parent detaches the group to root.
 func SetGroupParent(group, parent string) Mutation {

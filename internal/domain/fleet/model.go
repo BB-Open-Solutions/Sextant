@@ -80,8 +80,20 @@ type Group struct {
 	Accepted map[string]string `json:"accepted,omitempty"`
 }
 
+// DeviceState is the lifecycle position of a device.
+const (
+	// DeviceActive is the zero value: enrolled and converging.
+	DeviceActive = ""
+	// DeviceRetired keeps the record for audit but stops everything else:
+	// no image builds, no check-ins, no rollout counting. Reactivation is
+	// an explicit, audited step.
+	DeviceRetired = "retired"
+)
+
 // Device is one managed machine, keyed by its asset tag.
 type Device struct {
+	// State is the lifecycle position ("" = active, "retired").
+	State        string   `json:"state,omitempty"`
 	Groups       []string `json:"groups,omitempty"`
 	AssignedUser string   `json:"assignedUser,omitempty"`
 	// Class categorises the device (laptop, server, station); filterable.

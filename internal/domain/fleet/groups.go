@@ -58,6 +58,21 @@ func (f *Fleet) GroupDevices(group string) []string {
 	return tags
 }
 
+// Retired reports whether the device is parked (audit record only).
+func (d Device) Retired() bool { return d.State == DeviceRetired }
+
+// ActiveGroupDevices is GroupDevices minus retired devices: the set that
+// builds images, checks in and counts for rollout convergence.
+func (f *Fleet) ActiveGroupDevices(group string) []string {
+	var tags []string
+	for _, tag := range f.GroupDevices(group) {
+		if !f.Devices[tag].Retired() {
+			tags = append(tags, tag)
+		}
+	}
+	return tags
+}
+
 // DeviceTags returns all device asset tags, sorted.
 func (f *Fleet) DeviceTags() []string {
 	ks := make([]string, 0, len(f.Devices))

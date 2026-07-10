@@ -84,6 +84,15 @@
             "description": "OK"
           }
         }
+      },
+      "patch": {
+        "summary": "Update device fields",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Patch hardware, class, assignedUser, groups, labels or itam. Editor at the device scope; new group memberships also need editor there."
       }
     },
     "/api/v1/filters/{id}": {
@@ -348,6 +357,81 @@
             "description": "OK"
           }
         }
+      }
+    },
+    "/api/v1/devices/{tag}/retire": {
+      "post": {
+        "summary": "Retire a device",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Parks the device: the audit record stays, image builds, check-ins and rollout counting stop, and its credential is revoked. Editor at the device scope."
+      }
+    },
+    "/api/v1/devices/{tag}/reactivate": {
+      "post": {
+        "summary": "Reactivate a retired device",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Returns the device to service and issues a fresh credential (shown once). Editor at the device scope."
+      }
+    },
+    "/api/v1/groups/{name}": {
+      "patch": {
+        "summary": "Update a group",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Re-parent the group (cycle-safe) and/or change its IdP mapping. Org owner."
+      },
+      "delete": {
+        "summary": "Remove a group",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Only an empty leaf group with no references (devices, subgroups, assignments, bindings, rings) can be removed. Org owner."
+      }
+    },
+    "/api/v1/apps": {
+      "put": {
+        "summary": "Replace an app list at a scope",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Body: {scope, kind: packages|flatpaks|overlays, names}. Names pass the injection firewall; the gate validates the result. Editor at the scope."
+      }
+    },
+    "/api/v1/rollout/plan": {
+      "put": {
+        "summary": "Replace the rollout ring plan",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Body: {plan} with rings [{group, soakMinutes, minHealthyPercent}]; null plan clears it. Org owner."
+      }
+    },
+    "/api/v1/assurance": {
+      "put": {
+        "summary": "Configure audit controls",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Body: {requireFourEyes}. Org owner."
       }
     }
   }

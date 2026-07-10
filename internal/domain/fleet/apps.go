@@ -1,6 +1,7 @@
 package fleet
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -42,6 +43,89 @@ func dedup(in []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// AppKind names one of the three additive app lists.
+type AppKind string
+
+const (
+	AppPackages AppKind = "packages"
+	AppFlatpaks AppKind = "flatpaks"
+	AppOverlays AppKind = "overlays"
+)
+
+// validateApp checks one name against its kind's injection firewall.
+func validateApp(kind AppKind, name string) error {
+	ok := false
+	switch kind {
+	case AppPackages:
+		ok = ValidatePackage(name)
+	case AppFlatpaks:
+		ok = ValidateFlatpak(name)
+	case AppOverlays:
+		ok = ValidateOverlay(name)
+	default:
+		return fmt.Errorf("unknown app kind %q (packages|flatpaks|overlays)", kind)
+	}
+	if !ok {
+		return fmt.Errorf("invalid %s name %q", kind, name)
+	}
+	return nil
+}
+
+// SetScopeApps replaces one app list at a scope. Every name passes the
+// injection firewall; the list is deduplicated and sorted, so writes are
+// deterministic and diffs stay readable.
+func SetScopeApps(ref string, kind AppKind, names []string) Mutation {
+	return func(f *Fleet) error {
+		clean := dedup(names)
+		for _, n := range clean {
+			if err := validateApp(kind, n); err != nil {
+				return err
+			}
+		}
+		return f.withApps(ref, func(pkgs, flat, ov *[]string) {
+			switch kind {
+			case AppPackages:
+				*pkgs = clean
+			case AppFlatpaks:
+				*flat = clean
+			case AppOverlays:
+				*ov = clean
+			}
+		})
+	}
+}
+
+// withApps edits a scope's app lists in place, mirroring withScope.
+func (f *Fleet) withApps(ref string, edit func(pkgs, flat, ov *[]string)) error {
+	switch {
+	case ref == "org":
+		if f.Org == nil {
+			f.Org = &Scope{}
+		}
+		edit(&f.Org.Packages, &f.Org.Flatpaks, &f.Org.Overlays)
+		return nil
+	case strings.HasPrefix(ref, "group:"):
+		name := strings.TrimPrefix(ref, "group:")
+		g, ok := f.Groups[name]
+		if !ok {
+			return fmt.Errorf("unknown group %q", name)
+		}
+		edit(&g.Packages, &g.Flatpaks, &g.Overlays)
+		f.Groups[name] = g
+		return nil
+	case strings.HasPrefix(ref, "device:"):
+		tag := strings.TrimPrefix(ref, "device:")
+		d, ok := f.Devices[tag]
+		if !ok {
+			return fmt.Errorf("unknown device %q", tag)
+		}
+		edit(&d.Packages, &d.Flatpaks, &d.Overlays)
+		f.Devices[tag] = d
+		return nil
+	}
+	return fmt.Errorf("bad scope %q (want org|group:<name>|device:<tag>)", ref)
 }
 
 func (f *Fleet) appLists(kind, name string) (pkgs, flat, ov []string) {

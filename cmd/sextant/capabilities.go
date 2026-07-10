@@ -126,7 +126,8 @@ func (d *deps) buildConfigPlane() error {
 		d.devCreds = app.NewDeviceCredentials(pg.Tokens(), clock)
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
-			return svc.Fleet().GroupDevices(group)
+			// Retired devices never converge; counting them stalls a ring.
+			return svc.Fleet().ActiveGroupDevices(group)
 		})
 		d.checks.Register("postgres", pg.Ping)
 	}
@@ -149,7 +150,11 @@ func (d *deps) observedCapability() capability.Capability {
 		EnabledFn: func() bool { return d.inv != nil },
 		RoutesFn: func(mux *http.ServeMux) {
 			inner := http.NewServeMux()
-			api.NewCheckin(d.inv, d.devCreds, d.cfg.CheckinToken).Routes(inner)
+			api.NewCheckin(d.inv, d.devCreds, d.cfg.CheckinToken).
+				WithLifecycle(func(tag string) bool {
+					dev, ok := d.svc.Fleet().Devices[tag]
+					return ok && dev.Retired()
+				}).Routes(inner)
 			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40)(inner))
 		},
 	}

@@ -24,12 +24,23 @@ type CheckinAPI struct {
 	inv    *app.InventoryService
 	devs   DeviceAuthenticator
 	shared string // shared bridge token; "" disables it
+	// retired reports whether a tag is parked. A retired device's reports
+	// are refused even with a valid credential: lifecycle beats auth, and
+	// the bridge token must not resurrect a parked tag either. nil = no
+	// lifecycle source (tests).
+	retired func(tag string) bool
 }
 
 // NewCheckin builds the check-in surface. Both auth sources are optional
 // but at least one must be set or check-in is disabled.
 func NewCheckin(inv *app.InventoryService, devs DeviceAuthenticator, sharedToken string) *CheckinAPI {
 	return &CheckinAPI{inv: inv, devs: devs, shared: sharedToken}
+}
+
+// WithLifecycle wires the retired-tag predicate (from the config snapshot).
+func (c *CheckinAPI) WithLifecycle(retired func(tag string) bool) *CheckinAPI {
+	c.retired = retired
+	return c
 }
 
 // Routes registers the device-facing endpoint.
@@ -60,6 +71,12 @@ func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
 	if !c.authorized(r, secret, in.Tag) {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="sextant-checkin"`)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 410 tells a lingering agent this tag is permanently parked.
+	if c.retired != nil && c.retired(in.Tag) {
+		http.Error(w, "device is retired", http.StatusGone)
 		return
 	}
 

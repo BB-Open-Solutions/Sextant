@@ -126,7 +126,12 @@ in
     , overlaysDir ? null
     , extraModules ? [ ]
     }:
-    lib.genAttrs (lib.attrNames (fleet.devices or { }))
+    # Retired devices keep their audit record in fleet.json but no longer
+    # exist as hosts: no image builds, no gate target.
+    lib.genAttrs
+      (lib.attrNames
+        (lib.filterAttrs (_: d: (d.state or "") != "retired")
+          (fleet.devices or { })))
       (tag:
         assert deviceAsserts { inherit fleet tag hardwareProfiles; };
         nixpkgs.lib.nixosSystem {
