@@ -433,6 +433,59 @@
         },
         "description": "Body: {requireFourEyes}. Org owner."
       }
+    },
+    "/api/v1/me": {
+      "get": {
+        "summary": "Who am I",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Identity claims plus the effective role per visible scope, derived live from the current document. Feeds the profile menu."
+      }
+    },
+    "/api/v1/me/preferences": {
+      "get": {
+        "summary": "My preferences",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Personal presentation settings (timezone, locale). Empty fields inherit the organisation default."
+      },
+      "put": {
+        "summary": "Update my preferences",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Body: {timezone?, locale?}. Timezone must be an IANA name; locale one of the shipped UI languages."
+      }
+    },
+    "/api/v1/audit": {
+      "get": {
+        "summary": "Configuration audit trail",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Newest commits on the config repo (?limit=, default 100). Org-wide viewer: commits span every scope."
+      }
+    },
+    "/api/v1/devices/{tag}/credential": {
+      "post": {
+        "summary": "Re-issue a device credential",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Replaces the device credential (lost secret, re-image); the new secret is shown once. Editor at the device scope; refused for retired devices."
+      }
     }
   }
 }

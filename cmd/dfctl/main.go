@@ -30,6 +30,8 @@ Resources and verbs:
   status    [TAG]
   access    list | grant GROUP ROLE SCOPE | revoke GROUP SCOPE
   tokens    list | mint NAME [-ceiling R] [-ttl-days N] | revoke ID
+  me        [prefs [TIMEZONE LOCALE]]   (who am I; get/set preferences)
+  audit     (config commit trail)
   fleet     get
 
 SCOPE is org | group:<name> | device:<tag>. VALUE parses as JSON when
@@ -121,6 +123,28 @@ func dispatch(c *client, asJSON bool, args []string) error {
 	case "fleet":
 		var out any
 		if err := c.do("GET", "/api/v1/fleet", nil, &out); err != nil {
+			return err
+		}
+		printJSON(out)
+		return nil
+	case "me":
+		path := "/api/v1/me"
+		if verb == "prefs" {
+			path = "/api/v1/me/preferences"
+			if len(rest) == 2 { // me prefs TIMEZONE LOCALE ("" keeps default)
+				return c.do("PUT", path,
+					map[string]any{"timezone": rest[0], "locale": rest[1]}, nil)
+			}
+		}
+		var out any
+		if err := c.do("GET", path, nil, &out); err != nil {
+			return err
+		}
+		printJSON(out)
+		return nil
+	case "audit":
+		var out any
+		if err := c.do("GET", "/api/v1/audit", nil, &out); err != nil {
 			return err
 		}
 		printJSON(out)

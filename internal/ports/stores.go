@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 )
@@ -50,4 +51,10 @@ type StatusStore interface {
 type InventoryStore interface {
 	PutFacts(ctx context.Context, tenant, tag string, facts []byte, now time.Time) error
 	GetFacts(ctx context.Context, tenant, tag string) ([]byte, time.Time, bool, error)
+}
+
+// PrefsStore persists per-user presentation preferences, tenant-namespaced.
+type PrefsStore interface {
+	GetPrefs(ctx context.Context, tenant, subject string) (identity.Preferences, bool, error)
+	PutPrefs(ctx context.Context, tenant, subject string, p identity.Preferences, now time.Time) error
 }

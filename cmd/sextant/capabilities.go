@@ -45,6 +45,7 @@ type deps struct {
 	inv      *app.InventoryService
 	tokens   *app.TokenService
 	devCreds *app.DeviceCredentials
+	prefs    ports.PrefsStore
 	authz    api.Authz
 	cleanup  []func()
 }
@@ -124,6 +125,7 @@ func (d *deps) buildConfigPlane() error {
 		d.inv = app.NewInventoryService(pg, pg, clock, app.DefaultTenant)
 		d.tokens = app.NewTokenService(pg.Tokens(), clock, 0)
 		d.devCreds = app.NewDeviceCredentials(pg.Tokens(), clock)
+		d.prefs = pg
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
 			// Retired devices never converge; counting them stalls a ring.
@@ -236,7 +238,8 @@ func (d *deps) apiCapability() capability.Capability {
 		CapName: "api",
 		RoutesFn: func(mux *http.ServeMux) {
 			api.New(api.Services{Config: d.svc, Changes: d.changes,
-				Rollouts: d.rollouts, Inventory: d.inv, Tokens: d.tokens, DevCreds: d.devCreds},
+				Rollouts: d.rollouts, Inventory: d.inv, Tokens: d.tokens,
+				DevCreds: d.devCreds, Prefs: d.prefs},
 				d.authz, d.cfg.APIToken, d.cfg.Write, d.log).Routes(mux)
 		},
 	}

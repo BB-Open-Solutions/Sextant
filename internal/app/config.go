@@ -148,6 +148,16 @@ func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg s
 	return nil
 }
 
+// AuditLog returns the newest limit config commits when the repo adapter
+// keeps history (git does; a plain-directory test repo may not).
+func (s *ConfigService) AuditLog(ctx context.Context, limit int) ([]ports.AuditEntry, error) {
+	al, ok := s.repo.(ports.AuditLog)
+	if !ok {
+		return nil, fmt.Errorf("audit log: %w", ports.ErrUnavailable)
+	}
+	return al.Log(ctx, limit)
+}
+
 // Reload re-reads the working tree into the snapshot (e.g. after a change
 // request merged behind the service's back).
 func (s *ConfigService) Reload() error {

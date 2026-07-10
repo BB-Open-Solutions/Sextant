@@ -6,6 +6,11 @@ package main
 
 import (
 	"context"
+
+	// Embed the IANA zone database: user timezone preferences must resolve
+	// even in a container image without tzdata.
+	_ "time/tzdata"
+
 	"fmt"
 	"net/http"
 	"os"

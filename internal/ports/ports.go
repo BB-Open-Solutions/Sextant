@@ -79,6 +79,22 @@ type BranchRepo interface {
 	Diff(ctx context.Context, branch string) (string, error)
 }
 
+// AuditEntry is one committed configuration change.
+type AuditEntry struct {
+	Hash    string    `json:"hash"`
+	Author  string    `json:"author"`
+	Email   string    `json:"email"`
+	When    time.Time `json:"when"`
+	Subject string    `json:"subject"`
+}
+
+// AuditLog extends a config repo with commit-history reads: the audit
+// trail auditors and the console inspect. The git adapter implements it.
+type AuditLog interface {
+	// Log returns the newest limit commits on the current branch.
+	Log(ctx context.Context, limit int) ([]AuditEntry, error)
+}
+
 // Builder runs the heavy build gate for a change: build the affected hosts'
 // systems from the repo at dir. Implementations shell nix build (or a remote
 // builder); tests inject fakes.

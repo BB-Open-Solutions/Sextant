@@ -52,9 +52,10 @@ func fullAPI(t *testing.T) *API {
 	fo := newFakeObserved()
 	inv := app.NewInventoryService(fo, fo, tickClock{}, "")
 	toks := app.NewTokenService(newAPIMemTokenStore(), tickClock{}, 0)
+	creds := app.NewDeviceCredentials(newAPIMemTokenStore(), tickClock{})
 
-	a := New(Services{Config: svc, Changes: changes, Rollouts: rollouts, Inventory: inv, Tokens: toks},
-		Authz{}, testToken, true, discardLog())
+	a := New(Services{Config: svc, Changes: changes, Rollouts: rollouts, Inventory: inv,
+		Tokens: toks, DevCreds: creds}, Authz{}, testToken, true, discardLog())
 	a.Routes(http.NewServeMux())
 	return a
 }

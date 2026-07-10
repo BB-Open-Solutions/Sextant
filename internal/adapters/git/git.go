@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -145,4 +147,33 @@ func isNonFastForward(msg string) bool {
 		strings.Contains(m, "fetch first") ||
 		strings.Contains(m, "updates were rejected") ||
 		strings.Contains(m, "! [rejected]")
+}
+
+// Log implements ports.AuditLog: the newest limit commits, machine-parsed
+// with unit separators so subjects may contain anything but 0x1f/newline.
+func (r *Repo) Log(ctx context.Context, limit int) ([]ports.AuditEntry, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", r.dir, "log",
+		fmt.Sprintf("-n%d", limit), "--format=%H%x1f%an%x1f%ae%x1f%at%x1f%s").Output()
+	if err != nil {
+		return nil, fmt.Errorf("git log: %w", err)
+	}
+	var entries []ports.AuditEntry
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		parts := strings.Split(line, "\x1f")
+		if len(parts) != 5 {
+			continue
+		}
+		sec, err := strconv.ParseInt(parts[3], 10, 64)
+		if err != nil {
+			continue
+		}
+		entries = append(entries, ports.AuditEntry{
+			Hash: parts[0], Author: parts[1], Email: parts[2],
+			When: time.Unix(sec, 0).UTC(), Subject: parts[4],
+		})
+	}
+	return entries, nil
 }
