@@ -17,15 +17,24 @@ impersonate any other. This ADR fixes the target model and the path.
 
 1. **Humans**: OIDC sessions only (built). Roles derive per request from
    the access configuration; nothing is trusted from the cookie.
-2. **Service accounts** replace the single API token: named principals
-   with **scoped, hashed, expiring tokens**. A token carries a role
-   ceiling (e.g. viewer-only for a dashboard, editor at one group for a
-   CI job) enforced through the same identity resolver as humans - one
-   authorization path, no special cases. Tokens are stored hashed
-   (argon2id), show last-used, and are revocable and rotatable from the
-   console (owner-only). The current env token remains as break-glass,
-   explicitly labeled, until service accounts land.
-3. **Devices**: per-device credentials issued at enrollment, bound to the
+2. **Personal API tokens, Odoo-style.** A user creates tokens for
+   themselves; a token acts AS that user. Its rights are derived per
+   request from the user's current bindings through the same identity
+   resolver as the session - the token can never exceed its owner, and
+   revoking the user's access instantly limits every token they hold.
+   A token may carry an optional ceiling that narrows it further (e.g.
+   viewer-only for a dashboard integration), never widens it. Group
+   membership rides a snapshot with a bounded TTL: expiry forces
+   re-issuance, so a user removed at the IdP loses token power within
+   the TTL at the latest, immediately when their bindings are revoked
+   in the fleet document.
+3. **Service accounts** for non-human automation (CI, integrations):
+   named principals with explicit bindings in the access list, same
+   resolver, no user attached. Both kinds are stored hashed (argon2id),
+   show last-used, and are revocable and rotatable from the console.
+   The current env token remains as break-glass, explicitly labeled,
+   until this lands.
+4. **Devices**: per-device credentials issued at enrollment, bound to the
    tag; a check-in authenticates the device it claims to be. Rotation on
    re-image; revocation on retire (part of the lifecycle capability).
    The shared check-in token remains only as a migration bridge.
