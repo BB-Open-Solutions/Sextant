@@ -10,18 +10,25 @@
 # free-form by design (orgs classify differently), "high" is the convention.
 { lib }:
 let
-  # Only JSON-representable defaults are exported; a derivation or
-  # function default is real but not renderable, so it is omitted
-  # rather than crashing the export.
-  isPlain = v:
-    v == null || lib.isBool v || lib.isInt v || lib.isFloat v
-    || lib.isString v
-    || (lib.isList v && lib.all isPlain v)
-    || (lib.isAttrs v && !(v ? _type) && lib.all isPlain (lib.attrValues v));
+  # Only JSON-representable defaults are exported; a derivation, function
+  # or self-referential default is real but not renderable, so it is
+  # omitted rather than crashing the export. The walk is depth-bounded
+  # and never deepSeqs: full NixOS defaults can be enormous or cyclic
+  # (tryEval cannot catch a stack overflow, only a throw).
+  isPlain = depth: v:
+    depth > 0 && (
+      v == null || lib.isBool v || lib.isInt v || lib.isFloat v
+      || lib.isString v
+      || (lib.isList v && lib.all (isPlain (depth - 1)) v)
+      || (lib.isAttrs v
+        && !(v ? _type)
+        && !(lib.isDerivation v)
+        && lib.all (isPlain (depth - 1)) (lib.attrValues v))
+    );
   plainDefault = opt:
-    let forced = builtins.tryEval (builtins.deepSeq (opt.default or null) (opt.default or null));
-    in if (opt ? default) && forced.success && isPlain forced.value
-    then { default = forced.value; }
+    let ok = builtins.tryEval ((opt ? default) && isPlain 4 opt.default);
+    in if ok.success && ok.value
+    then { default = opt.default; }
     else { };
   riskClass = opt:
     if (opt.riskClass or "") != "" then { riskClass = opt.riskClass; } else { };
