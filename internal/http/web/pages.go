@@ -184,6 +184,23 @@ func (s *Server) changesPage(w http.ResponseWriter, r *http.Request, v view) {
 	s.render(w, "changes", data, v)
 }
 
+// diffPage shows an approver what a change would apply.
+func (s *Server) diffPage(w http.ResponseWriter, r *http.Request, v view) {
+	id := r.PathValue("id")
+	cr, ok, err := s.svc.Changes.Get(r.Context(), id)
+	if err != nil || !ok {
+		http.NotFound(w, r)
+		return
+	}
+	diff, err := s.svc.Changes.Diff(r.Context(), id)
+	data := map[string]any{"Title": "Diff " + id, "Nav": "changes",
+		"ID": id, "Change": cr, "Diff": diff}
+	if err != nil {
+		data["Error"] = err.Error()
+	}
+	s.render(w, "diff", data, v)
+}
+
 func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 	f := s.svc.Config.Fleet()
 	data := map[string]any{"Title": "Rollout", "Nav": "rollout",

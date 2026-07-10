@@ -23,6 +23,7 @@
       <td>{{.Author}}</td>
       <td>{{.Updated.Format "2006-01-02 15:04"}}</td>
       <td>
+        {{if .Open}}<a href="/changes/{{.ID}}/diff">diff</a> {{end}}
         {{if $.CanEdit}}
         {{if or (eq .Status "draft") (eq .Status "failed")}}
         <form class="inline" method="post" action="/changes/{{.ID}}/submit">

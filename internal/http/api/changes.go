@@ -32,6 +32,17 @@ func (a *API) getChange(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// getChangeDiff returns the unified diff an approver reviews before merge.
+func (a *API) getChangeDiff(w http.ResponseWriter, r *http.Request) error {
+	diff, err := a.changes.Diff(r.Context(), r.PathValue("id"))
+	if err != nil {
+		return wrapChangeErr(err)
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(diff))
+	return nil
+}
+
 func (a *API) postChange(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		ID    string `json:"id"`
@@ -138,6 +149,7 @@ func wrapChangeErr(err error) error {
 	m := err.Error()
 	if strings.Contains(m, "unknown change") || strings.Contains(m, "cannot move change") ||
 		strings.Contains(m, "only draft") || strings.Contains(m, "only ready") ||
+		strings.Contains(m, "no pending diff") ||
 		strings.Contains(m, "already exists") || strings.Contains(m, "invalid change-request id") {
 		return reject(err)
 	}

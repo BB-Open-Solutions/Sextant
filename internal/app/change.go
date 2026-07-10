@@ -181,6 +181,19 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 	return cr, s.store.Put(ctx, cr)
 }
 
+// Diff returns what merging the change would alter - the artifact an
+// approver reviews (ADR 0007). Empty for changes without edits.
+func (s *ChangeService) Diff(ctx context.Context, id string) (string, error) {
+	cr, err := s.mustGet(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if !cr.Open() {
+		return "", fmt.Errorf("change %q is %s; no pending diff", id, cr.Status)
+	}
+	return s.repo.Diff(ctx, cr.Branch)
+}
+
 // Abandon closes a change without merging and tears down its branch.
 func (s *ChangeService) Abandon(ctx context.Context, id string) (change.CR, error) {
 	s.mu.Lock()

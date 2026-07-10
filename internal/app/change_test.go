@@ -237,3 +237,39 @@ func TestChangeSurvivesRestart(t *testing.T) {
 		t.Fatalf("merged value = %v", v)
 	}
 }
+
+func TestChangeDiff(t *testing.T) {
+	cs, _, _ := newChangeStack(t, nil)
+	ctx := context.Background()
+	if _, err := cs.Open(ctx, "diffy", "Show me", "ada"); err != nil {
+		t.Fatal(err)
+	}
+	// No edits yet: empty diff, no error.
+	if d, err := cs.Diff(ctx, "diffy"); err != nil || strings.TrimSpace(d) != "" {
+		t.Fatalf("empty diff = %q, %v", d, err)
+	}
+	if err := cs.Edit(ctx, "diffy",
+		fleet.SetScopeSetting("group:pilot", "apps.office", true), "edit", ports.Author{}); err != nil {
+		t.Fatal(err)
+	}
+	d, err := cs.Diff(ctx, "diffy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(d, "apps.office") || !strings.Contains(d, "+") {
+		t.Fatalf("diff misses the edit: %s", d)
+	}
+	// Merged change has no pending diff.
+	if _, err := cs.Submit(ctx, "diffy"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.Merge(ctx, "diffy", ports.Author{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.Diff(ctx, "diffy"); err == nil {
+		t.Fatal("diff on merged change accepted")
+	}
+	if _, err := cs.Diff(ctx, "ghost"); err == nil {
+		t.Fatal("diff on unknown change accepted")
+	}
+}

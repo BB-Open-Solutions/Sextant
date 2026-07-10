@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
@@ -119,6 +121,36 @@ func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg s
 func (s *ConfigService) Reload() error {
 	_, err := s.reload()
 	return err
+}
+
+// SyncLoop keeps the working tree and snapshot in sync with the remote:
+// the git remote is the source of truth, and commits made outside this
+// console (engineers, CI, another replica) must become visible without a
+// restart. Each tick takes the write lock, so a sync never interleaves
+// with a write transaction; sync errors are logged and retried - a flaky
+// remote must not kill the console. No-op without a remote.
+func (s *ConfigService) SyncLoop(ctx context.Context, every time.Duration, log *slog.Logger) {
+	if !s.repo.HasRemote() {
+		return
+	}
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.writeMu.Lock()
+			err := s.repo.Sync(ctx)
+			if err == nil {
+				_, err = s.reload()
+			}
+			s.writeMu.Unlock()
+			if err != nil && ctx.Err() == nil {
+				log.Warn("remote sync failed; keeping last good snapshot", "err", err)
+			}
+		}
+	}
 }
 
 // applyTx is the core write transaction, shared by direct writes and

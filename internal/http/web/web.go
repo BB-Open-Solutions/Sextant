@@ -46,7 +46,7 @@ type Server struct {
 // groups.
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
-	pages := []string{"overview", "devices", "device", "policies", "changes", "rollout", "access"}
+	pages := []string{"overview", "devices", "device", "policies", "changes", "diff", "rollout", "access"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -81,6 +81,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/devices/{tag}", s.device)
 	get("/policies", s.policies)
 	get("/changes", s.changesPage)
+	get("/changes/{id}/diff", s.diffPage)
 	get("/rollout", s.rolloutPage)
 	get("/access", s.accessPage)
 

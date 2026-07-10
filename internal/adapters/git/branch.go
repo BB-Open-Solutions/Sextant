@@ -50,6 +50,23 @@ func (r *Repo) RemoveWorktree(ctx context.Context, dir string) error {
 	return err
 }
 
+// maxDiffBytes bounds a diff so one pathological change cannot flood the
+// API or the approver's browser.
+const maxDiffBytes = 512 << 10
+
+// Diff implements ports.BranchRepo: the changes the branch introduces
+// relative to the merge base (three-dot), unified format.
+func (r *Repo) Diff(ctx context.Context, branch string) (string, error) {
+	out, err := gitRun(ctx, r.dir, "diff", "HEAD..."+branch)
+	if err != nil {
+		return "", err
+	}
+	if len(out) > maxDiffBytes {
+		return out[:maxDiffBytes] + "\n... (diff truncated)", nil
+	}
+	return out, nil
+}
+
 // MergeNoFF implements ports.BranchRepo: merge with a merge commit for the
 // audit trail. A conflict aborts the merge (leaving the tree clean) and
 // reports ErrConflict so the caller can ask for a rebase.

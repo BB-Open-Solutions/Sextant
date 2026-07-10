@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
@@ -208,4 +211,48 @@ func TestHARetryOnPushRace(t *testing.T) {
 	if !strings.Contains(final, `"apps.office": true`) {
 		t.Error("our edit lost")
 	}
+}
+
+// TestSyncLoopPicksUpExternalCommits: the remote is the source of truth -
+// a commit pushed by someone else must appear in the snapshot without any
+// console write.
+func TestSyncLoopPicksUpExternalCommits(t *testing.T) {
+	svc, dir := newService(t, nil)
+	bare := filepath.Join(t.TempDir(), "remote.git")
+	sh(t, dir, "clone", "-q", "--bare", dir, bare)
+	sh(t, dir, "remote", "add", "origin", bare)
+	sh(t, dir, "push", "-q", "origin", "main")
+	repo, err := git.Open(dir, "origin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc2, err := NewConfigService(repo, ports.GateFunc(func(context.Context, string, []string) error { return nil }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = svc
+
+	// An engineer pushes an external edit.
+	other := t.TempDir()
+	sh(t, other, "clone", "-q", bare, other)
+	ext := strings.Replace(seedFleet, `"desktop": "plasma"`, `"desktop": "gnome"`, 1)
+	if err := os.WriteFile(filepath.Join(other, "fleet.json"), []byte(ext), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sh(t, other, "add", "fleet.json")
+	sh(t, other, "-c", "user.name=e", "-c", "user.email=e@e", "commit", "-q", "-m", "external edit")
+	sh(t, other, "push", "-q", "origin", "main")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go svc2.SyncLoop(ctx, 30*time.Millisecond, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if svc2.Fleet().Org.Settings["desktop"] == "gnome" {
+			return // snapshot refreshed from the remote
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("external commit never reached the snapshot")
 }

@@ -75,6 +75,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	if a.changes != nil {
 		get("/api/v1/changes", a.getChanges)
 		get("/api/v1/changes/{id}", a.getChange)
+		get("/api/v1/changes/{id}/diff", a.getChangeDiff)
 		rw("POST", "/api/v1/changes", a.postChange)
 		rw("POST", "/api/v1/changes/{id}/edits", a.postChangeEdit)
 		rw("POST", "/api/v1/changes/{id}/submit", a.postChangeSubmit)

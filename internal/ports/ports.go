@@ -71,6 +71,9 @@ type BranchRepo interface {
 	// (audit trail). On conflict it aborts, leaves the tree clean and
 	// returns an error wrapping ErrConflict.
 	MergeNoFF(ctx context.Context, branch, msg string, a Author) error
+	// Diff returns the unified diff a branch would apply to the current
+	// branch (merge-base three-dot semantics): what an approver reviews.
+	Diff(ctx context.Context, branch string) (string, error)
 }
 
 // Builder runs the heavy build gate for a change: build the affected hosts'

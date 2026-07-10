@@ -1,0 +1,10 @@
+{{define "content"}}
+<h1>Change {{.ID}} - diff</h1>
+<p class="muted">{{.Change.Title}} - {{.Change.Status}} - by {{.Change.Author}}.
+This is what merging applies to the fleet configuration.</p>
+<div class="panel" style="overflow-x:auto">
+  {{if .Diff}}<pre style="margin:0; font-size:0.85em; line-height:1.4">{{.Diff}}</pre>
+  {{else}}<p class="muted">No changes on this branch yet.</p>{{end}}
+</div>
+<p><a href="/changes">Back to changes</a></p>
+{{end}}
