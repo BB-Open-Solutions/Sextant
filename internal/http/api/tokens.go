@@ -36,6 +36,12 @@ func (a *API) postToken(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	p := principalFrom(r.Context())
+	// No token chaining: a scoped token cannot mint further tokens, or its
+	// expiry would be extendable forever. Sessions (humans) and the
+	// break-glass service principal may mint.
+	if p.bearer && !p.user.Service {
+		return &forbidden{errNoTokenChaining}
+	}
 	kind := token.Personal
 	if in.Kind == string(token.Service) {
 		kind = token.Service
@@ -97,10 +103,15 @@ func (a *API) deleteToken(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// tokenOwned fetches a token for ownership checks (best-effort: a missing
-// token falls through to the owner requirement).
+// tokenOwned reports whether the caller owns token id. A store error or a
+// miss both fall through to the org-owner requirement (fail closed).
 func (a *API) tokenOwned(r *http.Request, id string) (token.Token, bool, error) {
-	for _, t := range mustList(r, a) {
+	p := principalFrom(r.Context())
+	toks, err := a.tokens.List(r.Context(), p.user.Subject)
+	if err != nil {
+		return token.Token{}, false, err
+	}
+	for _, t := range toks {
 		if t.ID == id {
 			return t, true, nil
 		}
@@ -108,14 +119,11 @@ func (a *API) tokenOwned(r *http.Request, id string) (token.Token, bool, error) 
 	return token.Token{}, false, nil
 }
 
-func mustList(r *http.Request, a *API) []token.Token {
-	p := principalFrom(r.Context())
-	toks, _ := a.tokens.List(r.Context(), p.user.Subject)
-	return toks
-}
-
 type simpleErr string
 
 func (e simpleErr) Error() string { return string(e) }
 
-const errServiceNeedsID = simpleErr("service account needs an id")
+const (
+	errServiceNeedsID  = simpleErr("service account needs an id")
+	errNoTokenChaining = simpleErr("a token cannot mint tokens; use a browser session")
+)

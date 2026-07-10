@@ -339,3 +339,62 @@ func (s *apiMemTokenStore) ListBySubject(_ context.Context, subj string) ([]toke
 }
 func (s *apiMemTokenStore) Delete(_ context.Context, id string) error              { delete(s.m, id); return nil }
 func (s *apiMemTokenStore) TouchLastUsed(context.Context, string, time.Time) error { return nil }
+
+// TestNoTokenChaining: a scoped token cannot mint further tokens (expiry
+// would be extendable forever); sessions and break-glass can.
+func TestNoTokenChaining(t *testing.T) {
+	svc, _ := seededService(t, rbacSeed)
+	toks := app.NewTokenService(newAPIMemTokenStore(), tickClock{}, 0)
+	ta := &fakeTokenAuth{users: map[string]identity.User{
+		"tok-owner": {Subject: "ow", Name: "Oscar", Groups: []string{"za-owners"}},
+	}, ceiling: map[string]identity.Role{}}
+	sessions := &fakeSessions{csrf: "csrf", users: map[string]identity.User{
+		"oscar": {Subject: "ow", Name: "Oscar", Groups: []string{"za-owners"}},
+	}}
+	mux := http.NewServeMux()
+	New(Services{Config: svc, Tokens: toks}, Authz{Sessions: sessions, Tokens: ta},
+		testToken, true, discardLog()).Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	body := map[string]any{"id": "chain", "name": "chained"}
+
+	// Via scoped token: refused.
+	req, _ := http.NewRequest("POST", srv.URL+"/api/v1/tokens", bytes.NewReader(mustJSON(t, body)))
+	req.Header.Set("Authorization", "Bearer tok-owner")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 403 {
+		t.Errorf("token minting token = %d, want 403", resp.StatusCode)
+	}
+
+	// Via session: allowed.
+	if code, out := sessionCall(t, srv, "oscar", "POST", "/api/v1/tokens", body, "csrf"); code != 201 {
+		t.Errorf("session minting token = %d, want 201 (%v)", code, out)
+	}
+
+	// Via break-glass: allowed (bootstrap path).
+	body2 := map[string]any{"id": "boot", "name": "bootstrap"}
+	req2, _ := http.NewRequest("POST", srv.URL+"/api/v1/tokens", bytes.NewReader(mustJSON(t, body2)))
+	req2.Header.Set("Authorization", "Bearer "+testToken)
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != 201 {
+		t.Errorf("break-glass minting = %d, want 201", resp2.StatusCode)
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
