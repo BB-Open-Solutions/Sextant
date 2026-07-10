@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sextant
+description: Sextant - declarative fleet control-plane for NixOS
+type: application
+version: 0.2.0
+appVersion: "0.2.0"

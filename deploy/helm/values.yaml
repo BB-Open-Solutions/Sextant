@@ -1,0 +1,55 @@
+# Sextant chart defaults. Secrets never live in values: the release reads
+# an existing Secret (secretName) with SEXTANT_* keys.
+image:
+  repository: forgejo.bb-open.com/bb-open/sextant
+  tag: "0.2.0"
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+replicaCount: 1
+
+# Existing Secret with SEXTANT_API_TOKEN, SEXTANT_CHECKIN_TOKEN,
+# SEXTANT_SESSION_KEY, SEXTANT_OIDC_CLIENT_SECRET.
+secretName: sextant-v2
+
+write: true
+gateMode: none # the seed overlay carries no flake; switch to eval per org
+logFormat: json
+
+oidc:
+  issuer: ""
+  clientId: ""
+  groupsClaim: ""
+  scopes: ""
+editorGroups: ""
+ownerGroups: ""
+viewerGroups: ""
+
+# CloudNativePG single-instance cluster for the observed plane. The
+# operator must be installed cluster-wide. DSN comes from the generated
+# <name>-app secret.
+cnpg:
+  enabled: true
+  name: sextant-pg
+  instances: 1
+  storage: 2Gi
+  storageClass: longhorn
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: longhorn
+
+ingress:
+  enabled: true
+  className: cilium
+  host: console.bb-open.com
+  tls: true
+certManager:
+  enabled: true
+  issuerName: letsencrypt-dns01
+  issuerKind: ClusterIssuer
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { cpu: "1", memory: 512Mi }

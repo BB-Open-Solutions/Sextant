@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels: { app: {{ .Release.Name }} }
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate # single writer on the overlay PVC
+  selector:
+    matchLabels: { app: {{ .Release.Name }} }
+  template:
+    metadata:
+      labels: { app: {{ .Release.Name }} }
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        # Self-seed: an empty data volume gets a git overlay repo with a
+        # minimal v3 fleet document, so the console starts standalone. An
+        # existing repo is left untouched.
+        - name: seed-overlay
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              if [ ! -d /data/overlay/.git ]; then
+                mkdir -p /data/overlay
+                cd /data/overlay
+                git init -q -b main
+                cat > fleet.json <<'EOF'
+              {
+                "version": 3,
+                "org": {"settings": {"desktop": "plasma"}},
+                "groups": {"pilot": {}},
+                "devices": {}
+              }
+              EOF
+                git add fleet.json
+                git -c user.name=sextant -c user.email=seed@sextant commit -qm "seed overlay"
+              fi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+      containers:
+        - name: sextant
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --addr=0.0.0.0:8080
+            - --repo=/data/overlay
+            - --state-dir=/data/state
+            {{- if .Values.write }}
+            - --write
+            {{- end }}
+            - --gate={{ .Values.gateMode }}
+            - --log-format={{ .Values.logFormat }}
+            - --secure-cookies
+            {{- with .Values.oidc.issuer }}
+            - --oidc-issuer={{ . }}
+            {{- end }}
+            {{- with .Values.oidc.clientId }}
+            - --oidc-client-id={{ . }}
+            {{- end }}
+            {{- if .Values.oidc.issuer }}
+            - --oidc-redirect-url=https://{{ .Values.ingress.host }}/callback
+            {{- end }}
+            {{- with .Values.oidc.groupsClaim }}
+            - --oidc-groups-claim={{ . }}
+            {{- end }}
+            {{- with .Values.viewerGroups }}
+            - --viewer-groups={{ . }}
+            {{- end }}
+            {{- with .Values.editorGroups }}
+            - --editor-groups={{ . }}
+            {{- end }}
+            {{- with .Values.ownerGroups }}
+            - --owner-groups={{ . }}
+            {{- end }}
+          envFrom:
+            - secretRef: { name: {{ .Values.secretName }} }
+          {{- if .Values.cnpg.enabled }}
+          env:
+            - name: SEXTANT_PG_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cnpg.name }}-app
+                  key: uri
+          {{- end }}
+          ports:
+            - { containerPort: 8080, name: http }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
