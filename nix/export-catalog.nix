@@ -11,11 +11,15 @@
 { lib }:
 {
   # exportCatalog: modules -> [ { name; type; description; default?; riskClass? } ]
-  # Evaluate the module set only for its option declarations.
-  exportCatalog = { modules }:
+  # Evaluate the module set only for its option declarations. specialArgs
+  # carries whatever the modules expect (pkgs, flake inputs, hostConfig);
+  # option DECLARATIONS should not depend on them, but module files that
+  # take them as arguments need them present to evaluate at all.
+  exportCatalog = { modules, specialArgs ? { } }:
     let
       eval = lib.evalModules {
         modules = modules ++ [{ _module.check = false; }];
+        inherit specialArgs;
       };
       # Only JSON-representable defaults are exported; a derivation or
       # function default is real but not renderable, so it is omitted
