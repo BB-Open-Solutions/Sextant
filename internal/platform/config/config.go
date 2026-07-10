@@ -74,6 +74,16 @@ type Config struct {
 	ViewerGroups []string
 	EditorGroups []string
 	OwnerGroups  []string
+
+	// LDAP directory browse (group pickers). The IdP (e.g. Zitadel) stays
+	// the login authority; LDAP is the read-only group source. Empty URL
+	// disables the directory surface.
+	LDAPURL         string
+	LDAPBindDN      string
+	LDAPBindPass    string // environment-only secret
+	LDAPBaseDN      string
+	LDAPGroupFilter string
+	LDAPNameAttr    string
 }
 
 // Getenv is the environment lookup used by Load. Injected so tests can supply
@@ -100,6 +110,12 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		OIDCRedirectURL:  envOr(getenv, "OIDC_REDIRECT_URL", ""),
 		OIDCGroupsClaim:  envOr(getenv, "OIDC_GROUPS_CLAIM", ""),
 		OIDCClientSecret: getenv(EnvPrefix + "OIDC_CLIENT_SECRET"), // env-only secret
+		LDAPURL:          envOr(getenv, "LDAP_URL", ""),
+		LDAPBindDN:       envOr(getenv, "LDAP_BIND_DN", ""),
+		LDAPBindPass:     getenv(EnvPrefix + "LDAP_BIND_PASSWORD"), // env-only secret
+		LDAPBaseDN:       envOr(getenv, "LDAP_BASE_DN", ""),
+		LDAPGroupFilter:  envOr(getenv, "LDAP_GROUP_FILTER", ""),
+		LDAPNameAttr:     envOr(getenv, "LDAP_NAME_ATTR", ""),
 	}
 	if v := getenv(EnvPrefix + "SHUTDOWN_GRACE"); v != "" {
 		d, err := time.ParseDuration(v)

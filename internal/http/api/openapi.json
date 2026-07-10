@@ -486,6 +486,17 @@
         },
         "description": "Replaces the device credential (lost secret, re-image); the new secret is shown once. Editor at the device scope; refused for retired devices."
       }
+    },
+    "/api/v1/directory/groups": {
+      "get": {
+        "summary": "Browse IdP directory groups",
+        "description": "Groups matching ?q= (substring) from the configured LDAP directory, for access-binding pickers. Requires owner at some scope; read-only.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   }
 }

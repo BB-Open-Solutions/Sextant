@@ -121,3 +121,18 @@ type GateFunc func(ctx context.Context, repoDir string, hosts []string) error
 func (f GateFunc) Validate(ctx context.Context, repoDir string, hosts []string) error {
 	return f(ctx, repoDir, hosts)
 }
+
+// DirectoryGroup is one group in the identity provider's directory.
+type DirectoryGroup struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// Directory browses the IdP's group directory, feeding access-binding
+// pickers so operators bind real groups instead of typing free text.
+// Read-only by design: Sextant never manages the directory.
+type Directory interface {
+	// ListGroups returns groups matching query (substring; empty = all),
+	// bounded by the adapter.
+	ListGroups(ctx context.Context, query string) ([]DirectoryGroup, error)
+}

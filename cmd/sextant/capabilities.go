@@ -16,6 +16,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
+	ldapdir "code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/ldap"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/nix"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/oidc"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/postgres"
@@ -46,6 +47,7 @@ type deps struct {
 	tokens   *app.TokenService
 	devCreds *app.DeviceCredentials
 	prefs    ports.PrefsStore
+	dir      ports.Directory
 	authz    api.Authz
 	cleanup  []func()
 }
@@ -132,6 +134,20 @@ func (d *deps) buildConfigPlane() error {
 			return svc.Fleet().ActiveGroupDevices(group)
 		})
 		d.checks.Register("postgres", pg.Ping)
+	}
+
+	// Directory browse: the login IdP (OIDC) and the group source (LDAP)
+	// may differ; LDAP only ever lists groups for binding pickers.
+	if cfg.LDAPURL != "" {
+		dir, err := ldapdir.New(ldapdir.Config{
+			URL: cfg.LDAPURL, BindDN: cfg.LDAPBindDN, BindPassword: cfg.LDAPBindPass,
+			BaseDN: cfg.LDAPBaseDN, GroupFilter: cfg.LDAPGroupFilter, NameAttr: cfg.LDAPNameAttr,
+		})
+		if err != nil {
+			return err
+		}
+		d.dir = dir
+		log.Info("directory browse mounted", "ldap", cfg.LDAPURL, "base", cfg.LDAPBaseDN)
 	}
 
 	d.rollouts = app.NewRolloutService(svc, st.Rollouts(), conv, clock, log)
@@ -239,7 +255,7 @@ func (d *deps) apiCapability() capability.Capability {
 		RoutesFn: func(mux *http.ServeMux) {
 			api.New(api.Services{Config: d.svc, Changes: d.changes,
 				Rollouts: d.rollouts, Inventory: d.inv, Tokens: d.tokens,
-				DevCreds: d.devCreds, Prefs: d.prefs},
+				DevCreds: d.devCreds, Prefs: d.prefs, Directory: d.dir},
 				d.authz, d.cfg.APIToken, d.cfg.Write, d.log).Routes(mux)
 		},
 	}
