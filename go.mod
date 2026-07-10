@@ -1,6 +1,6 @@
 module code.overheid.nl/MinBZK/DAWO-Sextant
 
-go 1.26.4
+go 1.25.0
 
 require (
 	github.com/coreos/go-oidc/v3 v3.20.0
