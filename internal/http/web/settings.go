@@ -83,12 +83,33 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 		}
 	}
 	sort.Strings(groups)
+
+	// The scope's own app lists (additive across the chain; edited here).
+	var pkgs, flats, ovs []string
+	switch {
+	case scope == "org":
+		if f.Org != nil {
+			pkgs, flats, ovs = f.Org.Packages, f.Org.Flatpaks, f.Org.Overlays
+		}
+	case strings.HasPrefix(scope, "group:"):
+		g := f.Groups[strings.TrimPrefix(scope, "group:")]
+		pkgs, flats, ovs = g.Packages, g.Flatpaks, g.Overlays
+	case strings.HasPrefix(scope, "device:"):
+		d := f.Devices[strings.TrimPrefix(scope, "device:")]
+		pkgs, flats, ovs = d.Packages, d.Flatpaks, d.Overlays
+	}
+
 	s.render(w, "settings", map[string]any{
 		"Title": "Settings", "Nav": "settings",
 		"Scope": scope, "Groups": groups, "Sections": sections,
 		"IsDevice": strings.HasPrefix(scope, "device:"),
 		"Empty":    len(cat.Entries) == 0,
 		"CanEdit":  v.roleAt(scope).Meets(identity.Editor),
+		"Apps": []map[string]string{
+			{"Kind": "packages", "Names": strings.Join(pkgs, ", ")},
+			{"Kind": "flatpaks", "Names": strings.Join(flats, ", ")},
+			{"Kind": "overlays", "Names": strings.Join(ovs, ", ")},
+		},
 	}, v)
 }
 

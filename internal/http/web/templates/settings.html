@@ -29,6 +29,23 @@
 {{end}}
 
 {{$ := .}}
+<h2>Apps at this scope</h2>
+<div class="panel">
+  <p class="muted" style="margin-top:0">Additive across the chain: a device gets the union
+  of org, group ancestry and its own lists. Names only (nixpkgs attrs, flathub ids,
+  repo overlays) - never code.</p>
+  {{range .Apps}}
+  <form method="post" action="/apps">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <input type="hidden" name="scope" value="{{$.Scope}}">
+    <input type="hidden" name="kind" value="{{.Kind}}">
+    <label class="muted" style="display:inline-block;min-width:6em">{{.Kind}}</label>
+    <input name="names" value="{{.Names}}" placeholder="comma-separated" style="min-width:24em">
+    {{if $.CanEdit}}<button type="submit" class="quiet">Save</button>{{end}}
+  </form>
+  {{end}}
+</div>
+
 {{range $sec := .Sections}}
 <h2>{{$sec.Name}}</h2>
 <div class="panel">

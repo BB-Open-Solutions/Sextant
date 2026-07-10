@@ -180,7 +180,9 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 	type prow struct {
 		ID, Description string
 		Settings        map[string]any
+		SettingsText    string // editable key = value form
 		Enforced        []string
+		EnforcedText    string
 		Assignments     []fleet.Assignment
 	}
 	var rows []prow
@@ -192,8 +194,14 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 				asn = append(asn, a)
 			}
 		}
+		var lines []string
+		for _, k := range sortedKeys(p.Settings) {
+			lines = append(lines, fmt.Sprintf("%s = %s", k, renderValue(p.Settings[k])))
+		}
 		rows = append(rows, prow{ID: id, Description: p.Description,
-			Settings: p.Settings, Enforced: p.Enforced, Assignments: asn})
+			Settings: p.Settings, SettingsText: strings.Join(lines, "\n"),
+			Enforced: p.Enforced, EnforcedText: strings.Join(p.Enforced, ", "),
+			Assignments: asn})
 	}
 	type frow struct {
 		ID, Match string
@@ -208,8 +216,16 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		}
 		frows = append(frows, frow{ID: id, Match: m, Rules: fl.Rules})
 	}
+	groups := make([]string, 0, len(f.Groups))
+	for g := range f.Groups {
+		groups = append(groups, g)
+	}
+	sort.Strings(groups)
 	s.render(w, "policies", map[string]any{
-		"Title": "Policies", "Nav": "policies", "Policies": rows, "Filters": frows}, v)
+		"Title": "Policies", "Nav": "policies", "Policies": rows, "Filters": frows,
+		"Groups": groups, "PolicyIDs": sortedKeys(f.Policies), "FilterIDs": sortedKeys(f.Filters),
+		"RuleRows": []int{0, 1, 2},
+		"CanOwn":   v.roleAt("org").Meets(identity.Owner)}, v)
 }
 
 func (s *Server) changesPage(w http.ResponseWriter, r *http.Request, v view) {

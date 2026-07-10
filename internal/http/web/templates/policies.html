@@ -3,34 +3,138 @@
 
 <div class="panel">
   <table>
-    <tr><th>Policy</th><th>Settings</th><th>Locked keys</th><th>Assigned to</th></tr>
+    <tr><th>Policy</th><th>Settings</th><th>Locked keys</th><th>Assigned to</th>{{if .CanOwn}}<th></th>{{end}}</tr>
+    {{$ := .}}
     {{range .Policies}}
     <tr>
       <td><strong>{{.ID}}</strong>{{with .Description}}<div class="muted">{{.}}</div>{{end}}</td>
       <td>{{range $k, $v := .Settings}}<div><code>{{$k}} = {{printf "%v" $v}}</code></div>{{end}}</td>
       <td>{{range .Enforced}}<span class="tag lock">{{.}}</span> {{end}}</td>
-      <td>{{range .Assignments}}<div><span class="tag">{{.Target}}</span>{{with .Filter}} filter <span class="tag">{{.}}</span>{{end}}</div>{{end}}</td>
+      <td>
+        {{$pol := .ID}}
+        {{range .Assignments}}
+        <div>
+          <span class="tag">{{.Target}}</span>{{with .Filter}} filter <span class="tag">{{.}}</span>{{end}}
+          {{if $.CanOwn}}
+          <form method="post" action="/assignments/delete" class="inline">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="policy" value="{{$pol}}">
+            <input type="hidden" name="target" value="{{.Target}}">
+            <input type="hidden" name="filter" value="{{.Filter}}">
+            <button type="submit" class="quiet">unassign</button>
+          </form>
+          {{end}}
+        </div>
+        {{end}}
+      </td>
+      {{if $.CanOwn}}
+      <td>
+        <details>
+          <summary class="muted">edit</summary>
+          <form method="post" action="/policies">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="id" value="{{.ID}}">
+            <input name="description" value="{{.Description}}" placeholder="description">
+            <textarea name="settings" rows="4" placeholder="key = value">{{.SettingsText}}</textarea>
+            <input name="enforced" value="{{.EnforcedText}}" placeholder="locked keys, comma-separated">
+            <button type="submit">Save</button>
+          </form>
+          <form method="post" action="/policies/{{.ID}}/delete" class="inline">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <button type="submit" class="quiet">Delete</button>
+          </form>
+        </details>
+      </td>
+      {{end}}
     </tr>
     {{else}}
-    <tr><td colspan="4" class="muted">No policies defined.</td></tr>
+    <tr><td colspan="5" class="muted">No policies defined.</td></tr>
     {{end}}
   </table>
 </div>
 
+{{if .CanOwn}}
+<h2>Create a policy</h2>
+<div class="panel">
+  <form method="post" action="/policies">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input name="id" placeholder="id (lowercase slug)" required>
+    <input name="description" placeholder="description">
+    <textarea name="settings" rows="4" placeholder="apps.office = true&#10;desktop = plasma" required></textarea>
+    <input name="enforced" placeholder="locked keys, comma-separated (optional)">
+    <button type="submit">Create</button>
+    <span class="muted">One setting per line: <code>key = value</code>. Documented keys are type-checked; the gate validates the rest.</span>
+  </form>
+</div>
+
+<h2>Assign a policy</h2>
+<div class="panel">
+  <form method="post" action="/assignments">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <select name="policy" required>
+      <option value="" disabled selected>policy</option>
+      {{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}
+    </select>
+    <select name="target" required>
+      <option value="org">org</option>
+      {{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}
+    </select>
+    <select name="filter">
+      <option value="">no filter (all devices)</option>
+      {{range .FilterIDs}}<option value="{{.}}">{{.}}</option>{{end}}
+    </select>
+    <input name="priority" type="number" placeholder="priority (tie-break)">
+    <button type="submit">Assign</button>
+  </form>
+</div>
+{{end}}
+
 <h2>Filters</h2>
 <div class="panel">
   <table>
-    <tr><th>Filter</th><th>Match</th><th>Rules</th></tr>
+    <tr><th>Filter</th><th>Match</th><th>Rules</th>{{if .CanOwn}}<th></th>{{end}}</tr>
     {{range .Filters}}
     <tr>
       <td><strong>{{.ID}}</strong></td>
       <td>{{.Match}}</td>
       <td>{{range .Rules}}<div><code>{{.Attr}} {{.Op}} {{.Value}}{{range .Values}}{{.}} {{end}}</code></div>{{end}}</td>
+      {{if $.CanOwn}}
+      <td>
+        <form method="post" action="/filters/{{.ID}}/delete" class="inline">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <button type="submit" class="quiet">Delete</button>
+        </form>
+      </td>
+      {{end}}
     </tr>
     {{else}}
-    <tr><td colspan="3" class="muted">No filters defined.</td></tr>
+    <tr><td colspan="4" class="muted">No filters defined.</td></tr>
     {{end}}
   </table>
 </div>
-<p class="muted">Create and assign policies via the API (dfctl or /api/v1); the editor UI follows.</p>
+
+{{if .CanOwn}}
+<h2>Create a filter</h2>
+<div class="panel">
+  <form method="post" action="/filters">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input name="id" placeholder="id (lowercase slug)" required>
+    <select name="match">
+      <option value="all">all rules must hold</option>
+      <option value="any">any rule suffices</option>
+    </select>
+    {{range $i := .RuleRows}}
+    <div>
+      <input name="attr{{$i}}" placeholder="attr (tag, class, hardware, assignedUser, group, label:key)">
+      <select name="op{{$i}}">
+        <option value="eq">eq</option><option value="ne">ne</option>
+        <option value="prefix">prefix</option><option value="in">in</option>
+      </select>
+      <input name="value{{$i}}" placeholder="value (comma list for in)">
+    </div>
+    {{end}}
+    <button type="submit">Create</button>
+  </form>
+</div>
+{{end}}
 {{end}}
