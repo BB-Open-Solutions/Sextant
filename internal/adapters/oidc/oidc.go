@@ -37,6 +37,9 @@ type Config struct {
 	SessionTTL time.Duration
 	// LandingPath is where a successful login redirects. Default "/".
 	LandingPath string
+	// GraphURL overrides the Microsoft Graph membership endpoint used for
+	// the Entra groups-overage fallback (tests, sovereign clouds).
+	GraphURL string
 	// Authorize gates login completion: a user who cannot view anything is
 	// rejected at the door. Wired to identity.Resolver.CanViewAnything.
 	Authorize func(identity.User) bool
@@ -51,6 +54,7 @@ type Authenticator struct {
 	flow        *secureCookie
 	ttl         time.Duration
 	landing     string
+	graphURL    string
 	authorize   func(identity.User) bool
 }
 
@@ -116,6 +120,7 @@ func New(ctx context.Context, c Config) (*Authenticator, error) {
 		flow:        flow,
 		ttl:         ttl,
 		landing:     landing,
+		graphURL:    c.GraphURL,
 		authorize:   authorize,
 	}, nil
 }
@@ -182,11 +187,24 @@ func (a *Authenticator) Callback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cannot read claims", http.StatusInternalServerError)
 		return
 	}
+	groups := groupsFromClaims(claims, a.groupsClaim)
+	// Entra groups overage: >150 groups means no groups claim, only a
+	// pointer to Graph. Fetch the real membership or large-tenant RBAC
+	// silently sees nothing (the failure mode this fallback exists for).
+	if len(groups) == 0 && hasGroupsOverage(claims) {
+		fetched, err := fetchGroupsFromGraph(r.Context(), nil, a.graphURL, tok.AccessToken)
+		if err != nil {
+			http.Error(w, "group membership lookup failed (Entra overage): "+err.Error(),
+				http.StatusBadGateway)
+			return
+		}
+		groups = fetched
+	}
 	u := identity.User{
 		Subject: idt.Subject,
 		Name:    firstStr(claims, "name", "preferred_username", "email"),
 		Email:   str(claims["email"]),
-		Groups:  groupsFromClaims(claims, a.groupsClaim),
+		Groups:  groups,
 	}
 	if !a.authorize(u) {
 		http.Error(w, "not authorized: no role grants console access to your account", http.StatusForbidden)
