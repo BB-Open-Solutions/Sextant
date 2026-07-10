@@ -26,6 +26,20 @@
         {{if .Open}}<a href="/changes/{{.ID}}/diff">diff</a> {{end}}
         {{if $.CanEdit}}
         {{if or (eq .Status "draft") (eq .Status "failed")}}
+        <details>
+          <summary class="muted">stage an edit</summary>
+          <form method="post" action="/changes/{{.ID}}/edits">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <select name="scope">
+              <option value="org">org</option>
+              {{range $.Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}
+            </select>
+            <input name="key" placeholder="setting key" required>
+            <input name="value" placeholder="value">
+            <label class="muted"><input type="checkbox" name="clear" value="1"> clear instead</label>
+            <button type="submit" class="quiet">Stage</button>
+          </form>
+        </details>
         <form class="inline" method="post" action="/changes/{{.ID}}/submit">
           <input type="hidden" name="csrf" value="{{$.CSRF}}"><button>Build</button>
         </form>

@@ -34,7 +34,7 @@
   </table>
 </div>
 {{else}}
-<div class="panel"><p class="muted">No rollout run. {{if not .HasRings}}Configure rollout rings in the fleet document first.{{end}}</p>
+<div class="panel"><p class="muted">No rollout run. {{if not .HasRings}}Configure rollout rings below first.{{end}}</p>
 {{if and .CanOwn .HasRings}}
 <form method="post" action="/rollout">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -42,6 +42,32 @@
   <button type="submit">Start rollout</button>
 </form>
 {{end}}
+</div>
+{{end}}
+
+{{if .CanOwn}}
+<h2>Ring plan</h2>
+<div class="panel">
+  <p class="muted" style="margin-top:0">Rings promote in order: a ring must converge
+  healthy through its soak window before the next one starts. Saving replaces the
+  whole plan; an empty form clears it.</p>
+  <form method="post" action="/rollout/plan">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{$ := .}}
+    {{range $i := .RingRows}}
+    <div>
+      <select name="group{{$i}}">
+        <option value="">(unused ring)</option>
+        {{range $.AllGroups}}
+        <option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+      <input name="soak{{$i}}" type="number" min="0" placeholder="soak (min)" value="{{index $.PlanSoaks $i}}">
+      <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="min healthy %" value="{{index $.PlanHealthy $i}}">
+    </div>
+    {{end}}
+    <button type="submit">Save plan</button>
+  </form>
 </div>
 {{end}}
 {{end}}

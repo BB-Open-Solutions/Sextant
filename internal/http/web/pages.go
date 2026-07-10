@@ -235,7 +235,14 @@ func (s *Server) changesPage(w http.ResponseWriter, r *http.Request, v view) {
 		return
 	}
 	crs, err := s.svc.Changes.List(r.Context())
+	f := s.svc.Config.Fleet()
+	groups := make([]string, 0, len(f.Groups))
+	for g := range f.Groups {
+		groups = append(groups, g)
+	}
+	sort.Strings(groups)
 	data := map[string]any{"Title": "Changes", "Nav": "changes", "Changes": crs,
+		"Groups":  groups,
 		"CanEdit": v.roleAt("org").Meets(identity.Editor)}
 	if err != nil {
 		data["Error"] = err.Error()
@@ -275,6 +282,33 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
 		"HasRings": f.Rollout != nil && len(f.Rollout.Rings) > 0,
 	}
+	// Ring-plan editor state: five rows, current plan padded with blanks.
+	const ringRows = 5
+	planGroups := make([]string, ringRows)
+	planSoaks := make([]string, ringRows)
+	planHealthy := make([]string, ringRows)
+	if f.Rollout != nil {
+		for i, ring := range f.Rollout.Rings {
+			if i >= ringRows {
+				break
+			}
+			planGroups[i] = ring.Group
+			if ring.SoakMinutes > 0 {
+				planSoaks[i] = fmt.Sprint(ring.SoakMinutes)
+			}
+			if ring.MinHealthyPercent > 0 {
+				planHealthy[i] = fmt.Sprint(ring.MinHealthyPercent)
+			}
+		}
+	}
+	allGroups := make([]string, 0, len(f.Groups))
+	for g := range f.Groups {
+		allGroups = append(allGroups, g)
+	}
+	sort.Strings(allGroups)
+	data["RingRows"] = []int{0, 1, 2, 3, 4}
+	data["AllGroups"] = allGroups
+	data["PlanGroups"], data["PlanSoaks"], data["PlanHealthy"] = planGroups, planSoaks, planHealthy
 	st, ringStatus, err := s.svc.Rollouts.Status(r.Context())
 	if err != nil {
 		data["Error"] = err.Error()
