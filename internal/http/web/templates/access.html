@@ -30,7 +30,13 @@ fleet configuration: every change is a gated, audited git commit.</p>
 <div class="panel">
   <form method="post" action="/access/grant">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input name="group" placeholder="IdP group" required>
+    <input name="group" placeholder="IdP group" required
+           {{if .DirGroups}}list="dir-groups"{{end}}>
+    {{if .DirGroups}}
+    <datalist id="dir-groups">
+      {{range .DirGroups}}<option value="{{.Name}}">{{end}}
+    </datalist>
+    {{end}}
     <select name="role">
       <option value="viewer">viewer</option>
       <option value="editor">editor</option>
@@ -41,6 +47,17 @@ fleet configuration: every change is a gated, audited git commit.</p>
       {{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}
     </select>
     <button type="submit">Grant</button>
+    {{if not .DirGroups}}<span class="muted">directory browse not configured; type the IdP group name</span>{{end}}
+  </form>
+</div>
+
+<h2>Assurance</h2>
+<div class="panel">
+  <form method="post" action="/assurance">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label><input type="checkbox" name="requireFourEyes" {{if .FourEyes}}checked{{end}}>
+    Require four-eyes: a change may not be merged by its own author (segregation of duties).</label>
+    <button type="submit" class="quiet">Save</button>
   </form>
 </div>
 {{end}}

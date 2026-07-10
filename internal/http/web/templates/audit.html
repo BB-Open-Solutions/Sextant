@@ -1,0 +1,21 @@
+{{define "content"}}
+<h1>Audit trail</h1>
+<div class="panel">
+  <p class="muted" style="margin-top:0">Every configuration change is a git commit with
+  real attribution. This is the newest slice; the full history lives in the overlay
+  repository.</p>
+  <table>
+    <tr><th>When</th><th>Who</th><th>What</th><th>Commit</th></tr>
+    {{range .Entries}}
+    <tr>
+      <td>{{.When.Format "2006-01-02 15:04:05"}}</td>
+      <td>{{.Author}} <span class="muted">{{.Email}}</span></td>
+      <td>{{.Subject}}</td>
+      <td><code>{{printf "%.10s" .Hash}}</code></td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4" class="muted">No history available.</td></tr>
+    {{end}}
+  </table>
+</div>
+{{end}}

@@ -334,18 +334,30 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 	s.render(w, "rollout", data, v)
 }
 
-func (s *Server) accessPage(w http.ResponseWriter, _ *http.Request, v view) {
+func (s *Server) accessPage(w http.ResponseWriter, r *http.Request, v view) {
 	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 	groups := make([]string, 0, len(f.Groups))
 	for g := range f.Groups {
 		groups = append(groups, g)
 	}
 	sort.Strings(groups)
-	s.render(w, "access", map[string]any{
+	canOwn := v.roleAt("org").Meets(identity.Owner)
+	data := map[string]any{
 		"Title": "Access", "Nav": "access",
 		"Bindings": f.Access, "Groups": groups,
-		"CanOwn": v.roleAt("org").Meets(identity.Owner),
-	}, v)
+		"CanOwn":   canOwn,
+		"FourEyes": f.Assurance != nil && f.Assurance.RequireFourEyes,
+	}
+	// Directory picker: real IdP groups instead of free text. Best-effort;
+	// a slow or absent directory must not break the page.
+	if s.svc.Directory != nil && canOwn {
+		if dgs, err := s.svc.Directory.ListGroups(r.Context(), ""); err == nil {
+			data["DirGroups"] = dgs
+		} else {
+			s.log.Warn("directory browse failed", "err", err)
+		}
+	}
+	s.render(w, "access", data, v)
 }
 
 // --- actions (POST + redirect) ---

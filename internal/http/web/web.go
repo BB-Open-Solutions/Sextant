@@ -33,6 +33,7 @@ type Services struct {
 	Tokens    *app.TokenService
 	Prefs     ports.PrefsStore
 	DevCreds  *app.DeviceCredentials
+	Directory ports.Directory
 }
 
 // Server renders the console.
@@ -50,7 +51,7 @@ type Server struct {
 // groups.
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "profile"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -90,6 +91,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/changes/{id}/diff", s.diffPage)
 	get("/rollout", s.rolloutPage)
 	get("/access", s.accessPage)
+	get("/audit", s.auditPage)
 	get("/profile", s.profilePage)
 
 	post("/devices", s.postDeviceEnroll)
@@ -121,6 +123,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/rollout/cancel", s.postRolloutCancel)
 	post("/access/grant", s.postAccessGrant)
 	post("/access/revoke", s.postAccessRevoke)
+	post("/assurance", s.postAssurance)
 	post("/profile/prefs", s.postProfilePrefs)
 	post("/profile/tokens", s.postProfileTokenMint)
 	post("/profile/tokens/{id}/revoke", s.postProfileTokenRevoke)

@@ -21,6 +21,7 @@
     <a href="/rollout" {{if eq .Nav "rollout"}}class="active"{{end}}>Rollout</a>
     {{end}}
     <a href="/access" {{if eq .Nav "access"}}class="active"{{end}}>Access</a>
+    {{if .CanOrgView}}<a href="/audit" {{if eq .Nav "audit"}}class="active"{{end}}>Audit</a>{{end}}
   </nav>
   <span class="who">
     <a href="/profile" {{if eq .Nav "profile"}}class="active"{{end}}>{{.User.Name}}</a>
