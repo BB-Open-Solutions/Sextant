@@ -9,6 +9,16 @@
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
+      # The resolver/generator contract (ADR 0005): overlays import these
+      # from this flake so console and generator share one source.
+      lib = {
+        resolve = import ./nix/resolve.nix { };
+        generator = import ./nix/generator.nix { lib = nixpkgs.lib; };
+        exportCatalog =
+          (import ./nix/export-catalog.nix { lib = nixpkgs.lib; }).exportCatalog;
+        tests = import ./nix/tests.nix { lib = nixpkgs.lib; };
+      };
+
       packages = forAll (pkgs: rec {
         sextant = pkgs.buildGoModule {
           pname = "sextant";

@@ -13,15 +13,15 @@ Status legend: [x] done, [~] partial, [ ] not started.
 - [ ] Config repo is a pod PVC = single point of failure. Git remote
       (Forgejo) must become the source of truth; HA push path exists in
       code but is not the deploy mode.
-- [ ] External commits to the overlay are not picked up (snapshot only
+- [x] External commits to the overlay are not picked up (snapshot only
       refreshes on the console's own writes/merges). Need a sync loop or
       forge webhook, with conflict handling.
-- [ ] `dfctl` is a stub - the "API/CLI-first" claim needs a real CLI.
-- [ ] No diff view: an approver cannot see what a change alters before
+- [x] `dfctl` is a stub - the "API/CLI-first" claim needs a real CLI.
+- [x] No diff view: an approver cannot see what a change alters before
       merge. Git has it; API and UI must surface it.
 - [ ] Entra groups "overage": >150 groups sends a Graph link instead of
       the claim; RBAC fails silently on large AD tenants without handling.
-- [ ] No OpenAPI spec or contract tests - required for a frozen,
+- [x] No OpenAPI spec or contract tests - required for a frozen,
       documented, future-proof API.
 - [ ] The agent is loose parts (check-in timer + comin + scripts); must
       become one designed component.
@@ -40,15 +40,17 @@ Status legend: [x] done, [~] partial, [ ] not started.
 
 ### B. Config plane as source of truth
 - [ ] Overlay lives in a git remote (Forgejo), not a PVC; HA push mode on
-- [ ] Sync loop / webhook so external commits refresh the snapshot
-- [ ] The v3 nix generator + `resolve.nix` twin + parity harness in CI
+- [x] Sync loop so external commits refresh the snapshot (30s, write-locked)
+- [x] The v3 nix generator + `resolve.nix` twin + parity harness in CI
+      (nix/ in this repo; overlays import via the sextant flake input)
 - [ ] `gate=eval` on by default against a real overlay
-- [ ] Catalog export from DAWO-NixOS (annotated options -> catalog.json)
-- [ ] Diff view (API + UI): what a change alters, before merge
+- [~] Catalog export mechanism (lib.exportCatalog over documented dawo.*
+      options); annotating the real core options remains
+- [x] Diff view (API + UI): what a change alters, before merge
 - [ ] Backup/restore drill documented (git mirror + CNPG WAL)
 
 ### C. Settings and capability surface (Odoo model, ADR 0005/0006)
-- [ ] Capability registry refactor (main wiring -> registry)
+- [x] Capability registry refactor (main wiring -> registry)
 - [ ] Generic catalog renderer (type -> widget, category, risk class)
 - [ ] Settings editor per scope with enforce/lock toggle
 - [ ] Policy/filter editor (currently read-only)
@@ -75,8 +77,8 @@ Status legend: [x] done, [~] partial, [ ] not started.
 - [ ] Secret handling review (rotation, no plaintext at rest) end to end
 
 ### F. Platform hardening and future-proofing
-- [ ] OpenAPI spec generated + published; contract tests; API versioning
-      policy (v1 frozen, additive-only)
+- [x] OpenAPI spec published (/api/v1/openapi.json); contract tests both
+      directions; additive-only policy stated in the spec
 - [ ] CI actually runs the suite on push (Forgejo Actions) + coverage gate
 - [ ] Observability: metrics dashboards, tracing, deep readiness per dep
 - [ ] Multi-tenant = cells (ADR 0009): per-customer instance provisioning
