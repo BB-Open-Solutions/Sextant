@@ -102,6 +102,10 @@ spec:
           {{- end }}
           ports:
             - { containerPort: 8080, name: http }
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+            failureThreshold: 36 # 3 minutes for dependency dial-in
           readinessProbe:
             httpGet: { path: /readyz, port: http }
             initialDelaySeconds: 3
