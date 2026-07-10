@@ -150,6 +150,10 @@ in
     , hardwareProfiles
     , overlaysDir ? null
     , extraModules ? [ ]
+      # specialArgsFor: tag -> specialArgs for that host. Cores that expect
+      # flake inputs or a per-host identity (DAWO's hostConfig) get them
+      # here; the generator itself never depends on them.
+    , specialArgsFor ? (_: { })
     }:
     # Retired devices keep their audit record in fleet.json but no longer
     # exist as hosts: no image builds, no gate target.
@@ -161,6 +165,7 @@ in
         assert deviceAsserts { inherit fleet tag hardwareProfiles; };
         nixpkgs.lib.nixosSystem {
           inherit system;
+          specialArgs = specialArgsFor tag;
           modules = coreModules
             ++ [ hardwareProfiles.${fleet.devices.${tag}.hardware} ]
             ++ mkModules { inherit fleet tag overlaysDir; }
