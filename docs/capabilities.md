@@ -27,6 +27,7 @@ data the interface manages from then on. See ADR 0005.
 | 8 | Compliance | Posture against profiles (BIO), comply-or-explain register | Deliberately later; acceptance register exists in the domain |
 | 9 | Multi-organisation | Model B: one overlay repo per org, org provisioning | Storage tenant-ready; runtime later |
 | 10 | Assurance and evidence | Four-eyes approvals, segregation of duties, gate pipeline, audit evidence export (ADR 0007) | Approvals partly built (merge = owner); evidence export pending |
+| 11 | API and credential security | Scoped service accounts, per-device credentials, one authorization path (ADR 0008) | Sessions/RBAC built; service accounts and device credentials pending |
 
 ## Remote actions: honest semantics
 
