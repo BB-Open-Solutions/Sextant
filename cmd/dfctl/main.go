@@ -24,6 +24,7 @@ Resources and verbs:
   rollout   status | start TARGET | tick | cancel
   status    [TAG]
   access    list | grant GROUP ROLE SCOPE | revoke GROUP SCOPE
+  tokens    list | mint NAME [-ceiling R] [-ttl-days N] | revoke ID
   fleet     get
 
 SCOPE is org | group:<name> | device:<tag>. VALUE parses as JSON when
@@ -106,6 +107,8 @@ func dispatch(c *client, asJSON bool, args []string) error {
 		return statusCmd(c, asJSON, args[1:])
 	case "access":
 		return accessCmd(c, asJSON, verb, rest)
+	case "tokens":
+		return tokensCmd(c, asJSON, verb, rest)
 	case "fleet":
 		var out any
 		if err := c.do("GET", "/api/v1/fleet", nil, &out); err != nil {
@@ -340,6 +343,71 @@ func accessCmd(c *client, asJSON bool, verb string, rest []string) error {
 			map[string]any{"group": rest[0], "scope": rest[1]}, nil)
 	}
 	return usagef("access: unknown verb %q", verb)
+}
+
+func tokensCmd(c *client, asJSON bool, verb string, rest []string) error {
+	switch verb {
+	case "list", "":
+		var out []map[string]any
+		if err := c.do("GET", "/api/v1/tokens", nil, &out); err != nil {
+			return err
+		}
+		if asJSON {
+			printJSON(out)
+			return nil
+		}
+		rows := make([][]string, 0, len(out))
+		for _, t := range out {
+			rows = append(rows, []string{str(t["id"]), str(t["name"]), str(t["kind"]),
+				str(t["ceiling"]), str(t["expires"])})
+		}
+		table([]string{"ID", "NAME", "KIND", "CEILING", "EXPIRES"}, rows)
+		return nil
+	case "mint":
+		fs := flag.NewFlagSet("mint", flag.ContinueOnError)
+		ceiling := fs.String("ceiling", "", "viewer|editor|owner")
+		ttl := fs.Int("ttl-days", 0, "expiry in days")
+		if len(rest) < 1 {
+			return usagef("tokens mint NAME [-ceiling R] [-ttl-days N]")
+		}
+		if err := fs.Parse(rest[1:]); err != nil {
+			return usagef("mint flags: %v", err)
+		}
+		id := slugify(rest[0])
+		in := map[string]any{"id": id, "name": rest[0], "ceiling": *ceiling}
+		if *ttl > 0 {
+			in["ttlDays"] = *ttl
+		}
+		var out map[string]any
+		if err := c.do("POST", "/api/v1/tokens", in, &out); err != nil {
+			return err
+		}
+		fmt.Println(str(out["secret"]))
+		return nil
+	case "revoke":
+		if len(rest) != 1 {
+			return usagef("tokens revoke ID")
+		}
+		return c.do("DELETE", "/api/v1/tokens/"+rest[0], nil, nil)
+	}
+	return usagef("tokens: unknown verb %q", verb)
+}
+
+// slugify makes a token name into a safe id.
+func slugify(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else if r == ' ' || r == '-' || r == '_' {
+			b.WriteByte('-')
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		out = "token"
+	}
+	return out
 }
 
 func str(v any) string {

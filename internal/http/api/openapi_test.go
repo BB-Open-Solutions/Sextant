@@ -51,8 +51,9 @@ func fullAPI(t *testing.T) *API {
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	fo := newFakeObserved()
 	inv := app.NewInventoryService(fo, fo, tickClock{}, "")
+	toks := app.NewTokenService(newAPIMemTokenStore(), tickClock{}, 0)
 
-	a := New(Services{Config: svc, Changes: changes, Rollouts: rollouts, Inventory: inv},
+	a := New(Services{Config: svc, Changes: changes, Rollouts: rollouts, Inventory: inv, Tokens: toks},
 		Authz{}, testToken, true, discardLog())
 	a.Routes(http.NewServeMux())
 	return a

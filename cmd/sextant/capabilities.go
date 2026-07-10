@@ -43,6 +43,7 @@ type deps struct {
 	changes  *app.ChangeService
 	rollouts *app.RolloutService
 	inv      *app.InventoryService
+	tokens   *app.TokenService
 	authz    api.Authz
 	cleanup  []func()
 }
@@ -106,6 +107,12 @@ func (d *deps) buildConfigPlane() error {
 	openWT := func(dir string) (ports.ConfigRepo, error) { return git.Open(dir, "") }
 	d.changes = app.NewChangeService(repo, st.Changes(), gate, builder, clock, openWT, svc)
 
+	d.authz = api.Authz{
+		BaselineViewer: cfg.ViewerGroups,
+		BaselineEditor: cfg.EditorGroups,
+		BaselineOwner:  cfg.OwnerGroups,
+	}
+
 	var conv ports.ConvergenceSource = noConvergence{}
 	if cfg.PgDSN != "" {
 		pg, err := postgres.Open(d.ctx, cfg.PgDSN)
@@ -114,6 +121,8 @@ func (d *deps) buildConfigPlane() error {
 		}
 		d.cleanup = append(d.cleanup, pg.Close)
 		d.inv = app.NewInventoryService(pg, pg, clock, app.DefaultTenant)
+		d.tokens = app.NewTokenService(pg.Tokens(), clock, 0)
+		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
 			return svc.Fleet().GroupDevices(group)
 		})
@@ -122,12 +131,6 @@ func (d *deps) buildConfigPlane() error {
 
 	d.rollouts = app.NewRolloutService(svc, st.Rollouts(), conv, clock, log)
 	go d.rollouts.Run(d.ctx, 30*time.Second)
-
-	d.authz = api.Authz{
-		BaselineViewer: cfg.ViewerGroups,
-		BaselineEditor: cfg.EditorGroups,
-		BaselineOwner:  cfg.OwnerGroups,
-	}
 	d.checks.Register("config-repo", func(context.Context) error {
 		_, err := repo.ReadFile(app.FleetFile)
 		return err
@@ -226,7 +229,7 @@ func (d *deps) apiCapability() capability.Capability {
 		CapName: "api",
 		RoutesFn: func(mux *http.ServeMux) {
 			api.New(api.Services{Config: d.svc, Changes: d.changes,
-				Rollouts: d.rollouts, Inventory: d.inv},
+				Rollouts: d.rollouts, Inventory: d.inv, Tokens: d.tokens},
 				d.authz, d.cfg.APIToken, d.cfg.Write, d.log).Routes(mux)
 		},
 	}

@@ -21,12 +21,14 @@ type Services struct {
 	Changes   *app.ChangeService
 	Rollouts  *app.RolloutService
 	Inventory *app.InventoryService
+	Tokens    *app.TokenService
 }
 
 // API is the /api/v1 handler group.
 type API struct {
 	manifest []string
 	cfg      *app.ConfigService
+	tokens   *app.TokenService
 	changes  *app.ChangeService
 	rollouts *app.RolloutService
 	inv      *app.InventoryService
@@ -42,7 +44,7 @@ type API struct {
 // exposes nothing by accident. write=false serves reads only.
 func New(s Services, authz Authz, token string, write bool, log *slog.Logger) *API {
 	return &API{cfg: s.Config, changes: s.Changes, rollouts: s.Rollouts,
-		inv: s.Inventory, authz: authz, token: token, write: write, log: log}
+		inv: s.Inventory, tokens: s.Tokens, authz: authz, token: token, write: write, log: log}
 }
 
 // Routes registers the API on mux.
@@ -92,6 +94,11 @@ func (a *API) Routes(mux *http.ServeMux) {
 		rw("POST", "/api/v1/rollout/tick", a.postRolloutTick)
 		rw("DELETE", "/api/v1/rollout", a.deleteRollout)
 	}
+	if a.tokens != nil {
+		get("/api/v1/tokens", a.getTokens)
+		rw("POST", "/api/v1/tokens", a.postToken)
+		rw("DELETE", "/api/v1/tokens/{id}", a.deleteToken)
+	}
 	if a.inv != nil {
 		get("/api/v1/status", a.getStatusAll)
 		get("/api/v1/status/{tag}", a.getStatus)
@@ -105,7 +112,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 // authorization happens inside handlers via require().
 func (a *API) wrap(h func(http.ResponseWriter, *http.Request) error, mutating bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if a.token == "" && a.authz.Sessions == nil {
+		if a.token == "" && a.authz.Sessions == nil && a.authz.Tokens == nil {
 			http.Error(w, "api disabled: no token or session auth configured", http.StatusForbidden)
 			return
 		}
@@ -129,9 +136,12 @@ func (a *API) wrap(h func(http.ResponseWriter, *http.Request) error, mutating bo
 		// Reads require at least a role somewhere; scope-specific checks
 		// happen in the handlers.
 		if !mutating {
+			pr := principalFrom(r.Context())
 			rv := a.cfg.Fleet().IdentityResolver(
 				a.authz.BaselineViewer, a.authz.BaselineEditor, a.authz.BaselineOwner)
-			if !rv.CanViewAnything(principalFrom(r.Context()).user) {
+			// A viewer-ceiling token still reads; a ceiling never blocks a
+			// read the owner could do, so the view floor uses the owner.
+			if !rv.CanViewAnything(pr.user) {
 				http.Error(w, "no role grants access", http.StatusForbidden)
 				return
 			}

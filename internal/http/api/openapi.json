@@ -321,6 +321,34 @@
           }
         }
       }
+    },
+    "/api/v1/tokens": {
+      "get": {
+        "summary": "List your API tokens",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Mint an API token (secret shown once)",
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/tokens/{id}": {
+      "delete": {
+        "summary": "Revoke an API token",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   }
 }

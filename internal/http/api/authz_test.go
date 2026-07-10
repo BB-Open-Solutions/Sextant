@@ -12,10 +12,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
+	tokenpkg "code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/token"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
@@ -228,3 +230,112 @@ func TestServiceTokenRemainsOwner(t *testing.T) {
 		t.Fatalf("service write = %d, want 200", code)
 	}
 }
+
+// fakeTokenAuth injects token principals by test header value.
+type fakeTokenAuth struct {
+	users   map[string]identity.User
+	ceiling map[string]identity.Role
+}
+
+func (f *fakeTokenAuth) Authenticate(_ context.Context, secret string) (identity.User, identity.Role, bool) {
+	u, ok := f.users[secret]
+	if !ok {
+		return identity.User{}, identity.None, false
+	}
+	return u, f.ceiling[secret], true
+}
+
+// TestTokenCeilingNarrowsNeverWidens: a personal token acts as its owner,
+// and a ceiling can only reduce the owner's rights (ADR 0008).
+func TestTokenCeilingNarrowsNeverWidens(t *testing.T) {
+	svc, _ := seededService(t, rbacSeed)
+	ta := &fakeTokenAuth{
+		users: map[string]identity.User{
+			// owner at zaanstad, no ceiling: full owner in the subtree.
+			"tok-owner": {Subject: "ow", Name: "Oscar", Groups: []string{"za-owners"}},
+			// same owner, viewer ceiling: reads only.
+			"tok-capped": {Subject: "ow", Name: "Oscar", Groups: []string{"za-owners"}},
+			// editor owner trying to escalate via a token: impossible, the
+			// token carries only the owner's groups.
+			"tok-editor": {Subject: "ed", Name: "Edith", Groups: []string{"fo-editors"}},
+		},
+		ceiling: map[string]identity.Role{
+			"tok-capped": identity.Viewer,
+		},
+	}
+	mux := http.NewServeMux()
+	New(Services{Config: svc}, Authz{Tokens: ta}, "", true, discardLog()).Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	bearer := func(tok string) func(*http.Request) {
+		return func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+tok) }
+	}
+	do := func(tok, method, path string, body any) int {
+		var rd *bytes.Reader
+		if body != nil {
+			b, _ := json.Marshal(body)
+			rd = bytes.NewReader(b)
+		}
+		var req *http.Request
+		if rd != nil {
+			req, _ = http.NewRequest(method, srv.URL+path, rd)
+		} else {
+			req, _ = http.NewRequest(method, srv.URL+path, nil)
+		}
+		bearer(tok)(req)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	set := map[string]any{"scope": "group:frontoffice", "key": "apps.office", "value": true}
+
+	// Owner token: may write in its subtree.
+	if code := do("tok-owner", "POST", "/api/v1/settings", set); code != 200 {
+		t.Errorf("owner token write = %d, want 200", code)
+	}
+	// Capped token: same owner, but viewer ceiling blocks the write...
+	if code := do("tok-capped", "POST", "/api/v1/settings", set); code != 403 {
+		t.Errorf("viewer-capped token write = %d, want 403", code)
+	}
+	// ...yet still reads.
+	if code := do("tok-capped", "GET", "/api/v1/devices/lt-1", nil); code != 200 {
+		t.Errorf("viewer-capped token read = %d, want 200", code)
+	}
+	// Editor's token cannot reach owner-only routes (policies).
+	if code := do("tok-editor", "PUT", "/api/v1/policies/p", map[string]any{
+		"settings": map[string]any{"x": 1}}); code != 403 {
+		t.Errorf("editor token creating policy = %d, want 403", code)
+	}
+	// Unknown token: 401.
+	if code := do("ghost", "GET", "/api/v1/devices", nil); code != 401 {
+		t.Errorf("unknown token = %d, want 401", code)
+	}
+}
+
+// apiMemTokenStore is a tiny in-memory ports.TokenStore for API tests.
+type apiMemTokenStore struct{ m map[string]tokenpkg.Token }
+
+func newAPIMemTokenStore() *apiMemTokenStore {
+	return &apiMemTokenStore{m: map[string]tokenpkg.Token{}}
+}
+func (s *apiMemTokenStore) Put(_ context.Context, t tokenpkg.Token) error { s.m[t.ID] = t; return nil }
+func (s *apiMemTokenStore) Get(_ context.Context, id string) (tokenpkg.Token, bool, error) {
+	t, ok := s.m[id]
+	return t, ok, nil
+}
+func (s *apiMemTokenStore) ListBySubject(_ context.Context, subj string) ([]tokenpkg.Token, error) {
+	var out []tokenpkg.Token
+	for _, t := range s.m {
+		if t.Subject == subj {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+func (s *apiMemTokenStore) Delete(_ context.Context, id string) error              { delete(s.m, id); return nil }
+func (s *apiMemTokenStore) TouchLastUsed(context.Context, string, time.Time) error { return nil }

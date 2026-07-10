@@ -16,10 +16,17 @@ type SessionSource interface {
 	SessionUser(r *http.Request) (identity.User, string, bool)
 }
 
+// TokenAuthenticator resolves a bearer secret to a principal plus an
+// optional ceiling role (ADR 0008). Implemented by app.TokenService.
+type TokenAuthenticator interface {
+	Authenticate(ctx context.Context, secret string) (identity.User, identity.Role, bool)
+}
+
 // Authz derives per-scope roles from the current fleet document. Baselines
 // are the server-configured org-wide groups.
 type Authz struct {
 	Sessions       SessionSource
+	Tokens         TokenAuthenticator
 	BaselineViewer []string
 	BaselineEditor []string
 	BaselineOwner  []string
@@ -29,20 +36,38 @@ type principalKey struct{}
 
 type principal struct {
 	user identity.User
-	csrf string // empty for service principals (no ambient cookie, no CSRF)
+	csrf string // set only for session principals
+	// bearer marks a token/break-glass principal: no ambient credential,
+	// so CSRF does not apply (CSRF defends cookies, not bearer tokens).
+	bearer bool
+	// ceiling narrows a token below its owner (identity.None = no ceiling).
+	ceiling identity.Role
+	hasCap  bool
 }
 
-// authenticate resolves the request principal: a valid bearer token yields
-// the service principal; otherwise a session cookie yields the human user.
+// authenticate resolves the request principal, in order: the break-glass
+// static token (owner-everywhere service), then a personal/service token
+// (acts as its owner, one authorization path), then a browser session.
 func (a *API) authenticate(r *http.Request) (principal, bool) {
-	if a.token != "" {
-		got := bearerToken(r)
-		if got != "" && subtle.ConstantTimeCompare([]byte(got), []byte(a.token)) == 1 {
-			return principal{user: identity.User{
-				Subject: "svc:api", Name: "api", Service: true,
-			}}, true
+	got := bearerToken(r)
+
+	// Break-glass static token: owner everywhere. Explicitly a fallback
+	// until scoped tokens fully replace it (ADR 0008).
+	if a.token != "" && got != "" &&
+		subtle.ConstantTimeCompare([]byte(got), []byte(a.token)) == 1 {
+		return principal{bearer: true, user: identity.User{
+			Subject: "svc:api", Name: "api", Service: true,
+		}}, true
+	}
+
+	// Scoped token: resolves to its owner's identity, judged by the same
+	// resolver. A ceiling can only reduce the resulting rights.
+	if a.authz.Tokens != nil && got != "" {
+		if u, ceiling, ok := a.authz.Tokens.Authenticate(r.Context(), got); ok {
+			return principal{bearer: true, user: u, ceiling: ceiling, hasCap: ceiling != identity.None}, true
 		}
 	}
+
 	if a.authz.Sessions != nil {
 		if u, csrf, ok := a.authz.Sessions.SessionUser(r); ok {
 			return principal{user: u, csrf: csrf}, true
@@ -62,12 +87,18 @@ func principalFrom(ctx context.Context) principal {
 }
 
 // require asserts the principal holds at least role at the scope ref,
-// deriving from the live fleet document (never from stored verdicts).
+// deriving from the live fleet document (never from stored verdicts). A
+// token ceiling clamps the effective role below the owner's - it can only
+// reduce, never widen.
 func (a *API) require(r *http.Request, ref string, role identity.Role) error {
 	p := principalFrom(r.Context())
 	rv := a.cfg.Fleet().IdentityResolver(
 		a.authz.BaselineViewer, a.authz.BaselineEditor, a.authz.BaselineOwner)
-	if got := rv.RoleAt(p.user, ref); !got.Meets(role) {
+	got := rv.RoleAt(p.user, ref)
+	if p.hasCap && p.ceiling < got {
+		got = p.ceiling // ceiling narrows, never widens
+	}
+	if !got.Meets(role) {
 		return &forbidden{fmt.Errorf("requires %s at %s (you hold %s)", role, ref, got)}
 	}
 	return nil
@@ -77,8 +108,8 @@ func (a *API) require(r *http.Request, ref string, role identity.Role) error {
 // the session CSRF token in a header. Service principals (bearer token, no
 // ambient credential) are exempt.
 func (p principal) verifyCSRF(r *http.Request) bool {
-	if p.user.Service {
-		return true
+	if p.bearer {
+		return true // bearer tokens carry no ambient credential
 	}
 	got := r.Header.Get("X-CSRF-Token")
 	return p.csrf != "" && subtle.ConstantTimeCompare([]byte(p.csrf), []byte(got)) == 1
