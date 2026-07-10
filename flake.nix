@@ -16,6 +16,8 @@
         generator = import ./nix/generator.nix { lib = nixpkgs.lib; };
         exportCatalog =
           (import ./nix/export-catalog.nix { lib = nixpkgs.lib; }).exportCatalog;
+        exportCatalogFromOptions =
+          (import ./nix/export-catalog.nix { lib = nixpkgs.lib; }).exportCatalogFromOptions;
         tests = import ./nix/tests.nix { lib = nixpkgs.lib; };
       };
 
