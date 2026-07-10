@@ -67,6 +67,15 @@
   <p><strong>Next:</strong> {{.StepText}}
     {{if .Warn}}<span class="tag bad">attention</span>{{end}}</p>
   {{end}}
+  {{if $.CanEdit}}
+  {{range .Actions}}
+  <form method="post" action="/devices/{{$.Tag}}/posture" class="inline">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <input type="hidden" name="action" value="{{.Action}}">
+    <button type="submit" {{if .Quiet}}class="quiet"{{end}}>{{.Label}}</button>
+  </form>
+  {{end}}
+  {{end}}
   {{end}}
 </div>
 {{end}}

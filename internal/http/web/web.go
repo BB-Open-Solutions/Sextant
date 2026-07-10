@@ -111,6 +111,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 
 	post("/devices", s.postDeviceEnroll)
 	post("/devices/{tag}/settings", s.postDeviceSetting)
+	post("/devices/{tag}/posture", s.postDevicePosture)
 	post("/devices/{tag}/retire", s.postDeviceRetire)
 	post("/devices/{tag}/reactivate", s.postDeviceReactivate)
 	post("/devices/{tag}/remove", s.postDeviceRemove)
