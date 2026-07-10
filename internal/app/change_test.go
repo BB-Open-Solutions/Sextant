@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -68,7 +71,7 @@ func TestChangeLifecycleHappyPath(t *testing.T) {
 	cs, svc, dir := newChangeStack(t, nil)
 	ctx := context.Background()
 
-	cr, err := cs.Open(ctx, "office-on", "Enable office for pilot", "ada")
+	cr, err := cs.Open(ctx, "office-on", "Enable office for pilot", ports.Author{Name: "ada", Subject: "sub-ada"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +124,7 @@ func TestChangeBuildFailure(t *testing.T) {
 	cs, _, _ := newChangeStack(t, b)
 	ctx := context.Background()
 
-	if _, err := cs.Open(ctx, "bad", "Broken change", "ada"); err != nil {
+	if _, err := cs.Open(ctx, "bad", "Broken change", ports.Author{Name: "ada", Subject: "sub-ada"}); err != nil {
 		t.Fatal(err)
 	}
 	cr, err := cs.Submit(ctx, "bad")
@@ -162,7 +165,7 @@ func TestChangeGateRejectionOnEdit(t *testing.T) {
 	cs := NewChangeService(repo, st.Changes(), rejecting, &fakeBuilder{}, newFakeClock(testT0), open, svc)
 	ctx := context.Background()
 
-	if _, err := cs.Open(ctx, "gated", "Gated", "ada"); err != nil {
+	if _, err := cs.Open(ctx, "gated", "Gated", ports.Author{Name: "ada", Subject: "sub-ada"}); err != nil {
 		t.Fatal(err)
 	}
 	err := cs.Edit(ctx, "gated", fleet.SetScopeSetting("org", "apps.bogus", true), "bad", ports.Author{})
@@ -176,13 +179,13 @@ func TestChangeGuards(t *testing.T) {
 	cs, _, _ := newChangeStack(t, nil)
 	ctx := context.Background()
 
-	if _, err := cs.Open(ctx, "dup", "One", "a"); err != nil {
+	if _, err := cs.Open(ctx, "dup", "One", ports.Author{Name: "a", Subject: "sub-a"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cs.Open(ctx, "dup", "Two", "a"); err == nil {
+	if _, err := cs.Open(ctx, "dup", "Two", ports.Author{Name: "a", Subject: "sub-a"}); err == nil {
 		t.Fatal("duplicate id accepted")
 	}
-	if _, err := cs.Open(ctx, "../inject", "Bad", "a"); err == nil {
+	if _, err := cs.Open(ctx, "../inject", "Bad", ports.Author{Name: "a"}); err == nil {
 		t.Fatal("unsafe id accepted")
 	}
 	// Draft cannot merge (merged only via ready).
@@ -212,7 +215,7 @@ func TestChangeSurvivesRestart(t *testing.T) {
 	cs := NewChangeService(repo, st.Changes(), allow, &fakeBuilder{}, newFakeClock(testT0), open, svc)
 	ctx := context.Background()
 
-	if _, err := cs.Open(ctx, "persist", "Survives", "ada"); err != nil {
+	if _, err := cs.Open(ctx, "persist", "Survives", ports.Author{Name: "ada", Subject: "sub-ada"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := cs.Edit(ctx, "persist", fleet.SetScopeSetting("org", "y", 2), "m", ports.Author{}); err != nil {
@@ -241,7 +244,7 @@ func TestChangeSurvivesRestart(t *testing.T) {
 func TestChangeDiff(t *testing.T) {
 	cs, _, _ := newChangeStack(t, nil)
 	ctx := context.Background()
-	if _, err := cs.Open(ctx, "diffy", "Show me", "ada"); err != nil {
+	if _, err := cs.Open(ctx, "diffy", "Show me", ports.Author{Name: "ada", Subject: "sub-ada"}); err != nil {
 		t.Fatal(err)
 	}
 	// No edits yet: empty diff, no error.
@@ -271,5 +274,66 @@ func TestChangeDiff(t *testing.T) {
 	}
 	if _, err := cs.Diff(ctx, "ghost"); err == nil {
 		t.Fatal("diff on unknown change accepted")
+	}
+}
+
+// TestFourEyesEnforced (ADR 0007): with assurance.requireFourEyes, the
+// author of a change cannot merge it; a different owner can. Without the
+// flag, self-merge stays allowed (small orgs).
+func TestFourEyesEnforced(t *testing.T) {
+	const seed4 = `{
+	  "version": 3,
+	  "assurance": {"requireFourEyes": true},
+	  "org": {"settings": {"desktop": "plasma"}},
+	  "groups": {"pilot": {}},
+	  "devices": {"lt-1": {"groups": ["pilot"], "hardware": "hw"}}
+	}`
+	dir := t.TempDir()
+	shr := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	shr("init", "-q", "-b", "main")
+	if err := os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(seed4), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	shr("add", "fleet.json")
+	shr("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
+	repo, err := git.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	allow := ports.GateFunc(func(context.Context, string, []string) error { return nil })
+	svc, err := NewConfigService(repo, allow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := state.Open(t.TempDir())
+	open := func(d string) (ports.ConfigRepo, error) { return git.Open(d, "") }
+	cs := NewChangeService(repo, st.Changes(), allow, &fakeBuilder{}, newFakeClock(testT0), open, svc)
+	ctx := context.Background()
+
+	ada := ports.Author{Name: "Ada", Email: "ada@x", Subject: "sub-ada"}
+	bob := ports.Author{Name: "Bob", Email: "bob@x", Subject: "sub-bob"}
+
+	if _, err := cs.Open(ctx, "sod", "SoD test", ada); err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.Edit(ctx, "sod", fleet.SetScopeSetting("org", "x", 1), "e", ada); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.Submit(ctx, "sod"); err != nil {
+		t.Fatal(err)
+	}
+	// Author self-merge: refused.
+	if _, err := cs.Merge(ctx, "sod", ada); err == nil ||
+		!strings.Contains(err.Error(), "four-eyes") {
+		t.Fatalf("self-merge = %v, want four-eyes rejection", err)
+	}
+	// A different owner merges fine.
+	if _, err := cs.Merge(ctx, "sod", bob); err != nil {
+		t.Fatalf("second-person merge failed: %v", err)
 	}
 }

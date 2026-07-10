@@ -33,6 +33,15 @@ type Fleet struct {
 	Access []AccessBinding `json:"access,omitempty"`
 
 	Rollout *RolloutPolicy `json:"rollout,omitempty"`
+
+	// Assurance holds the organisation's control settings (ADR 0007).
+	Assurance *Assurance `json:"assurance,omitempty"`
+}
+
+// Assurance configures audit controls. RequireFourEyes rejects merging a
+// change by its own author (segregation of duties).
+type Assurance struct {
+	RequireFourEyes bool `json:"requireFourEyes,omitempty"`
 }
 
 // Scope carries the settings set directly at a scope plus the subset of keys

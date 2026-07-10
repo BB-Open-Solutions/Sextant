@@ -260,7 +260,7 @@ func webAuthor(v view) ports.Author {
 	if email == "" {
 		email = v.User.Subject + "@idp"
 	}
-	return ports.Author{Name: v.User.Name, Email: email}
+	return ports.Author{Subject: v.User.Subject, Name: v.User.Name, Email: email}
 }
 
 // parseValue interprets a form value: booleans and integers become typed,
@@ -303,7 +303,7 @@ func (s *Server) postChange(w http.ResponseWriter, r *http.Request, v view) erro
 	if err := s.requireWeb(v, "org", identity.Editor); err != nil {
 		return err
 	}
-	_, err := s.svc.Changes.Open(r.Context(), r.FormValue("id"), r.FormValue("title"), v.User.Name)
+	_, err := s.svc.Changes.Open(r.Context(), r.FormValue("id"), r.FormValue("title"), webAuthor(v))
 	if err != nil {
 		return err
 	}

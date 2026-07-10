@@ -8,7 +8,7 @@ import (
 var t0 = time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)
 
 func TestNew(t *testing.T) {
-	cr, err := New("fix-office", "Enable office", "ada", t0)
+	cr, err := New("fix-office", "Enable office", "ada", "sub", t0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -16,11 +16,11 @@ func TestNew(t *testing.T) {
 		t.Fatalf("cr = %+v", cr)
 	}
 	for _, bad := range []string{"", "UPPER", "-x", "a b", "x/../y", "cr/inject"} {
-		if _, err := New(bad, "t", "a", t0); err == nil {
+		if _, err := New(bad, "t", "a", "sub", t0); err == nil {
 			t.Errorf("id %q accepted", bad)
 		}
 	}
-	if _, err := New("ok", "", "a", t0); err == nil {
+	if _, err := New("ok", "", "a", "sub", t0); err == nil {
 		t.Error("empty title accepted")
 	}
 }
@@ -52,7 +52,7 @@ func TestTransitions(t *testing.T) {
 }
 
 func TestTransitionUpdatesCR(t *testing.T) {
-	cr, _ := New("x", "t", "a", t0)
+	cr, _ := New("x", "t", "a", "sub", t0)
 	later := t0.Add(time.Hour)
 	if err := cr.Transition(Building, later); err != nil {
 		t.Fatal(err)

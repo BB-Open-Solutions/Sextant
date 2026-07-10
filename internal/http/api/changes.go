@@ -54,7 +54,7 @@ func (a *API) postChange(w http.ResponseWriter, r *http.Request) error {
 	if err := a.require(r, "org", identity.Editor); err != nil {
 		return err
 	}
-	cr, err := a.changes.Open(r.Context(), in.ID, in.Title, author(r).Name)
+	cr, err := a.changes.Open(r.Context(), in.ID, in.Title, author(r))
 	if err != nil {
 		return reject(err)
 	}
@@ -148,6 +148,7 @@ func wrapChangeErr(err error) error {
 	}
 	m := err.Error()
 	if strings.Contains(m, "unknown change") || strings.Contains(m, "cannot move change") ||
+		strings.Contains(m, "four-eyes required") ||
 		strings.Contains(m, "only draft") || strings.Contains(m, "only ready") ||
 		strings.Contains(m, "no pending diff") ||
 		strings.Contains(m, "already exists") || strings.Contains(m, "invalid change-request id") {

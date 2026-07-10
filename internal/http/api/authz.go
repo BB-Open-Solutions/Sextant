@@ -128,7 +128,7 @@ func author(r *http.Request) ports.Author {
 		return ports.Author{Name: "sextant", Email: "sextant@localhost"}
 	}
 	if p.user.Service {
-		return ports.Author{Name: "sextant-api", Email: "api@sextant"}
+		return ports.Author{Subject: p.user.Subject, Name: "sextant-api", Email: "api@sextant"}
 	}
 	email := p.user.Email
 	if email == "" {
@@ -138,5 +138,5 @@ func author(r *http.Request) ports.Author {
 	if name == "" {
 		name = p.user.Subject
 	}
-	return ports.Author{Name: name, Email: email}
+	return ports.Author{Subject: p.user.Subject, Name: name, Email: email}
 }

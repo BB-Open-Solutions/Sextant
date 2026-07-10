@@ -58,14 +58,17 @@ func CanTransition(from, to Status) bool {
 
 // CR is one change request. Branch is derived from the ID (cr/<id>).
 type CR struct {
-	ID      string    `json:"id"`
-	Title   string    `json:"title"`
-	Author  string    `json:"author"`
-	Branch  string    `json:"branch"`
-	Status  Status    `json:"status"`
-	Error   string    `json:"error,omitempty"` // gate/build rejection detail
-	Created time.Time `json:"created"`
-	Updated time.Time `json:"updated"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	// Author is the display name; AuthorSubject the stable principal id
+	// used for four-eyes enforcement (ADR 0007).
+	Author        string    `json:"author"`
+	AuthorSubject string    `json:"authorSubject,omitempty"`
+	Branch        string    `json:"branch"`
+	Status        Status    `json:"status"`
+	Error         string    `json:"error,omitempty"` // gate/build rejection detail
+	Created       time.Time `json:"created"`
+	Updated       time.Time `json:"updated"`
 }
 
 // Open reports whether the CR is still in progress.
@@ -86,7 +89,7 @@ func ValidID(id string) error {
 
 // New builds a draft CR. The caller supplies the clock so the domain stays
 // deterministic.
-func New(id, title, author string, now time.Time) (CR, error) {
+func New(id, title, author, authorSubject string, now time.Time) (CR, error) {
 	if err := ValidID(id); err != nil {
 		return CR{}, err
 	}
@@ -94,7 +97,7 @@ func New(id, title, author string, now time.Time) (CR, error) {
 		return CR{}, fmt.Errorf("change request needs a title")
 	}
 	return CR{
-		ID: id, Title: title, Author: author,
+		ID: id, Title: title, Author: author, AuthorSubject: authorSubject,
 		Branch: "cr/" + id, Status: Draft,
 		Created: now, Updated: now,
 	}, nil

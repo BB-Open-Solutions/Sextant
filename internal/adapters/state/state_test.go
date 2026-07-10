@@ -23,8 +23,8 @@ func TestChangeStoreRoundTrip(t *testing.T) {
 	if _, ok, _ := cs.Get(ctx, "nope"); ok {
 		t.Fatal("phantom record")
 	}
-	a, _ := change.New("first", "t1", "ada", t0)
-	b, _ := change.New("second", "t2", "bob", t0.Add(time.Hour))
+	a, _ := change.New("first", "t1", "ada", "sub", t0)
+	b, _ := change.New("second", "t2", "bob", "sub", t0.Add(time.Hour))
 	if err := cs.Put(ctx, a); err != nil {
 		t.Fatal(err)
 	}

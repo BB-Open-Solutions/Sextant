@@ -53,11 +53,11 @@ func (s *ChangeService) worktreeDir(id string) string {
 }
 
 // Open starts a change request: a branch off the current HEAD plus a draft
-// record.
-func (s *ChangeService) Open(ctx context.Context, id, title, author string) (change.CR, error) {
+// record. The author's subject is recorded for four-eyes enforcement.
+func (s *ChangeService) Open(ctx context.Context, id, title string, a ports.Author) (change.CR, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cr, err := change.New(id, title, author, s.clock.Now())
+	cr, err := change.New(id, title, a.Name, a.Subject, s.clock.Now())
 	if err != nil {
 		return change.CR{}, err
 	}
@@ -162,6 +162,12 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 	}
 	if cr.Status != change.Ready {
 		return change.CR{}, fmt.Errorf("change %q is %s; only ready changes merge", id, cr.Status)
+	}
+	// Segregation of duties (ADR 0007): when the organisation requires
+	// four-eyes, the author cannot approve their own change.
+	if asr := s.cfg.Fleet().Assurance; asr != nil && asr.RequireFourEyes &&
+		cr.AuthorSubject != "" && a.Subject != "" && cr.AuthorSubject == a.Subject {
+		return change.CR{}, fmt.Errorf("four-eyes required: change %q cannot be approved by its author", id)
 	}
 	if err := s.repo.MergeNoFF(ctx, cr.Branch, fmt.Sprintf("merge change %s: %s", cr.ID, cr.Title), a); err != nil {
 		return change.CR{}, err

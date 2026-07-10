@@ -10,10 +10,13 @@ import (
 )
 
 // Author identifies who made a change (from the SSO session or API client),
-// so every git commit carries real attribution.
+// so every git commit carries real attribution. Subject is the stable
+// principal id (OIDC subject / service name) used for segregation-of-duties
+// checks; Name and Email feed git.
 type Author struct {
-	Name  string
-	Email string
+	Subject string
+	Name    string
+	Email   string
 }
 
 // ErrConflict marks a write that lost a race against another writer (e.g. a
