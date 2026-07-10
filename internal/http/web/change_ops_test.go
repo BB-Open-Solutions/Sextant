@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -29,6 +30,19 @@ func TestRolloutPlanEditor(t *testing.T) {
 	if f.Rollout == nil || len(f.Rollout.Rings) != 1 ||
 		f.Rollout.Rings[0].SoakMinutes != 30 || f.Rollout.Rings[0].MinHealthyPercent != 90 {
 		t.Fatalf("plan = %+v", f.Rollout)
+	}
+
+	// A ring at a high index must survive: rows are dynamic, the old
+	// fixed count of five silently deleted rings 6+ on save.
+	deep := url.Values{"group6": {"pilot"}}
+	for i := 0; i < 6; i++ {
+		deep.Set(fmt.Sprintf("group%d", i), "")
+	}
+	if resp := post("/rollout/plan", deep); resp.StatusCode != 303 {
+		t.Fatalf("deep ring = %d", resp.StatusCode)
+	}
+	if got := cfg.Fleet().Rollout; got == nil || len(got.Rings) != 1 || got.Rings[0].Group != "pilot" {
+		t.Fatalf("deep ring plan = %+v", got)
 	}
 
 	// Unknown group refused; empty form clears.

@@ -150,9 +150,17 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 		Name   string
 		Member bool
 	}
+	// Options: groups the user may view, plus the device's current
+	// memberships (which must stay listed, or saving the form would
+	// silently drop an invisible membership). Other groups stay hidden -
+	// read-confidentiality covers names too.
 	groups := make([]groupOpt, 0, len(f.Groups))
 	for g := range f.Groups {
-		groups = append(groups, groupOpt{Name: g, Member: slices.Contains(d.Groups, g)})
+		member := slices.Contains(d.Groups, g)
+		if !member && !v.canView("group:"+g) {
+			continue
+		}
+		groups = append(groups, groupOpt{Name: g, Member: member})
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
 	data["GroupOpts"] = groups
@@ -282,16 +290,18 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
 		"HasRings": f.Rollout != nil && len(f.Rollout.Rings) > 0,
 	}
-	// Ring-plan editor state: five rows, current plan padded with blanks.
-	const ringRows = 5
+	// Ring-plan editor state: every existing ring plus two blank rows.
+	// Sizing to the plan (not a fixed cap) means a large plan can never
+	// render truncated and then lose rings on an unrelated save.
+	ringRows := 2
+	if f.Rollout != nil {
+		ringRows += len(f.Rollout.Rings)
+	}
 	planGroups := make([]string, ringRows)
 	planSoaks := make([]string, ringRows)
 	planHealthy := make([]string, ringRows)
 	if f.Rollout != nil {
 		for i, ring := range f.Rollout.Rings {
-			if i >= ringRows {
-				break
-			}
 			planGroups[i] = ring.Group
 			if ring.SoakMinutes > 0 {
 				planSoaks[i] = fmt.Sprint(ring.SoakMinutes)
@@ -301,12 +311,16 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 			}
 		}
 	}
+	rows := make([]int, ringRows)
+	for i := range rows {
+		rows[i] = i
+	}
 	allGroups := make([]string, 0, len(f.Groups))
 	for g := range f.Groups {
 		allGroups = append(allGroups, g)
 	}
 	sort.Strings(allGroups)
-	data["RingRows"] = []int{0, 1, 2, 3, 4}
+	data["RingRows"] = rows
 	data["AllGroups"] = allGroups
 	data["PlanGroups"], data["PlanSoaks"], data["PlanHealthy"] = planGroups, planSoaks, planHealthy
 	st, ringStatus, err := s.svc.Rollouts.Status(r.Context())

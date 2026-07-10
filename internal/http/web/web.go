@@ -211,6 +211,10 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 		data["Error"] = ""
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// Authenticated pages can carry one-shot secrets (minted tokens,
+	// device credentials); no browser or intermediary may cache them, or
+	// the back button re-renders a secret after its cookie is consumed.
+	w.Header().Set("Cache-Control", "no-store")
 	if err := s.tmpl[name].ExecuteTemplate(w, "layout", data); err != nil {
 		s.log.Error("template render failed", "page", name, "err", err)
 	}

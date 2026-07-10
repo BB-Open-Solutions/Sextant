@@ -66,9 +66,19 @@ func (s *Server) postRolloutPlan(w http.ResponseWriter, r *http.Request, v view)
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
+	// Rows are dynamic (the page renders plan size + blanks); read every
+	// submitted groupN key rather than a fixed count, so no ring silently
+	// drops. Bounded by the form-size cap upstream.
+	if err := r.ParseForm(); err != nil {
+		return err
+	}
 	var plan *fleet.RolloutPolicy
-	for i := 0; i < 5; i++ {
-		group := strings.TrimSpace(r.FormValue(fmt.Sprintf("group%d", i)))
+	for i := 0; ; i++ {
+		key := fmt.Sprintf("group%d", i)
+		if _, present := r.Form[key]; !present {
+			break
+		}
+		group := strings.TrimSpace(r.FormValue(key))
 		if group == "" {
 			continue
 		}

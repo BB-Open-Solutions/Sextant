@@ -16,6 +16,9 @@ import (
 const devCredCookie = "sextant_devcred"
 
 // setDevCredCookie stages a one-shot credential for the device page.
+// Secure is deliberately hardcoded: on a plain-HTTP host the browser drops
+// the cookie and the secret is simply never shown (fail-closed), rather
+// than travelling in clear text. localhost counts as a secure context.
 func setDevCredCookie(w http.ResponseWriter, tag, secret string) {
 	http.SetCookie(w, &http.Cookie{Name: devCredCookie, Value: secret,
 		Path: "/devices/" + tag, MaxAge: 60, HttpOnly: true, Secure: true,
