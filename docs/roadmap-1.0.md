@@ -58,6 +58,9 @@ Status legend: [x] done, [~] partial, [ ] not started.
 - [ ] Policy/filter editor (currently read-only)
 - [ ] App catalog (assign packages/flatpaks/overlays as data)
 - [ ] Foundation tier UX (owner-only, change-request-required)
+- [ ] Localization: message catalog (EN default, NL first translation)
+      and timezone-aware timestamps (org-level timezone setting, e.g.
+      Europe/Amsterdam; the console currently renders UTC)
 
 ### D. Lifecycle, agent and provisioning
 - [ ] Device lifecycle states (discovered -> enrolled -> active -> retired)
