@@ -15,9 +15,11 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/nix"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/oidc"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/postgres"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/state"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/api"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/mw"
@@ -110,8 +112,36 @@ func run(args []string, getenv config.Getenv) error {
 		rollouts := app.NewRolloutService(svc, st.Rollouts(), conv, clock, log)
 		go rollouts.Run(ctx, 30*time.Second)
 
+		// Console SSO: OIDC sessions on top of (or instead of) the token.
+		authz := api.Authz{
+			BaselineViewer: cfg.ViewerGroups,
+			BaselineEditor: cfg.EditorGroups,
+			BaselineOwner:  cfg.OwnerGroups,
+		}
+		if cfg.OIDCIssuer != "" {
+			authn, err := oidc.New(ctx, oidc.Config{
+				Issuer:       cfg.OIDCIssuer,
+				ClientID:     cfg.OIDCClientID,
+				ClientSecret: cfg.OIDCClientSecret,
+				RedirectURL:  cfg.OIDCRedirectURL,
+				GroupsClaim:  cfg.OIDCGroupsClaim,
+				SessionKey:   cfg.SessionKey,
+				Secure:       cfg.SecureCookies,
+				Authorize: func(u identity.User) bool {
+					return svc.Fleet().IdentityResolver(
+						cfg.ViewerGroups, cfg.EditorGroups, cfg.OwnerGroups).CanViewAnything(u)
+				},
+			})
+			if err != nil {
+				return err
+			}
+			authn.Routes(mux)
+			authz.Sessions = authn
+			log.Info("oidc session auth mounted", "issuer", cfg.OIDCIssuer)
+		}
+
 		api.New(api.Services{Config: svc, Changes: changes, Rollouts: rollouts, Inventory: inv},
-			cfg.APIToken, cfg.Write, log).Routes(mux)
+			authz, cfg.APIToken, cfg.Write, log).Routes(mux)
 		checks.Register("config-repo", func(context.Context) error {
 			_, err := repo.ReadFile(app.FleetFile)
 			return err

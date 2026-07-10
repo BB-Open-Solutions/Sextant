@@ -4,8 +4,10 @@
 package config
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -51,6 +53,22 @@ type Config struct {
 	// (SEXTANT_PG_DSN, carries a password). Empty disables the observed
 	// plane (check-in, status, rollout convergence).
 	PgDSN string
+
+	// OIDC console SSO. Empty issuer disables session auth (token-only).
+	OIDCIssuer      string
+	OIDCClientID    string
+	OIDCRedirectURL string
+	OIDCGroupsClaim string
+	// OIDCClientSecret and SessionKey are environment-only secrets.
+	OIDCClientSecret string
+	SessionKey       []byte
+	// SecureCookies marks cookies Secure (set behind TLS).
+	SecureCookies bool
+	// Baseline org-wide role groups (server config; the fleet document's
+	// access list adds per-scope bindings on top).
+	ViewerGroups []string
+	EditorGroups []string
+	OwnerGroups  []string
 }
 
 // Getenv is the environment lookup used by Load. Injected so tests can supply
@@ -62,16 +80,21 @@ type Getenv func(key string) string
 // values; it never calls os.Exit.
 func Load(args []string, getenv Getenv) (*Config, error) {
 	cfg := &Config{
-		Addr:          envOr(getenv, "ADDR", "127.0.0.1:8080"),
-		LogLevel:      envOr(getenv, "LOG_LEVEL", "info"),
-		LogFormat:     envOr(getenv, "LOG_FORMAT", "text"),
-		ShutdownGrace: 15 * time.Second,
-		RepoDir:       envOr(getenv, "REPO", ""),
-		GateMode:      envOr(getenv, "GATE", "eval"),
-		GitRemote:     envOr(getenv, "GIT_REMOTE", ""),
-		APIToken:      getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
-		CheckinToken:  getenv(EnvPrefix + "CHECKIN_TOKEN"), // env-only secret
-		PgDSN:         getenv(EnvPrefix + "PG_DSN"),        // env-only secret
+		Addr:             envOr(getenv, "ADDR", "127.0.0.1:8080"),
+		LogLevel:         envOr(getenv, "LOG_LEVEL", "info"),
+		LogFormat:        envOr(getenv, "LOG_FORMAT", "text"),
+		ShutdownGrace:    15 * time.Second,
+		RepoDir:          envOr(getenv, "REPO", ""),
+		GateMode:         envOr(getenv, "GATE", "eval"),
+		GitRemote:        envOr(getenv, "GIT_REMOTE", ""),
+		APIToken:         getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
+		CheckinToken:     getenv(EnvPrefix + "CHECKIN_TOKEN"), // env-only secret
+		PgDSN:            getenv(EnvPrefix + "PG_DSN"),        // env-only secret
+		OIDCIssuer:       envOr(getenv, "OIDC_ISSUER", ""),
+		OIDCClientID:     envOr(getenv, "OIDC_CLIENT_ID", ""),
+		OIDCRedirectURL:  envOr(getenv, "OIDC_REDIRECT_URL", ""),
+		OIDCGroupsClaim:  envOr(getenv, "OIDC_GROUPS_CLAIM", ""),
+		OIDCClientSecret: getenv(EnvPrefix + "OIDC_CLIENT_SECRET"), // env-only secret
 	}
 	if v := getenv(EnvPrefix + "SHUTDOWN_GRACE"); v != "" {
 		d, err := time.ParseDuration(v)
@@ -79,6 +102,17 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 			return nil, fmt.Errorf("%sSHUTDOWN_GRACE: %w", EnvPrefix, err)
 		}
 		cfg.ShutdownGrace = d
+	}
+	// Session key: base64 of exactly 32 random bytes. Environment-only.
+	if v := getenv(EnvPrefix + "SESSION_KEY"); v != "" {
+		key, err := base64.StdEncoding.DecodeString(v)
+		if err != nil {
+			return nil, fmt.Errorf("%sSESSION_KEY: not valid base64: %w", EnvPrefix, err)
+		}
+		if len(key) != 32 {
+			return nil, fmt.Errorf("%sSESSION_KEY: must decode to exactly 32 bytes, got %d", EnvPrefix, len(key))
+		}
+		cfg.SessionKey = key
 	}
 
 	fs := flag.NewFlagSet("sextant", flag.ContinueOnError)
@@ -91,13 +125,35 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.StringVar(&cfg.GateMode, "gate", cfg.GateMode, "validation gate: eval|none")
 	fs.StringVar(&cfg.GitRemote, "git-remote", cfg.GitRemote, "push remote for the HA write path")
 	fs.StringVar(&cfg.StateDir, "state-dir", cfg.StateDir, "durable control-plane state dir (default <repo>/.sextant-state)")
+	fs.StringVar(&cfg.OIDCIssuer, "oidc-issuer", cfg.OIDCIssuer, "OIDC issuer URL (empty disables session auth)")
+	fs.StringVar(&cfg.OIDCClientID, "oidc-client-id", cfg.OIDCClientID, "OIDC client id")
+	fs.StringVar(&cfg.OIDCRedirectURL, "oidc-redirect-url", cfg.OIDCRedirectURL, "OIDC redirect URL (https://host/callback)")
+	fs.StringVar(&cfg.OIDCGroupsClaim, "oidc-groups-claim", cfg.OIDCGroupsClaim, "ID-token claim carrying groups (default groups)")
+	fs.BoolVar(&cfg.SecureCookies, "secure-cookies", cfg.SecureCookies, "mark cookies Secure (set behind TLS)")
+	viewers := fs.String("viewer-groups", "", "comma-separated IdP groups with org-wide viewer role")
+	editors := fs.String("editor-groups", "", "comma-separated IdP groups with org-wide editor role")
+	owners := fs.String("owner-groups", "", "comma-separated IdP groups with org-wide owner role")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
+	cfg.ViewerGroups = splitList(*viewers)
+	cfg.EditorGroups = splitList(*editors)
+	cfg.OwnerGroups = splitList(*owners)
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// splitList parses a comma-separated flag into trimmed non-empty items.
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (c *Config) validate() error {
@@ -124,6 +180,14 @@ func (c *Config) validate() error {
 	}
 	if c.Write && c.RepoDir == "" {
 		return fmt.Errorf("--write needs --repo")
+	}
+	if c.OIDCIssuer != "" {
+		if c.OIDCClientID == "" || c.OIDCClientSecret == "" || c.OIDCRedirectURL == "" {
+			return fmt.Errorf("oidc needs --oidc-client-id, --oidc-redirect-url and SEXTANT_OIDC_CLIENT_SECRET")
+		}
+		if len(c.SessionKey) != 32 {
+			return fmt.Errorf("oidc needs SEXTANT_SESSION_KEY (base64 of 32 random bytes)")
+		}
 	}
 	return nil
 }

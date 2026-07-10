@@ -55,7 +55,7 @@ func newTestAPI(t *testing.T, write bool) *httptest.Server {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	New(Services{Config: svc}, testToken, write, slog.New(slog.NewTextHandler(io.Discard, nil))).Routes(mux)
+	New(Services{Config: svc}, Authz{}, testToken, write, slog.New(slog.NewTextHandler(io.Discard, nil))).Routes(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -222,7 +222,7 @@ func TestGateRejectionIs422(t *testing.T) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	New(Services{Config: svc}, testToken, true, slog.New(slog.NewTextHandler(io.Discard, nil))).Routes(mux)
+	New(Services{Config: svc}, Authz{}, testToken, true, slog.New(slog.NewTextHandler(io.Discard, nil))).Routes(mux)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
@@ -251,7 +251,7 @@ func TestDisabledAPIWithoutToken(t *testing.T) {
 	repo, _ := git.Open(dir, "")
 	svc, _ := app.NewConfigService(repo, ports.GateFunc(func(context.Context, string, []string) error { return nil }))
 	mux := http.NewServeMux()
-	New(Services{Config: svc}, "", true, slog.New(slog.NewTextHandler(io.Discard, nil))).Routes(mux)
+	New(Services{Config: svc}, Authz{}, "", true, slog.New(slog.NewTextHandler(io.Discard, nil))).Routes(mux)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 

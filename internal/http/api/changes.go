@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
 
 // --- change requests ---
@@ -39,6 +40,9 @@ func (a *API) postChange(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(r, &in); err != nil {
 		return err
 	}
+	if err := a.require(r, "org", identity.Editor); err != nil {
+		return err
+	}
 	cr, err := a.changes.Open(r.Context(), in.ID, in.Title, author(r).Name)
 	if err != nil {
 		return reject(err)
@@ -59,6 +63,9 @@ func (a *API) postChangeEdit(w http.ResponseWriter, r *http.Request) error {
 		Clear bool `json:"clear,omitempty"`
 	}
 	if err := decode(r, &in); err != nil {
+		return err
+	}
+	if err := a.require(r, in.Scope, identity.Editor); err != nil {
 		return err
 	}
 	mut := func(f *fleet.Fleet) error {
@@ -86,6 +93,9 @@ func (a *API) postChangeEdit(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *API) postChangeSubmit(w http.ResponseWriter, r *http.Request) error {
+	if err := a.require(r, "org", identity.Editor); err != nil {
+		return err
+	}
 	cr, err := a.changes.Submit(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return wrapChangeErr(err)
@@ -95,6 +105,9 @@ func (a *API) postChangeSubmit(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *API) postChangeMerge(w http.ResponseWriter, r *http.Request) error {
+	if err := a.require(r, "org", identity.Owner); err != nil {
+		return err
+	}
 	cr, err := a.changes.Merge(r.Context(), r.PathValue("id"), author(r))
 	if err != nil {
 		return wrapChangeErr(err)
@@ -104,6 +117,9 @@ func (a *API) postChangeMerge(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *API) postChangeAbandon(w http.ResponseWriter, r *http.Request) error {
+	if err := a.require(r, "org", identity.Editor); err != nil {
+		return err
+	}
 	cr, err := a.changes.Abandon(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return wrapChangeErr(err)
@@ -150,6 +166,9 @@ func (a *API) postRollout(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(r, &in); err != nil {
 		return err
 	}
+	if err := a.require(r, "org", identity.Owner); err != nil {
+		return err
+	}
 	st, err := a.rollouts.Start(r.Context(), in.Target, author(r))
 	if err != nil {
 		return reject(err)
@@ -159,6 +178,9 @@ func (a *API) postRollout(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *API) postRolloutTick(w http.ResponseWriter, r *http.Request) error {
+	if err := a.require(r, "org", identity.Owner); err != nil {
+		return err
+	}
 	act, st, err := a.rollouts.Tick(r.Context())
 	if err != nil {
 		return err
@@ -172,6 +194,9 @@ func (a *API) postRolloutTick(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *API) deleteRollout(w http.ResponseWriter, r *http.Request) error {
+	if err := a.require(r, "org", identity.Owner); err != nil {
+		return err
+	}
 	st, err := a.rollouts.Cancel(r.Context())
 	if err != nil {
 		return reject(err)

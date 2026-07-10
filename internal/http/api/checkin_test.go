@@ -202,7 +202,7 @@ func TestStatusEndpoints(t *testing.T) {
 	// Server with inventory mounted.
 	mux := http.NewServeMux()
 	svcSrv := newConfigOnlyService(t)
-	New(Services{Config: svcSrv, Inventory: inv}, testToken, false, discardLog()).Routes(mux)
+	New(Services{Config: svcSrv, Inventory: inv}, Authz{}, testToken, false, discardLog()).Routes(mux)
 	s2 := httptest.NewServer(mux)
 	t.Cleanup(s2.Close)
 

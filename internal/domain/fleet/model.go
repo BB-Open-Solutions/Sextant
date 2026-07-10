@@ -28,6 +28,10 @@ type Fleet struct {
 	Assignments []Assignment      `json:"assignments,omitempty"`
 	Filters     map[string]Filter `json:"filters,omitempty"`
 
+	// Access grants roles at scopes to IdP groups (see domain/identity).
+	// Config-as-data: every access change is a gated, audited git commit.
+	Access []AccessBinding `json:"access,omitempty"`
+
 	Rollout *RolloutPolicy `json:"rollout,omitempty"`
 }
 
@@ -153,6 +157,13 @@ type RolloutRing struct {
 	Group             string `json:"group"`
 	SoakMinutes       int    `json:"soakMinutes,omitempty"`
 	MinHealthyPercent int    `json:"minHealthyPercent,omitempty"`
+}
+
+// AccessBinding mirrors identity.Binding in the config document.
+type AccessBinding struct {
+	Group string `json:"group"`
+	Role  string `json:"role"`
+	Scope string `json:"scope"`
 }
 
 // Decode parses a fleet document. It rejects unknown schema versions so an

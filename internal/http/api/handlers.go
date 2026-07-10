@@ -6,6 +6,7 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
 
 // --- reads ---
@@ -67,6 +68,9 @@ func (a *API) postSetting(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(r, &in); err != nil {
 		return err
 	}
+	if err := a.require(r, in.Scope, identity.Editor); err != nil {
+		return err
+	}
 	mut := func(f *fleet.Fleet) error {
 		if err := fleet.SetScopeSetting(in.Scope, in.Key, in.Value)(f); err != nil {
 			return reject(err)
@@ -95,6 +99,9 @@ func (a *API) deleteSetting(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(r, &in); err != nil {
 		return err
 	}
+	if err := a.require(r, in.Scope, identity.Editor); err != nil {
+		return err
+	}
 	msg := fmt.Sprintf("settings: clear %s at %s", in.Key, in.Scope)
 	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.ClearScopeSetting(in.Scope, in.Key)), msg, author(r),
 		app.AffectedHosts(a.cfg.Fleet(), in.Scope)...); err != nil {
@@ -110,6 +117,9 @@ func (a *API) putPolicy(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(r, &p); err != nil {
 		return err
 	}
+	if err := a.require(r, "org", identity.Owner); err != nil {
+		return err
+	}
 	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.PutPolicy(id, p)),
 		"policies: put "+id, author(r)); err != nil {
 		return err
@@ -120,6 +130,9 @@ func (a *API) putPolicy(w http.ResponseWriter, r *http.Request) error {
 
 func (a *API) deletePolicy(w http.ResponseWriter, r *http.Request) error {
 	id := r.PathValue("id")
+	if err := a.require(r, "org", identity.Owner); err != nil {
+		return err
+	}
 	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.DeletePolicy(id)),
 		"policies: delete "+id, author(r)); err != nil {
 		return err
@@ -131,6 +144,9 @@ func (a *API) deletePolicy(w http.ResponseWriter, r *http.Request) error {
 func (a *API) postAssignment(w http.ResponseWriter, r *http.Request) error {
 	var in fleet.Assignment
 	if err := decode(r, &in); err != nil {
+		return err
+	}
+	if err := a.require(r, in.Target, identity.Owner); err != nil {
 		return err
 	}
 	msg := fmt.Sprintf("policies: assign %s to %s", in.Policy, in.Target)
@@ -151,6 +167,9 @@ func (a *API) deleteAssignment(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(r, &in); err != nil {
 		return err
 	}
+	if err := a.require(r, in.Target, identity.Owner); err != nil {
+		return err
+	}
 	msg := fmt.Sprintf("policies: unassign %s from %s", in.Policy, in.Target)
 	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.Unassign(in.Policy, in.Target, in.Filter)), msg, author(r),
 		app.AffectedHosts(a.cfg.Fleet(), in.Target)...); err != nil {
@@ -166,6 +185,9 @@ func (a *API) putFilter(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(r, &fl); err != nil {
 		return err
 	}
+	if err := a.require(r, "org", identity.Owner); err != nil {
+		return err
+	}
 	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.PutFilter(id, fl)),
 		"filters: put "+id, author(r)); err != nil {
 		return err
@@ -176,6 +198,9 @@ func (a *API) putFilter(w http.ResponseWriter, r *http.Request) error {
 
 func (a *API) deleteFilter(w http.ResponseWriter, r *http.Request) error {
 	id := r.PathValue("id")
+	if err := a.require(r, "org", identity.Owner); err != nil {
+		return err
+	}
 	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.DeleteFilter(id)),
 		"filters: delete "+id, author(r)); err != nil {
 		return err

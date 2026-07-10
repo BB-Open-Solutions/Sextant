@@ -4,7 +4,6 @@
 package api
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -30,17 +29,19 @@ type API struct {
 	changes  *app.ChangeService
 	rollouts *app.RolloutService
 	inv      *app.InventoryService
+	authz    Authz
 	token    string
 	write    bool
 	log      *slog.Logger
 }
 
-// New builds the API. An empty token disables the whole surface (403), so
-// an unconfigured deployment exposes nothing by accident. write=false
-// serves reads only.
-func New(s Services, token string, write bool, log *slog.Logger) *API {
+// New builds the API. Principals: a bearer token (service, owner
+// everywhere) or a browser session (human, per-scope roles). No token and
+// no session source disables the surface, so an unconfigured deployment
+// exposes nothing by accident. write=false serves reads only.
+func New(s Services, authz Authz, token string, write bool, log *slog.Logger) *API {
 	return &API{cfg: s.Config, changes: s.Changes, rollouts: s.Rollouts,
-		inv: s.Inventory, token: token, write: write, log: log}
+		inv: s.Inventory, authz: authz, token: token, write: write, log: log}
 }
 
 // Routes registers the API on mux.
@@ -64,6 +65,9 @@ func (a *API) Routes(mux *http.ServeMux) {
 	rw("DELETE", "/api/v1/assignments", a.deleteAssignment)
 	rw("PUT", "/api/v1/filters/{id}", a.putFilter)
 	rw("DELETE", "/api/v1/filters/{id}", a.deleteFilter)
+	get("/api/v1/access", a.getAccess)
+	rw("POST", "/api/v1/access", a.postAccess)
+	rw("DELETE", "/api/v1/access", a.deleteAccess)
 
 	if a.changes != nil {
 		get("/api/v1/changes", a.getChanges)
@@ -87,23 +91,42 @@ func (a *API) Routes(mux *http.ServeMux) {
 	}
 }
 
-// wrap enforces bearer auth (and write mode for mutating routes), then maps
-// handler errors onto HTTP statuses.
+// wrap authenticates the principal (bearer token or session), guards
+// mutations (write mode, CSRF for session users, viewer floor for reads),
+// then maps handler errors onto HTTP statuses. Fine-grained per-scope
+// authorization happens inside handlers via require().
 func (a *API) wrap(h func(http.ResponseWriter, *http.Request) error, mutating bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if a.token == "" {
-			http.Error(w, "api disabled: no token configured", http.StatusForbidden)
+		if a.token == "" && a.authz.Sessions == nil {
+			http.Error(w, "api disabled: no token or session auth configured", http.StatusForbidden)
 			return
 		}
-		got := bearerToken(r)
-		if subtle.ConstantTimeCompare([]byte(got), []byte(a.token)) != 1 {
+		p, ok := a.authenticate(r)
+		if !ok {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="sextant"`)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if mutating && !a.write {
-			http.Error(w, "server is read-only (--write not set)", http.StatusForbidden)
-			return
+		if mutating {
+			if !a.write {
+				http.Error(w, "server is read-only (--write not set)", http.StatusForbidden)
+				return
+			}
+			if !p.verifyCSRF(r) {
+				http.Error(w, "missing or invalid X-CSRF-Token", http.StatusForbidden)
+				return
+			}
+		}
+		r = r.WithContext(withPrincipal(r.Context(), p))
+		// Reads require at least a role somewhere; scope-specific checks
+		// happen in the handlers.
+		if !mutating {
+			rv := a.cfg.Fleet().IdentityResolver(
+				a.authz.BaselineViewer, a.authz.BaselineEditor, a.authz.BaselineOwner)
+			if !rv.CanViewAnything(principalFrom(r.Context()).user) {
+				http.Error(w, "no role grants access", http.StatusForbidden)
+				return
+			}
 		}
 		if err := h(w, r); err != nil {
 			a.fail(w, r, err)
@@ -120,11 +143,13 @@ func bearerToken(r *http.Request) string {
 	return ""
 }
 
-// fail maps error kinds onto statuses: gate rejection 422, lost write race
-// 409, bad input 400.
+// fail maps error kinds onto statuses: authorization 403, gate rejection
+// 422, lost write race 409, dependency gap 503, bad input 400.
 func (a *API) fail(w http.ResponseWriter, r *http.Request, err error) {
 	var verr *ports.ValidationError
 	switch {
+	case errors.As(err, new(*forbidden)):
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 	case errors.As(err, &verr):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": verr.Detail})
 	case errors.Is(err, ports.ErrConflict):
@@ -161,10 +186,4 @@ func decode(r *http.Request, v any) error {
 		return reject(err)
 	}
 	return nil
-}
-
-// author derives commit attribution for API writes. Until OIDC lands
-// (phase 5), API clients identify as the service account.
-func author(*http.Request) ports.Author {
-	return ports.Author{Name: "sextant-api", Email: "api@sextant"}
 }

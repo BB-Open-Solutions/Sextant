@@ -3,6 +3,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -139,6 +140,11 @@ func applyTx(ctx context.Context, repo ports.ConfigRepo, gate ports.Gate, mut fl
 	next, err := f.Encode()
 	if err != nil {
 		return nil, err
+	}
+	// Idempotent no-op: the mutation produced the exact same document.
+	// Nothing to gate or commit; report success (the desired state holds).
+	if bytes.Equal(next, orig) {
+		return f, nil
 	}
 	if err := repo.WriteFile(FleetFile, next); err != nil {
 		return nil, err
