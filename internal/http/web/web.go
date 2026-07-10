@@ -49,7 +49,7 @@ type Server struct {
 // groups.
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
-	pages := []string{"overview", "devices", "device", "settings", "policies", "changes", "diff", "rollout", "access", "profile"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "profile"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -82,6 +82,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/{$}", s.overview)
 	get("/devices", s.devices)
 	get("/devices/{tag}", s.device)
+	get("/groups", s.groupsPage)
 	get("/settings", s.settingsPage)
 	get("/policies", s.policies)
 	get("/changes", s.changesPage)
@@ -93,6 +94,9 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/devices", s.postDeviceEnroll)
 	post("/devices/{tag}/settings", s.postDeviceSetting)
 	post("/settings", s.postSetting)
+	post("/groups", s.postGroupAdd)
+	post("/groups/{name}/update", s.postGroupUpdate)
+	post("/groups/{name}/remove", s.postGroupRemove)
 	post("/changes", s.postChange)
 	post("/changes/{id}/submit", s.postChangeSubmit)
 	post("/changes/{id}/merge", s.postChangeMerge)

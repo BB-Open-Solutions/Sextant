@@ -1,0 +1,75 @@
+{{define "content"}}
+<h1>Groups</h1>
+
+<div class="panel">
+  <p class="muted" style="margin-top:0">
+    Policy resolves org &rarr; parent groups &rarr; group &rarr; device. Enforced values
+    flow down; defaults may be overridden below. Re-parenting moves a whole subtree's
+    governance and needs organisation owner.
+  </p>
+  <table>
+    <tr><th>Group</th><th>IdP mapping</th><th>Pin</th><th>Devices</th><th></th></tr>
+    {{$ := .}}
+    {{range .Rows}}
+    <tr>
+      <td style="padding-left:{{.Depth}}em">
+        <strong>{{.Name}}</strong>
+        <br><a class="muted" href="/settings?scope=group:{{.Name}}">settings</a>
+      </td>
+      <td>{{with .IdpGroup}}<code>{{.}}</code>{{else}}<span class="muted">-</span>{{end}}</td>
+      <td>{{with .Pin}}<code>{{.}}</code>{{else}}<span class="muted">follows HEAD</span>{{end}}</td>
+      <td>{{.Devices}}</td>
+      <td>
+        {{if $.CanOrgOwn}}
+        <details>
+          <summary class="muted">manage</summary>
+          <form method="post" action="/groups/{{.Name}}/update" class="inline">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="reparent" value="1">
+            <select name="parent">
+              <option value="" {{if not .Parent}}selected{{end}}>(root)</option>
+              {{$row := .}}
+              {{range $.AllGroups}}
+              {{if ne . $row.Name}}
+              <option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>
+              {{end}}
+              {{end}}
+            </select>
+            <button type="submit" class="quiet">Re-parent</button>
+          </form>
+          <form method="post" action="/groups/{{.Name}}/update" class="inline">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="setidp" value="1">
+            <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group">
+            <button type="submit" class="quiet">Map</button>
+          </form>
+          <form method="post" action="/groups/{{.Name}}/remove" class="inline">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <button type="submit" class="quiet">Remove</button>
+          </form>
+        </details>
+        {{end}}
+      </td>
+    </tr>
+    {{else}}
+    <tr><td colspan="5" class="muted">No groups yet.</td></tr>
+    {{end}}
+  </table>
+</div>
+
+{{if .CanOrgOwn}}
+<h2>Create a group</h2>
+<div class="panel">
+  <form method="post" action="/groups">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input name="name" placeholder="name (lowercase slug)" required>
+    <select name="parent">
+      <option value="">(root)</option>
+      {{range .AllGroups}}<option value="{{.}}">{{.}}</option>{{end}}
+    </select>
+    <input name="idpGroup" placeholder="IdP group mapping (optional)">
+    <button type="submit">Create</button>
+  </form>
+</div>
+{{end}}
+{{end}}
