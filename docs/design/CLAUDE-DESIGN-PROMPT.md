@@ -5,11 +5,17 @@ NixOS devices used by audited organisations (config-as-data in git, built
 by nix, deployed by pull; explicitly NOT MDM, no live remote control
 beyond an audited lock/wipe intent).
 
-Two documents follow:
+Documents follow:
 - **DESIGN-PACKET** — the product's screens, states, actions per role,
-  the frozen API contract, and the non-negotiable UX invariants.
-- **DESIGN-mintlify** — the visual design system to apply (palette,
-  type, tokens, components).
+  the frozen API contract, the non-negotiable UX invariants, and the
+  current templates + css.
+- **DESIGN-NLDS** — the accessible design FOUNDATION (NL Design System:
+  component/form semantics, WCAG 2.2 AA, token-based per-tenant theming).
+  This is a government product (code.overheid.nl/MinBZK); accessibility
+  and the token theming model are load-bearing.
+- **DESIGN-mintlify** — a visual reference for the THEME layer's energy
+  and palette. Apply as a Sextant/BB Open token theme ON TOP of the NLDS
+  foundation — never in place of its accessible component contract.
 
 **Task:** produce a distinctive, polished, cohesive UI for the console —
 all 13 screens — in the Mintlify visual language, honouring every
