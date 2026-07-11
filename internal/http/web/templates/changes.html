@@ -1,60 +1,54 @@
 {{define "content"}}
 <h1>Changes</h1>
+<p class="mb-6 text-body-md text-text-tertiary max-w-2xl">A change stages edits on a branch, builds against the gate, and merges under four-eyes. Everything is a git commit.</p>
 
 {{if .CanEdit}}
-<div class="panel">
-  <form method="post" action="/changes">
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">add_circle</span>Open a change</h2>
+  <form method="post" action="/changes" class="!items-end">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input name="id" placeholder="change id (slug)" required pattern="[a-z0-9][a-z0-9-]*">
-    <input name="title" placeholder="title" required size="40">
+    <div class="flex flex-col gap-1"><label>Change id</label><input name="id" placeholder="lowercase slug" required pattern="[a-z0-9][a-z0-9-]*"></div>
+    <div class="flex flex-col gap-1 flex-1"><label>Title</label><input name="title" placeholder="what does this change do?" required class="w-full"></div>
     <button type="submit">Open change</button>
   </form>
 </div>
 {{end}}
 
-<div class="panel">
+<div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
+    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">difference</span>
+    <h2 class="mt-0 mb-0 text-headline-sm">Review queue</h2>
+  </div>
   <table>
     <tr><th>Change</th><th>Status</th><th>Author</th><th>Updated</th><th>Actions</th></tr>
     {{range .Changes}}
-    <tr>
-      <td><strong>{{.ID}}</strong><div class="muted">{{.Title}}</div>
-        {{with .Error}}<div class="tag bad">{{.}}</div>{{end}}</td>
+    <tr class="hover:bg-surface-container-low transition-colors">
+      <td><span class="font-medium">{{.ID}}</span><div class="muted">{{.Title}}</div>{{with .Error}}<div class="mt-1"><span class="tag bad">{{.}}</span></div>{{end}}</td>
       <td><span class="tag {{if eq .Status "ready"}}ok{{else if eq .Status "failed"}}bad{{else if eq .Status "merged"}}ok{{end}}">{{.Status}}</span></td>
       <td>{{.Author}}</td>
-      <td>{{$.L.Time .Updated}}</td>
+      <td class="whitespace-nowrap text-text-secondary">{{$.L.Time .Updated}}</td>
       <td>
-        {{if .Open}}<a href="/changes/{{.ID}}/diff">diff</a> {{end}}
+        <div class="flex flex-wrap items-center gap-2">
+        {{if .Open}}<a href="/changes/{{.ID}}/diff" class="text-label-md">diff</a>{{end}}
         {{if $.CanEdit}}
         {{if or (eq .Status "draft") (eq .Status "failed")}}
-        <details>
-          <summary class="muted">stage an edit</summary>
-          <form method="post" action="/changes/{{.ID}}/edits">
+        <details class="inline-block">
+          <summary class="cursor-pointer text-label-md text-text-tertiary hover:text-primary">stage edit</summary>
+          <form method="post" action="/changes/{{.ID}}/edits" class="mt-2 flex-col items-stretch gap-2 rounded-md border border-border-soft bg-surface-container-low p-3">
             <input type="hidden" name="csrf" value="{{$.CSRF}}">
-            <select name="scope">
-              <option value="org">org</option>
-              {{range $.Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}
-            </select>
+            <select name="scope"><option value="org">org</option>{{range $.Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
             <input name="key" placeholder="setting key" required>
             <input name="value" placeholder="value">
-            <label class="muted"><input type="checkbox" name="clear" value="1"> clear instead</label>
+            <label class="flex items-center gap-1 text-label-md"><input type="checkbox" name="clear" value="1" class="!w-auto"> clear instead</label>
             <button type="submit" class="quiet">Stage</button>
           </form>
         </details>
-        <form class="inline" method="post" action="/changes/{{.ID}}/submit">
-          <input type="hidden" name="csrf" value="{{$.CSRF}}"><button>Build</button>
-        </form>
+        <form class="inline" method="post" action="/changes/{{.ID}}/submit"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button>Build</button></form>
         {{end}}
-        {{if eq .Status "ready"}}
-        <form class="inline" method="post" action="/changes/{{.ID}}/merge">
-          <input type="hidden" name="csrf" value="{{$.CSRF}}"><button>Merge</button>
-        </form>
+        {{if eq .Status "ready"}}<form class="inline" method="post" action="/changes/{{.ID}}/merge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button>Merge</button></form>{{end}}
+        {{if .Open}}<form class="inline" method="post" action="/changes/{{.ID}}/abandon"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="quiet">Abandon</button></form>{{end}}
         {{end}}
-        {{if .Open}}
-        <form class="inline" method="post" action="/changes/{{.ID}}/abandon">
-          <input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="quiet">Abandon</button>
-        </form>
-        {{end}}
-        {{end}}
+        </div>
       </td>
     </tr>
     {{else}}

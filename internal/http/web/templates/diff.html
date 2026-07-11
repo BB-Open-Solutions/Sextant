@@ -1,10 +1,12 @@
 {{define "content"}}
-<h1>Change {{.ID}} - diff</h1>
-<p class="muted">{{.Change.Title}} - {{.Change.Status}} - by {{.Change.Author}}.
-This is what merging applies to the fleet configuration.</p>
-<div class="panel" style="overflow-x:auto">
-  {{if .Diff}}<pre style="margin:0; font-size:0.85em; line-height:1.4">{{.Diff}}</pre>
-  {{else}}<p class="muted">No changes on this branch yet.</p>{{end}}
+<div class="mb-2 flex items-center gap-3">
+  <a href="/changes" class="flex h-8 w-8 items-center justify-center rounded hover:bg-surface-container"><span class="material-symbols-outlined text-text-secondary" style="font-size:20px;">arrow_back</span></a>
+  <h1 class="mb-0">Change {{.ID}} — diff</h1>
 </div>
-<p><a href="/changes">Back to changes</a></p>
+<p class="mb-6 text-body-md text-text-tertiary">{{.Change.Title}} · <span class="tag {{if eq (printf "%s" .Change.Status) "ready"}}ok{{end}}">{{.Change.Status}}</span> · by {{.Change.Author}}. This is what merging applies to the fleet configuration.</p>
+
+<div class="overflow-hidden rounded-lg border border-border-hairline bg-surface-code shadow-sm">
+  {{if .Diff}}<pre class="overflow-x-auto p-5 text-label-md leading-relaxed text-canvas">{{.Diff}}</pre>
+  {{else}}<p class="muted p-6">No changes on this branch yet.</p>{{end}}
+</div>
 {{end}}

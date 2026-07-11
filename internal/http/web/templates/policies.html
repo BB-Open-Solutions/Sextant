@@ -1,47 +1,38 @@
 {{define "content"}}
 <h1>Policies</h1>
+<p class="mb-6 text-body-md text-text-tertiary max-w-2xl">Reusable setting bundles, bound to scopes by assignments and narrowed by filters. The Intune-shaped core of fleet configuration.</p>
 
-<div class="panel">
+<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">policy</span><h2 class="mt-0 mb-0 text-headline-sm">Policies</h2></div>
   <table>
     <tr><th>Policy</th><th>Settings</th><th>Locked keys</th><th>Assigned to</th>{{if .CanOwn}}<th></th>{{end}}</tr>
     {{$ := .}}
     {{range .Policies}}
-    <tr>
-      <td><strong>{{.ID}}</strong>{{with .Description}}<div class="muted">{{.}}</div>{{end}}</td>
-      <td>{{range $k, $v := .Settings}}<div><code>{{$k}} = {{printf "%v" $v}}</code></div>{{end}}</td>
+    <tr class="hover:bg-surface-container-low transition-colors">
+      <td><span class="font-medium">{{.ID}}</span>{{with .Description}}<div class="muted">{{.}}</div>{{end}}</td>
+      <td>{{range $k, $v := .Settings}}<div><code class="text-text-secondary">{{$k}} = {{printf "%v" $v}}</code></div>{{end}}</td>
       <td>{{range .Enforced}}<span class="tag lock">{{.}}</span> {{end}}</td>
       <td>
         {{$pol := .ID}}
         {{range .Assignments}}
-        <div>
-          <span class="tag">{{.Target}}</span>{{with .Filter}} filter <span class="tag">{{.}}</span>{{end}}
-          {{if $.CanOwn}}
-          <form method="post" action="/assignments/delete" class="inline">
-            <input type="hidden" name="csrf" value="{{$.CSRF}}">
-            <input type="hidden" name="policy" value="{{$pol}}">
-            <input type="hidden" name="target" value="{{.Target}}">
-            <input type="hidden" name="filter" value="{{.Filter}}">
-            <button type="submit" class="quiet">unassign</button>
-          </form>
-          {{end}}
+        <div class="mb-1 flex items-center gap-1">
+          <span class="tag">{{.Target}}</span>{{with .Filter}}<span class="muted">filter</span><span class="tag">{{.}}</span>{{end}}
+          {{if $.CanOwn}}<form method="post" action="/assignments/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="policy" value="{{$pol}}"><input type="hidden" name="target" value="{{.Target}}"><input type="hidden" name="filter" value="{{.Filter}}"><button type="submit" class="quiet !py-0.5 !px-2">unassign</button></form>{{end}}
         </div>
+        {{else}}<span class="muted">unassigned</span>
         {{end}}
       </td>
       {{if $.CanOwn}}
-      <td>
-        <details>
-          <summary class="muted">edit</summary>
-          <form method="post" action="/policies">
-            <input type="hidden" name="csrf" value="{{$.CSRF}}">
-            <input type="hidden" name="id" value="{{.ID}}">
+      <td class="text-right">
+        <details class="inline-block text-left">
+          <summary class="cursor-pointer text-label-md text-text-tertiary hover:text-primary">edit</summary>
+          <form method="post" action="/policies" class="mt-2 !flex-col !items-stretch gap-2 rounded-md border border-border-soft bg-surface-container-low p-3">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}">
             <input name="description" value="{{.Description}}" placeholder="description">
             <textarea name="settings" rows="4" placeholder="key = value">{{.SettingsText}}</textarea>
             <input name="enforced" value="{{.EnforcedText}}" placeholder="locked keys, comma-separated">
-            <button type="submit">Save</button>
-          </form>
-          <form method="post" action="/policies/{{.ID}}/delete" class="inline">
-            <input type="hidden" name="csrf" value="{{$.CSRF}}">
-            <button type="submit" class="quiet">Delete</button>
+            <div class="flex gap-2"><button type="submit">Save</button>
+              <button type="submit" formaction="/policies/{{.ID}}/delete" class="quiet">Delete</button></div>
           </form>
         </details>
       </td>
@@ -54,58 +45,42 @@
 </div>
 
 {{if .CanOwn}}
-<h2>Create a policy</h2>
-<div class="panel">
-  <form method="post" action="/policies">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input name="id" placeholder="id (lowercase slug)" required>
-    <input name="description" placeholder="description">
-    <textarea name="settings" rows="4" placeholder="apps.office = true&#10;desktop = plasma" required></textarea>
-    <input name="enforced" placeholder="locked keys, comma-separated (optional)">
-    <button type="submit">Create</button>
-    <span class="muted">One setting per line: <code>key = value</code>. Documented keys are type-checked; the gate validates the rest.</span>
-  </form>
-</div>
-
-<h2>Assign a policy</h2>
-<div class="panel">
-  <form method="post" action="/assignments">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <select name="policy" required>
-      <option value="" disabled selected>policy</option>
-      {{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}
-    </select>
-    <select name="target" required>
-      <option value="org">org</option>
-      {{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}
-    </select>
-    <select name="filter">
-      <option value="">no filter (all devices)</option>
-      {{range .FilterIDs}}<option value="{{.}}">{{.}}</option>{{end}}
-    </select>
-    <input name="priority" type="number" placeholder="priority (tie-break)">
-    <button type="submit">Assign</button>
-  </form>
+<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">add_circle</span>Create a policy</h2>
+    <form method="post" action="/policies" class="!flex-col !items-stretch gap-3">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input name="id" placeholder="id (lowercase slug)" required>
+      <input name="description" placeholder="description">
+      <textarea name="settings" rows="4" placeholder="apps.office = true&#10;desktop = plasma" required></textarea>
+      <input name="enforced" placeholder="locked keys, comma-separated (optional)">
+      <div class="flex items-center gap-3"><button type="submit">Create</button><span class="muted">one <code>key = value</code> per line; the gate validates.</span></div>
+    </form>
+  </div>
+  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">link</span>Assign a policy</h2>
+    <form method="post" action="/assignments" class="!flex-col !items-stretch gap-3">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <select name="policy" required><option value="" disabled selected>policy</option>{{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+      <select name="target" required><option value="org">org</option>{{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
+      <select name="filter"><option value="">no filter (all devices)</option>{{range .FilterIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+      <input name="priority" type="number" placeholder="priority (tie-break)">
+      <button type="submit">Assign</button>
+    </form>
+  </div>
 </div>
 {{end}}
 
-<h2>Filters</h2>
-<div class="panel">
+<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">filter_list</span><h2 class="mt-0 mb-0 text-headline-sm">Filters</h2></div>
   <table>
     <tr><th>Filter</th><th>Match</th><th>Rules</th>{{if .CanOwn}}<th></th>{{end}}</tr>
     {{range .Filters}}
-    <tr>
-      <td><strong>{{.ID}}</strong></td>
+    <tr class="hover:bg-surface-container-low transition-colors">
+      <td class="font-medium">{{.ID}}</td>
       <td>{{.Match}}</td>
-      <td>{{range .Rules}}<div><code>{{.Attr}} {{.Op}} {{.Value}}{{range .Values}}{{.}} {{end}}</code></div>{{end}}</td>
-      {{if $.CanOwn}}
-      <td>
-        <form method="post" action="/filters/{{.ID}}/delete" class="inline">
-          <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <button type="submit" class="quiet">Delete</button>
-        </form>
-      </td>
-      {{end}}
+      <td>{{range .Rules}}<div><code class="text-text-secondary">{{.Attr}} {{.Op}} {{.Value}}{{range .Values}}{{.}} {{end}}</code></div>{{end}}</td>
+      {{if $.CanOwn}}<td class="text-right"><form method="post" action="/filters/{{.ID}}/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet">Delete</button></form></td>{{end}}
     </tr>
     {{else}}
     <tr><td colspan="4" class="muted">No filters defined.</td></tr>
@@ -114,26 +89,22 @@
 </div>
 
 {{if .CanOwn}}
-<h2>Create a filter</h2>
-<div class="panel">
-  <form method="post" action="/filters">
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">add_circle</span>Create a filter</h2>
+  <form method="post" action="/filters" class="!flex-col !items-stretch gap-3">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input name="id" placeholder="id (lowercase slug)" required>
-    <select name="match">
-      <option value="all">all rules must hold</option>
-      <option value="any">any rule suffices</option>
-    </select>
+    <div class="flex gap-3">
+      <input name="id" placeholder="id (lowercase slug)" required>
+      <select name="match"><option value="all">all rules must hold</option><option value="any">any rule suffices</option></select>
+    </div>
     {{range $i := .RuleRows}}
-    <div>
-      <input name="attr{{$i}}" placeholder="attr (tag, class, hardware, assignedUser, group, label:key)">
-      <select name="op{{$i}}">
-        <option value="eq">eq</option><option value="ne">ne</option>
-        <option value="prefix">prefix</option><option value="in">in</option>
-      </select>
-      <input name="value{{$i}}" placeholder="value (comma list for in)">
+    <div class="flex gap-3">
+      <input name="attr{{$i}}" placeholder="attr (tag, class, hardware, assignedUser, group, label:key)" class="flex-1">
+      <select name="op{{$i}}"><option value="eq">eq</option><option value="ne">ne</option><option value="prefix">prefix</option><option value="in">in</option></select>
+      <input name="value{{$i}}" placeholder="value (comma list for in)" class="flex-1">
     </div>
     {{end}}
-    <button type="submit">Create</button>
+    <button type="submit" class="self-start">Create</button>
   </form>
 </div>
 {{end}}

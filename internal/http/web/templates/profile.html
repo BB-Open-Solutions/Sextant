@@ -2,29 +2,30 @@
 <h1>Profile</h1>
 
 {{with .MintedSecret}}
-<div class="panel" style="border-color:#3a6">
-  <h2 style="margin-top:0">New token created</h2>
-  <p><strong>Store this secret now; it is not shown again.</strong></p>
-  <p><code>{{.}}</code></p>
+<div class="relative mb-6 overflow-hidden rounded-lg border border-mint-deep/40 bg-secondary-container/40 p-5">
+  <div class="absolute left-0 top-0 h-full w-1 bg-mint-vibrant"></div>
+  <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-on-secondary-container"><span class="material-symbols-outlined" style="font-size:20px;">key</span>New token created</h2>
+  <p class="mb-3 text-body-md text-on-secondary-container"><strong>Store this secret now; it is not shown again.</strong></p>
+  <code class="block break-all rounded-md bg-surface-code px-4 py-3 text-body-md text-canvas">{{.}}</code>
 </div>
 {{end}}
 
-<div class="grid">
-  <div class="panel">
-    <h2 style="margin-top:0">Identity</h2>
-    <table>
-      <tr><td class="muted">Name</td><td>{{.User.Name}}</td></tr>
-      <tr><td class="muted">Email</td><td>{{.User.Email}}</td></tr>
-      <tr><td class="muted">Subject</td><td><code>{{.User.Subject}}</code></td></tr>
-      <tr><td class="muted">IdP groups</td><td>{{range .User.Groups}}<span class="tag">{{.}}</span> {{end}}</td></tr>
-    </table>
+<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">account_circle</span>Identity</h2>
+    <dl class="grid grid-cols-[7rem_1fr] gap-y-3 text-body-md">
+      <dt class="text-text-tertiary">Name</dt><dd>{{.User.Name}}</dd>
+      <dt class="text-text-tertiary">Email</dt><dd>{{.User.Email}}</dd>
+      <dt class="text-text-tertiary">Subject</dt><dd class="font-mono text-text-secondary break-all">{{.User.Subject}}</dd>
+      <dt class="text-text-tertiary">IdP groups</dt><dd>{{range .User.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</dd>
+    </dl>
   </div>
-  <div class="panel">
-    <h2 style="margin-top:0">My roles</h2>
+  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">shield_person</span>My roles</h2>
     <table>
       <tr><th>Scope</th><th>Role</th></tr>
       {{range $scope, $role := .Roles}}
-      <tr><td><code>{{$scope}}</code></td><td><span class="tag">{{$role}}</span></td></tr>
+      <tr><td class="font-mono">{{$scope}}</td><td><span class="tag {{if eq $role "owner"}}lock{{else if eq $role "editor"}}ok{{end}}">{{$role}}</span></td></tr>
       {{else}}
       <tr><td colspan="2" class="muted">No roles.</td></tr>
       {{end}}
@@ -33,68 +34,61 @@
 </div>
 
 {{if .HasPrefs}}
-<h2>Preferences</h2>
-<div class="panel">
-  <form method="post" action="/profile/prefs">
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">settings</span>Preferences</h2>
+  <form method="post" action="/profile/prefs" class="!items-end">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label class="muted" for="timezone">Timezone</label>
-    <input id="timezone" name="timezone" value="{{.Prefs.Timezone}}"
-           placeholder="organisation default (e.g. Europe/Amsterdam)" list="tz-common">
-    <datalist id="tz-common">
-      <option value="Europe/Amsterdam"><option value="Europe/Brussels">
-      <option value="Europe/Paris"><option value="Europe/Berlin"><option value="UTC">
-    </datalist>
-    <label class="muted" for="locale">Language</label>
-    <select id="locale" name="locale">
-      <option value="" {{if not .Prefs.Locale}}selected{{end}}>organisation default</option>
-      {{$cur := .Prefs.Locale}}
-      {{range .Locales}}<option value="{{.}}" {{if eq $cur .}}selected{{end}}>{{.}}</option>{{end}}
-    </select>
+    <div class="flex flex-col gap-1">
+      <label for="timezone">Timezone</label>
+      <input id="timezone" name="timezone" value="{{.Prefs.Timezone}}" placeholder="organisation default (e.g. Europe/Amsterdam)" list="tz-common">
+      <datalist id="tz-common"><option value="Europe/Amsterdam"><option value="Europe/Brussels"><option value="Europe/Paris"><option value="Europe/Berlin"><option value="UTC"></datalist>
+    </div>
+    <div class="flex flex-col gap-1">
+      <label for="locale">Language</label>
+      <select id="locale" name="locale">
+        <option value="" {{if not .Prefs.Locale}}selected{{end}}>organisation default</option>
+        {{$cur := .Prefs.Locale}}{{range .Locales}}<option value="{{.}}" {{if eq $cur .}}selected{{end}}>{{.}}</option>{{end}}
+      </select>
+    </div>
     <button type="submit">Save</button>
   </form>
 </div>
 {{end}}
 
 {{if .HasTokens}}
-<h2>My API tokens</h2>
-<div class="panel">
+<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
+    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">vpn_key</span>
+    <h2 class="mt-0 mb-0 text-headline-sm">My API tokens</h2>
+  </div>
   <table>
     <tr><th>Name</th><th>ID</th><th>Ceiling</th><th>Created</th><th>Expires</th><th>Last used</th><th></th></tr>
     {{$csrf := .CSRF}}
     {{range .Tokens}}
-    <tr>
-      <td>{{.Name}}</td>
-      <td><code>{{.ID}}</code></td>
+    <tr class="hover:bg-surface-container-low transition-colors">
+      <td class="font-medium">{{.Name}}</td>
+      <td><code class="text-text-tertiary">{{.ID}}</code></td>
       <td>{{with .Ceiling}}<span class="tag">{{.}}</span>{{else}}<span class="muted">-</span>{{end}}</td>
-      <td>{{$.L.Date .Created}}</td>
-      <td>{{$.L.Date .Expires}}</td>
-      <td>{{if .LastUsed}}{{$.L.TimePtr .LastUsed}}{{else}}<span class="muted">never</span>{{end}}</td>
-      <td>
-        <form method="post" action="/profile/tokens/{{.ID}}/revoke" class="inline">
-          <input type="hidden" name="csrf" value="{{$csrf}}">
-          <button type="submit" class="quiet">Revoke</button>
-        </form>
-      </td>
+      <td class="text-text-secondary">{{$.L.Date .Created}}</td>
+      <td class="text-text-secondary">{{$.L.Date .Expires}}</td>
+      <td class="text-text-secondary">{{if .LastUsed}}{{$.L.TimePtr .LastUsed}}{{else}}<span class="muted">never</span>{{end}}</td>
+      <td class="text-right"><form method="post" action="/profile/tokens/{{.ID}}/revoke" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" class="quiet">Revoke</button></form></td>
     </tr>
     {{else}}
     <tr><td colspan="7" class="muted">No personal tokens.</td></tr>
     {{end}}
   </table>
-
-  <h3>Create a personal token</h3>
-  <p class="muted">The token acts as you, with your current groups snapshotted.
-  A ceiling can only narrow what it may do. The secret is shown once.</p>
-  <form method="post" action="/profile/tokens">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input name="name" placeholder="what is this token for?" required>
-    <select name="ceiling">
-      <option value="">no ceiling (my full rights)</option>
-      <option value="viewer">viewer</option>
-      <option value="editor">editor</option>
-    </select>
-    <input name="ttlDays" type="number" min="1" placeholder="days (default 90)">
-    <button type="submit">Create</button>
-  </form>
+  <div class="border-t border-border-hairline p-6">
+    <h3 class="mt-0">Create a personal token</h3>
+    <p class="muted mb-4">The token acts as you, with your current groups snapshotted. A ceiling can only narrow what it may do. The secret is shown once.</p>
+    <form method="post" action="/profile/tokens" class="!items-end">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="flex flex-col gap-1 flex-1"><label>Name</label><input name="name" placeholder="what is this token for?" required class="w-full"></div>
+      <div class="flex flex-col gap-1"><label>Ceiling</label><select name="ceiling"><option value="">no ceiling (full rights)</option><option value="viewer">viewer</option><option value="editor">editor</option></select></div>
+      <div class="flex flex-col gap-1"><label>TTL (days)</label><input name="ttlDays" type="number" min="1" placeholder="90" class="w-24"></div>
+      <button type="submit">Create</button>
+    </form>
+  </div>
 </div>
 {{end}}
 {{end}}

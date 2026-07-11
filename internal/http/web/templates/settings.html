@@ -1,54 +1,45 @@
 {{define "content"}}
 <h1>Settings</h1>
 
-<div class="panel">
-  <form method="get" action="/settings" class="inline">
-    <label class="muted" for="scope">Scope</label>
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <form method="get" action="/settings" class="!items-center">
+    <label for="scope" class="font-medium">Scope</label>
     <select id="scope" name="scope" onchange="this.form.submit()">
       <option value="org" {{if eq .Scope "org"}}selected{{end}}>Organisation</option>
       {{$scope := .Scope}}
-      {{range .Groups}}
-      <option value="group:{{.}}" {{if eq $scope (printf "group:%s" .)}}selected{{end}}>Group: {{.}}</option>
-      {{end}}
+      {{range .Groups}}<option value="group:{{.}}" {{if eq $scope (printf "group:%s" .)}}selected{{end}}>Group: {{.}}</option>{{end}}
       {{if .IsDevice}}<option value="{{.Scope}}" selected>{{.Scope}}</option>{{end}}
     </select>
     <noscript><button type="submit">Switch</button></noscript>
   </form>
-  <p class="muted" style="margin-bottom:0">
-    Values set here apply at the selected scope. <strong>Enforce</strong> locks a value
-    for everything below (most-general wins); a plain value is a default the more
-    specific scope may override. Every change passes the validation gate and commits to git.
-  </p>
+  <p class="muted mt-3 mb-0">Values set here apply at the selected scope. <strong>Enforce</strong> locks a value for everything below (most-general wins); a plain value is a default the more specific scope may override. Every change passes the validation gate and commits to git.</p>
 </div>
 
 {{if .Empty}}
-<div class="panel">
-  <p class="muted">No catalog published yet. Export one from the overlay repo:
-  <code>nix eval .#catalog --json &gt; catalog.json</code> and commit it.</p>
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <p class="muted">No catalog published yet. Export one from the overlay repo: <code>nix eval .#catalog --json &gt; catalog.json</code> and commit it.</p>
 </div>
 {{end}}
 
 {{$ := .}}
-<h2>Apps at this scope</h2>
-<div class="panel">
-  <p class="muted" style="margin-top:0">Additive across the chain: a device gets the union
-  of org, group ancestry and its own lists. Names only (nixpkgs attrs, flathub ids,
-  repo overlays) - never code.</p>
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">inventory_2</span>Apps at this scope</h2>
+  <p class="muted mb-4">Additive across the chain: a device gets the union of org, group ancestry and its own lists. Names only (nixpkgs attrs, flathub ids, repo overlays) — never code.</p>
+  <div class="flex flex-col gap-3">
   {{range .Apps}}
-  <form method="post" action="/apps">
-    <input type="hidden" name="csrf" value="{{$.CSRF}}">
-    <input type="hidden" name="scope" value="{{$.Scope}}">
-    <input type="hidden" name="kind" value="{{.Kind}}">
-    <label class="muted" style="display:inline-block;min-width:6em">{{.Kind}}</label>
-    <input name="names" value="{{.Names}}" placeholder="comma-separated" style="min-width:24em">
+  <form method="post" action="/apps" class="!items-center">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{$.Scope}}"><input type="hidden" name="kind" value="{{.Kind}}">
+    <label class="w-24">{{.Kind}}</label>
+    <input name="names" value="{{.Names}}" placeholder="comma-separated" class="flex-1">
     {{if $.CanEdit}}<button type="submit" class="quiet">Save</button>{{end}}
   </form>
   {{end}}
+  </div>
 </div>
 
 {{range $sec := .Sections}}
-<h2>{{$sec.Name}}</h2>
-<div class="panel">
+<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="border-b border-border-hairline px-6 py-4"><h2 class="mt-0 mb-0 text-headline-sm capitalize">{{$sec.Name}}</h2></div>
   <table>
     <tr>
       <th>Setting</th><th>Value at this scope</th><th>Enforce</th>
@@ -57,40 +48,31 @@
     </tr>
     {{range $i, $row := $sec.Rows}}
     {{$fid := printf "f-%s-%d" $sec.Name $i}}
-    <tr>
+    <tr class="hover:bg-surface-container-low transition-colors">
       <td>
-        <strong>{{$row.Entry.Name}}</strong>
-        {{if $row.Entry.RiskClass}}<span class="tag bad">{{$row.Entry.RiskClass}} risk</span>{{end}}
-        <br><span class="muted">{{$row.Entry.Description}}</span>
-        {{with $row.Entry.DefaultString}}<br><span class="muted">default: <code>{{.}}</code></span>{{end}}
+        <span class="font-mono font-medium">{{$row.Entry.Name}}</span>
+        {{if $row.Entry.RiskClass}}<span class="tag bad ml-1">{{$row.Entry.RiskClass}} risk</span>{{end}}
+        <div class="muted">{{$row.Entry.Description}}</div>
+        {{with $row.Entry.DefaultString}}<div class="text-label-md text-text-tertiary">default: <code>{{.}}</code></div>{{end}}
       </td>
       {{if $.CanEdit}}
       <td>
         {{if eq $row.Entry.Widget "toggle"}}
-          <select name="value" form="{{$fid}}">
-            <option value="" {{if not $row.Set}}selected{{end}} disabled>inherit</option>
-            <option value="true" {{if and $row.Set (eq $row.Value "true")}}selected{{end}}>true</option>
-            <option value="false" {{if and $row.Set (eq $row.Value "false")}}selected{{end}}>false</option>
-          </select>
+          <select name="value" form="{{$fid}}"><option value="" {{if not $row.Set}}selected{{end}} disabled>inherit</option><option value="true" {{if and $row.Set (eq $row.Value "true")}}selected{{end}}>true</option><option value="false" {{if and $row.Set (eq $row.Value "false")}}selected{{end}}>false</option></select>
         {{else if eq $row.Entry.Widget "select"}}
-          <select name="value" form="{{$fid}}">
-            <option value="" {{if not $row.Set}}selected{{end}} disabled>inherit</option>
-            {{range $row.Entry.Options}}
-            <option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>
-            {{end}}
-          </select>
+          <select name="value" form="{{$fid}}"><option value="" {{if not $row.Set}}selected{{end}} disabled>inherit</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
         {{else if eq $row.Entry.Widget "number"}}
           <input type="number" name="value" form="{{$fid}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="inherit">
         {{else}}
           <input name="value" form="{{$fid}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="inherit">
         {{end}}
       </td>
-      <td><input type="checkbox" name="enforce" form="{{$fid}}" {{if $row.Enforced}}checked{{end}}></td>
+      <td class="text-center"><input type="checkbox" name="enforce" form="{{$fid}}" {{if $row.Enforced}}checked{{end}} class="!w-auto"></td>
       {{if $.IsDevice}}
       <td>{{with $row.Resolved}}<code>{{.}}</code>{{else}}<span class="muted">-</span>{{end}}</td>
       <td class="provenance">{{$row.Source}}</td>
       {{end}}
-      <td>
+      <td class="whitespace-nowrap text-right">
         <button type="submit" name="action" value="set" form="{{$fid}}">Apply</button>
         {{if $row.Set}}<button type="submit" name="action" value="clear" form="{{$fid}}" class="quiet" formnovalidate>Clear</button>{{end}}
       </td>
@@ -109,9 +91,7 @@
   {{if $.CanEdit}}
   {{range $i, $row := $sec.Rows}}
   <form id="{{printf "f-%s-%d" $sec.Name $i}}" method="post" action="/settings">
-    <input type="hidden" name="csrf" value="{{$.CSRF}}">
-    <input type="hidden" name="scope" value="{{$.Scope}}">
-    <input type="hidden" name="key" value="{{$row.Entry.Name}}">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{$.Scope}}"><input type="hidden" name="key" value="{{$row.Entry.Name}}">
   </form>
   {{end}}
   {{end}}

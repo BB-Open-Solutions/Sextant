@@ -1,72 +1,83 @@
 {{define "content"}}
 <h1>Rollout</h1>
+<p class="mb-6 text-body-md text-text-tertiary max-w-2xl">Rings promote in order: a ring must converge healthy through its soak window before the next one starts.</p>
 
 {{if .State}}
-<div class="panel">
-  <table>
-    <tr><td class="muted">Target</td><td><code>{{.State.Target}}</code></td></tr>
-    <tr><td class="muted">Status</td><td><span class="tag {{if eq (printf "%s" .State.Status) "active"}}ok{{else if eq (printf "%s" .State.Status) "halted"}}bad{{end}}">{{.State.Status}}</span>
-      {{with .State.Reason}}<span class="muted">{{.}}</span>{{end}}</td></tr>
-    <tr><td class="muted">Current ring</td><td>{{.State.Ring}}</td></tr>
-  </table>
-  {{if .CanOwn}}
-  <form class="inline" method="post" action="/rollout/tick" style="margin-top:0.8rem">
-    <input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">Advance now</button>
-  </form>
-  <form class="inline" method="post" action="/rollout/cancel">
-    <input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">Cancel run</button>
-  </form>
-  {{end}}
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <div class="flex flex-wrap items-center gap-4">
+    <div>
+      <div class="text-label-md uppercase tracking-wider text-text-tertiary">Target</div>
+      <code class="text-body-lg text-ink">{{.State.Target}}</code>
+    </div>
+    <div>
+      <div class="text-label-md uppercase tracking-wider text-text-tertiary">Status</div>
+      <span class="tag {{if eq (printf "%s" .State.Status) "active"}}ok{{else if eq (printf "%s" .State.Status) "halted"}}bad{{end}}">{{.State.Status}}</span>
+      {{with .State.Reason}}<span class="muted">{{.}}</span>{{end}}
+    </div>
+    <div>
+      <div class="text-label-md uppercase tracking-wider text-text-tertiary">Current ring</div>
+      <span class="text-body-lg text-ink">{{.State.Ring}}</span>
+    </div>
+    {{if .CanOwn}}
+    <div class="ml-auto flex gap-2">
+      <form class="inline" method="post" action="/rollout/tick"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">Advance now</button></form>
+      <form class="inline" method="post" action="/rollout/cancel"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">Cancel run</button></form>
+    </div>
+    {{end}}
+  </div>
 </div>
 
-<h2>Rings</h2>
-<div class="panel">
+<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
+    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">lan</span>
+    <h2 class="mt-0 mb-0 text-headline-sm">Rings</h2>
+  </div>
   <table>
     <tr><th>#</th><th>Group</th><th>Soak</th><th>Health gate</th><th>Convergence</th></tr>
     {{range $i, $r := .Rings}}
-    <tr>
-      <td>{{$i}}</td><td>{{$r.Ring.Group}}</td>
+    <tr class="hover:bg-surface-container-low transition-colors">
+      <td>{{$i}}</td><td class="font-medium">{{$r.Ring.Group}}</td>
       <td>{{$r.Ring.SoakMinutes}}m</td>
       <td>{{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}%{{else}}100%{{end}}</td>
-      <td>{{$r.Status.OnTarget}}/{{$r.Status.Total}} on target, {{$r.Status.Healthy}} healthy</td>
+      <td>{{$r.Status.OnTarget}}/{{$r.Status.Total}} on target · {{$r.Status.Healthy}} healthy</td>
     </tr>
     {{end}}
   </table>
 </div>
 {{else}}
-<div class="panel"><p class="muted">No rollout run. {{if not .HasRings}}Configure rollout rings below first.{{end}}</p>
-{{if and .CanOwn .HasRings}}
-<form method="post" action="/rollout">
-  <input type="hidden" name="csrf" value="{{.CSRF}}">
-  <input name="target" placeholder="target revision" required>
-  <button type="submit">Start rollout</button>
-</form>
-{{end}}
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <p class="muted mb-4">No rollout run.{{if not .HasRings}} Configure rollout rings below first.{{end}}</p>
+  {{if and .CanOwn .HasRings}}
+  <form method="post" action="/rollout" class="!items-end">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <div class="flex flex-col gap-1"><label>Target revision</label><input name="target" placeholder="rev to roll out" required></div>
+    <button type="submit">Start rollout</button>
+  </form>
+  {{end}}
 </div>
 {{end}}
 
 {{if .CanOwn}}
-<h2>Ring plan</h2>
-<div class="panel">
-  <p class="muted" style="margin-top:0">Rings promote in order: a ring must converge
-  healthy through its soak window before the next one starts. Saving replaces the
-  whole plan; an empty form clears it.</p>
-  <form method="post" action="/rollout/plan">
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">tune</span>Ring plan</h2>
+  <p class="muted mb-4">Saving replaces the whole plan; an empty form clears it.</p>
+  <form method="post" action="/rollout/plan" class="!block">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     {{$ := .}}
+    <div class="flex flex-col gap-2">
     {{range $i := .RingRows}}
-    <div>
+    <div class="flex items-center gap-3">
+      <span class="w-6 text-label-md text-text-tertiary">{{$i}}</span>
       <select name="group{{$i}}">
         <option value="">(unused ring)</option>
-        {{range $.AllGroups}}
-        <option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>
-        {{end}}
+        {{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}
       </select>
-      <input name="soak{{$i}}" type="number" min="0" placeholder="soak (min)" value="{{index $.PlanSoaks $i}}">
-      <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="min healthy %" value="{{index $.PlanHealthy $i}}">
+      <input name="soak{{$i}}" type="number" min="0" placeholder="soak (min)" value="{{index $.PlanSoaks $i}}" class="w-32">
+      <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="min healthy %" value="{{index $.PlanHealthy $i}}" class="w-36">
     </div>
     {{end}}
-    <button type="submit">Save plan</button>
+    </div>
+    <button type="submit" class="mt-4">Save plan</button>
   </form>
 </div>
 {{end}}
