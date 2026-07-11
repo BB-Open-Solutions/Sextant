@@ -1,16 +1,48 @@
 {{define "content"}}
 <h1>Overview</h1>
-<div class="grid">
-  <div class="panel"><div class="stat">{{.Stats.Devices}}</div><div class="muted">Devices</div></div>
-  <div class="panel"><div class="stat">{{.Stats.Online}}</div><div class="muted">Online</div></div>
-  <div class="panel"><div class="stat">{{.Stats.Groups}}</div><div class="muted">Groups</div></div>
-  <div class="panel"><div class="stat">{{.Stats.Policies}}</div><div class="muted">Policies</div></div>
-  <div class="panel"><div class="stat">{{.Stats.OpenChanges}}</div><div class="muted">Open changes</div></div>
+
+<!-- Stat cards -->
+<div class="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5">
+    <div class="mb-3 flex items-center justify-between">
+      <span class="text-label-md uppercase tracking-wider text-text-tertiary">Devices</span>
+      <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">devices</span>
+    </div>
+    <div class="text-headline-md font-bold text-ink">{{.Stats.Devices}}</div>
+  </div>
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5">
+    <div class="mb-3 flex items-center justify-between">
+      <span class="text-label-md uppercase tracking-wider text-text-tertiary">Online</span>
+      <span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">wifi</span>
+    </div>
+    <div class="text-headline-md font-bold text-ink">{{.Stats.Online}}<span class="text-body-md font-normal text-text-tertiary"> / {{.Stats.Devices}}</span></div>
+  </div>
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5">
+    <div class="mb-3 flex items-center justify-between">
+      <span class="text-label-md uppercase tracking-wider text-text-tertiary">Groups</span>
+      <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">group_work</span>
+    </div>
+    <div class="text-headline-md font-bold text-ink">{{.Stats.Groups}}</div>
+  </div>
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5">
+    <div class="mb-3 flex items-center justify-between">
+      <span class="text-label-md uppercase tracking-wider text-text-tertiary">Policies</span>
+      <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">policy</span>
+    </div>
+    <div class="text-headline-md font-bold text-ink">{{.Stats.Policies}}</div>
+  </div>
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5">
+    <div class="mb-3 flex items-center justify-between">
+      <span class="text-label-md uppercase tracking-wider text-text-tertiary">Open changes</span>
+      <span class="material-symbols-outlined {{if .Stats.OpenChanges}}text-status-warn{{else}}text-text-tertiary{{end}}" style="font-size:20px;">difference</span>
+    </div>
+    <div class="text-headline-md font-bold text-ink">{{.Stats.OpenChanges}}</div>
+  </div>
 </div>
 
 {{if .Attention}}
 <h2>Needs attention</h2>
-<div class="panel">
+<div class="panel !p-0 overflow-hidden">
   <table>
     <tr><th>What</th><th>Detail</th></tr>
     {{range .Attention}}
@@ -21,15 +53,15 @@
 {{end}}
 
 <h2>Device status</h2>
-<div class="panel">
+<div class="panel !p-0 overflow-hidden">
   <table>
-    <tr><th>Device</th><th>Revision</th><th>Phase</th><th>Seen</th></tr>
+    <tr><th>Device</th><th>Revision</th><th>Phase</th><th>State</th></tr>
     {{range .Status}}
     <tr>
-      <td><a href="/devices/{{.Tag}}">{{.Tag}}</a></td>
-      <td>{{.Revision}}</td>
+      <td><a href="/devices/{{.Tag}}" class="font-mono">{{.Tag}}</a></td>
+      <td class="font-mono text-text-secondary">{{.Revision}}</td>
       <td>{{.Phase}}</td>
-      <td>{{if .Online}}<span class="tag ok">online</span>{{else}}<span class="tag bad">offline</span>{{end}}</td>
+      <td>{{if .Online}}<span class="tag ok"><span class="material-symbols-outlined" style="font-size:14px;">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}</td>
     </tr>
     {{else}}
     <tr><td colspan="4" class="muted">No check-ins yet.</td></tr>
