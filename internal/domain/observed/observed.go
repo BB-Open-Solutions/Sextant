@@ -44,6 +44,10 @@ type CheckIn struct {
 	// empty means the agent did not report it (old agent / probe failed).
 	SB   SBState   `json:"sb,omitempty"`
 	TPM2 TPM2State `json:"tpm2,omitempty"`
+	// Ack echoes a remote-action intent the device has executed
+	// ("lock"/"wipe"), so the console can show delivered vs armed
+	// (design 0004). Empty on an ordinary beat.
+	Ack string `json:"ack,omitempty"`
 }
 
 // Validate rejects malformed check-ins before they reach storage.
@@ -60,6 +64,11 @@ func (c CheckIn) Validate() error {
 	if len(c.Revision) > 128 || len(c.Error) > 4096 {
 		return fmt.Errorf("check-in field too long")
 	}
+	switch c.Ack {
+	case "", "lock", "wipe":
+	default:
+		return fmt.Errorf("unknown ack %q", c.Ack)
+	}
 	return validatePosture(c.SB, c.TPM2)
 }
 
@@ -72,6 +81,8 @@ type DeviceStatus struct {
 	LastSeen time.Time `json:"lastSeen"`
 	SB       SBState   `json:"sb,omitempty"`
 	TPM2     TPM2State `json:"tpm2,omitempty"`
+	// Ack is the last remote-action intent the device confirmed executing.
+	Ack string `json:"ack,omitempty"`
 }
 
 // OnlineWindow is how recently a device must have checked in to count as

@@ -1,9 +1,25 @@
 # Design 0004: remote actions - lock, cryptographic wipe
 
-Status: designed; IMPLEMENTATION DEFERRED TO THE OPUS HANDOFF.
-The destructive execution path (LUKS erase, the root actd unit) is built
-by Opus, not in this Fable session. This document is the complete design
-so that handoff is a build, not a redesign.
+Status: intent surface + lock BUILT; the DESTRUCTIVE wipe execution
+(LUKS erase in the root actd unit) is the only part deferred.
+
+Built (server + console + agent):
+- fleet.Device.Intent (lock|wipe) + SetDeviceIntent (wipe needs lock-
+  first or force) / ClearDeviceIntent, all audited commits
+- API POST/DELETE /devices/{tag}/intent (org Owner); check-in returns
+  200 + {intent} synchronously (no store-and-forward, no replay); the
+  agent echoes an ack, recorded on device_status.ack (sticky)
+- console red-zone panel (lock/wipe with typed-tag confirmation, cancel,
+  armed/delivered indicator); dfctl devices lock/wipe/unlock
+- agent: on an intent, react() writes the persistent lock flag and
+  spools the request under /run/sextant-intent for a root executor
+
+Deferred to the handoff (the one destructive syscall):
+- the root `sextant-actd` unit that reads the spool and runs
+  `cryptsetup luksErase` for wipe, plus `loginctl lock-sessions` for
+  lock. The agent build spools and acks a wipe but performs NO
+  destruction; that is logged loudly. Wiring the actd unit in
+  deploy/nixos/agent.nix (path unit, root, locked down) completes it.
 
 ## Problem
 

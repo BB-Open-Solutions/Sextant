@@ -293,3 +293,33 @@ func TestCheckinRetiredDeviceGone(t *testing.T) {
 		t.Errorf("active check-in = %d, want 204", got)
 	}
 }
+
+func TestCheckinReturnsIntent(t *testing.T) {
+	fo := newFakeObserved()
+	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
+	mux := http.NewServeMux()
+	NewCheckin(inv, nil, "bridge-tok").
+		WithIntent(func(tag string) string {
+			if tag == "stolen" {
+				return "lock"
+			}
+			return ""
+		}).Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	// A device with a pending intent gets 200 + the intent; others 204.
+	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
+		`{"tag":"stolen","revision":"v1"}`); got != 200 {
+		t.Errorf("intent check-in = %d, want 200", got)
+	}
+	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
+		`{"tag":"ordinary","revision":"v1"}`); got != 204 {
+		t.Errorf("ordinary check-in = %d, want 204", got)
+	}
+	// The device may echo an ack; it is accepted.
+	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
+		`{"tag":"stolen","revision":"v1","ack":"lock"}`); got != 200 {
+		t.Errorf("ack check-in = %d", got)
+	}
+}

@@ -176,6 +176,9 @@ func (d *deps) observedCapability() capability.Capability {
 				WithLifecycle(func(tag string) bool {
 					dev, ok := d.svc.Fleet().Devices[tag]
 					return ok && dev.Retired()
+				}).
+				WithIntent(func(tag string) string {
+					return d.svc.Fleet().Devices[tag].Intent
 				}).Routes(inner)
 			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40)(inner))
 		},

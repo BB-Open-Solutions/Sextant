@@ -90,10 +90,26 @@ const (
 	DeviceRetired = "retired"
 )
 
+// Intent is a pending remote action a device reacts to. It is DATA, not a
+// command channel: the device pulls it on check-in and acts locally, and
+// every intent is an audited commit. No live RCE (ADR/design 0004).
+const (
+	// IntentNone is the zero value: no pending action.
+	IntentNone = ""
+	// IntentLock: lock all sessions and stay locked across reboot;
+	// reversible by clearing the intent.
+	IntentLock = "lock"
+	// IntentWipe: cryptographically erase the device (destroy LUKS keys).
+	// Irreversible; requires the device to be locked first (or force).
+	IntentWipe = "wipe"
+)
+
 // Device is one managed machine, keyed by its asset tag.
 type Device struct {
 	// State is the lifecycle position ("" = active, "retired").
-	State        string   `json:"state,omitempty"`
+	State string `json:"state,omitempty"`
+	// Intent is a pending remote action ("" | "lock" | "wipe").
+	Intent       string   `json:"intent,omitempty"`
 	Groups       []string `json:"groups,omitempty"`
 	AssignedUser string   `json:"assignedUser,omitempty"`
 	// Class categorises the device (laptop, server, station); filterable.

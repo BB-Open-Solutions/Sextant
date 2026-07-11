@@ -143,8 +143,10 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	data := map[string]any{
 		"Title": "Device " + tag, "Nav": "devices",
 		"Tag": tag, "Device": d, "Retired": d.Retired(),
+		"Intent":   d.Intent,
 		"Resolved": f.ResolveSorted(tag),
 		"CanEdit":  v.roleAt("device:" + tag).Meets(identity.Editor),
+		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
 	}
 	type groupOpt struct {
 		Name   string

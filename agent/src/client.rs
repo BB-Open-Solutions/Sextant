@@ -17,6 +17,8 @@ pub struct CheckIn<'a> {
     pub sb: &'a str,
     #[serde(skip_serializing_if = "str::is_empty")]
     pub tpm2: &'a str,
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub ack: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facts: Option<&'a serde_json::Value>,
 }
@@ -26,6 +28,9 @@ pub struct CheckIn<'a> {
 pub enum Outcome {
     /// Accepted (204).
     Ok,
+    /// Accepted, and the server returned a pending remote-action intent
+    /// (200 with an intent body) for the device to act on locally.
+    Intent(String),
     /// The device is retired (410): stop for good, a human must act.
     Retired,
     /// Credential rejected (401): keep trying, it may be re-issued.
@@ -60,7 +65,19 @@ impl Client {
             .set("Authorization", &format!("Bearer {}", self.credential))
             .send_json(body);
         match res {
-            Ok(_) => Outcome::Ok,
+            Ok(resp) => {
+                // 204 = nothing pending; 200 carries a remote-action intent.
+                if resp.status() == 200 {
+                    if let Ok(doc) = resp.into_json::<serde_json::Value>() {
+                        if let Some(intent) = doc.get("intent").and_then(|v| v.as_str()) {
+                            if !intent.is_empty() {
+                                return Outcome::Intent(intent.to_string());
+                            }
+                        }
+                    }
+                }
+                Outcome::Ok
+            }
             Err(ureq::Error::Status(401, _)) => Outcome::Unauthorized,
             Err(ureq::Error::Status(410, _)) => Outcome::Retired,
             Err(ureq::Error::Status(code, resp)) => Outcome::Transient(format!(
@@ -137,6 +154,7 @@ mod tests {
             error: None,
             sb: "",
             tpm2: "",
+            ack: "",
             facts: None,
         };
         assert_eq!(c.send(&body), Outcome::Ok);

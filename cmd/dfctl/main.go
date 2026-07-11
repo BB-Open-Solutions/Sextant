@@ -19,7 +19,8 @@ const usage = `dfctl - Sextant fleet CLI
 Resources and verbs:
   devices   list | get TAG | enroll TAG -hardware H [-group G] [-class C] |
             update TAG [-hardware H] [-class C] [-user U] [-groups a,b] |
-            retire TAG | reactivate TAG | remove TAG
+            retire TAG | reactivate TAG | remove TAG |
+            lock TAG | wipe TAG [-force] | unlock TAG
   groups    add NAME [-parent P] [-idp G] | update NAME [-parent P|-] [-idp G] |
             remove NAME
   apps      set SCOPE KIND [NAME ...]   (kind: packages|flatpaks|overlays)
@@ -247,6 +248,28 @@ func devicesCmd(c *client, asJSON bool, verb string, rest []string) error {
 			return usagef("devices retire TAG")
 		}
 		return c.do("POST", "/api/v1/devices/"+rest[0]+"/retire", nil, nil)
+	case "lock":
+		if len(rest) != 1 {
+			return usagef("devices lock TAG")
+		}
+		return c.do("POST", "/api/v1/devices/"+rest[0]+"/intent",
+			map[string]any{"intent": "lock"}, nil)
+	case "wipe":
+		fs := flag.NewFlagSet("wipe", flag.ContinueOnError)
+		force := fs.Bool("force", false, "wipe without locking first (lost device)")
+		if len(rest) < 1 {
+			return usagef("devices wipe TAG [-force]")
+		}
+		if err := fs.Parse(rest[1:]); err != nil {
+			return usagef("wipe flags: %v", err)
+		}
+		return c.do("POST", "/api/v1/devices/"+rest[0]+"/intent",
+			map[string]any{"intent": "wipe", "force": *force}, nil)
+	case "unlock", "clear-intent":
+		if len(rest) != 1 {
+			return usagef("devices unlock TAG")
+		}
+		return c.do("DELETE", "/api/v1/devices/"+rest[0]+"/intent", nil, nil)
 	case "reactivate":
 		if len(rest) != 1 {
 			return usagef("devices reactivate TAG")

@@ -97,6 +97,8 @@ func (a *API) Routes(mux *http.ServeMux) {
 	if a.devCreds != nil {
 		rw("POST", "/api/v1/devices/{tag}/credential", a.postDeviceCredential)
 	}
+	rw("POST", "/api/v1/devices/{tag}/intent", a.postDeviceIntent)
+	rw("DELETE", "/api/v1/devices/{tag}/intent", a.deleteDeviceIntent)
 
 	rw("POST", "/api/v1/settings", a.postSetting)
 	rw("DELETE", "/api/v1/settings", a.deleteSetting)

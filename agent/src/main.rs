@@ -7,6 +7,7 @@
 //! Exit codes: 0 ok/once, 2 config error, 3 retired (permanent - the
 //! systemd unit must not restart on this).
 
+mod action;
 mod client;
 mod collect;
 mod config;
@@ -36,6 +37,9 @@ fn main() -> ExitCode {
     );
 
     let mut last_facts: Option<Instant> = None;
+    // pending_ack is echoed on the next beat once an intent has been acted
+    // on, so the console can show delivered vs armed.
+    let mut pending_ack = String::new();
     loop {
         // Facts ride along on the first beat and then per facts_interval.
         let due = last_facts.is_none_or(|t| t.elapsed() >= cfg.facts_interval);
@@ -47,6 +51,7 @@ fn main() -> ExitCode {
 
         let revision = collect::revision();
         let post = posture::probe(&posture::default_root());
+        let ack = std::mem::take(&mut pending_ack);
         let beat = CheckIn {
             tag: &cfg.tag,
             revision: &revision,
@@ -54,6 +59,7 @@ fn main() -> ExitCode {
             error: None,
             sb: post.sb,
             tpm2: post.tpm2,
+            ack: &ack,
             facts: facts.as_ref(),
         };
         match client.send(&beat) {
@@ -61,6 +67,13 @@ fn main() -> ExitCode {
                 if facts.is_some() {
                     last_facts = Some(Instant::now());
                 }
+            }
+            Outcome::Intent(intent) => {
+                if facts.is_some() {
+                    last_facts = Some(Instant::now());
+                }
+                // Act locally; echo the ack on the next beat.
+                pending_ack = action::react(&posture::default_root(), &intent);
             }
             Outcome::Retired => {
                 eprintln!("sextant-agent: device is retired; stopping permanently");

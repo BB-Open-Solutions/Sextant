@@ -171,6 +171,40 @@
   </table>
 </div>
 
+{{if .CanOwn}}
+{{if not .Retired}}
+<h2>Remote actions</h2>
+<div class="panel" style="border-color:#a33">
+  {{if .Intent}}
+  <p><strong>Armed:</strong> <span class="tag bad">{{.Intent}}</span>
+    {{if and .HasStatus (eq .Status.Ack .Intent)}}<span class="tag ok">delivered</span>
+    {{else}}<span class="muted">pending delivery on next check-in</span>{{end}}</p>
+  <form method="post" action="/devices/{{.Tag}}/intent/clear" class="inline">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="quiet">Cancel</button>
+  </form>
+  {{else}}
+  <p class="muted" style="margin-top:0">Lost or stolen device. Lock is reversible; wipe
+  destroys the disk encryption keys and is irreversible. Every action is an audited commit.</p>
+  <form method="post" action="/devices/{{.Tag}}/intent" class="inline">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="intent" value="lock">
+    <button type="submit">Lock device</button>
+  </form>
+  <form method="post" action="/devices/{{.Tag}}/intent"
+        onsubmit="return confirm('WIPE {{.Tag}}? This destroys the disk encryption keys - irreversible.')">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="intent" value="wipe">
+    <input type="hidden" name="force" value="1">
+    <label class="muted">Type the tag to confirm a wipe:
+      <input name="confirm" placeholder="{{.Tag}}" required></label>
+    <button type="submit" class="quiet">Wipe device</button>
+  </form>
+  {{end}}
+</div>
+{{end}}
+{{end}}
+
 {{with .Facts}}
 <h2>Hardware facts</h2>
 <div class="panel">

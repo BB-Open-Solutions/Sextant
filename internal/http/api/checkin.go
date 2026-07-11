@@ -29,6 +29,10 @@ type CheckinAPI struct {
 	// the bridge token must not resurrect a parked tag either. nil = no
 	// lifecycle source (tests).
 	retired func(tag string) bool
+	// intent returns a device's pending remote action ("" when none). The
+	// check-in response carries it back synchronously, so the device acts
+	// on a fresh instruction - no store-and-forward, no replay window.
+	intent func(tag string) string
 }
 
 // NewCheckin builds the check-in surface. Both auth sources are optional
@@ -40,6 +44,12 @@ func NewCheckin(inv *app.InventoryService, devs DeviceAuthenticator, sharedToken
 // WithLifecycle wires the retired-tag predicate (from the config snapshot).
 func (c *CheckinAPI) WithLifecycle(retired func(tag string) bool) *CheckinAPI {
 	c.retired = retired
+	return c
+}
+
+// WithIntent wires the pending-intent lookup (from the config snapshot).
+func (c *CheckinAPI) WithIntent(intent func(tag string) string) *CheckinAPI {
+	c.intent = intent
 	return c
 }
 
@@ -83,6 +93,16 @@ func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
 	if err := c.inv.CheckIn(r.Context(), in.CheckIn, in.Facts); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// A pending remote action rides back on the response (design 0004):
+	// the device acts on it locally and echoes an ack next beat. Because
+	// this is the direct response to THIS request, it cannot be replayed.
+	if c.intent != nil {
+		if action := c.intent(in.Tag); action != "" {
+			writeJSON(w, http.StatusOK, map[string]string{"intent": action})
+			return
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

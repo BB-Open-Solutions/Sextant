@@ -508,6 +508,26 @@
           }
         }
       }
+    },
+    "/api/v1/devices/{tag}/intent": {
+      "post": {
+        "summary": "Arm a remote action",
+        "description": "Body: {intent: lock|wipe, force?}. Wipe requires the device to be locked first unless force. Org owner; the intent is an audited commit the device pulls on check-in.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear a remote action",
+        "description": "Cancel a pending intent (a found laptop). Org owner.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   }
 }
