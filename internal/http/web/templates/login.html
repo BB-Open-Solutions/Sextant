@@ -1,20 +1,33 @@
 {{define "login"}}<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sign in - Sextant</title>
+  <link rel="stylesheet" href="/static/fonts.css">
   <link rel="stylesheet" href="/static/app.css">
 </head>
-<body>
-<div class="login-box panel">
-  <h1>Sextant</h1>
-  <p class="muted">Declarative fleet control-plane for NixOS.</p>
-  {{if .SSO}}
-  <p><a href="/login/start"><button>Sign in with SSO</button></a></p>
-  {{else}}
-  <p class="error">No identity provider configured.</p>
-  {{end}}
+<body class="bg-surface text-on-surface antialiased">
+<div class="flex min-h-screen items-center justify-center p-6">
+  <div class="w-full max-w-sm rounded-xl border border-border-hairline bg-canvas p-8 shadow-sm">
+    <div class="mb-6 flex items-center gap-sm">
+      <span class="flex h-9 w-9 items-center justify-center rounded bg-ink">
+        <span class="material-symbols-outlined text-canvas" style="font-size:22px;font-variation-settings:'FILL' 1;">explore</span>
+      </span>
+      <div>
+        <div class="text-headline-sm font-bold text-ink leading-none">Sextant</div>
+        <div class="text-label-md text-text-tertiary">Fleet Control Plane</div>
+      </div>
+    </div>
+    <p class="muted mb-6">Declarative fleet control-plane for NixOS.</p>
+    {{if .SSO}}
+    <a href="/login/start" class="btn w-full justify-center">
+      <span class="material-symbols-outlined" style="font-size:20px;">login</span>Sign in with SSO
+    </a>
+    {{else}}
+    <div class="error">No identity provider configured.</div>
+    {{end}}
+  </div>
 </div>
 </body>
 </html>{{end}}

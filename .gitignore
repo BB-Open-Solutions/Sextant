@@ -16,4 +16,3 @@ coverage.html
 .env
 .pg_password
 .direnv/
-web-build/

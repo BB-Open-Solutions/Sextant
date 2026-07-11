@@ -62,6 +62,7 @@
             just
             git
             postgresql # psql client for local dev against the compose database
+            tailwindcss # `just css` rebuilds the console stylesheet
           ];
         };
       });

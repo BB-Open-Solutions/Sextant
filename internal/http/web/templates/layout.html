@@ -1,39 +1,68 @@
 {{define "layout"}}<!DOCTYPE html>
-<html lang="{{.L.Locale}}">
+<html lang="{{.L.Locale}}" class="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{.Title}} - Sextant</title>
+  <link rel="stylesheet" href="/static/fonts.css">
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/htmx.min.js" defer></script>
 </head>
-<body>
-<header>
-  <span class="brand">Sextant</span>
-  <nav>
-    <a href="/" {{if eq .Nav "overview"}}class="active"{{end}}>{{.L.T "nav.overview"}}</a>
-    <a href="/devices" {{if eq .Nav "devices"}}class="active"{{end}}>{{.L.T "nav.devices"}}</a>
-    <a href="/groups" {{if eq .Nav "groups"}}class="active"{{end}}>{{.L.T "nav.groups"}}</a>
-    <a href="/settings" {{if eq .Nav "settings"}}class="active"{{end}}>{{.L.T "nav.settings"}}</a>
-    <a href="/policies" {{if eq .Nav "policies"}}class="active"{{end}}>{{.L.T "nav.policies"}}</a>
-    {{if .CanOrgView}}
-    <a href="/changes" {{if eq .Nav "changes"}}class="active"{{end}}>{{.L.T "nav.changes"}}</a>
-    <a href="/rollout" {{if eq .Nav "rollout"}}class="active"{{end}}>{{.L.T "nav.rollout"}}</a>
-    {{end}}
-    <a href="/access" {{if eq .Nav "access"}}class="active"{{end}}>{{.L.T "nav.access"}}</a>
-    {{if .CanOrgView}}<a href="/audit" {{if eq .Nav "audit"}}class="active"{{end}}>{{.L.T "nav.audit"}}</a>{{end}}
+<body class="bg-surface text-on-surface antialiased">
+<div class="flex min-h-screen">
+
+  <!-- Sidebar -->
+  <nav class="fixed left-0 top-0 bottom-0 z-40 flex w-64 flex-col border-r border-border-hairline bg-surface-container-low">
+    <div class="border-b border-border-hairline p-gutter">
+      <a href="/" class="mb-xs flex items-center gap-sm">
+        <span class="flex h-8 w-8 items-center justify-center rounded bg-ink">
+          <span class="material-symbols-outlined text-canvas" style="font-size:20px;font-variation-settings:'FILL' 1;">explore</span>
+        </span>
+        <span class="text-headline-sm font-bold text-ink">Sextant</span>
+      </a>
+      <p class="text-label-md text-text-tertiary">Fleet Control Plane</p>
+    </div>
+
+    <div class="flex-1 overflow-y-auto py-2">
+      <ul class="space-y-1 px-2">
+        {{$n := .Nav}}
+        <li><a href="/" class="nav-link {{if eq $n "overview"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">dashboard</span>{{.L.T "nav.overview"}}</a></li>
+        <li><a href="/devices" class="nav-link {{if eq $n "devices"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">devices</span>{{.L.T "nav.devices"}}</a></li>
+        <li><a href="/groups" class="nav-link {{if eq $n "groups"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">group_work</span>{{.L.T "nav.groups"}}</a></li>
+        <li><a href="/settings" class="nav-link {{if eq $n "settings"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">settings</span>{{.L.T "nav.settings"}}</a></li>
+        <li><a href="/policies" class="nav-link {{if eq $n "policies"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">policy</span>{{.L.T "nav.policies"}}</a></li>
+        {{if .CanOrgView}}
+        <li><a href="/changes" class="nav-link {{if eq $n "changes"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">difference</span>{{.L.T "nav.changes"}}</a></li>
+        <li><a href="/rollout" class="nav-link {{if eq $n "rollout"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">rocket_launch</span>{{.L.T "nav.rollout"}}</a></li>
+        {{end}}
+        <li><a href="/access" class="nav-link {{if eq $n "access"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">admin_panel_settings</span>{{.L.T "nav.access"}}</a></li>
+        {{if .CanOrgView}}
+        <li><a href="/audit" class="nav-link {{if eq $n "audit"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">history_edu</span>{{.L.T "nav.audit"}}</a></li>
+        {{end}}
+      </ul>
+    </div>
+
+    <div class="border-t border-border-hairline p-4">
+      <a href="/profile" class="nav-link {{if eq .Nav "profile"}}nav-active{{end}} mb-2"><span class="material-symbols-outlined nav-ico">account_circle</span><span class="truncate">{{.User.Name}}</span></a>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button type="submit" class="nav-link w-full"><span class="material-symbols-outlined nav-ico">logout</span>{{.L.T "nav.signout"}}</button>
+      </form>
+    </div>
   </nav>
-  <span class="who">
-    <a href="/profile" {{if eq .Nav "profile"}}class="active"{{end}}>{{.User.Name}}</a>
-    <form class="inline" method="post" action="/logout">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <button class="quiet" type="submit">{{.L.T "nav.signout"}}</button>
-    </form>
-  </span>
-</header>
-<main>
-  {{with .Error}}<div class="error">{{.}}</div>{{end}}
-  {{template "content" .}}
-</main>
+
+  <!-- Main -->
+  <main class="ml-64 flex-1 px-8 py-6">
+    <div class="mx-auto max-w-[1280px]">
+      {{with .Error}}
+      <div class="mb-4 flex items-center gap-2 rounded-lg border border-error/30 bg-error-container px-4 py-3 text-body-md text-on-error-container">
+        <span class="material-symbols-outlined" style="font-size:20px;">error</span>{{.}}
+      </div>
+      {{end}}
+      {{template "content" .}}
+    </div>
+  </main>
+
+</div>
 </body>
 </html>{{end}}

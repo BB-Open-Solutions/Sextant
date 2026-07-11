@@ -23,6 +23,14 @@ test:
 cover: test
     go tool cover -func=coverage.out | tail -1
 
+# Regenerate the console stylesheet from the Tailwind sources. The output
+# (internal/http/web/static/app.css) is committed and embedded, like the
+# vendored htmx.min.js; run this after changing templates or styles.
+css:
+    tailwindcss -c internal/http/web/styles/tailwind.config.js \
+      -i internal/http/web/styles/input.css \
+      -o internal/http/web/static/app.css --minify
+
 build:
     go build -trimpath -o sextant ./cmd/sextant
 

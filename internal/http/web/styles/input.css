@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Sextant console styling. The Stitch design applied both to new design-
+   utility markup (the shell) and to the existing semantic classes the
+   content templates use (panel, tag, muted, ...), so every screen reskins
+   without touching its Go logic. Self-hosted fonts load via fonts.css. */
+
+@layer base {
+  html { font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { background: #f9f9f9; color: #1a1c1c; }
+  code, pre, .font-mono { font-family: "Geist Mono", ui-monospace, monospace; }
+  h1 { @apply text-headline-md font-bold text-ink mb-4; }
+  h2 { @apply text-headline-sm font-semibold text-on-surface mt-8 mb-3; }
+  h3 { @apply text-body-lg font-semibold text-on-surface mt-5 mb-2; }
+  a { @apply text-secondary hover:underline; }
+  table { @apply w-full border-collapse text-body-md; }
+  th { @apply text-left text-label-md font-medium text-text-tertiary border-b border-border-hairline px-3 py-2; }
+  td { @apply border-b border-border-soft px-3 py-2.5 align-top; }
+  tr:last-child td { @apply border-b-0; }
+  label { @apply text-label-md text-text-secondary; }
+  select, input[type="text"], input[type="number"], input:not([type]), textarea {
+    @apply rounded-lg border border-outline-variant bg-canvas px-3 py-2 text-body-md text-on-surface
+           focus:border-mint-vibrant focus:outline-none focus:ring-2 focus:ring-mint-vibrant/30;
+  }
+  textarea { @apply font-mono w-full; }
+}
+
+@layer components {
+  /* Sidebar nav */
+  .nav-link { @apply flex items-center gap-3 rounded px-3 py-2 text-label-md text-text-tertiary transition-colors hover:bg-surface-container hover:text-primary no-underline; }
+  .nav-active { @apply bg-surface-container-highest font-medium text-primary border-r-2 border-mint-vibrant; }
+  .nav-ico { font-size: 20px; }
+
+  /* Card / panel */
+  .panel { @apply rounded-xl border border-border-hairline bg-canvas p-6 mb-6 shadow-sm; }
+
+  /* Tags / badges */
+  .tag { @apply inline-flex items-center gap-1 rounded-full bg-surface-container px-2.5 py-0.5 text-label-md font-medium text-text-secondary; }
+  .tag.ok { @apply bg-secondary-container text-on-secondary-container; }
+  .tag.bad { @apply bg-error-container text-on-error-container; }
+  .tag.lock { @apply bg-tertiary-container text-on-tertiary-container; }
+
+  /* Text helpers */
+  .muted { @apply text-text-tertiary text-body-md; }
+  .provenance { @apply text-text-tertiary text-label-md font-mono; }
+  .error { @apply flex items-center gap-2 rounded-lg border border-error/30 bg-error-container px-4 py-3 text-body-md text-on-error-container mb-4; }
+
+  /* Buttons */
+  button, .btn {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-label-md font-medium text-canvas
+           transition-opacity hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-mint-vibrant focus:ring-offset-1 cursor-pointer;
+  }
+  button.quiet, .btn.quiet {
+    @apply bg-transparent text-text-secondary border border-outline-variant hover:bg-surface-container hover:text-primary;
+  }
+  form.inline, .inline { @apply inline-flex items-center gap-2; }
+
+  /* Forms lay out with breathing room */
+  form:not(.inline) { @apply flex flex-wrap items-center gap-3; }
+  form:not(.inline) textarea { @apply basis-full; }
+}
