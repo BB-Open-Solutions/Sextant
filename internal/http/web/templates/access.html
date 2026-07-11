@@ -1,17 +1,20 @@
 {{define "content"}}
 <h1>Access</h1>
-<p class="muted">Role bindings grant IdP groups a role at a scope. Bindings are part of the
-fleet configuration: every change is a gated, audited git commit.</p>
+<p class="mb-6 text-body-md text-text-tertiary max-w-2xl">Role bindings grant IdP groups a role at a scope. Bindings are part of the fleet configuration: every change is a gated, audited git commit.</p>
 
-<div class="panel">
+<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
+    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">key</span>
+    <h2 class="mt-0 mb-0 text-headline-sm">Role bindings</h2>
+  </div>
   <table>
     <tr><th>IdP group</th><th>Role</th><th>Scope</th><th></th></tr>
     {{range .Bindings}}
-    <tr>
-      <td>{{.Group}}</td>
-      <td><span class="tag">{{.Role}}</span></td>
-      <td><code>{{.Scope}}</code></td>
-      <td>{{if $.CanOwn}}
+    <tr class="hover:bg-surface-container-low transition-colors">
+      <td class="font-medium">{{.Group}}</td>
+      <td><span class="tag {{if eq .Role "owner"}}lock{{else if eq .Role "editor"}}ok{{end}}">{{.Role}}</span></td>
+      <td><code class="text-text-secondary">{{.Scope}}</code></td>
+      <td class="text-right">{{if $.CanOwn}}
         <form class="inline" method="post" action="/access/revoke">
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
           <input type="hidden" name="group" value="{{.Group}}">
@@ -26,37 +29,34 @@ fleet configuration: every change is a gated, audited git commit.</p>
 </div>
 
 {{if .CanOwn}}
-<h2>Grant</h2>
-<div class="panel">
-  <form method="post" action="/access/grant">
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">group_add</span>Grant a role</h2>
+  <form method="post" action="/access/grant" class="!items-end">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input name="group" placeholder="IdP group" required
-           {{if .DirGroups}}list="dir-groups"{{end}}>
-    {{if .DirGroups}}
-    <datalist id="dir-groups">
-      {{range .DirGroups}}<option value="{{.Name}}">{{end}}
-    </datalist>
-    {{end}}
-    <select name="role">
-      <option value="viewer">viewer</option>
-      <option value="editor">editor</option>
-      <option value="owner">owner</option>
-    </select>
-    <select name="scope">
-      <option value="org">org</option>
-      {{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}
-    </select>
+    <div class="flex flex-col gap-1">
+      <label>IdP group</label>
+      <input name="group" placeholder="IdP group" required {{if .DirGroups}}list="dir-groups"{{end}}>
+      {{if .DirGroups}}<datalist id="dir-groups">{{range .DirGroups}}<option value="{{.Name}}">{{end}}</datalist>{{end}}
+    </div>
+    <div class="flex flex-col gap-1">
+      <label>Role</label>
+      <select name="role"><option value="viewer">viewer</option><option value="editor">editor</option><option value="owner">owner</option></select>
+    </div>
+    <div class="flex flex-col gap-1">
+      <label>Scope</label>
+      <select name="scope"><option value="org">org</option>{{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
+    </div>
     <button type="submit">Grant</button>
     {{if not .DirGroups}}<span class="muted">directory browse not configured; type the IdP group name</span>{{end}}
   </form>
 </div>
 
-<h2>Assurance</h2>
-<div class="panel">
-  <form method="post" action="/assurance">
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">gavel</span>Assurance</h2>
+  <form method="post" action="/assurance" class="!items-center">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label><input type="checkbox" name="requireFourEyes" {{if .FourEyes}}checked{{end}}>
-    Require four-eyes: a change may not be merged by its own author (segregation of duties).</label>
+    <label class="flex items-center gap-2 text-body-md"><input type="checkbox" name="requireFourEyes" {{if .FourEyes}}checked{{end}} class="!w-auto">
+      Require four-eyes: a change may not be merged by its own author (segregation of duties).</label>
     <button type="submit" class="quiet">Save</button>
   </form>
 </div>

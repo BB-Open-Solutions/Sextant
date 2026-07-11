@@ -1,17 +1,19 @@
 {{define "content"}}
 <h1>Audit trail</h1>
-<div class="panel">
-  <p class="muted" style="margin-top:0">Every configuration change is a git commit with
-  real attribution. This is the newest slice; the full history lives in the overlay
-  repository.</p>
+<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
+    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">history_edu</span>
+    <h2 class="mt-0 mb-0 text-headline-sm">Configuration history</h2>
+    <span class="ml-auto text-label-md text-text-tertiary">Every change is a signed git commit</span>
+  </div>
   <table>
     <tr><th>When</th><th>Who</th><th>What</th><th>Commit</th></tr>
     {{range .Entries}}
-    <tr>
-      <td>{{$.L.TimeSec .When}}</td>
+    <tr class="hover:bg-surface-container-low transition-colors">
+      <td class="whitespace-nowrap text-text-secondary">{{$.L.TimeSec .When}}</td>
       <td>{{.Author}} <span class="muted">{{.Email}}</span></td>
       <td>{{.Subject}}</td>
-      <td><code>{{printf "%.10s" .Hash}}</code></td>
+      <td><code class="text-text-tertiary">{{printf "%.10s" .Hash}}</code></td>
     </tr>
     {{else}}
     <tr><td colspan="4" class="muted">No history available.</td></tr>
