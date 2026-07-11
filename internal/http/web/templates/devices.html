@@ -1,36 +1,75 @@
 {{define "content"}}
-<h1>Devices</h1>
+<section class="flex flex-col gap-6">
+  <div class="flex flex-col gap-2">
+    <h1 class="mb-0">Device Fleet</h1>
+    <p class="text-body-md text-text-tertiary max-w-2xl">Provision new hardware and manage active assignments. Every change to a device is a gated, signed git commit.</p>
+  </div>
 
-{{if .CanEdit}}
-<div class="panel">
-  <form method="post" action="/devices">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input name="tag" placeholder="asset tag (slug)" required pattern="[a-z0-9][a-z0-9-]*">
-    <input name="hardware" placeholder="hardware profile" required>
-    <input name="class" placeholder="class (laptop/server/station)" size="14">
-    <select name="group">
-      <option value="">no group</option>
-      {{range .Groups}}<option value="{{.}}">{{.}}</option>{{end}}
-    </select>
-    <button type="submit">Enroll device</button>
-    <span class="muted">Validated by the gate, committed to git.</span>
-  </form>
-</div>
-{{end}}
+  {{if .CanEdit}}
+  <!-- Enrollment card -->
+  <div class="relative overflow-hidden rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+    <div class="absolute left-0 top-0 h-full w-1 bg-mint-vibrant"></div>
+    <div class="flex items-center justify-between">
+      <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm text-ink">
+        <span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">add_box</span>Fast Enrollment
+      </h2>
+      <span class="inline-flex items-center gap-1 rounded border border-[#1f1f1f] bg-surface-code px-2 py-1 text-label-md text-canvas">
+        <span class="material-symbols-outlined" style="font-size:14px;">commit</span>Git-Ops managed
+      </span>
+    </div>
+    <form method="post" action="/devices" class="!block mt-5">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="grid grid-cols-1 items-end gap-4 md:grid-cols-4">
+        <div class="flex flex-col gap-1">
+          <label>Asset tag</label>
+          <input name="tag" placeholder="ast-xxxx" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono">
+        </div>
+        <div class="flex flex-col gap-1">
+          <label>Hardware profile</label>
+          <input name="hardware" placeholder="e.g. lenovo-t495s" required>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label>Device class</label>
+          <input name="class" placeholder="laptop / server / station">
+        </div>
+        <div class="flex flex-col gap-1">
+          <label>Primary group</label>
+          <select name="group">
+            <option value="">no group</option>
+            {{range .Groups}}<option value="{{.}}">{{.}}</option>{{end}}
+          </select>
+        </div>
+      </div>
+      <div class="mt-4 flex items-center justify-end gap-3">
+        <span class="muted mr-auto">Validated by the gate, committed to git.</span>
+        <button type="submit"><span class="material-symbols-outlined" style="font-size:18px;">note_add</span>Enroll device</button>
+      </div>
+    </form>
+  </div>
+  {{end}}
 
-<div class="panel">
-  <table>
-    <tr><th>Tag</th><th>Groups</th><th>Class</th><th>Hardware</th><th>User</th><th>Status</th></tr>
-    {{range .Devices}}
-    <tr>
-      <td><a href="/devices/{{.Tag}}">{{.Tag}}</a></td>
-      <td>{{range .Groups}}<span class="tag">{{.}}</span> {{end}}</td>
-      <td>{{.Class}}</td>
-      <td>{{.Hardware}}</td>
-      <td>{{.AssignedUser}}</td>
-      <td>{{if .HasStatus}}{{if .Online}}<span class="tag ok">online</span>{{else}}<span class="tag bad">offline</span>{{end}} {{.Revision}}{{else}}<span class="muted">never seen</span>{{end}}</td>
-    </tr>
-    {{end}}
-  </table>
-</div>
+  <!-- Device list -->
+  <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+    <table>
+      <tr><th>Tag</th><th>Groups</th><th>Class</th><th>Hardware</th><th>User</th><th>Status</th></tr>
+      {{range .Devices}}
+      <tr class="hover:bg-surface-container-low transition-colors">
+        <td><a href="/devices/{{.Tag}}" class="font-mono font-medium">{{.Tag}}</a></td>
+        <td>{{range .Groups}}<span class="tag">{{.}}</span> {{end}}</td>
+        <td>{{.Class}}</td>
+        <td class="font-mono text-text-secondary">{{.Hardware}}</td>
+        <td>{{.AssignedUser}}</td>
+        <td>
+          {{if .HasStatus}}
+            {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined" style="font-size:14px;">check_circle</span>online</span>{{else}}<span class="tag bad">offline</span>{{end}}
+            <span class="font-mono text-text-tertiary">{{.Revision}}</span>
+          {{else}}<span class="muted">never seen</span>{{end}}
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="6" class="muted">No devices enrolled yet.</td></tr>
+      {{end}}
+    </table>
+  </div>
+</section>
 {{end}}

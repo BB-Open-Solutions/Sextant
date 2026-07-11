@@ -1,96 +1,106 @@
 {{define "content"}}
-<h1>Device {{.Tag}} {{if .Retired}}<span class="tag bad">retired</span>{{end}}</h1>
+<div class="mb-6 flex items-center gap-3">
+  <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-container">
+    <span class="material-symbols-outlined text-text-secondary" style="font-size:22px;">desktop_windows</span>
+  </span>
+  <div>
+    <h1 class="mb-0 flex items-center gap-2 font-mono">{{.Tag}}
+      {{if .Retired}}<span class="tag bad">retired</span>{{end}}</h1>
+    <p class="text-label-md text-text-tertiary">{{.Device.Class}}{{with .Device.Hardware}} · {{.}}{{end}}</p>
+  </div>
+</div>
 
 {{with .Credential}}
-<div class="panel" style="border-color:#3a6">
-  <h2 style="margin-top:0">Device credential</h2>
-  <p><strong>Store this credential now; it is not shown again.</strong>
-  The device uses it to check in as itself.</p>
-  <p><code>{{.}}</code></p>
+<div class="relative mb-6 overflow-hidden rounded-lg border border-mint-deep/40 bg-secondary-container/40 p-5">
+  <div class="absolute left-0 top-0 h-full w-1 bg-mint-vibrant"></div>
+  <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-on-secondary-container">
+    <span class="material-symbols-outlined" style="font-size:20px;">key</span>Device credential
+  </h2>
+  <p class="mb-3 text-body-md text-on-secondary-container"><strong>Store this credential now; it is not shown again.</strong> The device uses it to check in as itself.</p>
+  <code class="block break-all rounded-md bg-surface-code px-4 py-3 text-body-md text-canvas">{{.}}</code>
 </div>
 {{end}}
 
-<div class="grid">
-  <div class="panel">
-    <h2 style="margin-top:0">Identity</h2>
-    <table>
-      <tr><td class="muted">Groups</td><td>{{range .Device.Groups}}<span class="tag">{{.}}</span> {{end}}</td></tr>
-      <tr><td class="muted">Class</td><td>{{.Device.Class}}</td></tr>
-      <tr><td class="muted">Hardware</td><td>{{.Device.Hardware}}</td></tr>
-      <tr><td class="muted">Assigned user</td><td>{{.Device.AssignedUser}}</td></tr>
-    </table>
+<!-- Identity + Observed -->
+<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">badge</span>Identity</h2>
+    <dl class="grid grid-cols-[9rem_1fr] gap-y-3 text-body-md">
+      <dt class="text-text-tertiary">Groups</dt><dd>{{range .Device.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</dd>
+      <dt class="text-text-tertiary">Class</dt><dd>{{with .Device.Class}}{{.}}{{else}}<span class="muted">-</span>{{end}}</dd>
+      <dt class="text-text-tertiary">Hardware</dt><dd class="font-mono">{{.Device.Hardware}}</dd>
+      <dt class="text-text-tertiary">Assigned user</dt><dd>{{with .Device.AssignedUser}}{{.}}{{else}}<span class="muted">-</span>{{end}}</dd>
+    </dl>
   </div>
-  <div class="panel">
-    <h2 style="margin-top:0">Observed</h2>
+  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">sensors</span>Observed</h2>
     {{if .HasStatus}}
-    <table>
-      <tr><td class="muted">State</td><td>{{if .Status.Online}}<span class="tag ok">online</span>{{else}}<span class="tag bad">offline</span>{{end}}</td></tr>
-      <tr><td class="muted">Revision</td><td>{{.Status.Revision}}</td></tr>
-      <tr><td class="muted">Phase</td><td>{{.Status.Phase}}</td></tr>
-      <tr><td class="muted">Last seen</td><td>{{$.L.TimeSec .Status.LastSeen}}</td></tr>
-      {{with .Status.Error}}<tr><td class="muted">Error</td><td class="tag bad">{{.}}</td></tr>{{end}}
-    </table>
+    <dl class="grid grid-cols-[9rem_1fr] gap-y-3 text-body-md">
+      <dt class="text-text-tertiary">State</dt><dd>{{if .Status.Online}}<span class="tag ok"><span class="material-symbols-outlined" style="font-size:14px;">check_circle</span>online</span>{{else}}<span class="tag bad">offline</span>{{end}}</dd>
+      <dt class="text-text-tertiary">Revision</dt><dd class="font-mono text-text-secondary">{{.Status.Revision}}</dd>
+      <dt class="text-text-tertiary">Phase</dt><dd>{{.Status.Phase}}</dd>
+      <dt class="text-text-tertiary">Last seen</dt><dd>{{$.L.TimeSec .Status.LastSeen}}</dd>
+      {{with .Status.Error}}<dt class="text-text-tertiary">Error</dt><dd><span class="tag bad">{{.}}</span></dd>{{end}}
+    </dl>
     {{else}}<p class="muted">No check-in received.</p>{{end}}
   </div>
 </div>
 
 {{with .Posture}}
 {{if or .WantSB .WantTPM2}}
-<h2>Security posture</h2>
-<div class="panel">
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">security</span>Security posture</h2>
   {{if not .Reported}}
   <p class="muted">Waiting for a posture-aware check-in from the device agent.</p>
   {{else}}
-  <table>
+  <dl class="grid grid-cols-[9rem_1fr] gap-y-3 text-body-md mb-4">
     {{if .WantSB}}
-    <tr><td class="muted">Secure Boot</td>
-      <td>
-        {{if eq (printf "%s" .SB) "enforcing"}}<span class="tag ok">enforcing</span>
-        {{else if eq (printf "%s" .SB) "audit"}}<span class="tag">audit mode</span>
-        {{else if eq (printf "%s" .SB) "off"}}<span class="tag bad">off</span>
-        {{else}}<span class="muted">unknown</span>{{end}}
-      </td></tr>
+    <dt class="text-text-tertiary">Secure Boot</dt>
+    <dd>{{if eq (printf "%s" .SB) "enforcing"}}<span class="tag ok">enforcing</span>{{else if eq (printf "%s" .SB) "audit"}}<span class="tag">audit mode</span>{{else if eq (printf "%s" .SB) "off"}}<span class="tag bad">off</span>{{else}}<span class="muted">unknown</span>{{end}}</dd>
     {{end}}
     {{if .WantTPM2}}
-    <tr><td class="muted">TPM2 unlock</td>
-      <td>
-        {{if eq (printf "%s" .TPM2) "enrolled"}}<span class="tag ok">enrolled</span>
-        {{else if eq (printf "%s" .TPM2) "present"}}<span class="tag">present, not bound</span>
-        {{else if eq (printf "%s" .TPM2) "absent"}}<span class="tag bad">absent</span>
-        {{else}}<span class="muted">unknown</span>{{end}}
-      </td></tr>
+    <dt class="text-text-tertiary">TPM2 unlock</dt>
+    <dd>{{if eq (printf "%s" .TPM2) "enrolled"}}<span class="tag ok">enrolled</span>{{else if eq (printf "%s" .TPM2) "present"}}<span class="tag">present, not bound</span>{{else if eq (printf "%s" .TPM2) "absent"}}<span class="tag bad">absent</span>{{else}}<span class="muted">unknown</span>{{end}}</dd>
     {{end}}
-  </table>
-  {{if .Complete}}
-  <p><span class="tag ok">complete</span> {{.StepText}}</p>
-  {{else}}
-  <p><strong>Next:</strong> {{.StepText}}
-    {{if .Warn}}<span class="tag bad">attention</span>{{end}}</p>
-  {{end}}
-  {{if $.CanEdit}}
-  {{range .Actions}}
-  <form method="post" action="/devices/{{$.Tag}}/posture" class="inline">
-    <input type="hidden" name="csrf" value="{{$.CSRF}}">
-    <input type="hidden" name="action" value="{{.Action}}">
-    <button type="submit" {{if .Quiet}}class="quiet"{{end}}>{{.Label}}</button>
-  </form>
-  {{end}}
-  {{end}}
+  </dl>
+  <div class="flex flex-wrap items-center gap-3 rounded-md bg-surface-container-low p-4">
+    {{if .Complete}}
+    <span class="tag ok"><span class="material-symbols-outlined" style="font-size:14px;">check_circle</span>complete</span><span class="text-body-md">{{.StepText}}</span>
+    {{else}}
+    <span class="text-body-md"><strong>Next:</strong> {{.StepText}}</span>{{if .Warn}}<span class="tag bad">attention</span>{{end}}
+    {{end}}
+    {{if $.CanEdit}}
+    <span class="ml-auto flex gap-2">
+    {{range .Actions}}
+    <form method="post" action="/devices/{{$.Tag}}/posture" class="inline">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <input type="hidden" name="action" value="{{.Action}}">
+      <button type="submit" {{if .Quiet}}class="quiet"{{end}}>{{.Label}}</button>
+    </form>
+    {{end}}
+    </span>
+    {{end}}
+  </div>
   {{end}}
 </div>
 {{end}}
 {{end}}
 
-<h2>Effective configuration</h2>
-<div class="panel">
+<!-- Effective configuration -->
+<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
+    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">tune</span>
+    <h2 class="mt-0 mb-0 text-headline-sm">Effective configuration</h2>
+    {{if .CanEdit}}<a href="/settings?scope=device:{{.Tag}}" class="ml-auto text-label-md">Open editor →</a>{{end}}
+  </div>
   <table>
     <tr><th>Setting</th><th>Value</th><th>Source</th><th></th></tr>
     {{range .Resolved}}
     <tr>
-      <td>{{.Key}}</td>
+      <td class="font-mono">{{.Key}}</td>
       <td><code>{{printf "%v" .Value}}</code></td>
       <td class="provenance">{{.Source}}</td>
-      <td>{{if .Enforced}}<span class="tag lock">locked</span>{{end}}</td>
+      <td>{{if .Enforced}}<span class="tag lock"><span class="material-symbols-outlined" style="font-size:14px;">lock</span>locked</span>{{end}}</td>
     </tr>
     {{else}}
     <tr><td colspan="4" class="muted">Nothing configured yet.</td></tr>
@@ -98,118 +108,99 @@
   </table>
 </div>
 
-{{if .CanEdit}}
-<h2>Manage</h2>
-<div class="panel">
-  <form method="post" action="/devices/{{.Tag}}/update" class="inline">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input type="hidden" name="setclass" value="1">
-    <input name="class" value="{{.Device.Class}}" placeholder="class (laptop, kiosk)">
-    <button type="submit" class="quiet">Set class</button>
-  </form>
-  <form method="post" action="/devices/{{.Tag}}/update" class="inline">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input type="hidden" name="setuser" value="1">
-    <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="assigned user">
-    <button type="submit" class="quiet">Assign</button>
-  </form>
-  <form method="post" action="/devices/{{.Tag}}/update" class="inline">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input type="hidden" name="setgroups" value="1">
-    <select name="groups" multiple size="3">
-      {{range .GroupOpts}}
-      <option value="{{.Name}}" {{if .Member}}selected{{end}}>{{.Name}}</option>
-      {{end}}
-    </select>
-    <button type="submit" class="quiet">Set groups</button>
-  </form>
-  <hr>
-  {{if .Retired}}
-  <form method="post" action="/devices/{{.Tag}}/reactivate" class="inline">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <button type="submit">Reactivate</button>
-    <span class="muted">returns to service with a fresh credential</span>
-  </form>
-  {{else}}
-  <form method="post" action="/devices/{{.Tag}}/credential" class="inline">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <button type="submit" class="quiet">Re-issue credential</button>
-  </form>
-  <form method="post" action="/devices/{{.Tag}}/retire" class="inline"
-        onsubmit="return confirm('Retire {{.Tag}}? Builds and check-ins stop; the record stays for audit.')">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <button type="submit" class="quiet">Retire</button>
-  </form>
-  {{end}}
-  <form method="post" action="/devices/{{.Tag}}/remove" class="inline"
-        onsubmit="return confirm('Remove {{.Tag}} entirely? This unenrolls the device.')">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <button type="submit" class="quiet">Remove</button>
-  </form>
+<!-- Apps -->
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">apps</span>Apps</h2>
+  <dl class="grid grid-cols-[9rem_1fr] gap-y-3 text-body-md">
+    <dt class="text-text-tertiary">Packages</dt><dd>{{range .Packages}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</dd>
+    <dt class="text-text-tertiary">Flatpaks</dt><dd>{{range .Flatpaks}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</dd>
+    <dt class="text-text-tertiary">Overlays</dt><dd>{{range .Overlays}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</dd>
+  </dl>
 </div>
 
-<h2>Set a device setting</h2>
-<div class="panel">
-  <p><a href="/settings?scope=device:{{.Tag}}">Open the settings editor for this device</a>
-  <span class="muted">(catalog-driven, with provenance)</span></p>
-  <form method="post" action="/devices/{{.Tag}}/settings">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input name="key" placeholder="setting key (e.g. apps.office)" required>
-    <input name="value" placeholder="value (true, false, a string)" required>
-    <button type="submit">Apply</button>
-    <span class="muted">Free-form key; applies through the validation gate and commits to git.</span>
-  </form>
+{{if .CanEdit}}
+<!-- Manage -->
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">build</span>Manage</h2>
+  <div class="flex flex-col gap-3">
+    <form method="post" action="/devices/{{.Tag}}/update" class="inline">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setclass" value="1">
+      <input name="class" value="{{.Device.Class}}" placeholder="class (laptop, kiosk)">
+      <button type="submit" class="quiet">Set class</button>
+    </form>
+    <form method="post" action="/devices/{{.Tag}}/update" class="inline">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setuser" value="1">
+      <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="assigned user">
+      <button type="submit" class="quiet">Assign</button>
+    </form>
+    <form method="post" action="/devices/{{.Tag}}/update" class="inline">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setgroups" value="1">
+      <select name="groups" multiple size="3">
+        {{range .GroupOpts}}<option value="{{.Name}}" {{if .Member}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+      <button type="submit" class="quiet">Set groups</button>
+    </form>
+  </div>
+  <hr class="my-4 border-border-soft">
+  <div class="flex flex-wrap items-center gap-3">
+    {{if .Retired}}
+    <form method="post" action="/devices/{{.Tag}}/reactivate" class="inline">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit">Reactivate</button>
+    </form>
+    <span class="muted">returns to service with a fresh credential</span>
+    {{else}}
+    <form method="post" action="/devices/{{.Tag}}/credential" class="inline">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">Re-issue credential</button>
+    </form>
+    <form method="post" action="/devices/{{.Tag}}/retire" class="inline"
+          onsubmit="return confirm('Retire {{.Tag}}? Builds and check-ins stop; the record stays for audit.')">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">Retire</button>
+    </form>
+    {{end}}
+    <form method="post" action="/devices/{{.Tag}}/remove" class="inline"
+          onsubmit="return confirm('Remove {{.Tag}} entirely? This unenrolls the device.')">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">Remove</button>
+    </form>
+  </div>
 </div>
 {{end}}
 
-<h2>Apps</h2>
-<div class="panel">
-  <table>
-    <tr><td class="muted">Packages</td><td>{{range .Packages}}<span class="tag">{{.}}</span> {{end}}</td></tr>
-    <tr><td class="muted">Flatpaks</td><td>{{range .Flatpaks}}<span class="tag">{{.}}</span> {{end}}</td></tr>
-    <tr><td class="muted">Overlays</td><td>{{range .Overlays}}<span class="tag">{{.}}</span> {{end}}</td></tr>
-  </table>
-</div>
-
 {{if .CanOwn}}
 {{if not .Retired}}
-<h2>Remote actions</h2>
-<div class="panel" style="border-color:#a33">
+<!-- Red zone -->
+<div class="mb-6 rounded-lg border border-error/40 bg-error-container/30 p-6">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm text-on-error-container"><span class="material-symbols-outlined" style="font-size:20px;">gpp_bad</span>Remote actions</h2>
   {{if .Intent}}
-  <p><strong>Armed:</strong> <span class="tag bad">{{.Intent}}</span>
-    {{if and .HasStatus (eq .Status.Ack .Intent)}}<span class="tag ok">delivered</span>
-    {{else}}<span class="muted">pending delivery on next check-in</span>{{end}}</p>
+  <p class="mb-3 text-body-md"><strong>Armed:</strong> <span class="tag bad">{{.Intent}}</span>
+    {{if and .HasStatus (eq .Status.Ack .Intent)}}<span class="tag ok">delivered</span>{{else}}<span class="muted">pending delivery on next check-in</span>{{end}}</p>
   <form method="post" action="/devices/{{.Tag}}/intent/clear" class="inline">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <button type="submit" class="quiet">Cancel</button>
+    <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">Cancel</button>
   </form>
   {{else}}
-  <p class="muted" style="margin-top:0">Lost or stolen device. Lock is reversible; wipe
-  destroys the disk encryption keys and is irreversible. Every action is an audited commit.</p>
-  <form method="post" action="/devices/{{.Tag}}/intent" class="inline">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input type="hidden" name="intent" value="lock">
-    <button type="submit">Lock device</button>
-  </form>
-  <form method="post" action="/devices/{{.Tag}}/intent"
-        onsubmit="return confirm('WIPE {{.Tag}}? This destroys the disk encryption keys - irreversible.')">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input type="hidden" name="intent" value="wipe">
-    <input type="hidden" name="force" value="1">
-    <label class="muted">Type the tag to confirm a wipe:
-      <input name="confirm" placeholder="{{.Tag}}" required></label>
-    <button type="submit" class="quiet">Wipe device</button>
-  </form>
+  <p class="mb-4 text-body-md text-on-error-container">Lost or stolen device. Lock is reversible; wipe destroys the disk encryption keys and is irreversible. Every action is an audited commit.</p>
+  <div class="flex flex-wrap items-end gap-4">
+    <form method="post" action="/devices/{{.Tag}}/intent" class="inline">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="lock">
+      <button type="submit"><span class="material-symbols-outlined" style="font-size:18px;">lock</span>Lock device</button>
+    </form>
+    <form method="post" action="/devices/{{.Tag}}/intent" class="inline"
+          onsubmit="return confirm('WIPE {{.Tag}}? This destroys the disk encryption keys - irreversible.')">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="wipe"><input type="hidden" name="force" value="1">
+      <span class="flex flex-col gap-1"><label class="text-text-secondary">Type the tag to confirm a wipe</label>
+        <input name="confirm" placeholder="{{.Tag}}" required></span>
+      <button type="submit" class="quiet">Wipe device</button>
+    </form>
+  </div>
   {{end}}
 </div>
 {{end}}
 {{end}}
 
 {{with .Facts}}
-<h2>Hardware facts</h2>
-<div class="panel">
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">memory</span>Hardware facts</h2>
   <p class="muted">Reported {{$.L.Time $.FactsAt}} (nixos-facter)</p>
-  <details><summary class="muted">raw document</summary><pre style="max-height:24em;overflow:auto">{{.}}</pre></details>
+  <details><summary class="muted cursor-pointer">raw document</summary><pre class="mt-2 max-h-96 overflow-auto rounded-md bg-surface-code p-4 text-label-md text-canvas">{{.}}</pre></details>
 </div>
 {{end}}
 {{end}}
