@@ -27,8 +27,10 @@ Attention{Kind,Detail}, Status{Tag,Revision,Phase,Online}.
 - Stat cards, attention, device table → **WIRE** (real data).
 - Attention actions Investigate/Acknowledge/View Logs → we have no
   ack/log store → **ADAPT**: single "Inspect" link to the device.
-- Global Distribution map (geo node markers) → no geo data in the model
-  → **DROP** (or later: a status heat-grid, DEFER).
+- Global Distribution map (geo node markers) → no geo data in the model.
+  DECIDED: replace with a real device-status **heat-grid** (one cell per
+  device, coloured online/offline/error/drift from live status) →
+  **BUILD** (G8). Honest data, keeps the visual richness.
 - CLI Toolbelt (terminal snippets) → **ADAPT**: show real, copyable
   `dfctl` commands (genuinely useful, static, no fake data).
 
@@ -189,9 +191,32 @@ DROP (dummy / not our model):
   Review-Diff/Deploy top bar. D3. Rollout Export. D4. Profile Edit
   Identity. D5. Loading skeletons.
 
-DEFER (real features, own milestones):
+DEFER (real features, own milestones) — see design roadmap below:
 - [ ] F1. Change comments. F2. Per-binding assurance. F3. Admin-plane /
-  cells (ADR 0009). F4. Overview status heat-grid.
+  cells (ADR 0009).
+
+Decisions (2026-07-12): clipboard = small vanilla JS (progressive
+enhancement); overview map → real status heat-grid (G8); show only what
+exists (no fake UI); deferred features tracked in the roadmap below.
+
+## Design roadmap — features the Stitch design implies but we have not
+built yet (each its own milestone, backend + UI):
+
+- **R1. Change collaboration** — comments/discussion on a change request
+  before merge (Stitch shows a Comment action). Needs a comment store +
+  UI thread. Value: review workflow for teams.
+- **R2. Per-binding assurance** — require four-eyes on a specific role
+  binding, not only org-wide (Stitch shows an Assurance column per
+  binding). Needs the assurance model to move from a global flag to a
+  per-binding attribute; UI already implied.
+- **R3. Admin plane / cells (ADR 0009)** — the instance-per-tenant
+  provisioning dashboards (admin_panel_1/2): global status across cells,
+  tenant provisioning over the platform GitOps repo. Largest piece;
+  backend does not exist yet.
+- **R4. Rollout progression history / export** — beyond the live bar, a
+  timeline of past rollouts and a per-rollout evidence slice.
+These are NOT built in the reskin pass; they are the post-reskin design
+backlog.
 
 ## Execution order (jekko)
 

@@ -3,7 +3,7 @@
 <p class="mb-6 text-body-md text-text-tertiary max-w-2xl">Reusable setting bundles, bound to scopes by assignments and narrowed by filters. The Intune-shaped core of fleet configuration.</p>
 
 <div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">policy</span><h2 class="mt-0 mb-0 text-headline-sm">Policies</h2></div>
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4"><span class="material-symbols-outlined text-text-tertiary">policy</span><h2 class="mt-0 mb-0 text-headline-sm">Policies</h2></div>
   <table>
     <tr><th>Policy</th><th>Settings</th><th>Locked keys</th><th>Assigned to</th>{{if .CanOwn}}<th></th>{{end}}</tr>
     {{$ := .}}
@@ -47,7 +47,7 @@
 {{if .CanOwn}}
 <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
   <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">add_circle</span>Create a policy</h2>
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>Create a policy</h2>
     <form method="post" action="/policies" class="!flex-col !items-stretch gap-3">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <input name="id" placeholder="id (lowercase slug)" required>
@@ -58,7 +58,7 @@
     </form>
   </div>
   <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">link</span>Assign a policy</h2>
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">link</span>Assign a policy</h2>
     <form method="post" action="/assignments" class="!flex-col !items-stretch gap-3">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <select name="policy" required><option value="" disabled selected>policy</option>{{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
@@ -72,7 +72,7 @@
 {{end}}
 
 <div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">filter_list</span><h2 class="mt-0 mb-0 text-headline-sm">Filters</h2></div>
+  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4"><span class="material-symbols-outlined text-text-tertiary">filter_list</span><h2 class="mt-0 mb-0 text-headline-sm">Filters</h2></div>
   <table>
     <tr><th>Filter</th><th>Match</th><th>Rules</th>{{if .CanOwn}}<th></th>{{end}}</tr>
     {{range .Filters}}
@@ -90,7 +90,7 @@
 
 {{if .CanOwn}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">add_circle</span>Create a filter</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>Create a filter</h2>
   <form method="post" action="/filters" class="!flex-col !items-stretch gap-3">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="flex gap-3">

@@ -6,6 +6,7 @@ package web
 import (
 	"crypto/subtle"
 	"embed"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -65,10 +66,27 @@ func (s *Server) SetDefaults(locale, tz string) {
 // groups.
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
+	// funcs: small template helpers. `list` lets a template iterate a
+	// literal set (e.g. the CLI toolbelt commands) without a data field.
+	funcs := template.FuncMap{
+		"list": func(items ...any) []any { return items },
+		// indent maps a group-tree depth to a static padding class
+		// (gd-0..gd-6, clamped). A class avoids inline style=, which
+		// the CSP forbids.
+		"indent": func(depth int) string {
+			if depth < 0 {
+				depth = 0
+			}
+			if depth > 6 {
+				depth = 6
+			}
+			return fmt.Sprintf("gd-%d", depth)
+		},
+	}
 	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
-		t, err := template.ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
+		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
 		if err != nil {
 			return nil, err
 		}

@@ -4,7 +4,7 @@
 
 <div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">key</span>
+    <span class="material-symbols-outlined text-text-tertiary">key</span>
     <h2 class="mt-0 mb-0 text-headline-sm">Role bindings</h2>
   </div>
   <table>
@@ -30,7 +30,7 @@
 
 {{if .CanOwn}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">group_add</span>Grant a role</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">group_add</span>Grant a role</h2>
   <form method="post" action="/access/grant" class="!items-end">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="flex flex-col gap-1">
@@ -52,7 +52,7 @@
 </div>
 
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">gavel</span>Assurance</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">gavel</span>Assurance</h2>
   <form method="post" action="/assurance" class="!items-center">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <label class="flex items-center gap-2 text-body-md"><input type="checkbox" name="requireFourEyes" {{if .FourEyes}}checked{{end}} class="!w-auto">

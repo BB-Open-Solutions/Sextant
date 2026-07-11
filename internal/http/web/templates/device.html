@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="mb-6 flex items-center gap-3">
   <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-container">
-    <span class="material-symbols-outlined text-text-secondary" style="font-size:22px;">desktop_windows</span>
+    <span class="material-symbols-outlined text-text-secondary ms-22">desktop_windows</span>
   </span>
   <div>
     <h1 class="mb-0 flex items-center gap-2 font-mono">{{.Tag}}
@@ -14,7 +14,7 @@
 <div class="relative mb-6 overflow-hidden rounded-lg border border-mint-deep/40 bg-secondary-container/40 p-5">
   <div class="absolute left-0 top-0 h-full w-1 bg-mint-vibrant"></div>
   <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-on-secondary-container">
-    <span class="material-symbols-outlined" style="font-size:20px;">key</span>Device credential
+    <span class="material-symbols-outlined">key</span>Device credential
   </h2>
   <p class="mb-3 text-body-md text-on-secondary-container"><strong>Store this credential now; it is not shown again.</strong> The device uses it to check in as itself.</p>
   <code class="block break-all rounded-md bg-surface-code px-4 py-3 text-body-md text-canvas">{{.}}</code>
@@ -24,7 +24,7 @@
 <!-- Identity + Observed -->
 <div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
   <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">badge</span>Identity</h2>
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">badge</span>Identity</h2>
     <dl class="grid grid-cols-[9rem_1fr] gap-y-3 text-body-md">
       <dt class="text-text-tertiary">Groups</dt><dd>{{range .Device.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</dd>
       <dt class="text-text-tertiary">Class</dt><dd>{{with .Device.Class}}{{.}}{{else}}<span class="muted">-</span>{{end}}</dd>
@@ -33,10 +33,10 @@
     </dl>
   </div>
   <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">sensors</span>Observed</h2>
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">sensors</span>Observed</h2>
     {{if .HasStatus}}
     <dl class="grid grid-cols-[9rem_1fr] gap-y-3 text-body-md">
-      <dt class="text-text-tertiary">State</dt><dd>{{if .Status.Online}}<span class="tag ok"><span class="material-symbols-outlined" style="font-size:14px;">check_circle</span>online</span>{{else}}<span class="tag bad">offline</span>{{end}}</dd>
+      <dt class="text-text-tertiary">State</dt><dd>{{if .Status.Online}}<span class="tag ok"><span class="material-symbols-outlined ms-14">check_circle</span>online</span>{{else}}<span class="tag bad">offline</span>{{end}}</dd>
       <dt class="text-text-tertiary">Revision</dt><dd class="font-mono text-text-secondary">{{.Status.Revision}}</dd>
       <dt class="text-text-tertiary">Phase</dt><dd>{{.Status.Phase}}</dd>
       <dt class="text-text-tertiary">Last seen</dt><dd>{{$.L.TimeSec .Status.LastSeen}}</dd>
@@ -49,7 +49,7 @@
 {{with .Posture}}
 {{if or .WantSB .WantTPM2}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">security</span>Security posture</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">security</span>Security posture</h2>
   {{if not .Reported}}
   <p class="muted">Waiting for a posture-aware check-in from the device agent.</p>
   {{else}}
@@ -65,7 +65,7 @@
   </dl>
   <div class="flex flex-wrap items-center gap-3 rounded-md bg-surface-container-low p-4">
     {{if .Complete}}
-    <span class="tag ok"><span class="material-symbols-outlined" style="font-size:14px;">check_circle</span>complete</span><span class="text-body-md">{{.StepText}}</span>
+    <span class="tag ok"><span class="material-symbols-outlined ms-14">check_circle</span>complete</span><span class="text-body-md">{{.StepText}}</span>
     {{else}}
     <span class="text-body-md"><strong>Next:</strong> {{.StepText}}</span>{{if .Warn}}<span class="tag bad">attention</span>{{end}}
     {{end}}
@@ -89,7 +89,7 @@
 <!-- Effective configuration -->
 <div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">tune</span>
+    <span class="material-symbols-outlined text-text-tertiary">tune</span>
     <h2 class="mt-0 mb-0 text-headline-sm">Effective configuration</h2>
     {{if .CanEdit}}<a href="/settings?scope=device:{{.Tag}}" class="ml-auto text-label-md">Open editor →</a>{{end}}
   </div>
@@ -100,7 +100,7 @@
       <td class="font-mono">{{.Key}}</td>
       <td><code>{{printf "%v" .Value}}</code></td>
       <td class="provenance">{{.Source}}</td>
-      <td>{{if .Enforced}}<span class="tag lock"><span class="material-symbols-outlined" style="font-size:14px;">lock</span>locked</span>{{end}}</td>
+      <td>{{if .Enforced}}<span class="tag lock"><span class="material-symbols-outlined ms-14">lock</span>locked</span>{{end}}</td>
     </tr>
     {{else}}
     <tr><td colspan="4" class="muted">Nothing configured yet.</td></tr>
@@ -110,7 +110,7 @@
 
 <!-- Apps -->
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">apps</span>Apps</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">apps</span>Apps</h2>
   <dl class="grid grid-cols-[9rem_1fr] gap-y-3 text-body-md">
     <dt class="text-text-tertiary">Packages</dt><dd>{{range .Packages}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</dd>
     <dt class="text-text-tertiary">Flatpaks</dt><dd>{{range .Flatpaks}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</dd>
@@ -121,7 +121,7 @@
 {{if .CanEdit}}
 <!-- Manage -->
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">build</span>Manage</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">build</span>Manage</h2>
   <div class="flex flex-col gap-3">
     <form method="post" action="/devices/{{.Tag}}/update" class="inline">
       <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setclass" value="1">
@@ -169,7 +169,7 @@
 {{if not .Retired}}
 <!-- Red zone -->
 <div class="mb-6 rounded-lg border border-error/40 bg-error-container/30 p-6">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm text-on-error-container"><span class="material-symbols-outlined" style="font-size:20px;">gpp_bad</span>Remote actions</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm text-on-error-container"><span class="material-symbols-outlined">gpp_bad</span>Remote actions</h2>
   {{if .Intent}}
   <p class="mb-3 text-body-md"><strong>Armed:</strong> <span class="tag bad">{{.Intent}}</span>
     {{if and .HasStatus (eq .Status.Ack .Intent)}}<span class="tag ok">delivered</span>{{else}}<span class="muted">pending delivery on next check-in</span>{{end}}</p>
@@ -181,7 +181,7 @@
   <div class="flex flex-wrap items-end gap-4">
     <form method="post" action="/devices/{{.Tag}}/intent" class="inline">
       <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="lock">
-      <button type="submit"><span class="material-symbols-outlined" style="font-size:18px;">lock</span>Lock device</button>
+      <button type="submit"><span class="material-symbols-outlined ms-18">lock</span>Lock device</button>
     </form>
     <form method="post" action="/devices/{{.Tag}}/intent" class="inline"
           onsubmit="return confirm('WIPE {{.Tag}}? This destroys the disk encryption keys - irreversible.')">
@@ -198,7 +198,7 @@
 
 {{with .Facts}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">memory</span>Hardware facts</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">memory</span>Hardware facts</h2>
   <p class="muted">Reported {{$.L.Time $.FactsAt}} (nixos-facter)</p>
   <details><summary class="muted cursor-pointer">raw document</summary><pre class="mt-2 max-h-96 overflow-auto rounded-md bg-surface-code p-4 text-label-md text-canvas">{{.}}</pre></details>
 </div>

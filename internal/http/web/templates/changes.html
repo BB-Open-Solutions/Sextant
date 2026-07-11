@@ -4,7 +4,7 @@
 
 {{if .CanEdit}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">add_circle</span>Open a change</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>Open a change</h2>
   <form method="post" action="/changes" class="!items-end">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="flex flex-col gap-1"><label>Change id</label><input name="id" placeholder="lowercase slug" required pattern="[a-z0-9][a-z0-9-]*"></div>
@@ -16,7 +16,7 @@
 
 <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">difference</span>
+    <span class="material-symbols-outlined text-text-tertiary">difference</span>
     <h2 class="mt-0 mb-0 text-headline-sm">Review queue</h2>
   </div>
   <table>

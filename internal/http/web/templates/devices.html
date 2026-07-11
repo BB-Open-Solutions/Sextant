@@ -11,10 +11,10 @@
     <div class="absolute left-0 top-0 h-full w-1 bg-mint-vibrant"></div>
     <div class="flex items-center justify-between">
       <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm text-ink">
-        <span class="material-symbols-outlined text-mint-vibrant" style="font-size:20px;">add_box</span>Fast Enrollment
+        <span class="material-symbols-outlined text-mint-vibrant">add_box</span>Fast Enrollment
       </h2>
       <span class="inline-flex items-center gap-1 rounded border border-[#1f1f1f] bg-surface-code px-2 py-1 text-label-md text-canvas">
-        <span class="material-symbols-outlined" style="font-size:14px;">commit</span>Git-Ops managed
+        <span class="material-symbols-outlined ms-14">commit</span>Git-Ops managed
       </span>
     </div>
     <form method="post" action="/devices" class="!block mt-5">
@@ -42,7 +42,7 @@
       </div>
       <div class="mt-4 flex items-center justify-end gap-3">
         <span class="muted mr-auto">Validated by the gate, committed to git.</span>
-        <button type="submit"><span class="material-symbols-outlined" style="font-size:18px;">note_add</span>Enroll device</button>
+        <button type="submit"><span class="material-symbols-outlined ms-18">note_add</span>Enroll device</button>
       </div>
     </form>
   </div>
@@ -61,7 +61,7 @@
         <td>{{.AssignedUser}}</td>
         <td>
           {{if .HasStatus}}
-            {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined" style="font-size:14px;">check_circle</span>online</span>{{else}}<span class="tag bad">offline</span>{{end}}
+            {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined ms-14">check_circle</span>online</span>{{else}}<span class="tag bad">offline</span>{{end}}
             <span class="font-mono text-text-tertiary">{{.Revision}}</span>
           {{else}}<span class="muted">never seen</span>{{end}}
         </td>

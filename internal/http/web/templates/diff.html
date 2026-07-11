@@ -1,6 +1,6 @@
 {{define "content"}}
 <div class="mb-2 flex items-center gap-3">
-  <a href="/changes" class="flex h-8 w-8 items-center justify-center rounded hover:bg-surface-container"><span class="material-symbols-outlined text-text-secondary" style="font-size:20px;">arrow_back</span></a>
+  <a href="/changes" class="flex h-8 w-8 items-center justify-center rounded hover:bg-surface-container"><span class="material-symbols-outlined text-text-secondary">arrow_back</span></a>
   <h1 class="mb-0">Change {{.ID}} — diff</h1>
 </div>
 <p class="mb-6 text-body-md text-text-tertiary">{{.Change.Title}} · <span class="tag {{if eq (printf "%s" .Change.Status) "ready"}}ok{{end}}">{{.Change.Status}}</span> · by {{.Change.Author}}. This is what merging applies to the fleet configuration.</p>

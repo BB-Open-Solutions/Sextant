@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/fonts.css">
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
 </head>
 <body class="bg-surface text-on-surface antialiased">
 <div class="flex min-h-screen">
@@ -16,7 +17,7 @@
     <div class="border-b border-border-hairline p-gutter">
       <a href="/" class="mb-xs flex items-center gap-sm">
         <span class="flex h-8 w-8 items-center justify-center rounded bg-ink">
-          <span class="material-symbols-outlined text-canvas" style="font-size:20px;font-variation-settings:'FILL' 1;">explore</span>
+          <span class="material-symbols-outlined ms-20 ms-fill text-canvas">explore</span>
         </span>
         <span class="text-headline-sm font-bold text-ink">Sextant</span>
       </a>
@@ -56,7 +57,7 @@
     <div class="mx-auto max-w-[1280px]">
       {{with .Error}}
       <div class="mb-4 flex items-center gap-2 rounded-lg border border-error/30 bg-error-container px-4 py-3 text-body-md text-on-error-container">
-        <span class="material-symbols-outlined" style="font-size:20px;">error</span>{{.}}
+        <span class="material-symbols-outlined">error</span>{{.}}
       </div>
       {{end}}
       {{template "content" .}}

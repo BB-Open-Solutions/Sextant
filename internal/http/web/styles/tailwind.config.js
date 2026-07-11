@@ -204,4 +204,7 @@ module.exports = {
           },
         };
 module.exports.content = ["internal/http/web/templates/**/*.html"];
+// Group-tree indent classes are chosen at render time by the `indent`
+// template func, so the scanner never sees them literally.
+module.exports.safelist = ["gd-0", "gd-1", "gd-2", "gd-3", "gd-4", "gd-5", "gd-6"];
 module.exports.corePlugins = { preflight: true };

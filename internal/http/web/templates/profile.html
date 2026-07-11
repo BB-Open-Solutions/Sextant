@@ -4,7 +4,7 @@
 {{with .MintedSecret}}
 <div class="relative mb-6 overflow-hidden rounded-lg border border-mint-deep/40 bg-secondary-container/40 p-5">
   <div class="absolute left-0 top-0 h-full w-1 bg-mint-vibrant"></div>
-  <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-on-secondary-container"><span class="material-symbols-outlined" style="font-size:20px;">key</span>New token created</h2>
+  <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-on-secondary-container"><span class="material-symbols-outlined">key</span>New token created</h2>
   <p class="mb-3 text-body-md text-on-secondary-container"><strong>Store this secret now; it is not shown again.</strong></p>
   <code class="block break-all rounded-md bg-surface-code px-4 py-3 text-body-md text-canvas">{{.}}</code>
 </div>
@@ -12,7 +12,7 @@
 
 <div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
   <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">account_circle</span>Identity</h2>
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">account_circle</span>Identity</h2>
     <dl class="grid grid-cols-[7rem_1fr] gap-y-3 text-body-md">
       <dt class="text-text-tertiary">Name</dt><dd>{{.User.Name}}</dd>
       <dt class="text-text-tertiary">Email</dt><dd>{{.User.Email}}</dd>
@@ -21,7 +21,7 @@
     </dl>
   </div>
   <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">shield_person</span>My roles</h2>
+    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">shield_person</span>My roles</h2>
     <table>
       <tr><th>Scope</th><th>Role</th></tr>
       {{range $scope, $role := .Roles}}
@@ -35,7 +35,7 @@
 
 {{if .HasPrefs}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">settings</span>Preferences</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">settings</span>Preferences</h2>
   <form method="post" action="/profile/prefs" class="!items-end">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="flex flex-col gap-1">
@@ -58,7 +58,7 @@
 {{if .HasTokens}}
 <div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">vpn_key</span>
+    <span class="material-symbols-outlined text-text-tertiary">vpn_key</span>
     <h2 class="mt-0 mb-0 text-headline-sm">My API tokens</h2>
   </div>
   <table>

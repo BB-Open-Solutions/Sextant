@@ -29,7 +29,7 @@
 
 <div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">lan</span>
+    <span class="material-symbols-outlined text-text-tertiary">lan</span>
     <h2 class="mt-0 mb-0 text-headline-sm">Rings</h2>
   </div>
   <table>
@@ -59,7 +59,7 @@
 
 {{if .CanOwn}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary" style="font-size:20px;">tune</span>Ring plan</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">tune</span>Ring plan</h2>
   <p class="muted mb-4">Saving replaces the whole plan; an empty form clears it.</p>
   <form method="post" action="/rollout/plan" class="!block">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
