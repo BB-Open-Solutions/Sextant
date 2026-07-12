@@ -27,6 +27,12 @@ type Fleet struct {
 	// operator never types a station tag from memory.
 	Stations map[string]Station `json:"stations,omitempty"`
 
+	// SecretRefs registers the NAMES of secrets that exist in the secret
+	// store (agenix on devices, a Secret in the cluster). A secret-typed
+	// setting stores one of these names, never the secret value; the console
+	// offers them as a picker. Sextant only ever knows the names.
+	SecretRefs map[string]SecretRef `json:"secretRefs,omitempty"`
+
 	// Policies are reusable named setting bundles; Assignments bind them to
 	// scopes; Filters narrow assignments to matching devices. See resolve.go
 	// for the precedence rule.

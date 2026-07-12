@@ -32,6 +32,13 @@ type CatalogEntry struct {
 	// convention). The console renders it as a warning badge; approval
 	// flows may key off it later.
 	RiskClass string `json:"riskClass,omitempty"`
+	// Secret marks an option whose value is a SECRET (a NetBird setup key, a
+	// bind password). Sextant never stores the secret itself: the setting
+	// holds a reference to a named secret in the store (agenix on the device,
+	// a Secret in the cluster), which the generator resolves to a path. The
+	// console renders a reference picker, never a text box, so a secret can
+	// never be pasted into git.
+	Secret bool `json:"secret,omitempty"`
 }
 
 // DefaultString renders the declared default for display; empty when none.
@@ -54,10 +61,16 @@ const (
 	WidgetNumber Widget = "number" // integers
 	WidgetSelect Widget = "select" // enums ("one of ...")
 	WidgetText   Widget = "text"   // everything else
+	WidgetSecret Widget = "secret" // secret-reference picker (never a value)
 )
 
-// Widget derives the control from the nix type description.
+// Widget derives the control from the nix type description. A secret option
+// always renders as a reference picker, whatever its underlying type, so its
+// value is never typed into the console.
 func (e CatalogEntry) Widget() Widget {
+	if e.Secret {
+		return WidgetSecret
+	}
 	t := strings.ToLower(e.Type)
 	switch {
 	case t == "boolean":
@@ -104,6 +117,14 @@ func (e CatalogEntry) Category() string {
 // gate remains the final validator, this keeps obvious mistakes local.
 func (e CatalogEntry) ParseValue(s string) (any, error) {
 	switch e.Widget() {
+	case WidgetSecret:
+		// A secret setting stores a REFERENCE to a named secret, never the
+		// secret itself. Accept only a reference slug, so a raw secret can
+		// never be pasted in and committed to git.
+		if s != "" && !ValidateSlug(s) {
+			return nil, fmt.Errorf("%s takes a secret reference name, not a value", e.Name)
+		}
+		return s, nil
 	case WidgetToggle:
 		switch s {
 		case "true", "on":
