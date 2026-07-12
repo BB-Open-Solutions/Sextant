@@ -194,7 +194,7 @@ func (s *Server) postStationEnroll(w http.ResponseWriter, r *http.Request, v vie
 		return err
 	}
 	secret, err := s.enrollOne(r.Context(), station, mac, tag,
-		r.FormValue("hardware"), r.FormValue("class"), groups, true, webAuthor(v))
+		r.FormValue("hardware"), r.FormValue("class"), groups, true, true, webAuthor(v))
 	if err != nil {
 		return err
 	}

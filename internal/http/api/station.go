@@ -9,6 +9,7 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
 )
 
 // StationAuthenticator verifies a per-station credential against a claimed
@@ -17,27 +18,41 @@ type StationAuthenticator interface {
 	AuthenticateTag(ctx context.Context, secret, claimedTag string) bool
 }
 
-// StationAPI serves the imaging-station report endpoint. A station reports the
-// devices it has seen over PXE; the operator later enrolls them. Auth prefers a
-// per-station credential (the station proves it is the tag it reports); a
-// shared bridge token is accepted only as a labelled migration path, exactly
-// like the check-in endpoint.
+// deviceCredIssuer mints a device's one-time agent credential. Implemented by
+// app.DeviceCredentials; kept as an interface so the station API depends only
+// on what it uses.
+type deviceCredIssuer interface {
+	Issue(ctx context.Context, tag string) (string, error)
+}
+
+// StationAPI serves the imaging-station endpoints. A station reports the
+// devices it has seen over PXE (discovery), claims the image jobs an operator
+// dispatched, and reports install progress. Auth prefers a per-station
+// credential (the station proves it is the tag it reports); a shared bridge
+// token is accepted only as a labelled migration path, like the check-in
+// endpoint.
 type StationAPI struct {
 	svc      *app.DiscoveryService
+	imaging  *app.ImagingService
+	devCreds deviceCredIssuer
 	stations StationAuthenticator
 	shared   string // shared bridge token; "" disables it
 	log      *slog.Logger
 }
 
 // NewStation builds the station-report surface. At least one auth source must
-// be set or the endpoint is disabled (fail-closed).
-func NewStation(svc *app.DiscoveryService, stations StationAuthenticator, sharedToken string, log *slog.Logger) *StationAPI {
-	return &StationAPI{svc: svc, stations: stations, shared: sharedToken, log: log}
+// be set or the endpoint is disabled (fail-closed). imaging/devCreds may be
+// nil (the job endpoints then report as unavailable).
+func NewStation(svc *app.DiscoveryService, imaging *app.ImagingService, devCreds deviceCredIssuer, stations StationAuthenticator, sharedToken string, log *slog.Logger) *StationAPI {
+	return &StationAPI{svc: svc, imaging: imaging, devCreds: devCreds, stations: stations, shared: sharedToken, log: log}
 }
 
-// Routes registers the station-facing endpoint.
+// Routes registers the station-facing endpoints.
 func (s *StationAPI) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/station/{tag}/report", s.handleReport)
+	mux.HandleFunc("GET /api/station/{tag}/jobs", s.handleJobs)
+	mux.HandleFunc("POST /api/station/{tag}/jobs/claim", s.handleClaim)
+	mux.HandleFunc("POST /api/station/{tag}/jobs/{mac}/status", s.handleJobStatus)
 }
 
 func (s *StationAPI) handleReport(w http.ResponseWriter, r *http.Request) {
@@ -74,6 +89,138 @@ func (s *StationAPI) handleReport(w http.ResponseWriter, r *http.Request) {
 	}
 	s.log.Info("station report accepted", "station", station, "devices", len(report.Devices))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// jobView is a pending image job as the station consumes it.
+type jobView struct {
+	MAC      string `json:"mac"`
+	Tag      string `json:"tag"`
+	Hardware string `json:"hardware"`
+	Status   string `json:"status"`
+	// Credential is the device's one-time agent secret, present only in a
+	// claim response so the station can bake it into the image. Never stored.
+	Credential string `json:"credential,omitempty"`
+}
+
+// handleJobs lists a station's pending image jobs (no credentials). The
+// station polls this to see what it should image.
+func (s *StationAPI) handleJobs(w http.ResponseWriter, r *http.Request) {
+	station, ok := s.authStation(w, r)
+	if !ok {
+		return
+	}
+	if s.imaging == nil {
+		http.Error(w, "imaging execution not configured", http.StatusServiceUnavailable)
+		return
+	}
+	jobs, err := s.imaging.Pending(r.Context(), station)
+	if err != nil {
+		s.log.Error("list station jobs failed", "station", station, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	out := make([]jobView, 0, len(jobs))
+	for _, j := range jobs {
+		out = append(out, jobView{MAC: j.MAC, Tag: j.Tag, Hardware: j.Hardware, Status: string(j.Status)})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handleClaim moves a station's pending jobs to imaging and returns them with
+// a freshly minted per-device credential, so the installer can write the
+// agent secret into the image. The secret is delivered exactly once, over the
+// station's authenticated channel - never stored, never shown in the console.
+func (s *StationAPI) handleClaim(w http.ResponseWriter, r *http.Request) {
+	station, ok := s.authStation(w, r)
+	if !ok {
+		return
+	}
+	if s.imaging == nil {
+		http.Error(w, "imaging execution not configured", http.StatusServiceUnavailable)
+		return
+	}
+	jobs, err := s.imaging.Pending(r.Context(), station)
+	if err != nil {
+		s.log.Error("claim station jobs failed", "station", station, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	out := make([]jobView, 0, len(jobs))
+	for _, j := range jobs {
+		v := jobView{MAC: j.MAC, Tag: j.Tag, Hardware: j.Hardware, Status: string(imaging.Imaging)}
+		if s.devCreds != nil {
+			secret, err := s.devCreds.Issue(r.Context(), j.Tag)
+			if err != nil {
+				s.log.Error("claim: device credential not issued", "tag", j.Tag, "err", err)
+				continue // do not hand out a job the device cannot authenticate for
+			}
+			v.Credential = secret
+		}
+		if j.Status == imaging.Pending {
+			if err := s.imaging.Report(r.Context(), station, j.MAC, imaging.Imaging, ""); err != nil {
+				s.log.Warn("claim: could not mark job imaging", "mac", j.MAC, "err", err)
+			}
+		}
+		out = append(out, v)
+	}
+	s.log.Info("station claimed jobs", "station", station, "count", len(out))
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handleJobStatus records a station's progress on one job (imaging done,
+// or failed with a reason). The domain rejects an illegal transition.
+func (s *StationAPI) handleJobStatus(w http.ResponseWriter, r *http.Request) {
+	station, ok := s.authStation(w, r)
+	if !ok {
+		return
+	}
+	if s.imaging == nil {
+		http.Error(w, "imaging execution not configured", http.StatusServiceUnavailable)
+		return
+	}
+	mac := r.PathValue("mac")
+	var in struct {
+		Status  string `json:"status"`
+		Message string `json:"message,omitempty"`
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err := dec.Decode(&in); err != nil {
+		http.Error(w, "bad status body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	status := imaging.Status(in.Status)
+	if !status.Valid() {
+		http.Error(w, "unknown status "+in.Status, http.StatusBadRequest)
+		return
+	}
+	if err := s.imaging.Report(r.Context(), station, mac, status, in.Message); err != nil {
+		s.log.Warn("station job status rejected", "station", station, "mac", mac, "status", status, "err", err)
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	s.log.Info("station job status", "station", station, "mac", mac, "status", status)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// authStation resolves and authorizes the station from the path + bearer,
+// writing the error response itself. It returns ok=false when the caller
+// should stop.
+func (s *StationAPI) authStation(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if s.stations == nil && s.shared == "" {
+		http.Error(w, "station endpoints disabled: no station auth configured", http.StatusForbidden)
+		return "", false
+	}
+	station := r.PathValue("tag")
+	if station == "" {
+		http.Error(w, "station tag required", http.StatusBadRequest)
+		return "", false
+	}
+	if !s.authorized(r, bearerToken(r), station) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="sextant-station"`)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return "", false
+	}
+	return station, true
 }
 
 // authorized accepts a per-station credential bound to the reported station

@@ -48,6 +48,7 @@ type deps struct {
 	tokens    *app.TokenService
 	devCreds  *app.DeviceCredentials
 	discovery *app.DiscoveryService
+	imaging   *app.ImagingService
 	staCreds  *app.StationCredentials
 	prefs     ports.PrefsStore
 	dir       ports.Directory
@@ -140,6 +141,7 @@ func (d *deps) buildConfigPlane() error {
 		d.tokens = app.NewTokenService(pg.Tokens(), clock, 0)
 		d.devCreds = app.NewDeviceCredentials(pg.Tokens(), clock)
 		d.discovery = app.NewDiscoveryService(pg.Discovered(), clock, app.DefaultTenant)
+		d.imaging = app.NewImagingService(pg.ImageJobs(), clock, app.DefaultTenant)
 		d.staCreds = app.NewStationCredentials(pg.Tokens(), clock)
 		d.prefs = pg
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
@@ -207,7 +209,7 @@ func (d *deps) stationCapability() capability.Capability {
 		EnabledFn: func() bool { return d.discovery != nil },
 		RoutesFn: func(mux *http.ServeMux) {
 			inner := http.NewServeMux()
-			api.NewStation(d.discovery, d.staCreds, d.cfg.CheckinToken, d.log).Routes(inner)
+			api.NewStation(d.discovery, d.imaging, d.devCreds, d.staCreds, d.cfg.CheckinToken, d.log).Routes(inner)
 			mux.Handle("POST /api/station/{tag}/report", mw.RateLimit(rate.Limit(5), 10)(inner))
 		},
 	}
@@ -274,7 +276,7 @@ func (d *deps) consoleCapability() capability.Capability {
 				web.Services{Config: d.svc, Changes: d.changes, Rollouts: d.rollouts,
 					Inventory: d.inv, Tokens: d.tokens, Prefs: d.prefs,
 					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence,
-					Discovery: d.discovery, StationCreds: d.staCreds},
+					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {

@@ -44,6 +44,7 @@ type Services struct {
 	Directory    ports.Directory
 	Evidence     *app.EvidenceService
 	Discovery    *app.DiscoveryService
+	Imaging      *app.ImagingService
 	StationCreds *app.StationCredentials
 }
 
@@ -230,6 +231,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/profile/tokens", s.postProfileTokenMint)
 	post("/profile/tokens/{id}/revoke", s.postProfileTokenRevoke)
 	post("/enroll/{station}/batch", s.postEnrollBatch)
+	post("/enroll/{station}/image", s.postEnrollImage)
+	post("/enroll/{station}/jobs/{mac}/cancel", s.postEnrollJobCancel)
 	post("/stations", s.postStationRegister)
 	post("/station/{tag}/credential", s.postStationCredential)
 	post("/station/{tag}/remove", s.postStationRemove)

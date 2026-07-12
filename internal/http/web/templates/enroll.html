@@ -59,7 +59,7 @@
       </label>
       {{end}}
     </div>
-    <button type="submit" class="self-start"><span class="material-symbols-outlined ms-18">precision_manufacturing</span>Enrol selected devices</button>
+    <button type="submit" class="self-start"><span class="material-symbols-outlined ms-18">precision_manufacturing</span>Dispatch imaging to selected</button>
   </form>
   {{end}}
 
@@ -95,7 +95,7 @@
               {{end}}
             </ol>
             {{end}}
-            <form method="post" action="/station/{{$.Station}}/enroll" class="!flex-col !items-stretch gap-3">
+            <form method="post" action="/enroll/{{$.Station}}/image" class="!flex-col !items-stretch gap-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}">
               <input type="hidden" name="mac" value="{{.Dev.MAC}}">
               <div class="flex flex-col gap-1"><label>Asset tag</label><input name="tag" placeholder="e.g. zaanstad-t495s" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
@@ -107,7 +107,7 @@
               </div>
               <div class="flex flex-col gap-1"><label>Class</label><select name="class">{{range $.Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
               <div class="flex flex-col gap-1"><label>Group</label><select name="group"><option value="">No group</option>{{range $.Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-              <button type="submit" class="w-full !bg-mint-vibrant !text-ink">Enrol device</button>
+              <button type="submit" class="w-full !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined ms-18">precision_manufacturing</span>Dispatch imaging</button>
             </form>
           </div>
         </details>
@@ -118,5 +118,38 @@
   </div>
   {{end}}
 </div>
+
+{{if .Jobs}}
+<!-- Step 3: imaging jobs in flight -->
+<div class="mt-6 rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
+    <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">3</span>Imaging jobs</h2>
+    <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Jobs}}</span>
+  </div>
+  <table>
+    <tr><th class="!px-6">Device tag</th><th>MAC</th><th>Profile</th><th>Status</th><th class="text-right !px-6">Actions</th></tr>
+    {{$csrf := .CSRF}}{{$st := .Station}}
+    {{range .Jobs}}
+    <tr class="group hover:bg-surface-bright transition-colors">
+      <td class="!px-6 font-mono text-code-inline text-ink">{{.Tag}}</td>
+      <td class="font-mono text-code-inline text-text-tertiary">{{.MAC}}</td>
+      <td>{{.Hardware}}</td>
+      <td>
+        {{if eq (printf "%s" .Status) "installed"}}<span class="tag ok"><span class="material-symbols-outlined ms-14">check_circle</span>installed</span>
+        {{else if eq (printf "%s" .Status) "imaging"}}<span class="tag"><span class="material-symbols-outlined ms-14">sync</span>imaging</span>
+        {{else if eq (printf "%s" .Status) "failed"}}<span class="tag bad" title="{{.Message}}"><span class="material-symbols-outlined ms-14">error</span>failed</span>
+        {{else if eq (printf "%s" .Status) "canceled"}}<span class="tag"><span class="material-symbols-outlined ms-14">block</span>canceled</span>
+        {{else}}<span class="tag"><span class="material-symbols-outlined ms-14">schedule</span>pending</span>{{end}}
+      </td>
+      <td class="text-right !px-6">
+        {{if or (eq (printf "%s" .Status) "pending") (eq (printf "%s" .Status) "failed")}}
+        <form method="post" action="/enroll/{{$st}}/jobs/{{.MAC}}/cancel" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="Cancel job" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined ms-18">cancel</span></button></form>
+        {{else}}<span class="muted">-</span>{{end}}
+      </td>
+    </tr>
+    {{end}}
+  </table>
+</div>
+{{end}}
 {{end}}
 {{end}}

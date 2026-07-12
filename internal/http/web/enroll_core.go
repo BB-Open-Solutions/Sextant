@@ -21,7 +21,7 @@ import (
 // set. It returns the one-time credential secret when issueCred is set (the
 // single-device flow shows it once); batch imaging defers credentials to the
 // image step and passes issueCred=false.
-func (s *Server) enrollOne(ctx context.Context, station, mac, tag, hardware, class string, groups []string, issueCred bool, author ports.Author) (string, error) {
+func (s *Server) enrollOne(ctx context.Context, station, mac, tag, hardware, class string, groups []string, issueCred, removeMAC bool, author ports.Author) (string, error) {
 	if s.svc.Discovery == nil {
 		return "", fmt.Errorf("imaging stations need the observed store")
 	}
@@ -80,7 +80,7 @@ func (s *Server) enrollOne(ctx context.Context, station, mac, tag, hardware, cla
 			s.log.Warn("device enrolled but captured facter not stored", "tag", tag, "err", err)
 		}
 	}
-	if mac != "" {
+	if removeMAC && mac != "" {
 		if err := s.svc.Discovery.Remove(ctx, station, mac); err != nil {
 			s.log.Warn("device enrolled but not removed from station set", "station", station, "mac", mac, "err", err)
 		}

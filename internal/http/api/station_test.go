@@ -38,7 +38,7 @@ func newStationServer(t *testing.T, auth StationAuthenticator, shared string) (*
 	t.Helper()
 	store := &stationMemStore{sets: map[string][]discovery.Discovered{}}
 	svc := app.NewDiscoveryService(store, fixedClock{time.Unix(1000, 0)}, "")
-	api := NewStation(svc, auth, shared, discardLog())
+	api := NewStation(svc, nil, nil, auth, shared, discardLog())
 	mux := http.NewServeMux()
 	api.Routes(mux)
 	return httptest.NewServer(mux), store

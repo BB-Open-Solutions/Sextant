@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
 )
 
 // enroll.go: the guided enrollment flow reached from the overview's primary
@@ -85,6 +87,15 @@ func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request, v view) {
 		sort.Strings(groups)
 		data["Groups"] = groups
 		data["Classes"] = deviceClasses
+
+		// In-flight and finished image jobs for this station.
+		if s.svc.Imaging != nil {
+			if jobs, err := s.svc.Imaging.List(r.Context(), station); err != nil {
+				s.log.Warn("list image jobs failed", "station", station, "err", err)
+			} else {
+				data["Jobs"] = jobs
+			}
+		}
 	}
 	s.render(w, "enroll", data, v)
 }
@@ -127,14 +138,72 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 	var enrolled, failed int
 	for _, mac := range macs {
 		tag := prefix + "-" + macTail(mac)
-		if _, err := s.enrollOne(r.Context(), station, mac, tag, hardware, class, groups, false, webAuthor(v)); err != nil {
-			s.log.Warn("batch enroll: one device failed", "station", station, "mac", mac, "tag", tag, "err", err)
+		if err := s.imageOne(r.Context(), v, station, mac, tag, hardware, class, groups); err != nil {
+			s.log.Warn("batch image: one device failed", "station", station, "mac", mac, "tag", tag, "err", err)
 			failed++
 			continue
 		}
 		enrolled++
 	}
-	s.log.Info("batch enroll", "station", station, "enrolled", enrolled, "failed", failed)
+	s.log.Info("batch image dispatched", "station", station, "dispatched", enrolled, "failed", failed)
+	http.Redirect(w, r, "/enroll?station="+url.QueryEscape(station), http.StatusSeeOther)
+	return nil
+}
+
+// imageOne creates the device record from a discovered MAC and dispatches an
+// image job the station will execute. With no imaging-execution plane (no
+// database) it falls back to a direct enrollment, so the flow still works for
+// a device that is already running. The caller authorizes.
+func (s *Server) imageOne(ctx context.Context, v view, station, mac, tag, hardware, class string, groups []string) error {
+	if s.svc.Imaging == nil {
+		_, err := s.enrollOne(ctx, station, mac, tag, hardware, class, groups, true, true, webAuthor(v))
+		return err
+	}
+	// Create the device (capture specs + native facter), keep the MAC visible
+	// with its job, and do not issue a credential yet - the station receives a
+	// fresh one when it claims the job.
+	if _, err := s.enrollOne(ctx, station, mac, tag, hardware, class, groups, false, false, webAuthor(v)); err != nil {
+		return err
+	}
+	return s.svc.Imaging.Dispatch(ctx, imaging.Job{
+		Station: station, MAC: imaging.NormalizeMAC(mac), Tag: tag, Hardware: strings.TrimSpace(hardware),
+	})
+}
+
+// postEnrollImage dispatches an image job for one discovered device.
+func (s *Server) postEnrollImage(w http.ResponseWriter, r *http.Request, v view) error {
+	station := r.PathValue("station")
+	mac := r.FormValue("mac")
+	tag := strings.TrimSpace(r.FormValue("tag"))
+	group := strings.TrimSpace(r.FormValue("group"))
+	scope := "org"
+	var groups []string
+	if group != "" {
+		scope = "group:" + group
+		groups = []string{group}
+	}
+	if err := s.requireWeb(v, scope, identity.Editor); err != nil {
+		return err
+	}
+	if err := s.imageOne(r.Context(), v, station, mac, tag, r.FormValue("hardware"), r.FormValue("class"), groups); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/enroll?station="+url.QueryEscape(station), http.StatusSeeOther)
+	return nil
+}
+
+// postEnrollJobCancel withdraws a pending/failed image job.
+func (s *Server) postEnrollJobCancel(w http.ResponseWriter, r *http.Request, v view) error {
+	if s.svc.Imaging == nil {
+		return fmt.Errorf("imaging execution needs the database (postgres not configured)")
+	}
+	if err := s.requireWeb(v, "org", identity.Editor); err != nil {
+		return err
+	}
+	station := r.PathValue("station")
+	if err := s.svc.Imaging.Cancel(r.Context(), station, r.PathValue("mac")); err != nil {
+		return err
+	}
 	http.Redirect(w, r, "/enroll?station="+url.QueryEscape(station), http.StatusSeeOther)
 	return nil
 }
