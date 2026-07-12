@@ -14,7 +14,38 @@ import (
 // reaches git. Scopes then select overlays through the apps/overlays picker.
 // Authoring is owner-only: an overlay is arbitrary code the generator imports.
 
-// overlaysPage lists the overlays and shows one in the editor (?name=).
+// overlayTemplate is a starter module for a device class, so an operator edits
+// from a working base rather than a blank file (ADR 0014, slice 3).
+type overlayTemplate struct {
+	Key, Name, Suggest, Desc, Code string
+}
+
+// overlayTemplates are the built-in class starters offered on a new overlay.
+var overlayTemplates = []overlayTemplate{
+	{
+		Key: "iot-gateway", Name: "IoT gateway", Suggest: "iot-gateway",
+		Desc: "Headless data-collection gateway, reachable over the mesh.",
+		Code: "{ config, lib, pkgs, ... }:\n{\n  # IoT gateway: headless, minimal, reachable over the mesh.\n  environment.systemPackages = with pkgs; [ mosquitto ];\n  # Open the MQTT port to the mesh only.\n  # networking.firewall.allowedTCPPorts = [ 1883 ];\n}\n",
+	},
+	{
+		Key: "k8s-node", Name: "Kubernetes node", Suggest: "k8s-node",
+		Desc: "Container runtime and node prerequisites for a k8s worker.",
+		Code: "{ config, lib, pkgs, ... }:\n{\n  # Kubernetes worker node: container runtime + tooling.\n  virtualisation.containerd.enable = true;\n  environment.systemPackages = with pkgs; [ kubectl ];\n  # boot.kernel.sysctl.\"net.bridge.bridge-nf-call-iptables\" = 1;\n}\n",
+	},
+	{
+		Key: "pos-terminal", Name: "POS terminal", Suggest: "pos-terminal",
+		Desc: "Locked-down single-purpose kiosk for a point-of-sale app.",
+		Code: "{ config, lib, pkgs, ... }:\n{\n  # POS terminal: locked-down single-purpose kiosk.\n  environment.systemPackages = with pkgs; [ chromium ];\n  # Run the POS app in a kiosk session; no general-purpose desktop.\n}\n",
+	},
+	{
+		Key: "blank", Name: "Blank module", Suggest: "",
+		Desc: "An empty module to start from scratch.",
+		Code: "{ config, lib, pkgs, ... }:\n{\n  # Custom overlay for this device class.\n}\n",
+	},
+}
+
+// overlaysPage lists the overlays and shows one in the editor (?name=), or a
+// class-template starter for a new overlay (?template=).
 func (s *Server) overlaysPage(w http.ResponseWriter, r *http.Request, v view) {
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -25,7 +56,10 @@ func (s *Server) overlaysPage(w http.ResponseWriter, r *http.Request, v view) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	data := map[string]any{"Title": "Overlays", "Nav": "overlays", "Overlays": names}
+	data := map[string]any{
+		"Title": "Overlays", "Nav": "overlays",
+		"Overlays": names, "Templates": overlayTemplates,
+	}
 
 	if name := strings.TrimSpace(r.URL.Query().Get("name")); name != "" {
 		code, err := s.svc.Config.ReadOverlay(name)
@@ -33,6 +67,14 @@ func (s *Server) overlaysPage(w http.ResponseWriter, r *http.Request, v view) {
 			data["Error"] = "overlay not found: " + name
 		} else {
 			data["Selected"], data["Code"] = name, code
+		}
+	} else if tk := strings.TrimSpace(r.URL.Query().Get("template")); tk != "" {
+		// New overlay pre-filled from a class starter template.
+		for _, t := range overlayTemplates {
+			if t.Key == tk {
+				data["Code"], data["SuggestName"] = t.Code, t.Suggest
+				break
+			}
 		}
 	}
 	s.render(w, "overlays", data, v)

@@ -45,3 +45,19 @@ func TestOverlaysPageWriteAndRemove(t *testing.T) {
 		t.Fatalf("overlay still present after remove: %v", names)
 	}
 }
+
+func TestOverlaysTemplatePrefill(t *testing.T) {
+	ts, _ := newConsole(t)
+	c := client()
+	resp, _ := c.Get(ts.URL + "/overlays?template=k8s-node")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	s := string(body)
+	// The picker is offered and the k8s starter code is prefilled.
+	if !strings.Contains(s, "Start from a class template") {
+		t.Fatal("template picker not shown")
+	}
+	if !strings.Contains(s, "virtualisation.containerd.enable") || !strings.Contains(s, `value="k8s-node"`) {
+		t.Fatalf("k8s template not prefilled\n%s", s)
+	}
+}

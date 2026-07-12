@@ -24,7 +24,22 @@
   </div>
 
   <!-- Editor -->
-  <div class="xl:col-span-3">
+  <div class="xl:col-span-3 flex flex-col gap-4">
+    {{if not .Selected}}
+    <!-- Class starter templates: code once from a working base -->
+    <div class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
+      <p class="mb-3 text-label-md font-bold text-ink">Start from a class template</p>
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {{range .Templates}}
+        <a href="/overlays?template={{.Key}}" class="rounded-md border border-border-soft p-3 transition-colors hover:border-mint-vibrant hover:bg-mint-vibrant/5 no-underline">
+          <span class="block font-medium text-ink">{{.Name}}</span>
+          <span class="mt-1 block text-label-md text-text-tertiary">{{.Desc}}</span>
+        </a>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
       <div class="mb-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div class="flex flex-col gap-1">
@@ -39,7 +54,7 @@
       <form method="post" action="/overlays" class="!flex-col !items-stretch gap-3">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         {{if .Selected}}<input type="hidden" name="name" value="{{.Selected}}">
-        {{else}}<div class="flex flex-col gap-1"><label>Name</label><input name="name" placeholder="e.g. k8s-node" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>{{end}}
+        {{else}}<div class="flex flex-col gap-1"><label>Name</label><input name="name" value="{{.SuggestName}}" placeholder="e.g. k8s-node" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>{{end}}
         <label>Module (Nix)</label>
         <textarea name="code" rows="20" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{ config, lib, pkgs, ... }:&#10;{&#10;  # your NixOS module for this device class&#10;}">{{.Code}}</textarea>
         <div class="flex items-center justify-between">
