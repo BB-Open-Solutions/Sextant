@@ -148,11 +148,27 @@
       </div>
     </section>
 
+    {{with .Device.Spec}}
+    <!-- Hardware specification captured at imaging (inspoelstraat) -->
+    <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined ms-18">precision_manufacturing</span>Hardware specification</h2>
+      <div class="flex flex-col gap-2 text-body-sm text-text-secondary">
+        {{with .Vendor}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Vendor</span><span class="text-ink">{{.}}</span></div>{{end}}
+        {{with .Model}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Model</span><span class="text-ink">{{.}}</span></div>{{end}}
+        {{with .Serial}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Serial</span><span class="font-mono text-code-inline text-ink">{{.}}</span></div>{{end}}
+        {{with .CPU}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>CPU</span><span class="text-ink">{{.}}{{with $.Device.Spec.Cores}} ({{.}} cores){{end}}</span></div>{{end}}
+        {{if .MemGB}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Memory</span><span class="text-ink">{{.MemGB}} GB</span></div>{{end}}
+        {{if .DiskGB}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Disk</span><span class="text-ink">{{.DiskGB}} GB</span></div>{{end}}
+        {{with .Firmware}}<div class="flex items-center justify-between"><span>Firmware</span><span class="text-ink">{{.}}</span></div>{{end}}
+      </div>
+    </section>
+    {{end}}
+
     {{with .Facts}}
     <!-- Hardware facts (raw nixos-facter document) -->
     <section class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
       <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-4 py-3">
-        <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined ms-18">memory</span>Hardware facts</h2>
+        <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined ms-18">memory</span>Hardware facts (nixos-facter)</h2>
       </div>
       <div class="p-4">
         <p class="muted mb-2">Reported {{$.L.Time $.FactsAt}} (nixos-facter)</p>

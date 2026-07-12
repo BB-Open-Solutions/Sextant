@@ -1,0 +1,13 @@
+[
+    {
+        "name": "demo-vm",
+        "vendor": "QEMU",
+        "models": ["Standard PC", "QEMU Virtual Machine"],
+        "notes": "Eval-only virtual profile used by the example overlay.",
+        "disko": "single ext4 root on /dev/vda (no encryption)",
+        "steps": [
+            { "title": "Boot the installer", "detail": "PXE-boot the VM on the imaging network." },
+            { "title": "Confirm the target disk", "detail": "The demo profile installs to /dev/vda." }
+        ]
+    }
+]

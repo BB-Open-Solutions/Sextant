@@ -90,7 +90,19 @@
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
           <input type="hidden" name="mac" value="{{.MAC}}">
           <div class="flex flex-col gap-1"><label>Asset tag</label><input name="tag" placeholder="e.g. zaanstad-t495s" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
-          <div class="flex flex-col gap-1"><label>Hardware profile</label><input name="hardware" value="{{with .Vendor}}{{.}}{{end}}{{with .Model}} {{.}}{{end}}" placeholder="e.g. lenovo-t495s" required></div>
+          <div class="flex flex-col gap-1"><label>Hardware profile</label>
+            {{if $.Profiles}}
+            {{$sug := index $.Suggest .MAC}}
+            <select name="hardware" required>
+              <option value="" disabled {{if not $sug}}selected{{end}}>Select a profile...</option>
+              {{range $.Profiles}}<option value="{{.Name}}" {{if eq .Name $sug}}selected{{end}}>{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}
+            </select>
+            {{if $sug}}<span class="text-label-xs-caps text-mint-deep">suggested from {{with .Vendor}}{{.}}{{end}}{{with .Model}} {{.}}{{end}}</span>{{end}}
+            {{else}}
+            <input name="hardware" value="{{with .Vendor}}{{.}}{{end}}{{with .Model}} {{.}}{{end}}" placeholder="e.g. lenovo-t495s" required>
+            <span class="text-label-xs-caps text-text-tertiary">no hardware-profiles.json published; type the profile name</span>
+            {{end}}
+          </div>
           <div class="flex flex-col gap-1"><label>Device class</label>
             <select name="class">{{range $.Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select>
           </div>

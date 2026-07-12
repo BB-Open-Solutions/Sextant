@@ -94,6 +94,19 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request, v view) {
 		if err != nil {
 			data["Error"] = err.Error()
 		}
+		// Hardware-profile dropdown (never free text) + a per-device suggestion
+		// derived from the discovered make/model, so the operator confirms the
+		// profile instead of typing one. Empty profiles => the template falls
+		// back to a text field (an overlay that predates the imaging surface).
+		profiles := s.svc.Config.HardwareProfiles()
+		data["Profiles"] = profiles.All()
+		suggest := make(map[string]string, len(discovered))
+		for _, d := range discovered {
+			if name := profiles.Suggest(d.Vendor, d.Model); name != "" {
+				suggest[d.MAC] = name
+			}
+		}
+		data["Suggest"] = suggest
 		// One-shot station credential (just minted): show once, then clear.
 		if c, err := r.Cookie(stationCredCookie); err == nil && c.Value != "" {
 			data["MintedSecret"] = c.Value
@@ -187,10 +200,43 @@ func (s *Server) postStationEnroll(w http.ResponseWriter, r *http.Request, v vie
 		return fmt.Errorf("enrolling a discovered device needs a tag")
 	}
 
+	hardware := strings.TrimSpace(r.FormValue("hardware"))
+	// When the overlay published hardware profiles, the chosen profile must be
+	// one of them (the form offers a dropdown, never free text) - so a device
+	// can only be enrolled onto a profile the generator can actually build.
+	profiles := s.svc.Config.HardwareProfiles()
+	if profiles.Len() > 0 && !profiles.Has(hardware) {
+		return fmt.Errorf("hardware profile %q is not one of the published profiles", hardware)
+	}
+
 	dev := fleet.Device{
-		Hardware: strings.TrimSpace(r.FormValue("hardware")),
+		Hardware: hardware,
 		Class:    strings.TrimSpace(r.FormValue("class")),
 		Groups:   groups,
+	}
+	// Capture the hardware the station discovered. The flat summary (make/
+	// model/cpu/mem/disk) goes onto the device record for the inventory card;
+	// the authoritative NATIVE nixos-facter document is observed data, so it
+	// is seeded into the facts store after enrollment (below), not into
+	// fleet.json - the same place the agent's runtime facts land.
+	var capturedFacter []byte
+	if mac != "" {
+		if d, ok, err := s.svc.Discovery.Get(r.Context(), station, mac); err != nil {
+			s.log.Warn("could not read discovered specs at enroll", "station", station, "mac", mac, "err", err)
+		} else if ok {
+			spec := fleet.HardwareSpec{
+				Vendor: d.Vendor, Model: d.Model, Serial: d.Serial,
+				CPU: d.CPU, Cores: d.Cores, MemGB: d.MemGB, DiskGB: d.DiskGB,
+				Firmware: d.Firmware,
+			}
+			if !spec.Empty() {
+				dev.Spec = &spec
+				dev.ITAM.Serial, dev.ITAM.Model = d.Serial, d.Model
+			}
+			if d.Facter != "" {
+				capturedFacter = []byte(d.Facter)
+			}
+		}
 	}
 	msg := fmt.Sprintf("devices: enroll %s from station %s (%s)", tag, station, dev.Hardware)
 	if err := s.svc.Config.Apply(r.Context(), fleet.AddDevice(tag, dev), msg, webAuthor(v), tag); err != nil {
@@ -201,6 +247,13 @@ func (s *Server) postStationEnroll(w http.ResponseWriter, r *http.Request, v vie
 			s.log.Error("device enrolled but credential not issued", "tag", tag, "err", err)
 		} else {
 			setDevCredCookie(w, tag, secret)
+		}
+	}
+	// Seed the native hardware facts captured at imaging, so the device page
+	// shows its nixos-facter spec immediately (before the agent checks in).
+	if capturedFacter != nil && s.svc.Inventory != nil {
+		if err := s.svc.Inventory.RecordFacts(r.Context(), tag, capturedFacter); err != nil {
+			s.log.Warn("device enrolled but captured facter not stored", "tag", tag, "err", err)
 		}
 	}
 	// Drop the MAC from the station set: it is enrolled now, not discovered.

@@ -54,6 +54,23 @@ func NormalizeMAC(mac string) string {
 	return strings.ToLower(strings.TrimSpace(mac))
 }
 
+// NormalizePhase maps a station's reported phase onto the domain vocabulary.
+// A real imaging station reports the state it observes off the DHCP/PXE lease
+// ("pxe" for a machine netbooting into the installer), which is exactly the
+// pre-install Discovered phase - so we accept it as an alias rather than 400
+// a well-behaved station. Unknown values pass through unchanged and are
+// rejected by Validate, preserving the closed set.
+func NormalizePhase(p observed.Phase) observed.Phase {
+	switch observed.Phase(strings.ToLower(strings.TrimSpace(string(p)))) {
+	case "pxe", "netboot", "seen":
+		return observed.Discovered
+	case observed.Discovered, observed.Installing, observed.Installed:
+		return observed.Phase(strings.ToLower(strings.TrimSpace(string(p))))
+	default:
+		return p
+	}
+}
+
 // Validate rejects a malformed discovery before it reaches storage. Only the
 // pre-enrollment phases make sense here (a discovery is by definition not yet
 // running its config), so Running is refused.
@@ -100,6 +117,7 @@ func (r *Report) Validate() error {
 	seen := make(map[string]struct{}, len(r.Devices))
 	for i := range r.Devices {
 		r.Devices[i].MAC = NormalizeMAC(r.Devices[i].MAC)
+		r.Devices[i].Phase = NormalizePhase(r.Devices[i].Phase)
 		if err := r.Devices[i].Validate(); err != nil {
 			return err
 		}

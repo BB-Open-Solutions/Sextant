@@ -146,6 +146,9 @@ type Device struct {
 	Accepted   map[string]string `json:"accepted,omitempty"`
 	Exceptions map[string]string `json:"exceptions,omitempty"`
 	ITAM       ITAM              `json:"itam,omitempty"`
+	// Spec is the hardware fingerprint an imaging station captured at
+	// enrollment (nixos-facter-derived); data for inventory/audit, not config.
+	Spec *HardwareSpec `json:"spec,omitempty"`
 }
 
 // ITAM is the asset record carried on a device (asset tag is the key).

@@ -43,10 +43,12 @@ type ConfigService struct {
 	snap atomic.Pointer[configSnapshot]
 }
 
-// configSnapshot pairs the fleet document with the catalog it shipped with.
+// configSnapshot pairs the fleet document with the catalog and hardware
+// profiles it shipped with (same working-tree revision).
 type configSnapshot struct {
-	fleet   *fleet.Fleet
-	catalog *fleet.Catalog
+	fleet    *fleet.Fleet
+	catalog  *fleet.Catalog
+	hardware *fleet.HardwareProfiles
 }
 
 // NewConfigService loads the initial snapshot and returns the service.
@@ -64,6 +66,11 @@ func (s *ConfigService) Fleet() *fleet.Fleet { return s.snap.Load().fleet }
 
 // Catalog returns the settings vocabulary snapshot (never nil).
 func (s *ConfigService) Catalog() *fleet.Catalog { return s.snap.Load().catalog }
+
+// HardwareProfiles returns the hardware-profile catalog snapshot (never nil).
+func (s *ConfigService) HardwareProfiles() *fleet.HardwareProfiles {
+	return s.snap.Load().hardware
+}
 
 // Snapshot returns fleet and catalog from the same revision. Handlers that
 // join the two must use this, not separate Fleet()/Catalog() calls, or a
@@ -94,7 +101,17 @@ func (s *ConfigService) reload() (*fleet.Fleet, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.snap.Store(&configSnapshot{fleet: f, catalog: cat})
+	// hardware-profiles.json is optional the same way: a missing file is a
+	// valid overlay that predates the imaging surface; a malformed one is not.
+	hraw, err := s.repo.ReadFile(fleet.HardwareProfilesFile)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	hw, err := fleet.ParseHardwareProfiles(hraw)
+	if err != nil {
+		return nil, err
+	}
+	s.snap.Store(&configSnapshot{fleet: f, catalog: cat, hardware: hw})
 	return f, nil
 }
 

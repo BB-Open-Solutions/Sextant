@@ -56,6 +56,26 @@ func (s *InventoryService) CheckIn(ctx context.Context, c observed.CheckIn, fact
 	return nil
 }
 
+// RecordFacts stores a hardware facts document for a device outside a
+// check-in - used when an imaging station captured the native nixos-facter
+// spec at enrollment, so the console shows the device's hardware before its
+// agent ever reports. Same validation and bounds as the check-in path.
+func (s *InventoryService) RecordFacts(ctx context.Context, tag string, facts []byte) error {
+	if tag == "" {
+		return fmt.Errorf("recording facts needs a device tag")
+	}
+	if len(facts) == 0 {
+		return nil
+	}
+	if len(facts) > maxFactsBytes {
+		return fmt.Errorf("facts report exceeds %d bytes", maxFactsBytes)
+	}
+	if !json.Valid(facts) {
+		return fmt.Errorf("facts report is not valid JSON")
+	}
+	return s.facts.PutFacts(ctx, s.tenant, tag, facts, s.clock.Now())
+}
+
 // StatusView is a device's observed state plus the derived online flag.
 type StatusView struct {
 	observed.DeviceStatus

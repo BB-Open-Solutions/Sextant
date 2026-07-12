@@ -85,6 +85,36 @@ func TestReportValidateNormalizesAndDedupes(t *testing.T) {
 	}
 }
 
+func TestNormalizePhase(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want observed.Phase
+	}{
+		{"pxe", observed.Discovered},
+		{"PXE", observed.Discovered},
+		{" netboot ", observed.Discovered},
+		{"discovered", observed.Discovered},
+		{"installing", observed.Installing},
+		{"bogus", observed.Phase("bogus")},
+	} {
+		if got := NormalizePhase(observed.Phase(tc.in)); got != tc.want {
+			t.Fatalf("NormalizePhase(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// A real imaging station posts phase "pxe" off the DHCP lease; the report must
+// be accepted (mapped to Discovered), not 400'd.
+func TestReportAcceptsStationPXEPhase(t *testing.T) {
+	r := Report{Devices: []Discovered{{MAC: "aa:bb:cc:dd:ee:0a", Phase: observed.Phase("pxe")}}}
+	if err := r.Validate(); err != nil {
+		t.Fatalf("station pxe report rejected: %v", err)
+	}
+	if r.Devices[0].Phase != observed.Discovered {
+		t.Fatalf("pxe phase not normalised, got %q", r.Devices[0].Phase)
+	}
+}
+
 func TestReportValidateBoundsBatch(t *testing.T) {
 	big := Report{Devices: make([]Discovered, MaxBatch+1)}
 	if err := big.Validate(); err == nil {
