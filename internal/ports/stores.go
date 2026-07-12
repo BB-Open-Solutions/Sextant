@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
@@ -51,6 +52,20 @@ type StatusStore interface {
 type InventoryStore interface {
 	PutFacts(ctx context.Context, tenant, tag string, facts []byte, now time.Time) error
 	GetFacts(ctx context.Context, tenant, tag string) ([]byte, time.Time, bool, error)
+}
+
+// DiscoveredStore persists the pre-enrollment set an imaging station has
+// seen, namespaced by tenant and station. A report replaces the station's
+// whole set (leases that vanished are gone); enrolling one device removes
+// just that MAC. Unlike the config plane this is transient observed state,
+// so it lives in Postgres, not git.
+type DiscoveredStore interface {
+	// Report replaces the station's whole discovered set.
+	Report(ctx context.Context, tenant, station string, devices []discovery.Discovered, now time.Time) error
+	// List returns a station's current discovered set, MAC-sorted.
+	List(ctx context.Context, tenant, station string) ([]discovery.Discovered, error)
+	// Remove drops one MAC once it has been enrolled.
+	Remove(ctx context.Context, tenant, station, mac string) error
 }
 
 // PrefsStore persists per-user presentation preferences, tenant-namespaced.
