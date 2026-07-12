@@ -26,14 +26,16 @@ gateRunner:
   enabled: false
   image:
     repository: forgejo.bb-open.com/bb-open/sextant-gate
-    tag: "0.19.0"
+    tag: "0.19.1"
     pullPolicy: IfNotPresent
   hostVariants: "" # comma-separated suffixes the generator emits, e.g. ",-sb"
+  # The nix store is baked into the image (chowned to the runtime uid); a
+  # volume over /nix would hide it, so only the overlay clone is persisted.
+  # First eval per pod re-fetches nixpkgs to the ephemeral layer.
   persistence:
     enabled: true
     storageClass: ""
     dataSize: 2Gi
-    nixSize: 20Gi # nixpkgs + core flake closure for evaluation
   resources:
     requests: { cpu: 100m, memory: 512Mi }
     limits: { cpu: "2", memory: 4Gi }

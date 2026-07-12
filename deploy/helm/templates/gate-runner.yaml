@@ -21,6 +21,12 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
       {{- if .Values.gitRemote.netrcSecret }}
       initContainers:
         # Drop the overlay remote's netrc into HOME so git (and nix, for the
@@ -30,6 +36,9 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - install -m 0600 /netrc-secret/netrc /data/.netrc
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: netrc, mountPath: /netrc-secret, readOnly: true }
@@ -61,9 +70,11 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 30
           resources: {{- toYaml .Values.gateRunner.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
           volumeMounts:
             - { name: data, mountPath: /data }
-            - { name: nixstore, mountPath: /nix }
       volumes:
         {{- if .Values.gitRemote.netrcSecret }}
         - name: netrc
@@ -72,12 +83,6 @@ spec:
         - name: data
           {{- if .Values.gateRunner.persistence.enabled }}
           persistentVolumeClaim: { claimName: {{ .Release.Name }}-gate-data }
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
-        - name: nixstore
-          {{- if .Values.gateRunner.persistence.enabled }}
-          persistentVolumeClaim: { claimName: {{ .Release.Name }}-gate-nix }
           {{- else }}
           emptyDir: {}
           {{- end }}
@@ -100,17 +105,6 @@ metadata:
 spec:
   accessModes: [ReadWriteOnce]
   resources: { requests: { storage: {{ .Values.gateRunner.persistence.dataSize }} } }
-  {{- with .Values.gateRunner.persistence.storageClass }}
-  storageClassName: {{ . }}
-  {{- end }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ .Release.Name }}-gate-nix
-spec:
-  accessModes: [ReadWriteOnce]
-  resources: { requests: { storage: {{ .Values.gateRunner.persistence.nixSize }} } }
   {{- with .Values.gateRunner.persistence.storageClass }}
   storageClassName: {{ . }}
   {{- end }}

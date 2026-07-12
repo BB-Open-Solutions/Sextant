@@ -14,11 +14,16 @@ RUN CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" \
 
 # Runtime stage: the official nix image, plus git for the overlay clone.
 FROM nixos/nix:2.24.9
-# Flakes + a substituter for fast evaluation; the persistent /nix store
-# (mounted as a volume) keeps nixpkgs and the core flake warm across evals.
+# Flakes on; single-user nix. The store is chowned to an unprivileged uid so
+# the pod satisfies the cluster's strict non-root PodSecurity (ADR-0029) - nix
+# runs rootless with a store it owns, no daemon, no capabilities.
 RUN mkdir -p /etc/nix \
  && printf 'experimental-features = nix-command flakes\nsandbox = false\n' >> /etc/nix/nix.conf \
- && nix-env -iA nixpkgs.git
+ && nix-env -iA nixpkgs.git \
+ && chown -R 65532:65532 /nix /etc/nix
 COPY --from=build /out/gate-runner /usr/local/bin/gate-runner
+USER 65532:65532
+# HOME must be writable for nix's per-user state; the pod sets HOME=/data.
+ENV HOME=/data
 EXPOSE 8090
 ENTRYPOINT ["/usr/local/bin/gate-runner"]
