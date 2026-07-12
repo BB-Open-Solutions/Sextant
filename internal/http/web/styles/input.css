@@ -82,7 +82,7 @@
   .tag.viewer { @apply bg-mint-vibrant/10 text-mint-deep border border-mint-vibrant/30; }
 
   /* Role badges: authoritative owner, mint editor, quiet viewer. */
-  .role { @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-label-md font-semibold capitalize; }
+  .role { @apply inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-label-md font-semibold capitalize leading-none; }
   .role.owner  { @apply bg-ink text-canvas; }
   .role.editor { @apply bg-secondary-container text-on-secondary-container; }
   .role.viewer { @apply bg-surface-container text-text-secondary border border-border-soft; }
