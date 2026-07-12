@@ -1,0 +1,47 @@
+package web_test
+
+import (
+	"io"
+	"net/url"
+	"strings"
+	"testing"
+)
+
+func TestOverlaysPageWriteAndRemove(t *testing.T) {
+	ts, cfg := newConsole(t) // dev session is org owner; allow-all gate
+	c := client()
+
+	// Empty page renders.
+	resp, _ := c.Get(ts.URL + "/overlays")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.Contains(string(body), "No overlays yet") {
+		t.Fatalf("overlays page = %d\n%s", resp.StatusCode, body)
+	}
+
+	// Write an overlay -> committed.
+	code := "{ ... }:\n{\n}\n"
+	resp, _ = c.PostForm(ts.URL+"/overlays", url.Values{"csrf": {"dev-csrf"}, "name": {"k8s-node"}, "code": {code}})
+	resp.Body.Close()
+	if resp.StatusCode != 303 {
+		t.Fatalf("write overlay = %d, want 303", resp.StatusCode)
+	}
+	if names, _ := cfg.ListOverlays(); len(names) != 1 || names[0] != "k8s-node" {
+		t.Fatalf("overlay not written: %v", names)
+	}
+
+	// It appears + its code loads in the editor.
+	resp, _ = c.Get(ts.URL + "/overlays?name=k8s-node")
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(body), "k8s-node.nix") {
+		t.Fatalf("selected overlay not rendered\n%s", body)
+	}
+
+	// Remove it.
+	resp, _ = c.PostForm(ts.URL+"/overlays/k8s-node/remove", url.Values{"csrf": {"dev-csrf"}})
+	resp.Body.Close()
+	if names, _ := cfg.ListOverlays(); len(names) != 0 {
+		t.Fatalf("overlay still present after remove: %v", names)
+	}
+}

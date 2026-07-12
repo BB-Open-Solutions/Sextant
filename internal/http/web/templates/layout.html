@@ -41,6 +41,7 @@
       <ul class="space-y-1 px-2">
         <li><a href="/settings" class="nav-link {{if eq $n "settings"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">settings</span>{{.L.T "nav.settings"}}</a></li>
         <li><a href="/policies" class="nav-link {{if eq $n "policies"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">policy</span>{{.L.T "nav.policies"}}</a></li>
+        {{if .CanOrgOwn}}<li><a href="/overlays" class="nav-link {{if eq $n "overlays"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">layers</span>Overlays</a></li>{{end}}
         {{if .CanOrgView}}<li><a href="/integrations" class="nav-link {{if eq $n "integrations"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">extension</span>Integrations</a></li>{{end}}
         {{if .CanOrgView}}<li><a href="/secrets" class="nav-link {{if eq $n "secrets"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">password</span>Secrets</a></li>{{end}}
         {{if .CanOrgOwn}}<li><a href="/station" class="nav-link {{if eq $n "station"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">lan</span>Imaging stations</a></li>{{end}}
