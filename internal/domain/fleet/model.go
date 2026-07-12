@@ -212,8 +212,10 @@ type RolloutPolicy struct {
 // RolloutRing mirrors rollout.Ring in the config document.
 type RolloutRing struct {
 	Group             string `json:"group"`
+	Name              string `json:"name,omitempty"` // wave label (Canary, Test, Phase 1)
 	SoakMinutes       int    `json:"soakMinutes,omitempty"`
 	MinHealthyPercent int    `json:"minHealthyPercent,omitempty"`
+	RequireApproval   bool   `json:"requireApproval,omitempty"` // manual promotion gate
 }
 
 // AccessBinding mirrors identity.Binding in the config document.

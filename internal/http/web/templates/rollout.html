@@ -3,7 +3,7 @@
   <div>
     <h1 class="mb-1 flex items-center gap-2">{{if .State}}<span class="material-symbols-outlined text-mint-deep">autorenew</span>Active rollout{{else}}Rollout{{end}}</h1>
     {{if .State}}<p class="mb-0 flex items-center gap-2 text-body-md text-text-tertiary">Target revision <code class="rounded bg-surface-container px-2 py-0.5 text-ink">{{.State.Target}}</code></p>
-    {{else}}<p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Rings promote in order: a ring must converge healthy through its soak window before the next one starts.</p>{{end}}
+    {{else}}<p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Waves promote in order: each wave must converge healthy through its soak window before the next; a manual-gate wave waits for your sign-off.</p>{{end}}
   </div>
   {{if and .State .CanOwn}}
   <div class="flex shrink-0 gap-2">
@@ -21,7 +21,7 @@
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
       <div class="flex items-center justify-between">
         <h2 class="mt-0 mb-0 text-headline-sm">Progression</h2>
-        <span class="rounded bg-mint-vibrant/10 px-3 py-1 text-label-xs-caps uppercase text-mint-deep">{{.State.Status}}{{range .Rings}}{{if .Active}} · {{.Ring.Group}} ({{.Label}}){{end}}{{end}}</span>
+        <span class="rounded bg-mint-vibrant/10 px-3 py-1 text-label-xs-caps uppercase text-mint-deep">{{.State.Status}}{{range .Rings}}{{if .Active}} · {{.Ring.Label}}{{end}}{{end}}</span>
       </div>
       <div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-surface-container-high">
         <div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div>
@@ -34,17 +34,21 @@
 
     <!-- Convergence by ring -->
     <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-      <div class="border-b border-border-hairline bg-surface px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Convergence by ring</h2></div>
+      <div class="border-b border-border-hairline bg-surface px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Convergence by wave</h2></div>
       <table>
-        <tr><th class="!px-6 uppercase tracking-wide">Ring</th><th class="!px-6 uppercase tracking-wide">Soak</th><th class="!px-6 uppercase tracking-wide">Health gate</th><th class="!px-6 uppercase tracking-wide">On target</th><th class="!px-6 uppercase tracking-wide">Status</th></tr>
+        <tr><th class="!px-6 uppercase tracking-wide">Wave</th><th class="!px-6 uppercase tracking-wide">Gate</th><th class="!px-6 uppercase tracking-wide">On target</th><th class="!px-6 uppercase tracking-wide">Status</th></tr>
+        {{$ := .}}
         {{range $i, $r := .Rings}}
         <tr class="{{if $r.Active}}bg-mint-vibrant/5{{end}} hover:bg-surface-bright transition-colors">
-          <td class="!px-6"><span class="flex items-center gap-2 font-medium"><span class="h-2 w-2 rounded-full {{if eq $r.Label "Complete"}}bg-ink{{else if $r.Active}}bg-mint-vibrant{{else}}bg-surface-container-highest{{end}}"></span>{{$r.Ring.Group}}</span></td>
-          <td class="!px-6 text-text-secondary">{{if $r.Ring.SoakMinutes}}{{$r.Ring.SoakMinutes}}m{{else}}-{{end}}</td>
-          <td class="!px-6 text-text-secondary">&ge; {{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}{{else}}100{{end}}%</td>
+          <td class="!px-6">
+            <span class="flex items-center gap-2 font-medium"><span class="flex h-5 w-5 items-center justify-center rounded-full text-label-xs-caps {{if eq $r.Label "Complete"}}bg-ink text-canvas{{else if $r.Active}}bg-mint-vibrant text-ink{{else}}bg-surface-container-highest text-text-tertiary{{end}}">{{$i}}</span>{{$r.Ring.Label}}</span>
+            <span class="ml-7 block text-label-md text-text-tertiary">{{$r.Ring.Group}}{{if $r.Ring.RequireApproval}} · <span class="material-symbols-outlined ms-14">how_to_reg</span>manual gate{{end}}</span>
+          </td>
+          <td class="!px-6 text-text-secondary">{{if $r.Ring.SoakMinutes}}soak {{$r.Ring.SoakMinutes}}m · {{end}}&ge; {{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}{{else}}100{{end}}% healthy</td>
           <td class="!px-6 font-mono text-code-inline">{{$r.Status.OnTarget}}/{{$r.Status.Total}}</td>
           <td class="!px-6">
-            {{if eq $r.Label "Complete"}}<span class="flex items-center gap-1 text-text-secondary"><span class="material-symbols-outlined ms-16">check_circle</span>Complete</span>
+            {{if $r.Await}}<span class="flex items-center gap-2"><span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined ms-16">how_to_reg</span>Awaiting approval</span>{{if $.CanOwn}}<form method="post" action="/rollout/approve" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="!py-1 !bg-mint-vibrant !text-ink">Approve &amp; promote</button></form>{{end}}</span>
+            {{else if eq $r.Label "Complete"}}<span class="flex items-center gap-1 text-text-secondary"><span class="material-symbols-outlined ms-16">check_circle</span>Complete</span>
             {{else if eq $r.Label "Deploying"}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined ms-16">sync</span>Deploying</span>
             {{else if eq $r.Label "Soaking"}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined ms-16">schedule</span>Soaking</span>
             {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined ms-16">lock</span>Queued</span>{{end}}
@@ -71,24 +75,26 @@
   <div>
     {{if .CanOwn}}
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-      <h2 class="mt-0 mb-1 text-headline-sm">Ring plan editor</h2>
-      <p class="muted mb-4">Progressive promotion with health gates. Saving replaces the whole plan; an empty form clears it.</p>
+      <h2 class="mt-0 mb-1 text-headline-sm">Wave plan (pipeline)</h2>
+      <p class="muted mb-4">Ordered waves: test waves first, then rollout phases. Each wave soaks and must be healthy before the next; a manual-gate wave waits for your approval. Saving replaces the whole plan.</p>
       <form method="post" action="/rollout/plan" class="!block">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         {{$ := .}}
         <div class="flex flex-col gap-3">
         {{range $i := .RingRows}}
         <div class="rounded-md border border-border-soft p-3">
-          <div class="mb-2 flex items-center justify-between"><span class="text-label-xs-caps uppercase text-text-tertiary">Ring {{$i}}</span></div>
+          <div class="mb-2 flex items-center justify-between"><span class="text-label-xs-caps uppercase text-text-tertiary">Wave {{$i}}</span></div>
           <div class="flex flex-col gap-2">
+            <input name="name{{$i}}" placeholder="wave name (e.g. Canary, Test, Phase 1)" value="{{index $.PlanNames $i}}">
             <select name="group{{$i}}">
-              <option value="">(unused ring)</option>
+              <option value="">(unused wave)</option>
               {{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}
             </select>
             <div class="flex gap-2">
               <input name="soak{{$i}}" type="number" min="0" placeholder="soak (min)" value="{{index $.PlanSoaks $i}}" class="w-full">
               <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="min healthy %" value="{{index $.PlanHealthy $i}}" class="w-full">
             </div>
+            <label class="flex items-center gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="approval{{$i}}" value="1" {{if index $.PlanApproval $i}}checked{{end}} class="!w-auto">Require manual approval before promoting the next wave</label>
           </div>
         </div>
         {{end}}

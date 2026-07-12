@@ -100,7 +100,8 @@ func (s *RolloutService) rings() ([]rollout.Ring, error) {
 			return nil, fmt.Errorf("rollout ring names unknown group %q", r.Group)
 		}
 		out = append(out, rollout.Ring{
-			Group: r.Group, SoakMinutes: r.SoakMinutes, MinHealthyPercent: r.MinHealthyPercent,
+			Group: r.Group, Name: r.Name, SoakMinutes: r.SoakMinutes,
+			MinHealthyPercent: r.MinHealthyPercent, RequireApproval: r.RequireApproval,
 		})
 	}
 	return out, nil
@@ -165,6 +166,25 @@ func (s *RolloutService) Cancel(ctx context.Context) (*rollout.State, error) {
 	return st, s.store.Put(ctx, st)
 }
 
+// Approve records operator sign-off for the current wave, releasing a manual
+// gate so the next tick promotes the next wave. A no-op if the current wave is
+// not actually a manual gate, so the button is always safe to press.
+func (s *RolloutService) Approve(ctx context.Context) (*rollout.State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, err := s.store.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if st == nil || st.Status != rollout.Active {
+		return nil, fmt.Errorf("no active rollout")
+	}
+	st.Normalize()
+	st.Approve(s.clock.Now())
+	st.Updated = s.clock.Now()
+	return st, s.store.Put(ctx, st)
+}
+
 // Tick advances the run by at most one action. Safe to call from a timer
 // and from the API; the engine is idempotent between observations.
 func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.State, error) {
@@ -216,6 +236,9 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 				st.ConvergedAt[st.Ring] = now
 			}
 		}
+	case rollout.AwaitApproval:
+		// The wave is a manual gate: hold here until an operator approves.
+		// No state change; the next tick after Approve advances.
 	case rollout.Advance:
 		st.Ring++
 	case rollout.Halt:

@@ -301,11 +301,15 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 		ringRows += len(f.Rollout.Rings)
 	}
 	planGroups := make([]string, ringRows)
+	planNames := make([]string, ringRows)
 	planSoaks := make([]string, ringRows)
 	planHealthy := make([]string, ringRows)
+	planApproval := make([]bool, ringRows)
 	if f.Rollout != nil {
 		for i, ring := range f.Rollout.Rings {
 			planGroups[i] = ring.Group
+			planNames[i] = ring.Name
+			planApproval[i] = ring.RequireApproval
 			if ring.SoakMinutes > 0 {
 				planSoaks[i] = fmt.Sprint(ring.SoakMinutes)
 			}
@@ -326,6 +330,7 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 	data["RingRows"] = rows
 	data["AllGroups"] = allGroups
 	data["PlanGroups"], data["PlanSoaks"], data["PlanHealthy"] = planGroups, planSoaks, planHealthy
+	data["PlanNames"], data["PlanApproval"] = planNames, planApproval
 	st, ringStatus, err := s.svc.Rollouts.Status(r.Context())
 	if err != nil {
 		data["Error"] = err.Error()
@@ -335,8 +340,9 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 		type ringRow struct {
 			Ring   fleet.RolloutRing
 			Status rollout.RingStatus
-			Label  string // observed phase: Complete | Deploying | Soaking | Queued
+			Label  string // observed phase: Complete | Deploying | Soaking | Awaiting approval | Queued
 			Active bool
+			Await  bool // active manual gate: soaked, needs operator sign-off
 		}
 		var rows []ringRow
 		total, onTarget := 0, 0
@@ -355,9 +361,15 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 					row.Label = "Complete"
 				case i == st.Ring:
 					row.Active = true
-					if row.Status.Total > 0 && row.Status.OnTarget >= row.Status.Total {
+					converged := row.Status.Total > 0 && row.Status.OnTarget >= row.Status.Total
+					_, approved := st.ApprovedAt[i]
+					switch {
+					case converged && rr.RequireApproval && !approved:
+						row.Label = "Awaiting approval"
+						row.Await = true
+					case converged:
 						row.Label = "Soaking"
-					} else {
+					default:
 						row.Label = "Deploying"
 					}
 				default:
@@ -521,6 +533,22 @@ func (s *Server) postRolloutStart(w http.ResponseWriter, r *http.Request, v view
 
 func (s *Server) postRolloutTick(w http.ResponseWriter, r *http.Request, v view) error {
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	if _, _, err := s.svc.Rollouts.Tick(r.Context()); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/rollout", http.StatusSeeOther)
+	return nil
+}
+
+// postRolloutApprove signs off the current manual-gate wave, then ticks so the
+// pipeline promotes the next wave immediately.
+func (s *Server) postRolloutApprove(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	if _, err := s.svc.Rollouts.Approve(r.Context()); err != nil {
 		return err
 	}
 	if _, _, err := s.svc.Rollouts.Tick(r.Context()); err != nil {

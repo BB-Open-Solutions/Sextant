@@ -218,6 +218,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/rollout", s.postRolloutStart)
 	post("/rollout/plan", s.postRolloutPlan)
 	post("/rollout/tick", s.postRolloutTick)
+	post("/rollout/approve", s.postRolloutApprove)
 	post("/rollout/cancel", s.postRolloutCancel)
 	post("/access/grant", s.postAccessGrant)
 	post("/access/revoke", s.postAccessRevoke)

@@ -82,7 +82,11 @@ func (s *Server) postRolloutPlan(w http.ResponseWriter, r *http.Request, v view)
 		if group == "" {
 			continue
 		}
-		ring := fleet.RolloutRing{Group: group}
+		ring := fleet.RolloutRing{
+			Group:           group,
+			Name:            strings.TrimSpace(r.FormValue(fmt.Sprintf("name%d", i))),
+			RequireApproval: r.FormValue(fmt.Sprintf("approval%d", i)) != "",
+		}
 		if soak := r.FormValue(fmt.Sprintf("soak%d", i)); soak != "" {
 			n, err := strconv.Atoi(soak)
 			if err != nil {

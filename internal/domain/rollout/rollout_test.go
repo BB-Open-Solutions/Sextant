@@ -110,3 +110,38 @@ func TestInactiveRunIsDone(t *testing.T) {
 		t.Fatalf("out-of-range ring act = %+v", act)
 	}
 }
+
+func TestManualGateAwaitsApproval(t *testing.T) {
+	// A test wave that requires sign-off: healthy and soaked, but a manual
+	// gate holds promotion until approved.
+	waves := []Ring{
+		{Group: "canary", Name: "Test #1", SoakMinutes: 0, RequireApproval: true},
+		{Group: "fleet", Name: "Phase 1"},
+	}
+	s := NewState("rev-2", t0)
+	s.PromotedAt[0] = t0
+	s.ConvergedAt[0] = t0 // converged, soak is 0 so it has elapsed
+
+	full := RingStatus{Total: 3, OnTarget: 3, Healthy: 3}
+	act := Decide(waves, s, full, t0.Add(time.Minute))
+	if act.Kind != AwaitApproval || !strings.Contains(act.Reason, "Test #1") {
+		t.Fatalf("act = %+v, want await-approval for Test #1", act)
+	}
+
+	// After operator sign-off, the pipeline promotes the next wave.
+	s.Ring = 0
+	s.Approve(t0.Add(2 * time.Minute))
+	act = Decide(waves, s, full, t0.Add(3*time.Minute))
+	if act.Kind != Advance {
+		t.Fatalf("act = %+v, want advance after approval", act)
+	}
+}
+
+func TestRingLabelFallsBackToGroup(t *testing.T) {
+	if got := (Ring{Group: "fleet"}).Label(); got != "fleet" {
+		t.Fatalf("Label() = %q, want group name", got)
+	}
+	if got := (Ring{Group: "fleet", Name: "Phase 1"}).Label(); got != "Phase 1" {
+		t.Fatalf("Label() = %q, want name", got)
+	}
+}
