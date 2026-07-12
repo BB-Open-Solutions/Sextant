@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -17,9 +18,11 @@ const stationCredCookie = "sextant_stationcred"
 // setStationCredCookie stages the station's credential over the redirect.
 // Secure is hardcoded: on plain HTTP the browser drops it and the secret is
 // never shown, rather than travelling in clear text.
-func setStationCredCookie(w http.ResponseWriter, station, secret string) {
+func setStationCredCookie(w http.ResponseWriter, secret string) {
+	// Path is /station (the page is served there with ?tag=), so the cookie
+	// is actually sent back to the page that shows it once.
 	http.SetCookie(w, &http.Cookie{Name: stationCredCookie, Value: secret,
-		Path: "/station/" + station, MaxAge: 60, HttpOnly: true, Secure: true,
+		Path: "/station", MaxAge: 60, HttpOnly: true, Secure: true,
 		SameSite: http.SameSiteStrictMode})
 }
 
@@ -94,7 +97,7 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request, v view) {
 		// One-shot station credential (just minted): show once, then clear.
 		if c, err := r.Cookie(stationCredCookie); err == nil && c.Value != "" {
 			data["MintedSecret"] = c.Value
-			http.SetCookie(w, &http.Cookie{Name: stationCredCookie, Value: "", Path: "/station/" + station, MaxAge: -1})
+			http.SetCookie(w, &http.Cookie{Name: stationCredCookie, Value: "", Path: "/station", MaxAge: -1})
 		}
 	}
 	s.render(w, "station", data, v)
@@ -115,7 +118,7 @@ func (s *Server) postStationRegister(w http.ResponseWriter, r *http.Request, v v
 		"stations: register "+tag, webAuthor(v)); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/station?tag="+tag, http.StatusSeeOther)
+	http.Redirect(w, r, "/station?tag="+url.QueryEscape(tag), http.StatusSeeOther)
 	return nil
 }
 
@@ -152,10 +155,9 @@ func (s *Server) postStationCredential(w http.ResponseWriter, r *http.Request, v
 	if err != nil {
 		return err
 	}
-	// Reuse the one-shot device-credential cookie machinery: the station page
-	// reads it and shows the secret exactly once.
-	setStationCredCookie(w, station, secret)
-	http.Redirect(w, r, "/station/"+station, http.StatusSeeOther)
+	// One-shot: the station page reads the cookie and shows the secret once.
+	setStationCredCookie(w, secret)
+	http.Redirect(w, r, "/station?tag="+url.QueryEscape(station), http.StatusSeeOther)
 	return nil
 }
 
