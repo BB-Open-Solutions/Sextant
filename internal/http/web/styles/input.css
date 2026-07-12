@@ -81,12 +81,12 @@
   .tag.lock { @apply bg-tertiary-container text-on-tertiary-container; }
   .tag.viewer { @apply bg-mint-vibrant/10 text-mint-deep border border-mint-vibrant/30; }
 
-  /* Role badges: authoritative owner, mint editor, quiet viewer. */
-  .role { @apply inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-label-md font-semibold capitalize leading-none; }
-  .role.owner  { @apply bg-ink text-canvas; }
-  .role.editor { @apply bg-secondary-container text-on-secondary-container; }
-  .role.viewer { @apply bg-surface-container text-text-secondary border border-border-soft; }
-  .role.none   { @apply bg-transparent text-text-tertiary border border-dashed border-border-soft; }
+  /* Role: plain coloured text with a small icon - no pill. */
+  .role { @apply inline-flex items-center gap-1 text-label-md font-semibold capitalize; }
+  .role.owner  { @apply text-ink; }
+  .role.editor { @apply text-mint-deep; }
+  .role.viewer { @apply text-text-secondary; }
+  .role.none   { @apply text-text-tertiary; }
 
   /* Text helpers */
   .muted { @apply text-text-tertiary text-body-md; }
@@ -103,7 +103,9 @@
   }
   form.inline, .inline { @apply inline-flex items-center gap-2; }
 
-  /* Forms lay out with breathing room */
-  form:not(.inline) { @apply flex flex-wrap items-center gap-3; }
+  /* Forms lay out with breathing room. Align to the bottom edge so a button
+     lines up with the input of a stacked label+field beside it, not its
+     vertical centre (the common "button floats above the field" misalign). */
+  form:not(.inline) { @apply flex flex-wrap items-end gap-3; }
   form:not(.inline) textarea { @apply basis-full; }
 }

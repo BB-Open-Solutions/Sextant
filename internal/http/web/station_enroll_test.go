@@ -114,7 +114,7 @@ func TestStationEnrollCapturesSpecsAndValidatesProfile(t *testing.T) {
 	c := client()
 
 	// Page offers the profile as a dropdown and suggests it from the make.
-	resp, _ := c.Get(ts.URL + "/station?tag=nuc-1")
+	resp, _ := c.Get(ts.URL + "/enroll?station=nuc-1")
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	s := string(body)
@@ -132,7 +132,7 @@ func TestStationEnrollCapturesSpecsAndValidatesProfile(t *testing.T) {
 	// generator can't build).
 	bad := url.Values{"csrf": {"dev-csrf"}, "mac": {"aa:bb:cc:dd:ee:01"},
 		"tag": {"nuc-lab-1"}, "hardware": {"made-up"}, "class": {"laptop"}}
-	resp, _ = c.PostForm(ts.URL+"/station/nuc-1/enroll", bad)
+	resp, _ = c.PostForm(ts.URL+"/enroll/nuc-1/image", bad)
 	resp.Body.Close()
 	if resp.StatusCode == 303 {
 		t.Fatal("enroll accepted an unpublished hardware profile")
@@ -144,7 +144,7 @@ func TestStationEnrollCapturesSpecsAndValidatesProfile(t *testing.T) {
 	// A valid profile enrolls the device AND stores the captured specs.
 	good := url.Values{"csrf": {"dev-csrf"}, "mac": {"aa:bb:cc:dd:ee:01"},
 		"tag": {"nuc-lab-1"}, "hardware": {"lenovo-t495s"}, "class": {"laptop"}, "group": {"pilot"}}
-	resp, _ = c.PostForm(ts.URL+"/station/nuc-1/enroll", good)
+	resp, _ = c.PostForm(ts.URL+"/enroll/nuc-1/image", good)
 	resp.Body.Close()
 	if resp.StatusCode != 303 {
 		t.Fatalf("valid enroll = %d, want 303", resp.StatusCode)

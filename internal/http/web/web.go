@@ -82,6 +82,14 @@ func New(svc Services, sessions Sessions, write bool,
 	funcs := template.FuncMap{
 		"list":      func(items ...any) []any { return items },
 		"hasPrefix": strings.HasPrefix,
+		// initial is the uppercase first letter of a name, for the avatar
+		// fallback when no profile photo is available.
+		"initial": func(s string) string {
+			for _, r := range strings.TrimSpace(s) {
+				return strings.ToUpper(string(r))
+			}
+			return "?"
+		},
 		// contains reports whether a string slice holds v (e.g. is a
 		// setting key in a policy's enforced/locked list).
 		"contains": func(list []string, v string) bool {
@@ -236,7 +244,6 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/stations", s.postStationRegister)
 	post("/station/{tag}/credential", s.postStationCredential)
 	post("/station/{tag}/remove", s.postStationRemove)
-	post("/station/{tag}/enroll", s.postStationEnroll)
 	post("/secrets", s.postSecretRegister)
 	post("/secrets/{name}/remove", s.postSecretRemove)
 	post("/service-accounts", s.postServiceAccountMint)

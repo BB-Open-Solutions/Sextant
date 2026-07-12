@@ -68,11 +68,13 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request, v view) {
 	station := strings.TrimSpace(r.URL.Query().Get("tag"))
 	data := map[string]any{
 		"Title": "Imaging stations", "Nav": "station",
-		"Stations":  stations,
-		"CanEnroll": v.roleAt("org").Meets(identity.Editor),
-		"CanOwn":    v.roleAt("org").Meets(identity.Owner),
+		"Stations": stations,
+		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
 	}
 
+	// The Stations page is station ADMIN only: register/remove a station, mint
+	// its report credential, show the setup instructions. The device-facing
+	// discovery + imaging flow lives on /enroll, so the two do not overlap.
 	if station != "" {
 		st, registered := full.Stations[station]
 		data["Station"] = station
@@ -80,33 +82,9 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request, v view) {
 		data["StationInfo"] = st
 		data["ReportURL"] = reportURL(r, station)
 
-		visible := full.VisibleTo(v.canView)
-		groups := make([]string, 0, len(visible.Groups))
-		for g := range visible.Groups {
-			groups = append(groups, g)
+		if discovered, err := s.svc.Discovery.List(r.Context(), station); err == nil {
+			data["SeenCount"] = len(discovered)
 		}
-		sort.Strings(groups)
-		data["Groups"] = groups
-		data["Classes"] = deviceClasses
-
-		discovered, err := s.svc.Discovery.List(r.Context(), station)
-		data["Discovered"] = discovered
-		if err != nil {
-			data["Error"] = err.Error()
-		}
-		// Hardware-profile dropdown (never free text) + a per-device suggestion
-		// derived from the discovered make/model, so the operator confirms the
-		// profile instead of typing one. Empty profiles => the template falls
-		// back to a text field (an overlay that predates the imaging surface).
-		profiles := s.svc.Config.HardwareProfiles()
-		data["Profiles"] = profiles.All()
-		suggest := make(map[string]string, len(discovered))
-		for _, d := range discovered {
-			if name := profiles.Suggest(d.Vendor, d.Model); name != "" {
-				suggest[d.MAC] = name
-			}
-		}
-		data["Suggest"] = suggest
 		// One-shot station credential (just minted): show once, then clear.
 		if c, err := r.Cookie(stationCredCookie); err == nil && c.Value != "" {
 			data["MintedSecret"] = c.Value
@@ -174,33 +152,3 @@ func (s *Server) postStationCredential(w http.ResponseWriter, r *http.Request, v
 	return nil
 }
 
-// postStationEnroll enrolls a discovered device into the fleet, then drops it
-// from the station's set. The operator confirms tag/hardware/group; the
-// discovered facts pre-fill the form. Reuses the standard enroll path so a
-// station-enrolled device is indistinguishable from a hand-enrolled one.
-func (s *Server) postStationEnroll(w http.ResponseWriter, r *http.Request, v view) error {
-	station := r.PathValue("tag")
-	mac := r.FormValue("mac")
-	tag := strings.TrimSpace(r.FormValue("tag"))
-	group := r.FormValue("group")
-
-	scope := "org"
-	var groups []string
-	if group != "" {
-		scope = "group:" + group
-		groups = []string{group}
-	}
-	if err := s.requireWeb(v, scope, identity.Editor); err != nil {
-		return err
-	}
-	secret, err := s.enrollOne(r.Context(), station, mac, tag,
-		r.FormValue("hardware"), r.FormValue("class"), groups, true, true, webAuthor(v))
-	if err != nil {
-		return err
-	}
-	if secret != "" {
-		setDevCredCookie(w, tag, secret)
-	}
-	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
-	return nil
-}

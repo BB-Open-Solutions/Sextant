@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="mb-8">
   <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">lan</span>Imaging stations</h1>
-  <p class="mb-4 max-w-2xl text-body-md text-text-tertiary">An imaging station (the "inspoelstraat") boots devices over PXE and reports what it sees. Pick a station to enrol its discovered devices, or register a new one.</p>
+  <p class="mb-4 max-w-2xl text-body-md text-text-tertiary">An imaging station (the "inspoelstraat") boots devices over PXE and reports what it sees. This page registers stations and issues their report credential; to image the devices a station has found, go to <a href="/enroll">Enrollment</a>.</p>
 
   {{if .Stations}}
   <form method="get" action="/station" class="!items-end">
@@ -60,64 +60,16 @@
 </div>
 {{end}}
 
-<!-- Discovered devices -->
-<div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
-    <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Discovered devices</h2>
-    <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Discovered}} seen</span>
-  </div>
-  <div class="flex flex-col divide-y divide-border-hairline">
-    {{$ := .}}
-    {{range .Discovered}}
-    <div class="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2">
-          <span class="font-mono text-code-inline text-ink">{{.MAC}}</span>
-          {{if eq (printf "%s" .Phase) "discovered"}}<span class="tag">discovered</span>{{else}}<span class="tag ok">{{.Phase}}</span>{{end}}
-        </div>
-        <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-md text-text-tertiary">
-          {{with .Vendor}}<span>{{.}}{{with $.Model}} {{.}}{{end}}</span>{{end}}
-          {{with .CPU}}<span>{{.}}</span>{{end}}
-          {{if .MemGB}}<span>{{.MemGB}} GB</span>{{end}}
-          {{if .DiskGB}}<span>{{.DiskGB}} GB disk</span>{{end}}
-          <span>seen {{$.L.TimeSec .LastSeen}}</span>
-        </div>
-      </div>
-      {{if $.CanEnroll}}
-      <details class="shrink-0">
-        <summary class="btn cursor-pointer list-none"><span class="material-symbols-outlined ms-18">note_add</span>Enrol</summary>
-        <form method="post" action="/station/{{$.Station}}/enroll" class="mt-3 !flex-col !items-stretch gap-3 rounded-md border border-border-soft bg-surface-container-low p-4 md:w-80">
-          <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <input type="hidden" name="mac" value="{{.MAC}}">
-          <div class="flex flex-col gap-1"><label>Asset tag</label><input name="tag" placeholder="e.g. zaanstad-t495s" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
-          <div class="flex flex-col gap-1"><label>Hardware profile</label>
-            {{if $.Profiles}}
-            {{$sug := index $.Suggest .MAC}}
-            <select name="hardware" required>
-              <option value="" disabled {{if not $sug}}selected{{end}}>Select a profile...</option>
-              {{range $.Profiles}}<option value="{{.Name}}" {{if eq .Name $sug}}selected{{end}}>{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}
-            </select>
-            {{if $sug}}<span class="text-label-xs-caps text-mint-deep">suggested from {{with .Vendor}}{{.}}{{end}}{{with .Model}} {{.}}{{end}}</span>{{end}}
-            {{else}}
-            <input name="hardware" value="{{with .Vendor}}{{.}}{{end}}{{with .Model}} {{.}}{{end}}" placeholder="e.g. lenovo-t495s" required>
-            <span class="text-label-xs-caps text-text-tertiary">no hardware-profiles.json published; type the profile name</span>
-            {{end}}
-          </div>
-          <div class="flex flex-col gap-1"><label>Device class</label>
-            <select name="class">{{range $.Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-          </div>
-          <div class="flex flex-col gap-1"><label>Primary group</label>
-            <select name="group"><option value="">No group</option>{{range $.Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-          </div>
-          <button type="submit" class="w-full">Enrol device</button>
-        </form>
-      </details>
-      {{end}}
+<!-- Discovered devices live on the Enrollment page; link across, don't duplicate -->
+<div class="flex flex-col gap-4 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+  <div class="flex items-center gap-3">
+    <span class="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container-highest text-text-secondary"><span class="material-symbols-outlined ms-20">devices</span></span>
+    <div>
+      <p class="mb-0 font-medium text-ink">{{if .SeenCount}}{{.SeenCount}} device(s){{else}}No devices{{end}} on this station's PXE network</p>
+      <p class="mb-0 text-label-md text-text-tertiary">Image them from the guided enrollment flow.</p>
     </div>
-    {{else}}
-    <p class="muted p-6">No devices discovered yet. Boot a device on this station's PXE network and it appears here.</p>
-    {{end}}
   </div>
+  <a href="/enroll?station={{.Station}}" class="btn shrink-0"><span class="material-symbols-outlined ms-18">cable</span>Go to enrollment</a>
 </div>
 {{end}}
 
