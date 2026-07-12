@@ -25,6 +25,18 @@
 </div>
 {{end}}
 
+<!-- Cascade explainer: how settings flow org -> group -> device -->
+<div class="mb-6 flex flex-col gap-3 rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
+  <div class="flex flex-wrap items-center gap-2 text-label-md">
+    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if eq .Scope "org"}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined ms-16">domain</span>Organisation</span>
+    <span class="material-symbols-outlined text-text-tertiary">arrow_forward</span>
+    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if hasPrefix .Scope "group:"}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined ms-16">group_work</span>Group</span>
+    <span class="material-symbols-outlined text-text-tertiary">arrow_forward</span>
+    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if .IsDevice}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined ms-16">desktop_windows</span>Device</span>
+  </div>
+  <p class="mb-0 text-body-sm text-text-tertiary">Settings flow down. A value set at the organisation applies to every group and device below it, unless a more specific scope sets its own value. Mark a value <strong>Enforce</strong> to lock it, so lower scopes cannot change it (the most general locked value wins).</p>
+</div>
+
 {{$ := .}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
   <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">inventory_2</span>Apps at this scope</h2>
@@ -84,7 +96,7 @@
         {{if $row.Set}}<button type="submit" name="action" value="clear" form="{{$fid}}" class="quiet" formnovalidate>Clear</button>{{end}}
       </td>
       {{else}}
-      <td>{{if $row.Set}}<code>{{$row.Value}}</code>{{else}}<span class="muted">inherited</span>{{end}}</td>
+      <td>{{if $row.Set}}<code>{{$row.Value}}</code>{{else}}<span class="muted">inherits{{with $row.Entry.DefaultString}} <code>{{.}}</code>{{end}}</span>{{end}}</td>
       <td>{{if $row.Enforced}}<span class="tag lock">locked</span>{{end}}</td>
       {{if $.IsDevice}}
       <td>{{with $row.Resolved}}<code>{{.}}</code>{{else}}<span class="muted">-</span>{{end}}</td>
