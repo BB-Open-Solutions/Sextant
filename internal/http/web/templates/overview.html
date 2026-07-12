@@ -1,7 +1,10 @@
 {{define "content"}}
-<div class="mb-6">
-  <h1 class="mb-1">Fleet Overview</h1>
-  <p class="text-body-md text-text-tertiary">Live state of the fleet — every figure is real, sourced from the config plane and device check-ins.</p>
+<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+  <div>
+    <h1 class="mb-1">Fleet Overview</h1>
+    <p class="mb-0 text-body-md text-text-tertiary">Live state of the fleet — every figure is real, sourced from the config plane and device check-ins.</p>
+  </div>
+  {{if .CanOrgView}}<a href="/enroll" class="btn shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined ms-18">add</span>Start enrollment</a>{{end}}
 </div>
 
 <!-- Stat cards -->

@@ -160,8 +160,10 @@ func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg s
 	if err != nil {
 		return err
 	}
-	// A write only touches fleet.json; the catalog rides along unchanged.
-	s.snap.Store(&configSnapshot{fleet: f, catalog: s.snap.Load().catalog})
+	// A write only touches fleet.json; the catalog and hardware profiles ride
+	// along unchanged (they are separate overlay files).
+	prev := s.snap.Load()
+	s.snap.Store(&configSnapshot{fleet: f, catalog: prev.catalog, hardware: prev.hardware})
 	return nil
 }
 

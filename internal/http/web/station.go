@@ -179,9 +179,6 @@ func (s *Server) postStationCredential(w http.ResponseWriter, r *http.Request, v
 // discovered facts pre-fill the form. Reuses the standard enroll path so a
 // station-enrolled device is indistinguishable from a hand-enrolled one.
 func (s *Server) postStationEnroll(w http.ResponseWriter, r *http.Request, v view) error {
-	if s.svc.Discovery == nil {
-		return fmt.Errorf("imaging stations need the observed store")
-	}
 	station := r.PathValue("tag")
 	mac := r.FormValue("mac")
 	tag := strings.TrimSpace(r.FormValue("tag"))
@@ -196,71 +193,13 @@ func (s *Server) postStationEnroll(w http.ResponseWriter, r *http.Request, v vie
 	if err := s.requireWeb(v, scope, identity.Editor); err != nil {
 		return err
 	}
-	if tag == "" {
-		return fmt.Errorf("enrolling a discovered device needs a tag")
-	}
-
-	hardware := strings.TrimSpace(r.FormValue("hardware"))
-	// When the overlay published hardware profiles, the chosen profile must be
-	// one of them (the form offers a dropdown, never free text) - so a device
-	// can only be enrolled onto a profile the generator can actually build.
-	profiles := s.svc.Config.HardwareProfiles()
-	if profiles.Len() > 0 && !profiles.Has(hardware) {
-		return fmt.Errorf("hardware profile %q is not one of the published profiles", hardware)
-	}
-
-	dev := fleet.Device{
-		Hardware: hardware,
-		Class:    strings.TrimSpace(r.FormValue("class")),
-		Groups:   groups,
-	}
-	// Capture the hardware the station discovered. The flat summary (make/
-	// model/cpu/mem/disk) goes onto the device record for the inventory card;
-	// the authoritative NATIVE nixos-facter document is observed data, so it
-	// is seeded into the facts store after enrollment (below), not into
-	// fleet.json - the same place the agent's runtime facts land.
-	var capturedFacter []byte
-	if mac != "" {
-		if d, ok, err := s.svc.Discovery.Get(r.Context(), station, mac); err != nil {
-			s.log.Warn("could not read discovered specs at enroll", "station", station, "mac", mac, "err", err)
-		} else if ok {
-			spec := fleet.HardwareSpec{
-				Vendor: d.Vendor, Model: d.Model, Serial: d.Serial,
-				CPU: d.CPU, Cores: d.Cores, MemGB: d.MemGB, DiskGB: d.DiskGB,
-				Firmware: d.Firmware,
-			}
-			if !spec.Empty() {
-				dev.Spec = &spec
-				dev.ITAM.Serial, dev.ITAM.Model = d.Serial, d.Model
-			}
-			if d.Facter != "" {
-				capturedFacter = []byte(d.Facter)
-			}
-		}
-	}
-	msg := fmt.Sprintf("devices: enroll %s from station %s (%s)", tag, station, dev.Hardware)
-	if err := s.svc.Config.Apply(r.Context(), fleet.AddDevice(tag, dev), msg, webAuthor(v), tag); err != nil {
+	secret, err := s.enrollOne(r.Context(), station, mac, tag,
+		r.FormValue("hardware"), r.FormValue("class"), groups, true, webAuthor(v))
+	if err != nil {
 		return err
 	}
-	if s.svc.DevCreds != nil {
-		if secret, err := s.svc.DevCreds.Issue(r.Context(), tag); err != nil {
-			s.log.Error("device enrolled but credential not issued", "tag", tag, "err", err)
-		} else {
-			setDevCredCookie(w, tag, secret)
-		}
-	}
-	// Seed the native hardware facts captured at imaging, so the device page
-	// shows its nixos-facter spec immediately (before the agent checks in).
-	if capturedFacter != nil && s.svc.Inventory != nil {
-		if err := s.svc.Inventory.RecordFacts(r.Context(), tag, capturedFacter); err != nil {
-			s.log.Warn("device enrolled but captured facter not stored", "tag", tag, "err", err)
-		}
-	}
-	// Drop the MAC from the station set: it is enrolled now, not discovered.
-	if mac != "" {
-		if err := s.svc.Discovery.Remove(r.Context(), station, mac); err != nil {
-			s.log.Warn("device enrolled but not removed from station set", "station", station, "mac", mac, "err", err)
-		}
+	if secret != "" {
+		setDevCredCookie(w, tag, secret)
 	}
 	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
 	return nil
