@@ -142,7 +142,7 @@ func New(svc Services, sessions Sessions, write bool,
 			return fmt.Sprintf("gd-%d", depth)
 		},
 	}
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -186,6 +186,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/audit", s.auditPage)
 	get("/audit/evidence", s.auditEvidence)
 	get("/station", s.stationPage)
+	get("/secrets", s.secretsPage)
 	get("/profile", s.profilePage)
 
 	post("/devices", s.postDeviceEnroll)
@@ -228,6 +229,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/station/{tag}/credential", s.postStationCredential)
 	post("/station/{tag}/remove", s.postStationRemove)
 	post("/station/{tag}/enroll", s.postStationEnroll)
+	post("/secrets", s.postSecretRegister)
+	post("/secrets/{name}/remove", s.postSecretRemove)
 }
 
 // view is the per-request context every page gets.

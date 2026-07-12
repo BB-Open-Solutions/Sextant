@@ -84,6 +84,13 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	sort.Strings(groups)
 
+	// Registered secret-reference names, for the secret-widget picker.
+	secretRefs := make([]string, 0, len(f.SecretRefs))
+	for name := range f.SecretRefs {
+		secretRefs = append(secretRefs, name)
+	}
+	sort.Strings(secretRefs)
+
 	// The scope's own app lists (additive across the chain; edited here).
 	var pkgs, flats, ovs []string
 	switch {
@@ -102,9 +109,10 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	s.render(w, "settings", map[string]any{
 		"Title": "Settings", "Nav": "settings",
 		"Scope": scope, "Groups": groups, "Sections": sections,
-		"IsDevice": strings.HasPrefix(scope, "device:"),
-		"Empty":    len(cat.Entries) == 0,
-		"CanEdit":  v.roleAt(scope).Meets(identity.Editor),
+		"SecretRefs": secretRefs,
+		"IsDevice":   strings.HasPrefix(scope, "device:"),
+		"Empty":      len(cat.Entries) == 0,
+		"CanEdit":    v.roleAt(scope).Meets(identity.Editor),
 		"Apps": []map[string]string{
 			{"Kind": "packages", "Names": strings.Join(pkgs, ", ")},
 			{"Kind": "flatpaks", "Names": strings.Join(flats, ", ")},
@@ -144,6 +152,14 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 		val, err := entry.ParseValue(raw)
 		if err != nil {
 			return err
+		}
+		// A secret setting stores a reference name; it must point at a secret
+		// the org has registered, so a setting never dangles at a name that
+		// resolves to nothing on the device.
+		if entry.Widget() == fleet.WidgetSecret {
+			if ref, _ := val.(string); ref != "" && !s.svc.Config.Fleet().HasSecretRef(ref) {
+				return fmt.Errorf("unknown secret reference %q; register it first", ref)
+			}
 		}
 		// The checkbox is authoritative: set-with-enforce locks, plain set
 		// unlocks a previously enforced key.

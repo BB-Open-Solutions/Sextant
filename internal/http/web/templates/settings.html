@@ -65,6 +65,9 @@
           <select name="value" form="{{$fid}}"><option value="" {{if not $row.Set}}selected{{end}} disabled>inherit</option><option value="true" {{if and $row.Set (eq $row.Value "true")}}selected{{end}}>true</option><option value="false" {{if and $row.Set (eq $row.Value "false")}}selected{{end}}>false</option></select>
         {{else if eq $row.Entry.Widget "select"}}
           <select name="value" form="{{$fid}}"><option value="" {{if not $row.Set}}selected{{end}} disabled>inherit</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+        {{else if eq $row.Entry.Widget "secret"}}
+          {{if $.SecretRefs}}<select name="value" form="{{$fid}}"><option value="" {{if not $row.Set}}selected{{end}}>none</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+          {{else}}<span class="muted">no secrets registered — <a href="/secrets" class="text-secondary">register one</a></span>{{end}}
         {{else if eq $row.Entry.Widget "number"}}
           <input type="number" name="value" form="{{$fid}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="inherit">
         {{else}}

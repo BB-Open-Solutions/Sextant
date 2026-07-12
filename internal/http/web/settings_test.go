@@ -28,7 +28,8 @@ const seedFleet = `{
 
 const seedCatalog = `[
   {"name":"apps.office","type":"boolean","description":"Office suite","default":false,"riskClass":"high"},
-  {"name":"desktop","type":"string","description":"Desktop environment","default":"kde"}
+  {"name":"desktop","type":"string","description":"Desktop environment","default":"kde"},
+  {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true}
 ]`
 
 // newConsole builds the console over a real temp git repo seeded with
