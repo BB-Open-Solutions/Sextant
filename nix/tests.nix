@@ -136,6 +136,43 @@ in
   # ...and a device outside every ring stays on main.
   cominBranchDefaultsToMain = cfg.sextant.cominBranch == "main";
 
+  # Cohort pinning (ADR 0013): in a COUNT-CAPPED wave an unreleased device
+  # (no pin) stays on main even though its group is the ring - it has not been
+  # released into the cohort yet.
+  cappedRingUnreleasedStaysMain =
+    let
+      ringFleet = fleet // {
+        rollout.rings = [{ group = "zaanstad"; maxDevices = 1; }];
+      };
+      ev = lib.evalModules {
+        modules = [ core site ] ++ generator.mkModules {
+          fleet = ringFleet;
+          tag = "lt-1";
+        };
+        specialArgs = { pkgs = fakePkgs; };
+      };
+    in
+    ev.config.sextant.cominBranch == "main";
+  # ...and once the engine releases it (pin == the ring group) it follows the
+  # ring branch, just like an uncapped wave.
+  cappedRingReleasedFollowsRing =
+    let
+      ringFleet = fleet // {
+        rollout.rings = [{ group = "zaanstad"; maxDevices = 1; }];
+        devices = fleet.devices // {
+          lt-1 = fleet.devices.lt-1 // { pin = "zaanstad"; };
+        };
+      };
+      ev = lib.evalModules {
+        modules = [ core site ] ++ generator.mkModules {
+          fleet = ringFleet;
+          tag = "lt-1";
+        };
+        specialArgs = { pkgs = fakePkgs; };
+      };
+    in
+    ev.config.sextant.cominBranch == "rings/zaanstad";
+
   # Lifecycle: a retired device has no host attribute (attrNames is lazy,
   # so the dummy nixpkgs is never forced).
   retiredDeviceHasNoHost =

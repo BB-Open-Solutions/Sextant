@@ -59,6 +59,28 @@ func (s *RolloutService) moveRingRef(ctx context.Context, group, rev string) err
 	return nil
 }
 
+// releaseCohort marks the next batch of a capped wave's devices into its
+// cohort (SetDevicePin), so the generator's ringBranchFor releases them onto
+// the ring branch. An uncapped wave is a no-op: its branch move already
+// releases the whole group. Devices are chosen in the group's deterministic
+// (sorted) order, so the released set is always the same growing prefix.
+func (s *RolloutService) releaseCohort(ctx context.Context, ring rollout.Ring, author ports.Author) error {
+	if ring.MaxDevices <= 0 {
+		return nil
+	}
+	f := s.cfg.Fleet()
+	active := f.ActiveGroupDevices(ring.Group)
+	released := len(f.ReleasedGroupDevices(ring.Group))
+	next := ring.NextRelease(len(active), released)
+	for _, tag := range active[released:next] {
+		msg := fmt.Sprintf("rollout: release %s into wave %s cohort", tag, ring.Group)
+		if err := s.cfg.Apply(ctx, fleet.SetDevicePin(tag, ring.Group), msg, author, tag); err != nil {
+			return fmt.Errorf("cohort release of %s failed: %w", tag, err)
+		}
+	}
+	return nil
+}
+
 // FollowHead fast-forwards every UNPINNED ring branch to HEAD, so idle
 // rings track main and a fresh commit reaches them without a rollout run.
 // Pinned rings stay put: an active or halted rollout holds them in place.
@@ -102,6 +124,7 @@ func (s *RolloutService) rings() ([]rollout.Ring, error) {
 		out = append(out, rollout.Ring{
 			Group: r.Group, Name: r.Name, SoakMinutes: r.SoakMinutes,
 			MinHealthyPercent: r.MinHealthyPercent, RequireApproval: r.RequireApproval,
+			MaxDevices: r.MaxDevices,
 		})
 	}
 	return out, nil
@@ -209,6 +232,12 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 		if rs, err = s.conv.RingStatus(ctx, rings[st.Ring].Group, st.Target); err != nil {
 			return nil, st, err
 		}
+		// Cohort accounting (ADR 0013): RingStatus was scoped to the RELEASED
+		// cohort (the convergence source lists released devices). Released is
+		// that cohort's size; GroupTotal is the whole active group, so Decide
+		// knows whether a capped wave still has devices to widen into.
+		rs.Released = rs.Total
+		rs.GroupTotal = len(s.cfg.Fleet().ActiveGroupDevices(rings[st.Ring].Group))
 	}
 
 	act := rollout.Decide(rings, st, rs, now)
@@ -217,11 +246,18 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 		ring := rings[st.Ring]
 		msg := fmt.Sprintf("rollout: pin ring %d (%s) to %s", st.Ring, ring.Group, st.Target)
 		author := ports.Author{Name: "sextant-rollout", Email: "rollout@sextant"}
+		// Group pin: the audit record + the marker FollowHead uses to leave this
+		// ring's branch alone while the engine owns it (capped or not).
 		if err := s.cfg.Apply(ctx, fleet.SetGroupPin(ring.Group, st.Target), msg, author,
 			AffectedHosts(s.cfg.Fleet(), "group:"+ring.Group)...); err != nil {
 			return &act, st, fmt.Errorf("pin commit failed: %w", err)
 		}
-		// The funnel (ADR 0011): move the ring's branch so its devices
+		// Count-capped canary (ADR 0013): release only the first cohort onto
+		// the ring; uncapped waves release the whole group via the branch move.
+		if err := s.releaseCohort(ctx, ring, author); err != nil {
+			return &act, st, err
+		}
+		// The funnel (ADR 0011): move the ring's branch so its released devices
 		// actually receive the target. Pin commit first (audit), then ref.
 		if s.refs != nil {
 			if err := s.moveRingRef(ctx, ring.Group, st.Target); err != nil {
@@ -229,6 +265,15 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 			}
 		}
 		st.PromotedAt[st.Ring] = now
+	case rollout.WidenCohort:
+		// The current cohort is healthy and soaked; release the next batch and
+		// restart the soak (the widened cohort must converge again).
+		ring := rings[st.Ring]
+		author := ports.Author{Name: "sextant-rollout", Email: "rollout@sextant"}
+		if err := s.releaseCohort(ctx, ring, author); err != nil {
+			return &act, st, err
+		}
+		delete(st.ConvergedAt, st.Ring)
 	case rollout.Wait:
 		// Record first full convergence so the soak clock starts.
 		if rs.Total > 0 && rs.OnTarget == rs.Total {

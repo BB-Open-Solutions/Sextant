@@ -28,6 +28,7 @@
         </div>
         <div class="mt-2 flex items-baseline gap-1"><span class="text-headline-sm font-bold text-ink">{{.Devices}}</span><span class="text-label-md text-text-tertiary">device{{if ne .Devices 1}}s{{end}}</span></div>
         <div class="mt-1 font-mono text-label-xs-caps text-text-tertiary">{{.Group}}</div>
+        {{if .Max}}<div class="mt-1 text-label-xs-caps text-mint-deep">{{.Max}} at a time</div>{{end}}
         <div class="mt-2 flex flex-wrap gap-1">
           {{if .Soak}}<span class="tag"><span class="material-symbols-outlined ms-14">schedule</span>{{.Soak}}m</span>{{end}}
           <span class="tag">&gt;={{if .Healthy}}{{.Healthy}}{{else}}100{{end}}%</span>
@@ -125,6 +126,7 @@
             <div class="flex gap-2">
               <input name="soak{{$i}}" type="number" min="0" placeholder="soak (min)" value="{{index $.PlanSoaks $i}}" class="w-full">
               <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="min healthy %" value="{{index $.PlanHealthy $i}}" class="w-full">
+              <input name="maxDevices{{$i}}" type="number" min="0" placeholder="max at once (0=all)" value="{{index $.PlanMax $i}}" class="w-full" title="Count-capped canary: release this many devices at a time, widening as each batch converges. 0 releases the whole group.">
             </div>
             <label class="flex items-center gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="approval{{$i}}" value="1" {{if index $.PlanApproval $i}}checked{{end}} class="!w-auto">Require manual approval before promoting the next wave</label>
           </div>

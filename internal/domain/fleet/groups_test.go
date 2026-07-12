@@ -107,3 +107,26 @@ func TestValidateFlatpakMirrorsPackage(t *testing.T) {
 		t.Error("flatpak validator wrong")
 	}
 }
+
+func TestReleasedGroupDevices(t *testing.T) {
+	f := &Fleet{
+		Version: Version,
+		Groups:  map[string]Group{"fleet": {}},
+		Devices: map[string]Device{
+			"d1": {Groups: []string{"fleet"}, Pin: "fleet"},
+			"d2": {Groups: []string{"fleet"}}, // not released
+			"d3": {Groups: []string{"fleet"}, Pin: "fleet"},
+			"r1": {Groups: []string{"fleet"}, Pin: "fleet", State: DeviceRetired}, // retired: excluded
+		},
+	}
+	// Uncapped (no rollout ring): whole active group.
+	if got := f.ReleasedGroupDevices("fleet"); len(got) != 3 {
+		t.Fatalf("uncapped = %v, want 3 active", got)
+	}
+	// Capped wave: only devices pinned to the ring, deterministic order.
+	f.Rollout = &RolloutPolicy{Rings: []RolloutRing{{Group: "fleet", MaxDevices: 2}}}
+	got := f.ReleasedGroupDevices("fleet")
+	if len(got) != 2 || got[0] != "d1" || got[1] != "d3" {
+		t.Fatalf("capped released = %v, want [d1 d3]", got)
+	}
+}

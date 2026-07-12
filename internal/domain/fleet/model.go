@@ -154,7 +154,12 @@ type Device struct {
 	// State is the lifecycle position ("" = active, "retired").
 	State string `json:"state,omitempty"`
 	// Intent is a pending remote action ("" | "lock" | "wipe").
-	Intent       string   `json:"intent,omitempty"`
+	Intent string `json:"intent,omitempty"`
+	// Pin releases this device into a capped rollout wave's cohort (ADR 0013):
+	// when set to a ring's group, the device follows that ring's branch even
+	// though the whole group is not yet released. Empty means the group-level
+	// rollout decides. Mirrors Group.Pin at the device level.
+	Pin          string   `json:"pin,omitempty"`
 	Groups       []string `json:"groups,omitempty"`
 	AssignedUser string   `json:"assignedUser,omitempty"`
 	// Class categorises the device (laptop, server, station); filterable.

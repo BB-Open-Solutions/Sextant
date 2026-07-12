@@ -40,6 +40,7 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 	planSoaks := make([]string, ringRows)
 	planHealthy := make([]string, ringRows)
 	planApproval := make([]bool, ringRows)
+	planMax := make([]string, ringRows)
 	if f.Rollout != nil {
 		for i, ring := range f.Rollout.Rings {
 			planGroups[i] = ring.Group
@@ -50,6 +51,9 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 			}
 			if ring.MinHealthyPercent > 0 {
 				planHealthy[i] = fmt.Sprint(ring.MinHealthyPercent)
+			}
+			if ring.MaxDevices > 0 {
+				planMax[i] = fmt.Sprint(ring.MaxDevices)
 			}
 		}
 	}
@@ -65,7 +69,7 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 	data["RingRows"] = rows
 	data["AllGroups"] = allGroups
 	data["PlanGroups"], data["PlanSoaks"], data["PlanHealthy"] = planGroups, planSoaks, planHealthy
-	data["PlanNames"], data["PlanApproval"] = planNames, planApproval
+	data["PlanNames"], data["PlanApproval"], data["PlanMax"] = planNames, planApproval, planMax
 
 	// Plan ladder: the ordered waves with each wave's device count, so an
 	// operator sees the progression at a glance (e.g. Canary 1 -> Pilot 10 ->
@@ -79,6 +83,7 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 			Devices       int
 			Soak, Healthy int
 			Approval      bool
+			Max           int // count-cap per cohort; 0 = whole group at once
 		}
 		ladder := make([]ladderStep, 0, len(f.Rollout.Rings))
 		for i, rr := range f.Rollout.Rings {
@@ -86,6 +91,7 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 				N: i + 1, Name: rr.Label(), Group: rr.Group,
 				Devices: len(f.ActiveGroupDevices(rr.Group)),
 				Soak:    rr.SoakMinutes, Healthy: rr.MinHealthyPercent, Approval: rr.RequireApproval,
+				Max: rr.MaxDevices,
 			})
 		}
 		data["PlanLadder"] = ladder

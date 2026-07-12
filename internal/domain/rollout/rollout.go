@@ -161,9 +161,16 @@ func (s *State) Normalize() {
 // RingStatus is the observed convergence of one ring (from the observed
 // plane): device totals for the ring's group on the target revision.
 type RingStatus struct {
-	Total    int // devices in the ring
-	OnTarget int // devices reporting the target revision
-	Healthy  int // devices on target and healthy (checked in recently, no errors)
+	Total    int // devices in the ring's CURRENT released cohort
+	OnTarget int // cohort devices reporting the target revision
+	Healthy  int // cohort devices on target and healthy (checked in recently, no errors)
+	// Released and GroupTotal drive a count-capped canary (ADR 0013): Released
+	// is how many of the group have been released so far (== Total), GroupTotal
+	// the whole group. When a capped wave's cohort is healthy and soaked but
+	// Released < GroupTotal, the engine widens the cohort instead of advancing.
+	// For an uncapped wave the caller sets both equal to Total, so no widening.
+	Released   int
+	GroupTotal int
 }
 
 // ActionKind is what the engine wants done next.
@@ -176,6 +183,10 @@ const (
 	Wait ActionKind = "wait"
 	// Advance moves to the next ring.
 	Advance ActionKind = "advance"
+	// WidenCohort releases the next batch of a capped wave's group (ADR 0013):
+	// the current cohort is healthy and soaked, but more of the group is yet to
+	// receive the target. The caller marks more devices and restarts the soak.
+	WidenCohort ActionKind = "widen-cohort"
 	// Halt stops the run: the health gate failed.
 	Halt ActionKind = "halt"
 	// AwaitApproval means the wave soaked healthy but is a manual gate: it
@@ -241,6 +252,15 @@ func Decide(rings []Ring, s *State, ringStatus RingStatus, now time.Time) Action
 	if now.Sub(converged) < soak {
 		return Action{Kind: Wait, Reason: fmt.Sprintf(
 			"ring %d (%s): soaking until %s", s.Ring, ring.Group, converged.Add(soak).Format(time.RFC3339))}
+	}
+
+	// Capped wave: the current cohort is healthy and soaked. If the group is not
+	// fully released yet, widen the cohort (release the next batch) and re-soak,
+	// rather than advancing to the next wave.
+	if ring.MaxDevices > 0 && ringStatus.Released < ringStatus.GroupTotal {
+		return Action{Kind: WidenCohort, Reason: fmt.Sprintf(
+			"wave %d (%s): cohort of %d/%d healthy and soaked, releasing the next batch",
+			s.Ring, ring.Label(), ringStatus.Released, ringStatus.GroupTotal)}
 	}
 
 	if s.Ring == len(rings)-1 {

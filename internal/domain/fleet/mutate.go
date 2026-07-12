@@ -220,6 +220,20 @@ func SetGroupPin(group, target string) Mutation {
 	}
 }
 
+// SetDevicePin releases a device into a capped rollout wave's cohort by
+// setting its Pin to the ring's group (ADR 0013); an empty ring clears it.
+func SetDevicePin(tag, ring string) Mutation {
+	return func(f *Fleet) error {
+		d, ok := f.Devices[tag]
+		if !ok {
+			return fmt.Errorf("unknown device %q", tag)
+		}
+		d.Pin = ring
+		f.Devices[tag] = d
+		return nil
+	}
+}
+
 // SetAcceptance documents a risk acceptance (comply-or-explain) at a scope.
 // An empty justification is rejected: the explanation is the point.
 func SetAcceptance(ref, key, reason string) Mutation {

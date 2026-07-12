@@ -69,8 +69,13 @@ let
     };
   };
 
-  # ringBranchFor: the first ring (plan order) whose group covers the
-  # device via its group ancestry decides the branch; no ring means main.
+  # ringBranchFor: the first ring (plan order) whose group covers the device
+  # AND into which the device has been released decides the branch; no such
+  # ring means main. A wave is either uncapped (maxDevices 0/absent: the whole
+  # group is released) or count-capped (ADR 0013: a device is released only
+  # when its pin equals the ring group, which the rollout engine sets cohort by
+  # cohort). So an unreleased device in a capped wave's group stays on main
+  # until the engine widens the cohort to include it.
   ringBranchFor = fleet: tag:
     let
       dev = fleet.devices.${tag} or { };
@@ -80,8 +85,11 @@ let
         [ g ] ++ lib.optionals (parent != "") (ancestry parent);
       covered = lib.concatMap ancestry (dev.groups or [ ]);
       matching = lib.filter (r: lib.elem r.group covered) rings;
+      released = lib.filter
+        (r: ((r.maxDevices or 0) == 0) || ((dev.pin or "") == r.group))
+        matching;
     in
-    if matching == [ ] then "main" else "rings/${(lib.head matching).group}";
+    if released == [ ] then "main" else "rings/${(lib.head released).group}";
 
   # mkModules: the pure module list for one device - testable with
   # lib.evalModules, no nixosSystem required.

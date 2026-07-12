@@ -77,6 +77,37 @@ func (f *Fleet) ActiveGroupDevices(group string) []string {
 	return tags
 }
 
+// rolloutRing returns the rollout wave whose group is `group`, or nil.
+func (f *Fleet) rolloutRing(group string) *RolloutRing {
+	if f.Rollout == nil {
+		return nil
+	}
+	for i := range f.Rollout.Rings {
+		if f.Rollout.Rings[i].Group == group {
+			return &f.Rollout.Rings[i]
+		}
+	}
+	return nil
+}
+
+// ReleasedGroupDevices is the set of a wave's group devices that have received
+// the target so far (ADR 0013). An uncapped wave releases the whole active
+// group at once; a capped wave releases only devices pinned to the ring (the
+// cohort the engine has marked). Order is deterministic (GroupDevices sorts).
+func (f *Fleet) ReleasedGroupDevices(group string) []string {
+	active := f.ActiveGroupDevices(group)
+	if ring := f.rolloutRing(group); ring == nil || ring.MaxDevices <= 0 {
+		return active // uncapped: the whole group is released
+	}
+	out := make([]string, 0, len(active))
+	for _, tag := range active {
+		if f.Devices[tag].Pin == group {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
 // DeviceTags returns all device asset tags, sorted.
 func (f *Fleet) DeviceTags() []string {
 	ks := make([]string, 0, len(f.Devices))

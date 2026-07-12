@@ -101,6 +101,13 @@ func (s *Server) postRolloutPlan(w http.ResponseWriter, r *http.Request, v view)
 			}
 			ring.MinHealthyPercent = n
 		}
+		if m := r.FormValue(fmt.Sprintf("maxDevices%d", i)); m != "" {
+			n, err := strconv.Atoi(m)
+			if err != nil || n < 0 {
+				return fmt.Errorf("ring %d: max devices expects a non-negative number", i+1)
+			}
+			ring.MaxDevices = n
+		}
 		if plan == nil {
 			plan = &fleet.RolloutPolicy{}
 		}

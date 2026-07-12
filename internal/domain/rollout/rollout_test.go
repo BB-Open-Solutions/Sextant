@@ -185,3 +185,46 @@ func TestRingNextReleaseAndFullyReleased(t *testing.T) {
 		t.Fatal("FullyReleased wrong")
 	}
 }
+
+func TestDecideCappedCohortWidens(t *testing.T) {
+	// One capped wave: group of 10, release 2 at a time.
+	capped := []Ring{{Group: "fleet", SoakMinutes: 0, MinHealthyPercent: 100, MaxDevices: 2}}
+	s := NewState("rev-2", t0)
+	s.PromotedAt[0] = t0
+
+	// Current cohort of 2 fully converged + healthy; group has 10, so 8 remain.
+	rs := RingStatus{Total: 2, OnTarget: 2, Healthy: 2, Released: 2, GroupTotal: 10}
+	// Not yet soaked-recorded -> Wait (starting soak).
+	if act := Decide(capped, s, rs, t0); act.Kind != Wait {
+		t.Fatalf("first = %s, want wait", act.Kind)
+	}
+	s.ConvergedAt[0] = t0
+	// Soak is 0, so the cohort is soaked -> widen (release the next batch).
+	if act := Decide(capped, s, rs, t0.Add(time.Minute)); act.Kind != WidenCohort {
+		t.Fatalf("capped cohort = %s, want widen-cohort", act.Kind)
+	}
+}
+
+func TestDecideCappedFullyReleasedAdvances(t *testing.T) {
+	capped := []Ring{{Group: "fleet", MaxDevices: 2}}
+	s := NewState("rev-2", t0)
+	s.PromotedAt[0] = t0
+	s.ConvergedAt[0] = t0
+	// Released == GroupTotal: the whole group is out -> last wave Done.
+	rs := RingStatus{Total: 10, OnTarget: 10, Healthy: 10, Released: 10, GroupTotal: 10}
+	if act := Decide(capped, s, rs, t0.Add(time.Minute)); act.Kind != Done {
+		t.Fatalf("fully released = %s, want done", act.Kind)
+	}
+}
+
+func TestDecideUncappedNeverWidens(t *testing.T) {
+	// Uncapped wave (MaxDevices 0): caller sets Released == GroupTotal == Total.
+	s := NewState("rev-2", t0)
+	s.PromotedAt[0] = t0
+	s.ConvergedAt[0] = t0
+	rs := RingStatus{Total: 5, OnTarget: 5, Healthy: 5, Released: 5, GroupTotal: 5}
+	// canary is uncapped + soaked -> advance to the next wave, never widen.
+	if act := Decide(rings, s, rs, t0.Add(61*time.Minute)); act.Kind != Advance {
+		t.Fatalf("uncapped = %s, want advance", act.Kind)
+	}
+}

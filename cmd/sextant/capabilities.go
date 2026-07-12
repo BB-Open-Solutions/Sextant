@@ -146,8 +146,10 @@ func (d *deps) buildConfigPlane() error {
 		d.prefs = pg
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
-			// Retired devices never converge; counting them stalls a ring.
-			return svc.Fleet().ActiveGroupDevices(group)
+			// Convergence is scoped to the wave's RELEASED devices: the whole
+			// active group for an uncapped wave, or just the marked cohort for
+			// a count-capped one (ADR 0013). Retired devices are excluded.
+			return svc.Fleet().ReleasedGroupDevices(group)
 		})
 		d.checks.Register("postgres", pg.Ping)
 	}
