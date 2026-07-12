@@ -21,6 +21,12 @@ type Fleet struct {
 	Groups  map[string]Group  `json:"groups,omitempty"`
 	Devices map[string]Device `json:"devices,omitempty"`
 
+	// Stations are the imaging stations (the inspoelstraat) that discover
+	// devices over PXE and report them. Registering one here is what lets the
+	// console offer it as a choice and mint its report credential - so an
+	// operator never types a station tag from memory.
+	Stations map[string]Station `json:"stations,omitempty"`
+
 	// Policies are reusable named setting bundles; Assignments bind them to
 	// scopes; Filters narrow assignments to matching devices. See resolve.go
 	// for the precedence rule.
@@ -36,6 +42,14 @@ type Fleet struct {
 
 	// Assurance holds the organisation's control settings (ADR 0007).
 	Assurance *Assurance `json:"assurance,omitempty"`
+}
+
+// Station is a registered imaging station. The map key is its tag (the
+// station reports and authenticates as this); Description and Site are
+// operator-facing labels shown in the console.
+type Station struct {
+	Description string `json:"description,omitempty"`
+	Site        string `json:"site,omitempty"`
 }
 
 // Assurance configures audit controls. RequireFourEyes rejects merging a

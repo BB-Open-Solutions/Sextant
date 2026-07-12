@@ -23,53 +23,119 @@ func setStationCredCookie(w http.ResponseWriter, station, secret string) {
 		SameSite: http.SameSiteStrictMode})
 }
 
-// station.go: the inspoelstraat surface. An imaging station reports devices it
-// has discovered over PXE; an operator enrolls one into the fleet, and an org
-// owner mints the credential the station uses to report (ADR 0008).
+// station.go: the imaging-station (inspoelstraat) surface. A station reports
+// devices it has discovered over PXE; an operator enrolls one into the fleet,
+// and an org owner registers stations and mints their report credentials.
+
+// deviceClasses is the fixed set of device classes offered as a choice, so an
+// operator never has to remember or free-type one.
+var deviceClasses = []string{"laptop", "workstation", "kiosk", "server", "station"}
+
+// reportURL is the endpoint a station posts discoveries to, built from the
+// request so the console shows the operator exactly what to configure.
+func reportURL(r *http.Request, station string) string {
+	scheme := "https"
+	if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") != "https" {
+		scheme = "http"
+	}
+	return scheme + "://" + r.Host + "/api/station/" + station + "/report"
+}
 
 // stationPage lists a station's discovered devices and the owner controls
 // (mint a station credential). Org Viewer to look; enroll/mint are gated on
 // their own POST handlers.
 func (s *Server) stationPage(w http.ResponseWriter, r *http.Request, v view) {
 	if s.svc.Discovery == nil {
-		http.Error(w, "the inspoelstraat plane needs the observed store (Postgres)", http.StatusNotFound)
+		http.Error(w, "imaging stations need the observed store (Postgres)", http.StatusNotFound)
 		return
 	}
 	if err := s.requireWeb(v, "org", identity.Viewer); err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
-	// The page is reached by station tag from the query so a plain GET form
-	// can navigate to it; the enroll/mint actions carry the tag in the path.
+	full := s.svc.Config.Fleet()
+	stations := make([]string, 0, len(full.Stations))
+	for tag := range full.Stations {
+		stations = append(stations, tag)
+	}
+	sort.Strings(stations)
+
+	// The selected station comes from the query, so a plain dropdown+button
+	// GET form navigates here; the enroll/mint actions carry it in the path.
 	station := strings.TrimSpace(r.URL.Query().Get("tag"))
-	if station == "" {
-		s.render(w, "station", map[string]any{"Title": "Inspoelstraat", "Nav": "station"}, v)
-		return
-	}
-	discovered, err := s.svc.Discovery.List(r.Context(), station)
-	f := s.svc.Config.Fleet().VisibleTo(v.canView)
-	groups := make([]string, 0, len(f.Groups))
-	for g := range f.Groups {
-		groups = append(groups, g)
-	}
-	sort.Strings(groups)
 	data := map[string]any{
-		"Title": "Inspoelstraat " + station, "Nav": "station",
-		"Station":    station,
-		"Discovered": discovered,
-		"Groups":     groups,
-		"CanEnroll":  v.roleAt("org").Meets(identity.Editor),
-		"CanOwn":     v.roleAt("org").Meets(identity.Owner),
+		"Title": "Imaging stations", "Nav": "station",
+		"Stations":  stations,
+		"CanEnroll": v.roleAt("org").Meets(identity.Editor),
+		"CanOwn":    v.roleAt("org").Meets(identity.Owner),
 	}
-	// One-shot station credential (just minted): show once, then clear.
-	if c, err := r.Cookie(stationCredCookie); err == nil && c.Value != "" {
-		data["MintedSecret"] = c.Value
-		http.SetCookie(w, &http.Cookie{Name: stationCredCookie, Value: "", Path: "/station/" + station, MaxAge: -1})
-	}
-	if err != nil {
-		data["Error"] = err.Error()
+
+	if station != "" {
+		st, registered := full.Stations[station]
+		data["Station"] = station
+		data["Registered"] = registered
+		data["StationInfo"] = st
+		data["ReportURL"] = reportURL(r, station)
+
+		visible := full.VisibleTo(v.canView)
+		groups := make([]string, 0, len(visible.Groups))
+		for g := range visible.Groups {
+			groups = append(groups, g)
+		}
+		sort.Strings(groups)
+		data["Groups"] = groups
+		data["Classes"] = deviceClasses
+
+		discovered, err := s.svc.Discovery.List(r.Context(), station)
+		data["Discovered"] = discovered
+		if err != nil {
+			data["Error"] = err.Error()
+		}
+		// One-shot station credential (just minted): show once, then clear.
+		if c, err := r.Cookie(stationCredCookie); err == nil && c.Value != "" {
+			data["MintedSecret"] = c.Value
+			http.SetCookie(w, &http.Cookie{Name: stationCredCookie, Value: "", Path: "/station/" + station, MaxAge: -1})
+		}
 	}
 	s.render(w, "station", data, v)
+}
+
+// postStationRegister registers a new imaging station (config-as-data, an
+// audited commit). Org Owner: registering a station is fleet infrastructure.
+func (s *Server) postStationRegister(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	tag := strings.TrimSpace(r.FormValue("tag"))
+	st := fleet.Station{
+		Description: strings.TrimSpace(r.FormValue("description")),
+		Site:        strings.TrimSpace(r.FormValue("site")),
+	}
+	if err := s.svc.Config.Apply(r.Context(), fleet.AddStation(tag, st),
+		"stations: register "+tag, webAuthor(v)); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/station?tag="+tag, http.StatusSeeOther)
+	return nil
+}
+
+// postStationRemove unregisters a station and revokes its report credential.
+func (s *Server) postStationRemove(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	station := r.PathValue("tag")
+	if err := s.svc.Config.Apply(r.Context(), fleet.RemoveStation(station),
+		"stations: remove "+station, webAuthor(v)); err != nil {
+		return err
+	}
+	if s.svc.StationCreds != nil {
+		if err := s.svc.StationCreds.Revoke(r.Context(), station); err != nil {
+			s.log.Warn("station removed but credential revoke failed", "station", station, "err", err)
+		}
+	}
+	http.Redirect(w, r, "/station", http.StatusSeeOther)
+	return nil
 }
 
 // postStationCredential mints (or rotates) the station's report credential and
@@ -99,7 +165,7 @@ func (s *Server) postStationCredential(w http.ResponseWriter, r *http.Request, v
 // station-enrolled device is indistinguishable from a hand-enrolled one.
 func (s *Server) postStationEnroll(w http.ResponseWriter, r *http.Request, v view) error {
 	if s.svc.Discovery == nil {
-		return fmt.Errorf("the inspoelstraat plane needs the observed store")
+		return fmt.Errorf("imaging stations need the observed store")
 	}
 	station := r.PathValue("tag")
 	mac := r.FormValue("mac")

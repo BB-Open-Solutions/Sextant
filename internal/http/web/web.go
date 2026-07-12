@@ -224,7 +224,9 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/profile/prefs", s.postProfilePrefs)
 	post("/profile/tokens", s.postProfileTokenMint)
 	post("/profile/tokens/{id}/revoke", s.postProfileTokenRevoke)
+	post("/stations", s.postStationRegister)
 	post("/station/{tag}/credential", s.postStationCredential)
+	post("/station/{tag}/remove", s.postStationRemove)
 	post("/station/{tag}/enroll", s.postStationEnroll)
 }
 
