@@ -65,10 +65,10 @@
           <tr><th>Device</th><th>Revision</th><th>Phase</th><th>State</th></tr>
           {{range .Status}}
           <tr class="hover:bg-surface-container-low transition-colors">
-            <td><a href="/devices/{{.Tag}}" class="font-mono font-medium">{{.Tag}}</a></td>
-            <td class="font-mono text-text-secondary">{{.Revision}}</td>
-            <td>{{.Phase}}</td>
-            <td>{{if .Online}}<span class="tag ok"><span class="material-symbols-outlined ms-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}</td>
+            <td class="whitespace-nowrap align-middle"><a href="/devices/{{.Tag}}" class="font-mono font-medium">{{.Tag}}</a></td>
+            <td class="align-middle"><span class="block max-w-[18rem] truncate font-mono text-text-secondary" title="{{.Revision}}">{{.Revision}}</span></td>
+            <td class="align-middle">{{.Phase}}</td>
+            <td class="align-middle text-right">{{if .Online}}<span class="tag ok"><span class="material-symbols-outlined ms-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}</td>
           </tr>
           {{else}}
           <tr><td colspan="4" class="muted">No check-ins yet.</td></tr>

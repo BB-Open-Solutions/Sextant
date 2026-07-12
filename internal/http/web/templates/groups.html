@@ -72,7 +72,12 @@
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="setidp" value="1">
               <label>Map IdP group</label>
               <div class="flex gap-2">
+                {{if $.DirGroups}}
+                {{$cur := .IdpGroup}}
+                <select name="idpGroup" class="min-w-0 flex-1"><option value="">&mdash; unmapped &mdash;</option>{{range $.DirGroups}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
+                {{else}}
                 <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group" class="min-w-0 flex-1">
+                {{end}}
                 <button type="submit" class="quiet shrink-0">Map</button>
               </div>
             </form>
@@ -99,7 +104,10 @@
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="flex flex-col gap-1"><label>Name</label><input name="name" placeholder="lowercase slug" required></div>
     <div class="flex flex-col gap-1"><label>Parent</label><select name="parent"><option value="">(root)</option>{{range .AllGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-    <div class="flex flex-col gap-1"><label>IdP mapping</label><input name="idpGroup" placeholder="optional"></div>
+    <div class="flex flex-col gap-1"><label>IdP mapping</label>
+      {{if .DirGroups}}<select name="idpGroup"><option value="">— none —</option>{{range .DirGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+      {{else}}<input name="idpGroup" placeholder="optional">{{end}}
+    </div>
     <button type="submit">Create</button>
   </form>
 </div>

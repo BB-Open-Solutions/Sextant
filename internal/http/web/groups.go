@@ -26,7 +26,7 @@ type groupRow struct {
 }
 
 // groupsPage renders the visible tree.
-func (s *Server) groupsPage(w http.ResponseWriter, _ *http.Request, v view) {
+func (s *Server) groupsPage(w http.ResponseWriter, r *http.Request, v view) {
 	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 
 	var rows []groupRow
@@ -79,11 +79,27 @@ func (s *Server) groupsPage(w http.ResponseWriter, _ *http.Request, v view) {
 	}
 	sort.Strings(all)
 
-	s.render(w, "groups", map[string]any{
+	data := map[string]any{
 		"Title": "Groups", "Nav": "groups",
 		"Rows": rows, "AllGroups": all,
 		"CanOrgOwn": v.roleAt("org").Meets(identity.Owner),
-	}, v)
+	}
+	// IdP-group picker: offer the real directory groups as a dropdown instead
+	// of free text. Best-effort; a slow or absent directory must not break the
+	// page (the template falls back to a text field).
+	if s.svc.Directory != nil && v.roleAt("org").Meets(identity.Owner) {
+		if dgs, err := s.svc.Directory.ListGroups(r.Context(), ""); err == nil {
+			names := make([]string, 0, len(dgs))
+			for _, g := range dgs {
+				names = append(names, g.Name)
+			}
+			sort.Strings(names)
+			data["DirGroups"] = names
+		} else {
+			s.log.Warn("directory browse failed", "err", err)
+		}
+	}
+	s.render(w, "groups", data, v)
 }
 
 // postGroupAdd creates a group under an optional parent.
