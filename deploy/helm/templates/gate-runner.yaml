@@ -1,0 +1,118 @@
+{{- if .Values.gateRunner.enabled }}
+# gate-runner: the nix-capable validation gate the console delegates to when
+# gateMode=remote. It keeps its own warm overlay clone and a persistent /nix
+# store so evaluations are fast after the first. Never exposed via ingress -
+# only the console talks to it (see the CiliumNetworkPolicy).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gate
+  labels: { app: {{ .Release.Name }}-gate }
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # single overlay working tree
+  selector:
+    matchLabels: { app: {{ .Release.Name }}-gate }
+  template:
+    metadata:
+      labels: { app: {{ .Release.Name }}-gate }
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.gitRemote.netrcSecret }}
+      initContainers:
+        # Drop the overlay remote's netrc into HOME so git (and nix, for the
+        # flake input) can authenticate before the runner clones on boot.
+        - name: seed-netrc
+          image: "{{ .Values.gateRunner.image.repository }}:{{ .Values.gateRunner.image.tag }}"
+          command: ["/bin/sh", "-c"]
+          args:
+            - install -m 0600 /netrc-secret/netrc /data/.netrc
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: netrc, mountPath: /netrc-secret, readOnly: true }
+      {{- end }}
+      containers:
+        - name: gate-runner
+          image: "{{ .Values.gateRunner.image.repository }}:{{ .Values.gateRunner.image.tag }}"
+          imagePullPolicy: {{ .Values.gateRunner.image.pullPolicy }}
+          args:
+            - --addr=0.0.0.0:8090
+            - --workdir=/data/overlay
+            - --remote={{ .Values.gitRemote.url }}
+            - --branch={{ .Values.gitRemote.branch }}
+            - --log-format={{ .Values.logFormat }}
+            {{- with .Values.gateRunner.hostVariants }}
+            - --host-variants={{ . }}
+            {{- end }}
+          env:
+            # git and nix read /data/.netrc for the private overlay remote.
+            - { name: HOME, value: /data }
+          ports:
+            - { containerPort: 8090, name: http }
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+            failureThreshold: 60 # first clone + nixpkgs warm can be slow
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources: {{- toYaml .Values.gateRunner.resources | nindent 12 }}
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: nixstore, mountPath: /nix }
+      volumes:
+        {{- if .Values.gitRemote.netrcSecret }}
+        - name: netrc
+          secret: { secretName: {{ .Values.gitRemote.netrcSecret }} }
+        {{- end }}
+        - name: data
+          {{- if .Values.gateRunner.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ .Release.Name }}-gate-data }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: nixstore
+          {{- if .Values.gateRunner.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ .Release.Name }}-gate-nix }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gate
+  labels: { app: {{ .Release.Name }}-gate }
+spec:
+  selector: { app: {{ .Release.Name }}-gate }
+  ports:
+    - { port: 8090, targetPort: http, name: http }
+{{- if .Values.gateRunner.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-gate-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: {{ .Values.gateRunner.persistence.dataSize }} } }
+  {{- with .Values.gateRunner.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-gate-nix
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: {{ .Values.gateRunner.persistence.nixSize }} } }
+  {{- with .Values.gateRunner.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end }}

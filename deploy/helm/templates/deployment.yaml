@@ -87,6 +87,9 @@ spec:
             - --write
             {{- end }}
             - --gate={{ .Values.gateMode }}
+            {{- if eq .Values.gateMode "remote" }}
+            - --gate-url=http://{{ .Release.Name }}-gate:8090
+            {{- end }}
             {{- if .Values.gitRemote.url }}
             - --git-remote=origin
             {{- end }}

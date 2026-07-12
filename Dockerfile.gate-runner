@@ -1,0 +1,24 @@
+# Gate-runner image: the nix-capable validation gate the console delegates to
+# when it runs with --gate=remote. The console image stays tiny and nix-free;
+# this one carries nix + git so it can evaluate the overlay generator.
+
+# Build stage: offline, reproducible (vendored deps, trimmed paths).
+FROM golang:1.25-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY vendor/ vendor/
+COPY cmd/ cmd/
+COPY internal/ internal/
+RUN CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" \
+    -o /out/gate-runner ./cmd/gate-runner
+
+# Runtime stage: the official nix image, plus git for the overlay clone.
+FROM nixos/nix:2.24.9
+# Flakes + a substituter for fast evaluation; the persistent /nix store
+# (mounted as a volume) keeps nixpkgs and the core flake warm across evals.
+RUN mkdir -p /etc/nix \
+ && printf 'experimental-features = nix-command flakes\nsandbox = false\n' >> /etc/nix/nix.conf \
+ && nix-env -iA nixpkgs.git
+COPY --from=build /out/gate-runner /usr/local/bin/gate-runner
+EXPOSE 8090
+ENTRYPOINT ["/usr/local/bin/gate-runner"]

@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/time/rate"
 
+	gateadapter "code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/gate"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	ldapdir "code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/ldap"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/nix"
@@ -82,10 +83,17 @@ func (d *deps) buildConfigPlane() error {
 	}
 	var gate ports.Gate = nix.NewEvalGate()
 	var builder ports.Builder = nix.NewBuilder()
-	if cfg.GateMode == "none" {
+	switch cfg.GateMode {
+	case "none":
 		log.Warn("validation gate disabled (--gate none): edits are not checked against the generator")
 		gate = ports.GateFunc(func(context.Context, string, []string) error { return nil })
 		builder = builderFunc(func(context.Context, string, []string) error { return nil })
+	case "remote":
+		log.Info("validation gate delegated to gate-runner", "url", cfg.GateURL)
+		gate = gateadapter.NewRemoteGate(cfg.GateURL)
+		// The heavy build gate (CR path) also needs nix; without it in-image
+		// the change-request build step is a no-op until a runner grows the
+		// build endpoint. Keep the local builder (used only where nix exists).
 	}
 	svc, err := app.NewConfigService(repo, gate)
 	if err != nil {

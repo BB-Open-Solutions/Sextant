@@ -2,7 +2,7 @@
 # an existing Secret (secretName) with SEXTANT_* keys.
 image:
   repository: forgejo.bb-open.com/bb-open/sextant
-  tag: "0.18.1"
+  tag: "0.19.0"
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 
@@ -15,7 +15,28 @@ replicaCount: 1
 secretName: sextant-v2
 
 write: true
-gateMode: none # the seed overlay carries no flake; switch to eval per org
+gateMode: none # none | eval (in-pod nix) | remote (delegate to gate-runner)
+
+# gate-runner: nix-capable validation gate for gateMode=remote. The console
+# image ships no nix; when enabled the runner evaluates the overlay generator
+# out of process. Deploy it (enabled) and verify /healthz before flipping the
+# console to gateMode=remote (remote is fail-closed: writes reject if the
+# runner is down).
+gateRunner:
+  enabled: false
+  image:
+    repository: forgejo.bb-open.com/bb-open/sextant-gate
+    tag: "0.19.0"
+    pullPolicy: IfNotPresent
+  hostVariants: "" # comma-separated suffixes the generator emits, e.g. ",-sb"
+  persistence:
+    enabled: true
+    storageClass: ""
+    dataSize: 2Gi
+    nixSize: 20Gi # nixpkgs + core flake closure for evaluation
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { cpu: "2", memory: 4Gi }
 
 # Git remote as the source of truth (M1): when url is set, the init
 # container clones it instead of self-seeding, and the server runs with

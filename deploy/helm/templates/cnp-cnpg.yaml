@@ -36,4 +36,46 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+    {{- if .Values.gateRunner.enabled }}
+    # The gate-runner (in-cluster) on 8090 for remote validation.
+    - toEndpoints:
+        - matchLabels:
+            app: {{ .Release.Name }}-gate
+      toPorts:
+        - ports:
+            - port: "8090"
+              protocol: TCP
+    {{- end }}
+{{- end }}
+{{- if .Values.gateRunner.enabled }}
+---
+# gate-runner egress: DNS + HTTPS to the overlay git remote, cache.nixos.org
+# and the flake inputs it evaluates. Once selected, Cilium denies all other
+# egress, so this is the full set.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-{{ .Release.Name }}-gate-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      app: {{ .Release.Name }}-gate
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEntities:
+        - world
+        - cluster
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
 {{- end }}

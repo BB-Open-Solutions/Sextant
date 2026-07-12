@@ -33,9 +33,12 @@ type Config struct {
 	// Write enables the write path (mutations, commits). Off by default:
 	// a read-only console can never change the fleet.
 	Write bool
-	// GateMode selects the validation gate: "eval" (nix eval, the default)
-	// or "none" (no gate; for tests and repos without a flake).
+	// GateMode selects the validation gate: "eval" (in-process nix eval,
+	// the default), "remote" (delegate to a nix-capable gate-runner; the
+	// console image ships no nix) or "none" (no gate; tests / no flake).
 	GateMode string
+	// GateURL is the gate-runner base URL when GateMode is "remote".
+	GateURL string
 	// GitRemote names the push remote for the HA write path ("" = local
 	// commits only).
 	GitRemote string
@@ -105,6 +108,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		ShutdownGrace:    15 * time.Second,
 		RepoDir:          envOr(getenv, "REPO", ""),
 		GateMode:         envOr(getenv, "GATE", "eval"),
+		GateURL:          envOr(getenv, "GATE_URL", ""),
 		GitRemote:        envOr(getenv, "GIT_REMOTE", ""),
 		APIToken:         getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
 		CheckinToken:     getenv(EnvPrefix + "CHECKIN_TOKEN"), // env-only secret
@@ -149,7 +153,8 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.DurationVar(&cfg.ShutdownGrace, "shutdown-grace", cfg.ShutdownGrace, "graceful shutdown timeout")
 	fs.StringVar(&cfg.RepoDir, "repo", cfg.RepoDir, "overlay working tree (the config plane)")
 	fs.BoolVar(&cfg.Write, "write", cfg.Write, "enable the write path (mutations, commits)")
-	fs.StringVar(&cfg.GateMode, "gate", cfg.GateMode, "validation gate: eval|none")
+	fs.StringVar(&cfg.GateMode, "gate", cfg.GateMode, "validation gate: eval|remote|none")
+	fs.StringVar(&cfg.GateURL, "gate-url", cfg.GateURL, "gate-runner base URL (when --gate=remote)")
 	fs.StringVar(&cfg.GitRemote, "git-remote", cfg.GitRemote, "push remote for the HA write path")
 	fs.StringVar(&cfg.StateDir, "state-dir", cfg.StateDir, "durable control-plane state dir (default <repo>/.sextant-state)")
 	fs.StringVar(&cfg.OIDCIssuer, "oidc-issuer", cfg.OIDCIssuer, "OIDC issuer URL (empty disables session auth)")
@@ -205,8 +210,12 @@ func (c *Config) validate() error {
 	}
 	switch c.GateMode {
 	case "eval", "none":
+	case "remote":
+		if c.GateURL == "" {
+			return fmt.Errorf("gate remote requires --gate-url")
+		}
 	default:
-		return fmt.Errorf("gate %q: must be eval|none", c.GateMode)
+		return fmt.Errorf("gate %q: must be eval|remote|none", c.GateMode)
 	}
 	if c.Write && c.RepoDir == "" {
 		return fmt.Errorf("--write needs --repo")
