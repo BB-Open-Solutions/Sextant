@@ -146,6 +146,11 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 	if err := s.requireWeb(v, scope, identity.Editor); err != nil {
 		return err
 	}
+	// Governance: when the org requires a change-request, a setting is not
+	// committed straight to main - stage it on a change and let it be reviewed.
+	if a := s.svc.Config.Fleet().Assurance; a != nil && a.RequireChangeRequest {
+		return fmt.Errorf("change-request required: open a change on the Changes page and stage this setting there (this organisation reviews configuration edits before they take effect)")
+	}
 	entry, ok := s.svc.Config.Catalog().Lookup(key)
 	if !ok {
 		return fmt.Errorf("unknown setting %q (not in catalog)", key)

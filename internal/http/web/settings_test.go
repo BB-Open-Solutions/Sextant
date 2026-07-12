@@ -178,3 +178,27 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 		t.Fatalf("bad csrf status = %d", respCSRF.StatusCode)
 	}
 }
+
+func TestRequireChangeRequestBlocksDirectSetting(t *testing.T) {
+	ts, cfg := newConsole(t)
+	c := client()
+
+	// Turn on require-change-request (dev session is org owner).
+	resp, _ := c.PostForm(ts.URL+"/assurance", url.Values{"csrf": {"dev-csrf"}, "requireChangeRequest": {"on"}})
+	resp.Body.Close()
+	if !cfg.Fleet().Assurance.RequireChangeRequest {
+		t.Fatal("require-change-request not saved")
+	}
+
+	// A direct setting edit is now refused (must go through a change).
+	resp, _ = c.PostForm(ts.URL+"/settings", url.Values{
+		"csrf": {"dev-csrf"}, "scope": {"org"}, "key": {"desktop"}, "action": {"set"}, "value": {"gnome"}})
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode == 303 {
+		t.Fatal("direct setting accepted while change-request is required")
+	}
+	if !strings.Contains(string(body), "change-request required") {
+		t.Fatalf("expected change-request message, got %d\n%s", resp.StatusCode, body)
+	}
+}
