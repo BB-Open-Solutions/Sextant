@@ -337,6 +337,15 @@ func (s *apiMemTokenStore) ListBySubject(_ context.Context, subj string) ([]toke
 	}
 	return out, nil
 }
+func (s *apiMemTokenStore) ListByKind(_ context.Context, kind tokenpkg.Kind) ([]tokenpkg.Token, error) {
+	var out []tokenpkg.Token
+	for _, t := range s.m {
+		if t.Kind == kind {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
 func (s *apiMemTokenStore) Delete(_ context.Context, id string) error              { delete(s.m, id); return nil }
 func (s *apiMemTokenStore) TouchLastUsed(context.Context, string, time.Time) error { return nil }
 

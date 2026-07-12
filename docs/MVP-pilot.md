@@ -5,6 +5,22 @@ The minimal capability set Sextant must deliver to run the pilots well
 station). "MVP" here means *usable end-to-end on real devices*, not
 production-scale (cells, 1M devices, DR) — that is post-pilot.
 
+## Definition of done (the acceptance loop)
+The MVP is done when this works end-to-end on one real device:
+1. **Hang the t495s on the NUC** (inspoelstraat station).
+2. **Inspoel it** — it PXE-boots, appears as *discovered* in the console,
+   operator enrolls it → it gets its image + one-shot credential → active.
+3. **Update it** — a config/rollout change reaches the t495s (comin) and it
+   converges; the console shows the new revision.
+4. **Retire / wipe it** — retire stops it (audit kept); crypto-wipe destroys
+   the disk keys on the device (irreversible, per-device go).
+
+Everything below serves this loop. The **critical path** is the t495s spine:
+station/discovered plane → agent on the t495s (check-in + intent execution) →
+update lands (comin-branch wiring) → retire + crypto-wipe execution. The
+Integrations/Apps catalog (G) and dormant-logic activation (H) are real MVP
+work but come *after* the spine proves the loop.
+
 ## Capabilities (what the app must do)
 
 | # | Capability | State | Gap |

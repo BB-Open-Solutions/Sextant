@@ -67,6 +67,13 @@ func (s *TokenService) List(ctx context.Context, subject string) ([]token.Token,
 	return s.store.ListBySubject(ctx, subject)
 }
 
+// ListServiceAccounts returns every service-account token across all
+// subjects. Owner-only in the transport layer; never called on the auth
+// path (it scans by kind, not by the id embedded in a secret).
+func (s *TokenService) ListServiceAccounts(ctx context.Context) ([]token.Token, error) {
+	return s.store.ListByKind(ctx, token.Service)
+}
+
 // Revoke deletes a token. The caller authorizes (owner of the token, or an
 // org owner).
 func (s *TokenService) Revoke(ctx context.Context, id string) error {

@@ -86,6 +86,7 @@
   .role.owner  { @apply bg-ink text-canvas; }
   .role.editor { @apply bg-secondary-container text-on-secondary-container; }
   .role.viewer { @apply bg-surface-container text-text-secondary border border-border-soft; }
+  .role.none   { @apply bg-transparent text-text-tertiary border border-dashed border-border-soft; }
 
   /* Text helpers */
   .muted { @apply text-text-tertiary text-body-md; }

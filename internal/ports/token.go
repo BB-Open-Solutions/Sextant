@@ -16,6 +16,9 @@ type TokenStore interface {
 	Get(ctx context.Context, id string) (token.Token, bool, error)
 	// ListBySubject returns a principal's tokens (for self-management).
 	ListBySubject(ctx context.Context, subject string) ([]token.Token, error)
+	// ListByKind returns every token of one kind across all subjects (for the
+	// owner-only service-account admin view). Never call this on the auth path.
+	ListByKind(ctx context.Context, kind token.Kind) ([]token.Token, error)
 	// Delete revokes a token by id.
 	Delete(ctx context.Context, id string) error
 	// TouchLastUsed records a use; best-effort, must not block auth.

@@ -142,7 +142,7 @@ func New(svc Services, sessions Sessions, write bool,
 			return fmt.Sprintf("gd-%d", depth)
 		},
 	}
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -188,6 +188,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/audit/evidence", s.auditEvidence)
 	get("/station", s.stationPage)
 	get("/secrets", s.secretsPage)
+	get("/service-accounts", s.serviceAccountsPage)
 	get("/profile", s.profilePage)
 
 	post("/devices", s.postDeviceEnroll)
@@ -233,6 +234,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/station/{tag}/enroll", s.postStationEnroll)
 	post("/secrets", s.postSecretRegister)
 	post("/secrets/{name}/remove", s.postSecretRemove)
+	post("/service-accounts", s.postServiceAccountMint)
+	post("/service-accounts/{id}/revoke", s.postServiceAccountRevoke)
 	post("/acceptances", s.postAcceptance)
 	post("/acceptances/clear", s.postAcceptanceClear)
 }
@@ -326,6 +329,11 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 	// Org-wide pages (changes, rollout) refuse scoped viewers; hide the
 	// links instead of offering a door that only opens with a 403.
 	data["CanOrgView"] = v.canView("org")
+	// CanOrgOwn gates owner-only nav entries (service accounts); pages that
+	// already set their own CanOrgOwn keep theirs.
+	if _, ok := data["CanOrgOwn"]; !ok {
+		data["CanOrgOwn"] = v.roleAt("org").Meets(identity.Owner)
+	}
 	if _, ok := data["Error"]; !ok {
 		data["Error"] = ""
 	}

@@ -53,6 +53,17 @@ func (m *memTokens) ListBySubject(_ context.Context, subject string) ([]token.To
 	}
 	return out, nil
 }
+func (m *memTokens) ListByKind(_ context.Context, kind token.Kind) ([]token.Token, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []token.Token
+	for _, t := range m.toks {
+		if t.Kind == kind {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
 func (m *memTokens) Delete(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

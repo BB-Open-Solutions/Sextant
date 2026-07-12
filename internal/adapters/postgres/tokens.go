@@ -84,6 +84,26 @@ func (t *TokenStore) ListBySubject(ctx context.Context, subject string) ([]token
 	return out, rows.Err()
 }
 
+// ListByKind implements ports.TokenStore.
+func (t *TokenStore) ListByKind(ctx context.Context, kind token.Kind) ([]token.Token, error) {
+	rows, err := t.s.pool.Query(ctx, `
+		SELECT id, name, kind, subject, groups, ceiling, hash, created, expires, last_used
+		FROM api_tokens WHERE kind = $1 ORDER BY created DESC`, string(kind))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []token.Token
+	for rows.Next() {
+		tok, err := scanToken(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, tok)
+	}
+	return out, rows.Err()
+}
+
 // Delete implements ports.TokenStore.
 func (t *TokenStore) Delete(ctx context.Context, id string) error {
 	_, err := t.s.pool.Exec(ctx, "DELETE FROM api_tokens WHERE id = $1", id)
