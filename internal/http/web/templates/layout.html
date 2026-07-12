@@ -46,6 +46,7 @@
       {{if .CanOrgView}}
       <p class="nav-section">Shipping</p>
       <ul class="space-y-1 px-2">
+        <li><a href="/pipeline" class="nav-link {{if eq $n "pipeline"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">conveyor_belt</span>Pipeline</a></li>
         <li><a href="/changes" class="nav-link {{if eq $n "changes"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">difference</span>{{.L.T "nav.changes"}}</a></li>
         <li><a href="/rollout" class="nav-link {{if eq $n "rollout"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">rocket_launch</span>{{.L.T "nav.rollout"}}</a></li>
       </ul>

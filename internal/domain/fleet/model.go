@@ -218,6 +218,14 @@ type RolloutRing struct {
 	RequireApproval   bool   `json:"requireApproval,omitempty"` // manual promotion gate
 }
 
+// Label is the wave's display name (its Name, or the group if unnamed).
+func (r RolloutRing) Label() string {
+	if r.Name != "" {
+		return r.Name
+	}
+	return r.Group
+}
+
 // AccessBinding mirrors identity.Binding in the config document.
 type AccessBinding struct {
 	Group string `json:"group"`

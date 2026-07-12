@@ -1,0 +1,73 @@
+{{define "content"}}
+<div class="mb-6">
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">conveyor_belt</span>Deployment pipeline</h1>
+  <p class="mb-0 max-w-3xl text-body-md text-text-tertiary">The whole process, left to right: a change request is drafted, built and approved, then its revision rolls out through the waves — test waves first, then phased production. Cards link to the change and rollout screens where you act.</p>
+</div>
+
+<div class="overflow-x-auto pb-4">
+  <div class="flex min-w-max items-stretch gap-4">
+
+    {{/* --- Change-request stages --- */}}
+    {{$ := .}}
+    {{range $col := list (list "Draft" .Draft "edit_note") (list "Building" .Building "build") (list "Ready to merge" .Ready "task_alt")}}
+    <div class="flex w-72 shrink-0 flex-col rounded-lg border border-border-hairline bg-surface-container-low">
+      <div class="flex items-center justify-between border-b border-border-hairline px-4 py-3">
+        <span class="flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined ms-18 text-text-tertiary">{{index $col 2}}</span>{{index $col 0}}</span>
+        <span class="rounded bg-surface-container px-2 py-0.5 text-label-xs-caps uppercase text-text-tertiary">{{len (index $col 1)}}</span>
+      </div>
+      <div class="flex flex-1 flex-col gap-3 p-3">
+        {{range index $col 1}}
+        <a href="/changes" class="block rounded-md border border-border-soft bg-canvas p-3 shadow-sm hover:border-mint-vibrant transition-colors">
+          <div class="flex items-center justify-between"><span class="font-mono text-code-inline text-text-tertiary">{{.ID}}</span>
+            <span class="tag {{if eq (printf "%s" .Status) "ready"}}ok{{else if eq (printf "%s" .Status) "failed"}}bad{{else if eq (printf "%s" .Status) "building"}}lock{{end}}">{{.Status}}</span></div>
+          <div class="mt-1 text-body-md font-medium text-ink">{{.Title}}</div>
+          <div class="mt-1 flex items-center gap-1 text-label-md text-text-tertiary"><span class="material-symbols-outlined ms-14">person</span>{{.Author}} · {{$.L.Time .Updated}}</div>
+        </a>
+        {{else}}
+        <p class="muted px-1 py-6 text-center text-label-md">Nothing here</p>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+
+    {{/* --- Divider into the rollout --- */}}
+    <div class="flex shrink-0 items-center px-1"><span class="material-symbols-outlined text-text-tertiary">chevron_right</span></div>
+
+    {{/* --- Rollout waves --- */}}
+    {{if .Waves}}
+    {{range .Waves}}
+    <div class="flex w-72 shrink-0 flex-col rounded-lg border {{if .Active}}border-mint-vibrant{{else}}border-border-hairline{{end}} bg-surface-container-low">
+      <div class="flex items-center justify-between border-b border-border-hairline px-4 py-3">
+        <span class="flex items-center gap-2 text-label-md font-bold text-ink"><span class="flex h-5 w-5 items-center justify-center rounded-full text-label-xs-caps {{if eq .Status "Complete"}}bg-ink text-canvas{{else if .Active}}bg-mint-vibrant text-ink{{else}}bg-surface-container-highest text-text-tertiary{{end}}">{{.Index}}</span>{{.Label}}</span>
+        {{if .Manual}}<span class="material-symbols-outlined ms-16 text-text-tertiary" title="manual approval gate">how_to_reg</span>{{end}}
+      </div>
+      <div class="flex flex-1 flex-col gap-3 p-4">
+        <div class="text-label-md text-text-tertiary">group <code class="text-text-secondary">{{.Group}}</code></div>
+        <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container-high"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
+        <div class="text-label-md text-text-tertiary"><span class="font-mono text-ink">{{.OnTarget}}</span> / <span class="font-mono">{{.Total}}</span> on target</div>
+        <div class="mt-auto">
+          {{if .Await}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined ms-16">how_to_reg</span>Awaiting approval</span>
+            {{if $.CanOwn}}<form method="post" action="/rollout/approve" class="mt-2 inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="w-full !bg-mint-vibrant !text-ink">Approve &amp; promote</button></form>{{end}}
+          {{else if eq .Status "Complete"}}<span class="flex items-center gap-1 text-text-secondary"><span class="material-symbols-outlined ms-16">check_circle</span>Complete</span>
+          {{else if eq .Status "Deploying"}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined ms-16">sync</span>Deploying</span>
+          {{else if eq .Status "Soaking"}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined ms-16">schedule</span>Soaking</span>
+          {{else if eq .Status "Planned"}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined ms-16">pending</span>Planned</span>
+          {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined ms-16">lock</span>Queued</span>{{end}}
+        </div>
+      </div>
+    </div>
+    {{end}}
+    {{else}}
+    <div class="flex w-80 shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-hairline p-6 text-center">
+      <span class="material-symbols-outlined ms-22 text-text-tertiary">rocket_launch</span>
+      <p class="muted mb-0">No waves configured. Define the wave plan on the <a href="/rollout" class="text-secondary">Rollout</a> page — test waves first, then phases.</p>
+    </div>
+    {{end}}
+
+  </div>
+</div>
+
+{{if .State}}
+<p class="mt-2 text-body-md text-text-tertiary">Rolling out <code class="rounded bg-surface-container px-2 py-0.5 text-ink">{{.State.Target}}</code> · status {{.State.Status}}. Manage on the <a href="/rollout" class="text-secondary">Rollout</a> page.</p>
+{{end}}
+{{end}}

@@ -64,20 +64,20 @@
               <label>Re-parent</label>
               {{$row := .}}
               <div class="flex gap-2">
-                <select name="parent" class="flex-1"><option value="" {{if not .Parent}}selected{{end}}>(root)</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
-                <button type="submit" class="quiet">Move</button>
+                <select name="parent" class="min-w-0 flex-1"><option value="" {{if not .Parent}}selected{{end}}>(root)</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
+                <button type="submit" class="quiet shrink-0">Move</button>
               </div>
             </form>
             <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="setidp" value="1">
               <label>Map IdP group</label>
               <div class="flex gap-2">
-                <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group" class="flex-1">
-                <button type="submit" class="quiet">Map</button>
+                <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group" class="min-w-0 flex-1">
+                <button type="submit" class="quiet shrink-0">Map</button>
               </div>
             </form>
-            <form method="post" action="/groups/{{.Name}}/remove" class="inline" onsubmit="return confirm('Remove group {{.Name}}?')">
-              <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined ms-16">delete</span>Remove group</button>
+            <form method="post" action="/groups/{{.Name}}/remove" class="!block" onsubmit="return confirm('Remove group {{.Name}}?')">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet w-full justify-center !border-status-error/40 !text-status-error"><span class="material-symbols-outlined ms-16">delete</span>Remove group</button>
             </form>
           </div>
         </div>
