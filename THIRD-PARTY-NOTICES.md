@@ -30,10 +30,6 @@ as WOFF2. No modifications were made to the glyph designs.
 
 ## Front-end libraries
 
-### htmx
-- Copyright (c) htmx authors
-- Licence: 0BSD / BSD-2-Clause (vendored: internal/http/web/static/htmx.min.js)
-
 ### Tailwind CSS
 - Copyright (c) Tailwind Labs, Inc.
 - Licence: MIT

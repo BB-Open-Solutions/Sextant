@@ -16,3 +16,7 @@ coverage.html
 .env
 .pg_password
 .direnv/
+
+# Design inputs (Stitch export, mintlify draft) - not shippable code
+docs/design/*.zip
+docs/design/DESIGN-mintlify.md

@@ -20,7 +20,7 @@ internal/domain    pure model + scope/policy resolution (no I/O)
 internal/app       use-case services
 internal/ports     interfaces the app depends on
 internal/adapters  git, nix, postgres, ldap, oidc, integrations
-internal/http      SSR web (html/template + htmx) and /api/v1 JSON
+internal/http      SSR web (html/template, form-POST) and /api/v1 JSON
 internal/platform  config, logging, metrics, server lifecycle
 ```
 

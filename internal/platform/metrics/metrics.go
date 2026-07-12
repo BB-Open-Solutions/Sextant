@@ -51,10 +51,6 @@ func New() *Metrics {
 	return m
 }
 
-// Registry exposes the underlying registry for adapters that register their
-// own instruments (git, nix, postgres).
-func (m *Metrics) Registry() *prometheus.Registry { return m.registry }
-
 // Handler serves the /metrics endpoint.
 func (m *Metrics) Handler() http.Handler {
 	return promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{})

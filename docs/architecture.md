@@ -8,7 +8,7 @@ the rollout, and reports what each device actually runs.
 ## Shape: hexagonal (ports and adapters)
 
 ```
-transport   internal/http/web (SSR html/template + htmx)
+transport   internal/http/web (SSR html/template, form-POST)
             internal/http/api (/api/v1 JSON: dfctl, AI, CI)
             internal/http/mw  (recover, access log, secure headers, csrf, ratelimit)
                  |
