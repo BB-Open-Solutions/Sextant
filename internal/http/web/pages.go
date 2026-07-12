@@ -334,6 +334,30 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 	data["AllGroups"] = allGroups
 	data["PlanGroups"], data["PlanSoaks"], data["PlanHealthy"] = planGroups, planSoaks, planHealthy
 	data["PlanNames"], data["PlanApproval"] = planNames, planApproval
+
+	// Plan ladder: the ordered waves with each wave's device count, so an
+	// operator sees the progression at a glance (e.g. Canary 1 -> Pilot 10 ->
+	// Phase 1 100 -> ...). The wave size is its group's active device count;
+	// tune it by sizing groups and ordering waves, and refine per wave with
+	// soak, health and an approval gate.
+	if f.Rollout != nil && len(f.Rollout.Rings) > 0 {
+		type ladderStep struct {
+			N             int
+			Name, Group   string
+			Devices       int
+			Soak, Healthy int
+			Approval      bool
+		}
+		ladder := make([]ladderStep, 0, len(f.Rollout.Rings))
+		for i, rr := range f.Rollout.Rings {
+			ladder = append(ladder, ladderStep{
+				N: i + 1, Name: rr.Label(), Group: rr.Group,
+				Devices: len(f.ActiveGroupDevices(rr.Group)),
+				Soak:    rr.SoakMinutes, Healthy: rr.MinHealthyPercent, Approval: rr.RequireApproval,
+			})
+		}
+		data["PlanLadder"] = ladder
+	}
 	st, ringStatus, err := s.svc.Rollouts.Status(r.Context())
 	if err != nil {
 		data["Error"] = err.Error()

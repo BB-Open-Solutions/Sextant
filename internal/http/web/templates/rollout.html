@@ -13,6 +13,35 @@
   {{end}}
 </div>
 
+{{if .PlanLadder}}
+<!-- How the rollout flows: the ordered waves and their size -->
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <div class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">stairs</span><h2 class="mt-0 mb-0 text-headline-sm">How this rollout ships</h2></div>
+  <p class="mb-5 max-w-3xl text-body-sm text-text-tertiary">The update reaches each wave in order &mdash; the next wave only starts once the current one is healthy through its soak window (and you sign off a gated wave). Size a wave by its group (a small canary first, then wider); refine each with soak, health and an approval gate.</p>
+  <div class="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-stretch">
+    {{range .PlanLadder}}
+    <div class="flex items-center gap-3">
+      <div class="min-w-[9rem] rounded-lg border border-border-soft bg-surface-container-low p-4">
+        <div class="flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-label-xs-caps font-semibold text-canvas">{{.N}}</span>
+          <span class="font-medium text-ink">{{.Name}}</span>
+        </div>
+        <div class="mt-2 flex items-baseline gap-1"><span class="text-headline-sm font-bold text-ink">{{.Devices}}</span><span class="text-label-md text-text-tertiary">device{{if ne .Devices 1}}s{{end}}</span></div>
+        <div class="mt-1 font-mono text-label-xs-caps text-text-tertiary">{{.Group}}</div>
+        <div class="mt-2 flex flex-wrap gap-1">
+          {{if .Soak}}<span class="tag"><span class="material-symbols-outlined ms-14">schedule</span>{{.Soak}}m</span>{{end}}
+          <span class="tag">&ge;{{if .Healthy}}{{.Healthy}}{{else}}100{{end}}%</span>
+          {{if .Approval}}<span class="tag lock"><span class="material-symbols-outlined ms-14">how_to_reg</span>gate</span>{{end}}
+        </div>
+      </div>
+      <span class="material-symbols-outlined text-text-tertiary">arrow_forward</span>
+    </div>
+    {{end}}
+    <div class="flex items-center rounded-lg border border-dashed border-border-soft px-4 text-label-md text-text-tertiary">All remaining</div>
+  </div>
+</div>
+{{end}}
+
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
   <!-- Left: progression + convergence -->
   <div class="flex flex-col gap-6 xl:col-span-2">
