@@ -32,6 +32,10 @@ let
     else { };
   riskClass = opt:
     if (opt.riskClass or "") != "" then { riskClass = opt.riskClass; } else { };
+  # secret: an option annotated `// { secret = true; }` renders in the console
+  # as a secret-ref picker (the value is a secret name, never the material).
+  secret = opt:
+    if (opt.secret or false) then { secret = true; } else { };
   walk = prefix: opts:
     lib.concatLists (lib.mapAttrsToList
       (name: v:
@@ -44,7 +48,7 @@ let
               if lib.isString v.description
               then v.description
               else v.description.text or "";
-          } // plainDefault v // riskClass v)
+          } // plainDefault v // riskClass v // secret v)
         else if lib.isAttrs v then walk path v
         else [ ])
       opts);
