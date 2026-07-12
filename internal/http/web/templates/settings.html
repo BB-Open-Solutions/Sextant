@@ -1,18 +1,22 @@
 {{define "content"}}
-<h1>Settings</h1>
-
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <form method="get" action="/settings" class="!items-center">
-    <label for="scope" class="font-medium">Scope</label>
-    <select id="scope" name="scope" onchange="this.form.submit()">
-      <option value="org" {{if eq .Scope "org"}}selected{{end}}>Organisation</option>
-      {{$scope := .Scope}}
-      {{range .Groups}}<option value="group:{{.}}" {{if eq $scope (printf "group:%s" .)}}selected{{end}}>Group: {{.}}</option>{{end}}
-      {{if .IsDevice}}<option value="{{.Scope}}" selected>{{.Scope}}</option>{{end}}
-    </select>
-    <noscript><button type="submit">Switch</button></noscript>
+<div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+  <div>
+    <h1 class="mb-1">Configuration editor</h1>
+    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Values set here apply at the selected scope. <strong>Enforce</strong> locks a value for everything below (most-general wins); a plain value is a default the more specific scope may override. Every change passes the gate and commits to git.</p>
+  </div>
+  <!-- A2: segmented scope selector (org / group / device) -->
+  <form method="get" action="/settings" class="!inline-flex shrink-0 items-stretch gap-1 rounded-lg border border-border-hairline bg-canvas p-1 shadow-sm">
+    <button type="submit" name="scope" value="org" class="!rounded-md !px-4 !py-2 {{if eq .Scope "org"}}!bg-surface-container !text-primary{{else}}!bg-transparent !text-text-tertiary hover:!bg-surface-bright{{end}}"><span class="material-symbols-outlined ms-16">domain</span>Organisation</button>
+    <label class="flex items-center gap-1 rounded-md px-2 {{if hasPrefix .Scope "group:"}}bg-surface-container text-primary{{else}}text-text-tertiary{{end}}">
+      <span class="material-symbols-outlined ms-16">group_work</span>
+      <select name="scope" onchange="this.form.submit()" class="!border-0 !bg-transparent !px-1 !py-2 focus:!ring-0">
+        <option value="" {{if not (hasPrefix .Scope "group:")}}selected{{end}} disabled>Group</option>
+        {{$scope := .Scope}}
+        {{range .Groups}}<option value="group:{{.}}" {{if eq $scope (printf "group:%s" .)}}selected{{end}}>{{.}}</option>{{end}}
+      </select>
+    </label>
+    {{if .IsDevice}}<span class="flex items-center gap-1 rounded-md bg-surface-container px-4 py-2 text-primary"><span class="material-symbols-outlined ms-16">desktop_windows</span>{{.Scope}}</span>{{end}}
   </form>
-  <p class="muted mt-3 mb-0">Values set here apply at the selected scope. <strong>Enforce</strong> locks a value for everything below (most-general wins); a plain value is a default the more specific scope may override. Every change passes the validation gate and commits to git.</p>
 </div>
 
 {{if .Empty}}
@@ -39,7 +43,7 @@
 
 {{range $sec := .Sections}}
 <div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="border-b border-border-hairline px-6 py-4"><h2 class="mt-0 mb-0 text-headline-sm capitalize">{{$sec.Name}}</h2></div>
+  <div class="flex items-center justify-between border-b border-border-hairline bg-surface-bright px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold capitalize text-ink">{{$sec.Name}}</h2><span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len $sec.Rows}} keys</span></div>
   <table>
     <tr>
       <th>Setting</th><th>Value at this scope</th><th>Enforce</th>

@@ -245,7 +245,7 @@ func (d *deps) consoleCapability() capability.Capability {
 			console, err := web.New(
 				web.Services{Config: d.svc, Changes: d.changes, Rollouts: d.rollouts,
 					Inventory: d.inv, Tokens: d.tokens, Prefs: d.prefs,
-					DevCreds: d.devCreds, Directory: d.dir},
+					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {

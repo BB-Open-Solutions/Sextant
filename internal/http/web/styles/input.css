@@ -19,7 +19,7 @@
   th { @apply text-left text-label-md font-medium text-text-tertiary border-b border-border-hairline px-3 py-2; }
   td { @apply border-b border-border-soft px-3 py-2.5 align-top; }
   tr:last-child td { @apply border-b-0; }
-  label { @apply text-label-md text-text-secondary; }
+  label { @apply text-label-xs-caps uppercase tracking-wide text-text-tertiary; }
   select, input[type="text"], input[type="number"], input:not([type]), textarea {
     @apply rounded-lg border border-outline-variant bg-canvas px-3 py-2 text-body-md text-on-surface
            focus:border-mint-vibrant focus:outline-none focus:ring-2 focus:ring-mint-vibrant/30;
@@ -61,6 +61,7 @@
   .tag.ok { @apply bg-secondary-container text-on-secondary-container; }
   .tag.bad { @apply bg-error-container text-on-error-container; }
   .tag.lock { @apply bg-tertiary-container text-on-tertiary-container; }
+  .tag.viewer { @apply bg-mint-vibrant/10 text-mint-deep border border-mint-vibrant/30; }
 
   /* Text helpers */
   .muted { @apply text-text-tertiary text-body-md; }

@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
@@ -35,6 +36,7 @@ type Services struct {
 	Prefs     ports.PrefsStore
 	DevCreds  *app.DeviceCredentials
 	Directory ports.Directory
+	Evidence  *app.EvidenceService
 }
 
 // Server renders the console.
@@ -69,7 +71,24 @@ func New(svc Services, sessions Sessions, write bool,
 	// funcs: small template helpers. `list` lets a template iterate a
 	// literal set (e.g. the CLI toolbelt commands) without a data field.
 	funcs := template.FuncMap{
-		"list": func(items ...any) []any { return items },
+		"list":      func(items ...any) []any { return items },
+		"hasPrefix": strings.HasPrefix,
+		// initials renders up to two uppercase initials from a display
+		// name for the audit avatar (a display transform, not new data).
+		"initials": func(name string) string {
+			parts := strings.Fields(name)
+			var b strings.Builder
+			for _, p := range parts {
+				if b.Len() >= 2 {
+					break
+				}
+				b.WriteString(strings.ToUpper(p[:1]))
+			}
+			if b.Len() == 0 {
+				return "?"
+			}
+			return b.String()
+		},
 		// indent maps a group-tree depth to a static padding class
 		// (gd-0..gd-6, clamped). A class avoids inline style=, which
 		// the CSP forbids.
@@ -125,6 +144,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/rollout", s.rolloutPage)
 	get("/access", s.accessPage)
 	get("/audit", s.auditPage)
+	get("/audit/evidence", s.auditEvidence)
 	get("/profile", s.profilePage)
 
 	post("/devices", s.postDeviceEnroll)

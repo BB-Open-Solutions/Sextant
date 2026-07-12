@@ -1,94 +1,128 @@
 {{define "content"}}
-<h1>Profile</h1>
+<div class="flex flex-col gap-6">
+  <h1 class="mb-0">Profile</h1>
 
-{{with .MintedSecret}}
-<div class="relative mb-6 overflow-hidden rounded-lg border border-mint-deep/40 bg-secondary-container/40 p-5">
-  <div class="absolute left-0 top-0 h-full w-1 bg-mint-vibrant"></div>
-  <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-on-secondary-container"><span class="material-symbols-outlined">key</span>New token created</h2>
-  <p class="mb-3 text-body-md text-on-secondary-container"><strong>Store this secret now; it is not shown again.</strong></p>
-  <code class="block break-all rounded-md bg-surface-code px-4 py-3 text-body-md text-canvas">{{.}}</code>
-</div>
-{{end}}
-
-<div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">account_circle</span>Identity</h2>
-    <dl class="grid grid-cols-[7rem_1fr] gap-y-3 text-body-md">
-      <dt class="text-text-tertiary">Name</dt><dd>{{.User.Name}}</dd>
-      <dt class="text-text-tertiary">Email</dt><dd>{{.User.Email}}</dd>
-      <dt class="text-text-tertiary">Subject</dt><dd class="font-mono text-text-secondary break-all">{{.User.Subject}}</dd>
-      <dt class="text-text-tertiary">IdP groups</dt><dd>{{range .User.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</dd>
-    </dl>
-  </div>
-  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">shield_person</span>My roles</h2>
-    <table>
-      <tr><th>Scope</th><th>Role</th></tr>
-      {{range $scope, $role := .Roles}}
-      <tr><td class="font-mono">{{$scope}}</td><td><span class="tag {{if eq $role "owner"}}lock{{else if eq $role "editor"}}ok{{end}}">{{$role}}</span></td></tr>
-      {{else}}
-      <tr><td colspan="2" class="muted">No roles.</td></tr>
-      {{end}}
-    </table>
-  </div>
-</div>
-
-{{if .HasPrefs}}
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">settings</span>Preferences</h2>
-  <form method="post" action="/profile/prefs" class="!items-end">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex flex-col gap-1">
-      <label for="timezone">Timezone</label>
-      <input id="timezone" name="timezone" value="{{.Prefs.Timezone}}" placeholder="organisation default (e.g. Europe/Amsterdam)" list="tz-common">
-      <datalist id="tz-common"><option value="Europe/Amsterdam"><option value="Europe/Brussels"><option value="Europe/Paris"><option value="Europe/Berlin"><option value="UTC"></datalist>
+  {{with .MintedSecret}}
+  <!-- One-time token reveal -->
+  <div class="relative overflow-hidden rounded-lg border border-[#2f2f2f] bg-surface-code p-5 shadow-lg">
+    <div class="absolute left-0 top-0 h-1 w-full bg-mint-vibrant"></div>
+    <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-canvas"><span class="material-symbols-outlined text-mint-vibrant">verified_user</span>Token created</h2>
+    <p class="mb-3 text-body-sm text-text-tertiary">Store this secret now; it is not shown again.</p>
+    <div class="flex items-center justify-between gap-3 rounded border border-[#2f2f2f] bg-ink p-3">
+      <code class="break-all font-mono text-code-md text-mint-soft">{{.}}</code>
+      <button type="button" data-copy="{{.}}" data-copied="copied" class="!rounded !bg-transparent !p-1.5 text-text-tertiary hover:!text-canvas"><span class="material-symbols-outlined ms-18">content_copy</span></button>
     </div>
-    <div class="flex flex-col gap-1">
-      <label for="locale">Language</label>
-      <select id="locale" name="locale">
-        <option value="" {{if not .Prefs.Locale}}selected{{end}}>organisation default</option>
-        {{$cur := .Prefs.Locale}}{{range .Locales}}<option value="{{.}}" {{if eq $cur .}}selected{{end}}>{{.}}</option>{{end}}
-      </select>
-    </div>
-    <button type="submit">Save</button>
-  </form>
-</div>
-{{end}}
-
-{{if .HasTokens}}
-<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary">vpn_key</span>
-    <h2 class="mt-0 mb-0 text-headline-sm">My API tokens</h2>
   </div>
-  <table>
-    <tr><th>Name</th><th>ID</th><th>Ceiling</th><th>Created</th><th>Expires</th><th>Last used</th><th></th></tr>
-    {{$csrf := .CSRF}}
-    {{range .Tokens}}
-    <tr class="hover:bg-surface-container-low transition-colors">
-      <td class="font-medium">{{.Name}}</td>
-      <td><code class="text-text-tertiary">{{.ID}}</code></td>
-      <td>{{with .Ceiling}}<span class="tag">{{.}}</span>{{else}}<span class="muted">-</span>{{end}}</td>
-      <td class="text-text-secondary">{{$.L.Date .Created}}</td>
-      <td class="text-text-secondary">{{$.L.Date .Expires}}</td>
-      <td class="text-text-secondary">{{if .LastUsed}}{{$.L.TimePtr .LastUsed}}{{else}}<span class="muted">never</span>{{end}}</td>
-      <td class="text-right"><form method="post" action="/profile/tokens/{{.ID}}/revoke" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" class="quiet">Revoke</button></form></td>
-    </tr>
-    {{else}}
-    <tr><td colspan="7" class="muted">No personal tokens.</td></tr>
+  {{end}}
+
+  <!-- Identity + roles / preferences -->
+  <div class="grid grid-cols-1 gap-6 md:grid-cols-12">
+    <div class="flex flex-col gap-6 md:col-span-8">
+      <!-- Identity -->
+      <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+        <div class="flex items-center gap-4">
+          <span class="flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-highest text-text-secondary"><span class="material-symbols-outlined ms-22">person</span></span>
+          <div>
+            <h2 class="mt-0 mb-0 text-headline-sm">{{.User.Name}}</h2>
+            <p class="mb-0 text-body-md text-text-tertiary">{{.User.Email}}</p>
+          </div>
+        </div>
+        <div class="mt-5 flex flex-col gap-1">
+          <label>IdP groups</label>
+          <div>{{range .User.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</div>
+        </div>
+        <div class="mt-4 flex items-center justify-between border-t border-border-soft pt-4">
+          <div class="flex flex-col gap-1">
+            <label>Subject</label>
+            <code class="font-mono text-code-inline text-text-secondary break-all">{{.User.Subject}}</code>
+          </div>
+          <button type="button" data-copy="{{.User.Subject}}" data-copied="copied" class="!rounded-full !bg-transparent !p-1.5 text-text-tertiary hover:!text-ink"><span class="material-symbols-outlined ms-16">content_copy</span></button>
+        </div>
+      </div>
+
+      <!-- Effective roles -->
+      <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+        <div class="border-b border-border-hairline bg-surface px-4 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Effective roles</h2></div>
+        <table>
+          <tr><th class="!px-4">Scope</th><th class="!px-4">Role</th></tr>
+          {{range $scope, $role := .Roles}}
+          <tr><td class="!px-4 font-mono">{{$scope}}</td><td class="!px-4"><span class="tag {{if eq $role "owner"}}lock{{else if eq $role "editor"}}ok{{else if eq $role "viewer"}}viewer{{end}}">{{$role}}</span></td></tr>
+          {{else}}
+          <tr><td colspan="2" class="muted !px-4">No roles.</td></tr>
+          {{end}}
+        </table>
+      </div>
+    </div>
+
+    {{if .HasPrefs}}
+    <div class="md:col-span-4">
+      <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+        <h2 class="mt-0 mb-4 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined ms-18 text-text-tertiary">settings</span>Preferences</h2>
+        <form method="post" action="/profile/prefs" class="!flex-col !items-stretch gap-4">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <div class="flex flex-col gap-1">
+            <label for="timezone">Timezone</label>
+            <input id="timezone" name="timezone" value="{{.Prefs.Timezone}}" placeholder="organisation default" list="tz-common">
+            <datalist id="tz-common"><option value="Europe/Amsterdam"><option value="Europe/Brussels"><option value="Europe/Paris"><option value="Europe/Berlin"><option value="UTC"></datalist>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label for="locale">Language</label>
+            <select id="locale" name="locale">
+              <option value="" {{if not .Prefs.Locale}}selected{{end}}>organisation default</option>
+              {{$cur := .Prefs.Locale}}{{range .Locales}}<option value="{{.}}" {{if eq $cur .}}selected{{end}}>{{.}}</option>{{end}}
+            </select>
+          </div>
+          <button type="submit" class="quiet w-full">Save preferences</button>
+        </form>
+      </div>
+    </div>
     {{end}}
-  </table>
-  <div class="border-t border-border-hairline p-6">
-    <h3 class="mt-0">Create a personal token</h3>
-    <p class="muted mb-4">The token acts as you, with your current groups snapshotted. A ceiling can only narrow what it may do. The secret is shown once.</p>
-    <form method="post" action="/profile/tokens" class="!items-end">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <div class="flex flex-col gap-1 flex-1"><label>Name</label><input name="name" placeholder="what is this token for?" required class="w-full"></div>
-      <div class="flex flex-col gap-1"><label>Ceiling</label><select name="ceiling"><option value="">no ceiling (full rights)</option><option value="viewer">viewer</option><option value="editor">editor</option></select></div>
-      <div class="flex flex-col gap-1"><label>TTL (days)</label><input name="ttlDays" type="number" min="1" placeholder="90" class="w-24"></div>
-      <button type="submit">Create</button>
-    </form>
   </div>
+
+  {{if .HasTokens}}
+  <!-- API tokens -->
+  <div>
+    <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">vpn_key</span>My API tokens</h2>
+    <p class="mb-4 text-body-md text-text-tertiary">Personal access tokens for the CLI and API. Each acts as you, snapshotting your groups; a ceiling can only narrow rights. The secret is shown once.</p>
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-12">
+      <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm md:col-span-8">
+        <table>
+          <tr><th>Name</th><th>ID</th><th>Ceiling</th><th>Created</th><th>Expires</th><th>Last used</th><th class="text-right">Actions</th></tr>
+          {{$csrf := .CSRF}}
+          {{range .Tokens}}
+          <tr class="group hover:bg-surface-bright transition-colors">
+            <td class="font-medium">{{.Name}}</td>
+            <td>
+              <span class="inline-flex items-center gap-1">
+                <code class="text-text-tertiary">{{.ID}}</code>
+                <button type="button" data-copy="{{.ID}}" data-copied="copied" class="!rounded-full !bg-transparent !p-1 text-text-tertiary opacity-0 transition-opacity hover:!text-ink group-hover:opacity-100"><span class="material-symbols-outlined ms-14">content_copy</span></button>
+              </span>
+            </td>
+            <td>{{with .Ceiling}}<span class="tag">{{.}}</span>{{else}}<span class="muted">-</span>{{end}}</td>
+            <td class="text-text-secondary">{{$.L.Date .Created}}</td>
+            <td class="text-text-secondary">{{$.L.Date .Expires}}</td>
+            <td class="text-text-secondary">{{if .LastUsed}}{{$.L.TimePtr .LastUsed}}{{else}}<span class="muted">never</span>{{end}}</td>
+            <td class="text-right"><form method="post" action="/profile/tokens/{{.ID}}/revoke" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="Revoke" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-status-error hover:!bg-error-container/40"><span class="material-symbols-outlined ms-18">delete</span></button></form></td>
+          </tr>
+          {{else}}
+          <tr><td colspan="7" class="muted">No personal tokens.</td></tr>
+          {{end}}
+        </table>
+      </div>
+      <div class="md:col-span-4">
+        <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+          <h3 class="mt-0 mb-4 border-b border-border-soft pb-2">Create a token</h3>
+          <form method="post" action="/profile/tokens" class="!flex-col !items-stretch gap-4">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <div class="flex flex-col gap-1"><label>Name</label><input name="name" placeholder="what is this token for?" required class="w-full"></div>
+            <div class="flex flex-col gap-1"><label>Ceiling</label><select name="ceiling"><option value="">no ceiling (full rights)</option><option value="viewer">viewer</option><option value="editor">editor</option></select></div>
+            <div class="flex flex-col gap-1"><label>TTL (days)</label><input name="ttlDays" type="number" min="1" value="90" class="w-full"></div>
+            <button type="submit" class="w-full !bg-mint-vibrant !text-ink">Generate token</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{end}}
 </div>
-{{end}}
 {{end}}

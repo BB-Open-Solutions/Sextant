@@ -1,64 +1,76 @@
 {{define "content"}}
-<h1>Access</h1>
-<p class="mb-6 text-body-md text-text-tertiary max-w-2xl">Role bindings grant IdP groups a role at a scope. Bindings are part of the fleet configuration: every change is a gated, audited git commit.</p>
+<div class="mb-8">
+  <h1 class="mb-1">Access control</h1>
+  <p class="text-body-md text-text-secondary max-w-2xl">Role bindings grant IdP groups a role at a scope. Bindings are part of the fleet configuration: every change is a gated, audited git commit.</p>
+</div>
 
-<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary">key</span>
-    <h2 class="mt-0 mb-0 text-headline-sm">Role bindings</h2>
+<div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+  <!-- Bindings -->
+  <div class="xl:col-span-2">
+    <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+      <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
+        <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Active role bindings</h2>
+        <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Bindings}} bindings</span>
+      </div>
+      <table>
+        <tr><th class="!px-6 uppercase tracking-wide">IdP group</th><th class="!px-6 uppercase tracking-wide">Role</th><th class="!px-6 uppercase tracking-wide">Scope</th><th class="!px-6"></th></tr>
+        {{range .Bindings}}
+        <tr class="group hover:bg-surface-bright transition-colors">
+          <td class="!px-6 font-mono text-code-inline">{{.Group}}</td>
+          <td class="!px-6"><span class="tag {{if eq .Role "owner"}}lock{{else if eq .Role "editor"}}ok{{else if eq .Role "viewer"}}viewer{{end}}"><span class="material-symbols-outlined ms-16">{{if eq .Role "owner"}}shield_person{{else if eq .Role "editor"}}build{{else}}visibility{{end}}</span>{{.Role}}</span></td>
+          <td class="!px-6"><code class="text-text-secondary">{{.Scope}}</code></td>
+          <td class="!px-6 text-right">{{if $.CanOwn}}
+            <form class="inline" method="post" action="/access/revoke">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <input type="hidden" name="group" value="{{.Group}}">
+              <input type="hidden" name="scope" value="{{.Scope}}">
+              <button type="submit" title="Revoke" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined ms-20">delete</span></button>
+            </form>{{end}}</td>
+        </tr>
+        {{else}}
+        <tr><td colspan="4" class="muted !px-6">No bindings; only server-configured baseline groups apply.</td></tr>
+        {{end}}
+      </table>
+    </div>
   </div>
-  <table>
-    <tr><th>IdP group</th><th>Role</th><th>Scope</th><th></th></tr>
-    {{range .Bindings}}
-    <tr class="hover:bg-surface-container-low transition-colors">
-      <td class="font-medium">{{.Group}}</td>
-      <td><span class="tag {{if eq .Role "owner"}}lock{{else if eq .Role "editor"}}ok{{end}}">{{.Role}}</span></td>
-      <td><code class="text-text-secondary">{{.Scope}}</code></td>
-      <td class="text-right">{{if $.CanOwn}}
-        <form class="inline" method="post" action="/access/revoke">
-          <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <input type="hidden" name="group" value="{{.Group}}">
-          <input type="hidden" name="scope" value="{{.Scope}}">
-          <button class="quiet">Revoke</button>
-        </form>{{end}}</td>
-    </tr>
-    {{else}}
-    <tr><td colspan="4" class="muted">No bindings; only server-configured baseline groups apply.</td></tr>
+
+  <!-- Grant + assurance -->
+  <div class="flex flex-col gap-6">
+    {{if .CanOwn}}
+    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+      <div class="mb-4 border-b border-border-hairline pb-4">
+        <h2 class="mt-0 mb-0 text-headline-sm font-bold text-ink">Grant access</h2>
+        <p class="mb-0 mt-1 text-body-sm text-text-secondary">Bind an IdP group to a role within a scope.</p>
+      </div>
+      <form method="post" action="/access/grant" class="!flex-col !items-stretch gap-4">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div class="flex flex-col gap-1">
+          <label>IdP group</label>
+          <input name="group" placeholder="IdP group" required class="w-full" {{if .DirGroups}}list="dir-groups"{{end}}>
+          {{if .DirGroups}}<datalist id="dir-groups">{{range .DirGroups}}<option value="{{.Name}}">{{end}}</datalist>{{else}}<span class="muted">directory browse not configured; type the group name</span>{{end}}
+        </div>
+        <div class="flex flex-col gap-1">
+          <label>Role</label>
+          <select name="role"><option value="" disabled selected>Select a role...</option><option value="viewer">viewer</option><option value="editor">editor</option><option value="owner">owner</option></select>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label>Scope</label>
+          <select name="scope"><option value="org">org</option>{{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
+        </div>
+        <button type="submit" class="w-full">Stage binding</button>
+      </form>
+    </div>
+
+    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">gavel</span>Assurance</h2>
+      <form method="post" action="/assurance" class="!flex-col !items-stretch gap-3">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label class="flex items-start gap-2 !normal-case !tracking-normal text-body-md text-text-secondary"><input type="checkbox" name="requireFourEyes" {{if .FourEyes}}checked{{end}} class="!w-auto mt-1">
+          Require four-eyes: a change may not be merged by its own author (segregation of duties).</label>
+        <button type="submit" class="quiet self-start">Save</button>
+      </form>
+    </div>
     {{end}}
-  </table>
+  </div>
 </div>
-
-{{if .CanOwn}}
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">group_add</span>Grant a role</h2>
-  <form method="post" action="/access/grant" class="!items-end">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex flex-col gap-1">
-      <label>IdP group</label>
-      <input name="group" placeholder="IdP group" required {{if .DirGroups}}list="dir-groups"{{end}}>
-      {{if .DirGroups}}<datalist id="dir-groups">{{range .DirGroups}}<option value="{{.Name}}">{{end}}</datalist>{{end}}
-    </div>
-    <div class="flex flex-col gap-1">
-      <label>Role</label>
-      <select name="role"><option value="viewer">viewer</option><option value="editor">editor</option><option value="owner">owner</option></select>
-    </div>
-    <div class="flex flex-col gap-1">
-      <label>Scope</label>
-      <select name="scope"><option value="org">org</option>{{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
-    </div>
-    <button type="submit">Grant</button>
-    {{if not .DirGroups}}<span class="muted">directory browse not configured; type the IdP group name</span>{{end}}
-  </form>
-</div>
-
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">gavel</span>Assurance</h2>
-  <form method="post" action="/assurance" class="!items-center">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label class="flex items-center gap-2 text-body-md"><input type="checkbox" name="requireFourEyes" {{if .FourEyes}}checked{{end}} class="!w-auto">
-      Require four-eyes: a change may not be merged by its own author (segregation of duties).</label>
-    <button type="submit" class="quiet">Save</button>
-  </form>
-</div>
-{{end}}
 {{end}}

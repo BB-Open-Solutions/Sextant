@@ -1,23 +1,59 @@
 {{define "content"}}
-<h1>Audit trail</h1>
-<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary">history_edu</span>
-    <h2 class="mt-0 mb-0 text-headline-sm">Configuration history</h2>
-    <span class="ml-auto text-label-md text-text-tertiary">Every change is a signed git commit</span>
+<div class="mb-8">
+  <h1 class="mb-1">Audit trail</h1>
+  <p class="text-body-md text-text-tertiary">Review configuration changes and access history. Every change is a signed git commit.</p>
+</div>
+
+<div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+  <!-- Commit trail -->
+  <div class="flex h-[600px] flex-col overflow-hidden rounded-lg border border-border-hairline bg-canvas xl:col-span-2">
+    <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-4 py-4">
+      <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Configuration commit trail</h2>
+      <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Entries}} entries</span>
+    </div>
+    <div class="flex-1 overflow-y-auto">
+      <table>
+        <thead class="sticky top-0 bg-canvas">
+          <tr><th class="!py-3 !px-4 uppercase tracking-wide">When</th><th class="!py-3 !px-4 uppercase tracking-wide">Who</th><th class="!py-3 !px-4 uppercase tracking-wide">What</th><th class="!py-3 !px-4 uppercase tracking-wide">Commit</th></tr>
+        </thead>
+        <tbody>
+        {{range .Entries}}
+        <tr class="hover:bg-surface-bright transition-colors">
+          <td class="!px-4 !py-3 whitespace-nowrap font-mono text-code-inline text-text-secondary">{{$.L.TimeSec .When}}</td>
+          <td class="!px-4 !py-3">
+            <div class="flex items-center gap-2">
+              <span class="flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-high text-label-xs-caps uppercase text-text-secondary">{{initials .Author}}</span>
+              <span><span class="block text-label-md text-ink">{{.Author}}</span><span class="block text-label-xs-caps text-text-tertiary">{{.Email}}</span></span>
+            </div>
+          </td>
+          <td class="!px-4 !py-3 max-w-[220px] truncate" title="{{.Subject}}">{{.Subject}}</td>
+          <td class="!px-4 !py-3"><code class="font-mono text-code-inline text-ink">{{printf "%.10s" .Hash}}</code></td>
+        </tr>
+        {{else}}
+        <tr><td colspan="4" class="muted !px-4 !py-3">No history available.</td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
   </div>
-  <table>
-    <tr><th>When</th><th>Who</th><th>What</th><th>Commit</th></tr>
-    {{range .Entries}}
-    <tr class="hover:bg-surface-container-low transition-colors">
-      <td class="whitespace-nowrap text-text-secondary">{{$.L.TimeSec .When}}</td>
-      <td>{{.Author}} <span class="muted">{{.Email}}</span></td>
-      <td>{{.Subject}}</td>
-      <td><code class="text-text-tertiary">{{printf "%.10s" .Hash}}</code></td>
-    </tr>
-    {{else}}
-    <tr><td colspan="4" class="muted">No history available.</td></tr>
-    {{end}}
-  </table>
+
+  <!-- Evidence export (G1) -->
+  <div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-4 rounded-lg border border-border-hairline bg-canvas p-6">
+      <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">download</span>Evidence export</h2>
+      <p class="text-body-md text-text-tertiary">Download a signed JSON bundle for a period: every change, who approved it, and what rolled out. For auditors and compliance reviews.</p>
+      <form method="get" action="/audit/evidence" class="!flex-col !items-stretch gap-3">
+        <div class="flex flex-col gap-1">
+          <label for="from">From date</label>
+          <input id="from" type="date" name="from" required>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="to">To date</label>
+          <input id="to" type="date" name="to" required>
+        </div>
+        <button type="submit" class="w-full"><span class="material-symbols-outlined ms-18">archive</span>Download JSON bundle</button>
+      </form>
+    </div>
+  </div>
 </div>
 {{end}}
