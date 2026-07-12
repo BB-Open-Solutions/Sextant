@@ -32,6 +32,11 @@ const (
 	// Subject is the device tag; a device can only ever be itself, closing
 	// the shared-token impersonation gap (ADR 0008).
 	Device Kind = "device"
+	// Station credentials authenticate one imaging station to the
+	// station-report endpoint. Subject is the station tag; a station can
+	// only ever report as itself, same closed-gap model as Device. A
+	// station may only submit discoveries - never console or API rights.
+	Station Kind = "station"
 )
 
 // prefix identifies a Sextant token at a glance (and lets secret scanners
@@ -80,7 +85,7 @@ func Mint(id, name string, kind Kind, subject string, groups []string, ceiling s
 	if id == "" || name == "" || subject == "" {
 		return Token{}, "", fmt.Errorf("token needs id, name and subject")
 	}
-	if kind != Personal && kind != Service && kind != Device {
+	if kind != Personal && kind != Service && kind != Device && kind != Station {
 		return Token{}, "", fmt.Errorf("unknown token kind %q", kind)
 	}
 	if ceiling != "" {
