@@ -23,7 +23,9 @@ import (
 )
 
 // memDisc is an in-memory ports.DiscoveredStore for the enroll test.
-type memDisc struct{ sets map[string][]discovery.Discovered }
+type memDisc struct {
+	sets map[string][]discovery.Discovered
+}
 
 func (m *memDisc) Report(_ context.Context, tenant, station string, d []discovery.Discovered, _ time.Time) error {
 	m.sets[tenant+"|"+station] = d

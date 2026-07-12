@@ -151,4 +151,3 @@ func (s *Server) postStationCredential(w http.ResponseWriter, r *http.Request, v
 	http.Redirect(w, r, "/station?tag="+url.QueryEscape(station), http.StatusSeeOther)
 	return nil
 }
-
