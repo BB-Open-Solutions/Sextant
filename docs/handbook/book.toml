@@ -1,0 +1,16 @@
+[book]
+title = "DAWO Handbook"
+description = "Operator and architecture documentation for the DAWO fleet control-plane (Sextant)."
+authors = ["BB Open"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://forgejo.bb-open.com/bb-open/DAWO-Sextant"
+# Self-hosted, no external CDN: mdBook bundles its own assets. Keep it that way.
+no-section-label = false
+
+[output.html.search]
+enable = true

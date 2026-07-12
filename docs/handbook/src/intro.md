@@ -1,0 +1,26 @@
+# DAWO Handbook
+
+DAWO is a declarative control-plane for fleets of NixOS devices. Configuration
+is data in a git overlay; Nix turns that data into signed system closures;
+devices pull and converge (comin). Sextant is the human and API surface that
+edits the data safely, proves it builds, stages the rollout, and reports what
+each device actually runs. It is not MDM: declarative pull, no live command
+channel, every change an audited git commit.
+
+This handbook is for operators running a DAWO fleet and for engineers working
+on it. It is built with mdBook and served self-hosted; it uses no external CDN.
+
+## The lifecycle at a glance
+
+1. **Set up an imaging station** - a NUC or mini-PC that boots devices over the
+   network and reports what it sees to the console.
+2. **Image a device** - the console dispatches an image job; the station runs
+   the install and reports progress until the device is on disk and converging.
+3. **Manage it** - configuration flows organisation -> group -> device; every
+   change passes the Nix gate and can be reviewed as a change-request.
+4. **Update it** - a rollout ships a new revision in waves, each gated on health
+   and soak, with an optional manual test gate.
+5. **Retire or wipe it** - an audited intent the device acts on locally; a
+   crypto-wipe destroys the disk's keys, and is armed per device.
+
+Start with [setting up an imaging station](./operators/station-nuc.md).

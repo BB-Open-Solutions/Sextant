@@ -20,3 +20,4 @@ coverage.html
 # Design inputs (Stitch export, mintlify draft) - not shippable code
 docs/design/*.zip
 docs/design/DESIGN-mintlify.md
+docs/handbook/book/
