@@ -70,6 +70,10 @@
       # Device-side agent module (ADR 0010).
       nixosModules.agent = import ./deploy/nixos/agent.nix { inherit self; };
 
+      # Root action executor: consumes the agent's intent spool to lock or
+      # crypto-wipe a device (design 0004). Wipe is gated and default-off.
+      nixosModules.actd = import ./deploy/nixos/actd.nix;
+
       nixosModules.default = { config, lib, pkgs, ... }:
         let cfg = config.services.sextant;
         in {

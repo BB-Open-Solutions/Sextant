@@ -3,13 +3,12 @@
 //!
 //! Privilege boundary: the unprivileged agent drops a validated intent
 //! file into a spool directory; a separate root oneshot (sextant-actd,
-//! part of the NixOS module) executes it. The lock path is implemented
-//! here for the flag it can own; the DESTRUCTIVE wipe execution is
-//! deliberately NOT implemented in this build - the agent only records
-//! the request and returns the ack, leaving the LUKS erase to the root
-//! unit that a later change (Opus handoff) adds. Until then a wipe intent
-//! is spooled and acknowledged but not carried out, and that is logged
-//! loudly so it is never mistaken for done.
+//! deploy/nixos/actd.nix) executes it. The agent never holds the privilege
+//! to lock a session or erase a disk - it only records the request and
+//! returns the ack. The root executor carries out lock always, and wipe
+//! only when that host is explicitly armed (services.sextant-actd.armWipe)
+//! and the lock interlock is satisfied; an unarmed host refuses and logs
+//! loudly, so a wipe is never carried out by accident.
 
 use std::fs;
 use std::path::Path;
