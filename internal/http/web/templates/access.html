@@ -17,7 +17,7 @@
         {{range .Bindings}}
         <tr class="group hover:bg-surface-bright transition-colors">
           <td class="!px-6 font-mono text-code-inline">{{.Group}}</td>
-          <td class="!px-6"><span class="tag {{if eq .Role "owner"}}lock{{else if eq .Role "editor"}}ok{{else if eq .Role "viewer"}}viewer{{end}}"><span class="material-symbols-outlined ms-16">{{if eq .Role "owner"}}shield_person{{else if eq .Role "editor"}}build{{else}}visibility{{end}}</span>{{.Role}}</span></td>
+          <td class="!px-6"><span class="role {{.Role}}"><span class="material-symbols-outlined ms-16">{{if eq .Role "owner"}}shield_person{{else if eq .Role "editor"}}build{{else}}visibility{{end}}</span>{{.Role}}</span></td>
           <td class="!px-6"><code class="text-text-secondary">{{.Scope}}</code></td>
           <td class="!px-6 text-right">{{if $.CanOwn}}
             <form class="inline" method="post" action="/access/revoke">

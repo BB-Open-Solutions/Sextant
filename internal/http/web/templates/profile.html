@@ -46,7 +46,7 @@
         <table>
           <tr><th class="!px-4">Scope</th><th class="!px-4">Role</th></tr>
           {{range $scope, $role := .Roles}}
-          <tr><td class="!px-4 font-mono">{{$scope}}</td><td class="!px-4"><span class="tag {{if eq $role "owner"}}lock{{else if eq $role "editor"}}ok{{else if eq $role "viewer"}}viewer{{end}}">{{$role}}</span></td></tr>
+          <tr><td class="!px-4 font-mono">{{$scope}}</td><td class="!px-4"><span class="role {{$role}}"><span class="material-symbols-outlined ms-16">{{if eq $role "owner"}}shield_person{{else if eq $role "editor"}}build{{else}}visibility{{end}}</span>{{$role}}</span></td></tr>
           {{else}}
           <tr><td colspan="2" class="muted !px-4">No roles.</td></tr>
           {{end}}
