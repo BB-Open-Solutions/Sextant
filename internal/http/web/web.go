@@ -34,15 +34,17 @@ type Sessions interface {
 
 // Services are the app services the console renders.
 type Services struct {
-	Config    *app.ConfigService
-	Changes   *app.ChangeService
-	Rollouts  *app.RolloutService
-	Inventory *app.InventoryService
-	Tokens    *app.TokenService
-	Prefs     ports.PrefsStore
-	DevCreds  *app.DeviceCredentials
-	Directory ports.Directory
-	Evidence  *app.EvidenceService
+	Config       *app.ConfigService
+	Changes      *app.ChangeService
+	Rollouts     *app.RolloutService
+	Inventory    *app.InventoryService
+	Tokens       *app.TokenService
+	Prefs        ports.PrefsStore
+	DevCreds     *app.DeviceCredentials
+	Directory    ports.Directory
+	Evidence     *app.EvidenceService
+	Discovery    *app.DiscoveryService
+	StationCreds *app.StationCredentials
 }
 
 // Server renders the console.
@@ -140,7 +142,7 @@ func New(svc Services, sessions Sessions, write bool,
 			return fmt.Sprintf("gd-%d", depth)
 		},
 	}
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -183,6 +185,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/access", s.accessPage)
 	get("/audit", s.auditPage)
 	get("/audit/evidence", s.auditEvidence)
+	get("/station", s.stationPage)
 	get("/profile", s.profilePage)
 
 	post("/devices", s.postDeviceEnroll)
@@ -221,6 +224,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/profile/prefs", s.postProfilePrefs)
 	post("/profile/tokens", s.postProfileTokenMint)
 	post("/profile/tokens/{id}/revoke", s.postProfileTokenRevoke)
+	post("/station/{tag}/credential", s.postStationCredential)
+	post("/station/{tag}/enroll", s.postStationEnroll)
 }
 
 // view is the per-request context every page gets.

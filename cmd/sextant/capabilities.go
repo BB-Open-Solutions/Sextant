@@ -41,17 +41,19 @@ type deps struct {
 	log    *slog.Logger
 	checks *health.Registry
 
-	svc      *app.ConfigService
-	changes  *app.ChangeService
-	rollouts *app.RolloutService
-	inv      *app.InventoryService
-	tokens   *app.TokenService
-	devCreds *app.DeviceCredentials
-	prefs    ports.PrefsStore
-	dir      ports.Directory
-	evidence *app.EvidenceService
-	authz    api.Authz
-	cleanup  []func()
+	svc       *app.ConfigService
+	changes   *app.ChangeService
+	rollouts  *app.RolloutService
+	inv       *app.InventoryService
+	tokens    *app.TokenService
+	devCreds  *app.DeviceCredentials
+	discovery *app.DiscoveryService
+	staCreds  *app.StationCredentials
+	prefs     ports.PrefsStore
+	dir       ports.Directory
+	evidence  *app.EvidenceService
+	authz     api.Authz
+	cleanup   []func()
 }
 
 // buildCapabilities wires the config plane and returns the registry list
@@ -66,6 +68,7 @@ func buildCapabilities(ctx context.Context, cfg *config.Config, log *slog.Logger
 	}
 	caps := []capability.Capability{
 		d.observedCapability(),
+		d.stationCapability(),
 		d.authCapability(), // mounts sessions; console reads them at mount time
 		d.consoleCapability(),
 		d.apiCapability(),
@@ -136,6 +139,8 @@ func (d *deps) buildConfigPlane() error {
 		d.inv = app.NewInventoryService(pg, pg, clock, app.DefaultTenant)
 		d.tokens = app.NewTokenService(pg.Tokens(), clock, 0)
 		d.devCreds = app.NewDeviceCredentials(pg.Tokens(), clock)
+		d.discovery = app.NewDiscoveryService(pg.Discovered(), clock, app.DefaultTenant)
+		d.staCreds = app.NewStationCredentials(pg.Tokens(), clock)
 		d.prefs = pg
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
@@ -189,6 +194,21 @@ func (d *deps) observedCapability() capability.Capability {
 					return d.svc.Fleet().Devices[tag].Intent
 				}).Routes(inner)
 			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40)(inner))
+		},
+	}
+}
+
+// stationCapability serves the imaging-station report endpoint (rate
+// limited). A station reports over the mesh, not the public internet, but the
+// endpoint is authed and bounded regardless.
+func (d *deps) stationCapability() capability.Capability {
+	return capability.Func{
+		CapName:   "station",
+		EnabledFn: func() bool { return d.discovery != nil },
+		RoutesFn: func(mux *http.ServeMux) {
+			inner := http.NewServeMux()
+			api.NewStation(d.discovery, d.staCreds, d.cfg.CheckinToken, d.log).Routes(inner)
+			mux.Handle("POST /api/station/{tag}/report", mw.RateLimit(rate.Limit(5), 10)(inner))
 		},
 	}
 }
@@ -253,7 +273,8 @@ func (d *deps) consoleCapability() capability.Capability {
 			console, err := web.New(
 				web.Services{Config: d.svc, Changes: d.changes, Rollouts: d.rollouts,
 					Inventory: d.inv, Tokens: d.tokens, Prefs: d.prefs,
-					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence},
+					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence,
+					Discovery: d.discovery, StationCreds: d.staCreds},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {
