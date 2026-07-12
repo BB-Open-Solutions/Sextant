@@ -30,6 +30,11 @@ type Ring struct {
 	// healthy, the pipeline waits for an operator to approve promotion to the
 	// next wave (the enterprise "test sign-off" step). Auto-advance otherwise.
 	RequireApproval bool `json:"requireApproval,omitempty"`
+	// MaxDevices caps how many of the group's devices receive the target at
+	// once (a count-capped canary): 0 releases the whole group (the default),
+	// N > 0 releases at most N at a time, widening as each cohort converges.
+	// See ADR 0013; the engine/generator wiring is a later slice.
+	MaxDevices int `json:"maxDevices,omitempty"`
 }
 
 // Label is the wave's display name (its Name, or the group if unnamed).
@@ -46,6 +51,46 @@ func (r Ring) minHealthy() int {
 	}
 	return r.MinHealthyPercent
 }
+
+// Cohort selects the devices released so far in a count-capped wave. devices
+// must already be in a stable order (the caller sorts, e.g. by tag) so the
+// same machines are chosen deterministically across evaluations. released is
+// how many the engine has released; it is clamped to [0, len]. With a zero or
+// negative MaxDevices there is no cap and the whole slice is returned. This is
+// the pure selection ADR 0013 builds on; the engine grows `released` as each
+// cohort converges healthy.
+func (r Ring) Cohort(devices []string, released int) []string {
+	if r.MaxDevices <= 0 {
+		return devices
+	}
+	if released < 0 {
+		released = 0
+	}
+	if released > len(devices) {
+		released = len(devices)
+	}
+	return devices[:released]
+}
+
+// NextRelease is how many devices should be released after widening one
+// cohort: the whole group when uncapped, otherwise the current count plus the
+// cap, bounded by the group size. Starting from 0 this releases MaxDevices,
+// then 2*MaxDevices, and so on until the group is fully released.
+func (r Ring) NextRelease(total, released int) int {
+	if r.MaxDevices <= 0 {
+		return total
+	}
+	next := released + r.MaxDevices
+	if next > total {
+		return total
+	}
+	return next
+}
+
+// FullyReleased reports whether every device in the wave's group has been
+// released (a capped wave still ends up releasing the whole group, cohort by
+// cohort).
+func (r Ring) FullyReleased(total, released int) bool { return released >= total }
 
 // RunStatus is the lifecycle of one rollout run.
 type RunStatus string

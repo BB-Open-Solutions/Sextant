@@ -145,3 +145,43 @@ func TestRingLabelFallsBackToGroup(t *testing.T) {
 		t.Fatalf("Label() = %q, want name", got)
 	}
 }
+
+func TestRingCohort(t *testing.T) {
+	devs := []string{"a", "b", "c", "d", "e"}
+	// Uncapped: whole group.
+	if got := (Ring{}).Cohort(devs, 2); len(got) != 5 {
+		t.Fatalf("uncapped cohort = %v, want all 5", got)
+	}
+	// Capped, released clamps to [0,len].
+	r := Ring{MaxDevices: 2}
+	if got := r.Cohort(devs, 0); len(got) != 0 {
+		t.Fatalf("released 0 = %v, want none", got)
+	}
+	if got := r.Cohort(devs, 2); len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("released 2 = %v, want [a b]", got)
+	}
+	if got := r.Cohort(devs, 99); len(got) != 5 {
+		t.Fatalf("over-release should clamp to 5, got %v", got)
+	}
+	if got := r.Cohort(devs, -3); len(got) != 0 {
+		t.Fatalf("negative release should clamp to 0, got %v", got)
+	}
+}
+
+func TestRingNextReleaseAndFullyReleased(t *testing.T) {
+	// Uncapped jumps straight to the whole group.
+	if n := (Ring{}).NextRelease(10, 0); n != 10 {
+		t.Fatalf("uncapped next = %d, want 10", n)
+	}
+	// Capped widens by MaxDevices, then clamps at total: 0 -> 2 -> 4 ... -> 5.
+	r := Ring{MaxDevices: 2}
+	if n := r.NextRelease(5, 0); n != 2 {
+		t.Fatalf("first cohort = %d, want 2", n)
+	}
+	if n := r.NextRelease(5, 4); n != 5 {
+		t.Fatalf("last cohort should clamp to 5, got %d", n)
+	}
+	if !r.FullyReleased(5, 5) || r.FullyReleased(5, 4) {
+		t.Fatal("FullyReleased wrong")
+	}
+}

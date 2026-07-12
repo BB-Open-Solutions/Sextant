@@ -244,6 +244,9 @@ type RolloutRing struct {
 	SoakMinutes       int    `json:"soakMinutes,omitempty"`
 	MinHealthyPercent int    `json:"minHealthyPercent,omitempty"`
 	RequireApproval   bool   `json:"requireApproval,omitempty"` // manual promotion gate
+	// MaxDevices caps how many of the group's devices receive the target at
+	// once (count-capped canary, ADR 0013); 0 releases the whole group.
+	MaxDevices int `json:"maxDevices,omitempty"`
 }
 
 // Label is the wave's display name (its Name, or the group if unnamed).
