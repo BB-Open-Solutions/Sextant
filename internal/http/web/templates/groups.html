@@ -63,23 +63,19 @@
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="reparent" value="1">
               <label>Re-parent</label>
               {{$row := .}}
-              <div class="flex gap-2">
-                <select name="parent" class="min-w-0 flex-1"><option value="" {{if not .Parent}}selected{{end}}>(root)</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
-                <button type="submit" class="quiet shrink-0">Move</button>
-              </div>
+              <select name="parent" class="w-full"><option value="" {{if not .Parent}}selected{{end}}>(root)</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
+              <button type="submit" class="quiet mt-2 self-start">Move</button>
             </form>
             <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="setidp" value="1">
               <label>Map IdP group</label>
-              <div class="flex gap-2">
-                {{if $.DirGroups}}
-                {{$cur := .IdpGroup}}
-                <select name="idpGroup" class="min-w-0 flex-1"><option value="">&mdash; unmapped &mdash;</option>{{range $.DirGroups}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
-                {{else}}
-                <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group" class="min-w-0 flex-1">
-                {{end}}
-                <button type="submit" class="quiet shrink-0">Map</button>
-              </div>
+              {{if $.DirGroups}}
+              {{$cur := .IdpGroup}}
+              <select name="idpGroup" class="w-full"><option value="">&mdash; unmapped &mdash;</option>{{range $.DirGroups}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
+              {{else}}
+              <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group" class="w-full">
+              {{end}}
+              <button type="submit" class="quiet mt-2 self-start">Map</button>
             </form>
             <form method="post" action="/groups/{{.Name}}/remove" class="!block" onsubmit="return confirm('Remove group {{.Name}}?')">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet w-full justify-center !border-status-error/40 !text-status-error"><span class="material-symbols-outlined ms-16">delete</span>Remove group</button>
