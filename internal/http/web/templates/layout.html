@@ -72,15 +72,46 @@
   </nav>
 
   <!-- Main -->
-  <main class="ml-64 flex-1 px-8 py-6">
-    <div class="mx-auto max-w-[1280px]">
-      {{with .Error}}
-      <div class="mb-4 flex items-center gap-2 rounded-lg border border-error/30 bg-error-container px-4 py-3 text-body-md text-on-error-container">
-        <span class="material-symbols-outlined">error</span>{{.}}
+  <main class="ml-64 flex min-h-screen flex-1 flex-col">
+
+    <!-- Top app bar -->
+    <header class="sticky top-0 z-30 flex items-center justify-between border-b border-border-hairline bg-canvas px-8 py-3">
+      <nav class="flex items-center gap-1.5 text-label-md text-text-tertiary" aria-label="Breadcrumb">
+        <a href="/" class="transition-colors hover:text-ink">Sextant</a>
+        <span class="material-symbols-outlined ms-16">chevron_right</span>
+        <span class="font-semibold text-ink">{{.Title}}</span>
+      </nav>
+      <div class="flex items-center gap-2">
+        {{if .CanOrgView}}
+        <a href="/changes" class="btn quiet !py-1.5" title="Review pending changes"><span class="material-symbols-outlined ms-18">difference</span><span class="hidden sm:inline">Changes</span></a>
+        <a href="/rollout" class="btn !py-1.5" title="Staged rollout"><span class="material-symbols-outlined ms-18">rocket_launch</span><span class="hidden sm:inline">Rollout</span></a>
+        {{end}}
+        <a href="/profile" class="ml-1 flex h-9 w-9 items-center justify-center rounded-full bg-surface-container-highest text-text-secondary transition-colors hover:text-ink" title="{{.User.Name}}"><span class="material-symbols-outlined ms-20">account_circle</span></a>
       </div>
-      {{end}}
-      {{template "content" .}}
+    </header>
+
+    <div class="flex-1 px-8 py-6">
+      <div class="mx-auto max-w-[1280px]">
+        {{with .Error}}
+        <div class="mb-4 flex items-center gap-2 rounded-lg border border-error/30 bg-error-container px-4 py-3 text-body-md text-on-error-container">
+          <span class="material-symbols-outlined">error</span>{{.}}
+        </div>
+        {{end}}
+        {{template "content" .}}
+      </div>
     </div>
+
+    <!-- Footer -->
+    <footer class="mt-auto flex flex-col gap-2 border-t border-border-hairline bg-surface-container-low px-8 py-4 text-label-md text-text-tertiary sm:flex-row sm:items-center sm:justify-between">
+      <span>Sextant &middot; DAWO fleet control-plane &middot; self-hosted, no external CDN</span>
+      <nav class="flex flex-wrap items-center gap-4" aria-label="Resources">
+        {{if .CanOrgView}}<a href="/audit" class="transition-colors hover:text-ink">Audit log</a>{{end}}
+        <a href="/readyz" class="transition-colors hover:text-ink">System status</a>
+        <a href="https://forgejo.bb-open.com/bb-open/DAWO-Sextant" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">Documentation</a>
+        <a href="https://forgejo.bb-open.com/bb-open/DAWO-Sextant/issues" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">Support</a>
+      </nav>
+    </footer>
+
   </main>
 
 </div>
