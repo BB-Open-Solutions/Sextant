@@ -1,4 +1,4 @@
-/** Sextant console — Tailwind config (design tokens from the Stitch export).
+/** Sextant console - Tailwind config (design tokens from the Stitch export).
  *  Run `just css` from the repo root to rebuild internal/http/web/static/app.css.
  *  Content scans the Go templates so only used classes ship. */
 module.exports = {

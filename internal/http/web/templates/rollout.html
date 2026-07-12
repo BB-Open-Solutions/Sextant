@@ -17,7 +17,7 @@
 <!-- How the rollout flows: the ordered waves and their size -->
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
   <div class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">stairs</span><h2 class="mt-0 mb-0 text-headline-sm">How this rollout ships</h2></div>
-  <p class="mb-5 max-w-3xl text-body-sm text-text-tertiary">The update reaches each wave in order &mdash; the next wave only starts once the current one is healthy through its soak window (and you sign off a gated wave). Size a wave by its group (a small canary first, then wider); refine each with soak, health and an approval gate.</p>
+  <p class="mb-5 max-w-3xl text-body-sm text-text-tertiary">The update reaches each wave in order - the next wave only starts once the current one is healthy through its soak window (and you sign off a gated wave). Size a wave by its group (a small canary first, then wider); refine each with soak, health and an approval gate.</p>
   <div class="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-stretch">
     {{range .PlanLadder}}
     <div class="flex items-center gap-3">
@@ -30,7 +30,7 @@
         <div class="mt-1 font-mono text-label-xs-caps text-text-tertiary">{{.Group}}</div>
         <div class="mt-2 flex flex-wrap gap-1">
           {{if .Soak}}<span class="tag"><span class="material-symbols-outlined ms-14">schedule</span>{{.Soak}}m</span>{{end}}
-          <span class="tag">&ge;{{if .Healthy}}{{.Healthy}}{{else}}100{{end}}%</span>
+          <span class="tag">&gt;={{if .Healthy}}{{.Healthy}}{{else}}100{{end}}%</span>
           {{if .Approval}}<span class="tag lock"><span class="material-symbols-outlined ms-14">how_to_reg</span>gate</span>{{end}}
         </div>
       </div>
@@ -50,7 +50,7 @@
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
       <div class="flex items-center justify-between">
         <h2 class="mt-0 mb-0 text-headline-sm">Progression</h2>
-        <span class="rounded bg-mint-vibrant/10 px-3 py-1 text-label-xs-caps uppercase text-mint-deep">{{.State.Status}}{{range .Rings}}{{if .Active}} · {{.Ring.Label}}{{end}}{{end}}</span>
+        <span class="rounded bg-mint-vibrant/10 px-3 py-1 text-label-xs-caps uppercase text-mint-deep">{{.State.Status}}{{range .Rings}}{{if .Active}} | {{.Ring.Label}}{{end}}{{end}}</span>
       </div>
       <div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-surface-container-high">
         <div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div>
@@ -71,9 +71,9 @@
         <tr class="{{if $r.Active}}bg-mint-vibrant/5{{end}} hover:bg-surface-bright transition-colors">
           <td class="!px-6">
             <span class="flex items-center gap-2 font-medium"><span class="flex h-5 w-5 items-center justify-center rounded-full text-label-xs-caps {{if eq $r.Label "Complete"}}bg-ink text-canvas{{else if $r.Active}}bg-mint-vibrant text-ink{{else}}bg-surface-container-highest text-text-tertiary{{end}}">{{$i}}</span>{{$r.Ring.Label}}</span>
-            <span class="ml-7 block text-label-md text-text-tertiary">{{$r.Ring.Group}}{{if $r.Ring.RequireApproval}} · <span class="material-symbols-outlined ms-14">how_to_reg</span>manual gate{{end}}</span>
+            <span class="ml-7 block text-label-md text-text-tertiary">{{$r.Ring.Group}}{{if $r.Ring.RequireApproval}} | <span class="material-symbols-outlined ms-14">how_to_reg</span>manual gate{{end}}</span>
           </td>
-          <td class="!px-6 text-text-secondary">{{if $r.Ring.SoakMinutes}}soak {{$r.Ring.SoakMinutes}}m · {{end}}&ge; {{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}{{else}}100{{end}}% healthy</td>
+          <td class="!px-6 text-text-secondary">{{if $r.Ring.SoakMinutes}}soak {{$r.Ring.SoakMinutes}}m | {{end}}&gt;= {{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}{{else}}100{{end}}% healthy</td>
           <td class="!px-6 font-mono text-code-inline">{{$r.Status.OnTarget}}/{{$r.Status.Total}}</td>
           <td class="!px-6">
             {{if $r.Await}}<span class="flex items-center gap-2"><span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined ms-16">how_to_reg</span>Awaiting approval</span>{{if $.CanOwn}}<form method="post" action="/rollout/approve" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="!py-1 !bg-mint-vibrant !text-ink">Approve &amp; promote</button></form>{{end}}</span>
@@ -95,7 +95,7 @@
         <div class="flex flex-col gap-1"><label>Target revision</label><input name="target" placeholder="rev to roll out" required></div>
         <button type="submit">Start rollout</button>
         {{if .NeedsTestWaveSkip}}
-        <label class="flex items-center gap-2 !normal-case !tracking-normal text-body-sm text-status-warn sm:pb-2"><input type="checkbox" name="skipTestWave" class="!w-auto">This plan has no gated test wave &mdash; skip (owner override)</label>
+        <label class="flex items-center gap-2 !normal-case !tracking-normal text-body-sm text-status-warn sm:pb-2"><input type="checkbox" name="skipTestWave" class="!w-auto">This plan has no gated test wave - skip (owner override)</label>
         {{end}}
       </form>
       {{end}}

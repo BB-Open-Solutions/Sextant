@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="mb-6">
   <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">conveyor_belt</span>Deployment pipeline</h1>
-  <p class="mb-0 max-w-3xl text-body-md text-text-tertiary">The whole process, left to right: a change request is drafted, built and approved, then its revision rolls out through the waves — test waves first, then phased production. Cards link to the change and rollout screens where you act.</p>
+  <p class="mb-0 max-w-3xl text-body-md text-text-tertiary">The whole process, left to right: a change request is drafted, built and approved, then its revision rolls out through the waves - test waves first, then phased production. Cards link to the change and rollout screens where you act.</p>
 </div>
 
 <div class="overflow-x-auto pb-4">
@@ -21,7 +21,7 @@
           <div class="flex items-center justify-between"><span class="font-mono text-code-inline text-text-tertiary">{{.ID}}</span>
             <span class="tag {{if eq (printf "%s" .Status) "ready"}}ok{{else if eq (printf "%s" .Status) "failed"}}bad{{else if eq (printf "%s" .Status) "building"}}lock{{end}}">{{.Status}}</span></div>
           <div class="mt-1 text-body-md font-medium text-ink">{{.Title}}</div>
-          <div class="mt-1 flex items-center gap-1 text-label-md text-text-tertiary"><span class="material-symbols-outlined ms-14">person</span>{{.Author}} · {{$.L.Time .Updated}}</div>
+          <div class="mt-1 flex items-center gap-1 text-label-md text-text-tertiary"><span class="material-symbols-outlined ms-14">person</span>{{.Author}} | {{$.L.Time .Updated}}</div>
         </a>
         {{else}}
         <p class="muted px-1 py-6 text-center text-label-md">Nothing here</p>
@@ -60,7 +60,7 @@
     {{else}}
     <div class="flex w-80 shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-hairline p-6 text-center">
       <span class="material-symbols-outlined ms-22 text-text-tertiary">rocket_launch</span>
-      <p class="muted mb-0">No waves configured. Define the wave plan on the <a href="/rollout" class="text-secondary">Rollout</a> page — test waves first, then phases.</p>
+      <p class="muted mb-0">No waves configured. Define the wave plan on the <a href="/rollout" class="text-secondary">Rollout</a> page - test waves first, then phases.</p>
     </div>
     {{end}}
 
@@ -68,6 +68,6 @@
 </div>
 
 {{if .State}}
-<p class="mt-2 text-body-md text-text-tertiary">Rolling out <code class="rounded bg-surface-container px-2 py-0.5 text-ink">{{.State.Target}}</code> · status {{.State.Status}}. Manage on the <a href="/rollout" class="text-secondary">Rollout</a> page.</p>
+<p class="mt-2 text-body-md text-text-tertiary">Rolling out <code class="rounded bg-surface-container px-2 py-0.5 text-ink">{{.State.Target}}</code> | status {{.State.Status}}. Manage on the <a href="/rollout" class="text-secondary">Rollout</a> page.</p>
 {{end}}
 {{end}}

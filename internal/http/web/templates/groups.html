@@ -71,7 +71,7 @@
               <label>Map IdP group</label>
               {{if $.DirGroups}}
               {{$cur := .IdpGroup}}
-              <select name="idpGroup" class="w-full"><option value="">&mdash; unmapped &mdash;</option>{{range $.DirGroups}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
+              <select name="idpGroup" class="w-full"><option value="">- unmapped -</option>{{range $.DirGroups}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
               {{else}}
               <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group" class="w-full">
               {{end}}
@@ -101,7 +101,7 @@
     <div class="flex flex-col gap-1"><label>Name</label><input name="name" placeholder="lowercase slug" required></div>
     <div class="flex flex-col gap-1"><label>Parent</label><select name="parent"><option value="">(root)</option>{{range .AllGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
     <div class="flex flex-col gap-1"><label>IdP mapping</label>
-      {{if .DirGroups}}<select name="idpGroup"><option value="">— none —</option>{{range .DirGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+      {{if .DirGroups}}<select name="idpGroup"><option value=""> - none - </option>{{range .DirGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select>
       {{else}}<input name="idpGroup" placeholder="optional">{{end}}
     </div>
     <button type="submit">Create</button>

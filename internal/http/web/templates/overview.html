@@ -2,7 +2,7 @@
 <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
   <div>
     <h1 class="mb-1">Fleet Overview</h1>
-    <p class="mb-0 text-body-md text-text-tertiary">Live state of the fleet — every figure is real, sourced from the config plane and device check-ins.</p>
+    <p class="mb-0 text-body-md text-text-tertiary">Live state of the fleet - every figure is real, sourced from the config plane and device check-ins.</p>
   </div>
   {{if .CanOrgView}}<a href="/enroll" class="btn shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined ms-18">add</span>Start enrollment</a>{{end}}
 </div>
@@ -58,7 +58,7 @@
     <div>
       <div class="mb-4 flex items-center justify-between border-b border-border-hairline pb-2">
         <h2 class="mt-0 mb-0 text-headline-sm">Recent device activity</h2>
-        <a href="/devices" class="text-label-md text-mint-deep">All devices →</a>
+        <a href="/devices" class="text-label-md text-mint-deep">All devices -> </a>
       </div>
       <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas">
         <table>
@@ -83,11 +83,11 @@
     <!-- Fleet status grid (G8: real per-device heat map) -->
     <div class="rounded-lg border border-border-hairline bg-canvas p-5">
       <h2 class="mt-0 mb-1 text-headline-sm">Fleet status</h2>
-      <p class="mb-4 text-label-md text-text-tertiary">One cell per device · <span class="text-mint-deep">online</span> · <span class="text-status-error">error</span> · <span class="text-text-tertiary">offline</span></p>
+      <p class="mb-4 text-label-md text-text-tertiary">One cell per device | <span class="text-mint-deep">online</span> | <span class="text-status-error">error</span> | <span class="text-text-tertiary">offline</span></p>
       {{if .Status}}
       <div class="flex flex-wrap gap-1.5">
         {{range .Status}}
-        <a href="/devices/{{.Tag}}" title="{{.Tag}}{{if .Error}} — {{.Error}}{{end}}"
+        <a href="/devices/{{.Tag}}" title="{{.Tag}}{{if .Error}} - {{.Error}}{{end}}"
            class="h-5 w-5 rounded-sm {{if .Error}}bg-status-error{{else if .Online}}bg-mint-vibrant{{else}}bg-surface-container-highest{{end}} hover:ring-2 hover:ring-ink/20"></a>
         {{end}}
       </div>
@@ -102,7 +102,7 @@
         {{range $cmd := (list "sxctl devices list" "sxctl device get <tag>" "sxctl changes list" "sxctl rollout status" "sxctl evidence 2026-01-01T00:00:00Z 2026-12-31T00:00:00Z")}}
         <div class="flex items-center gap-2 rounded bg-black/30 px-3 py-2">
           <code class="flex-1 text-label-md text-canvas">{{$cmd}}</code>
-          <button type="button" class="quiet !border-canvas/20 !py-1 !px-2 !text-canvas/70" data-copy="{{$cmd}}" data-copied="✓"><span class="material-symbols-outlined ms-16">content_copy</span></button>
+          <button type="button" class="quiet !border-canvas/20 !py-1 !px-2 !text-canvas/70" data-copy="{{$cmd}}" data-copied="[ok]"><span class="material-symbols-outlined ms-16">content_copy</span></button>
         </div>
         {{end}}
       </div>

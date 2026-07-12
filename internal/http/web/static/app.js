@@ -1,4 +1,4 @@
-// Sextant console — minimal progressive enhancement. Self-hosted, no
+// Sextant console - minimal progressive enhancement. Self-hosted, no
 // framework, CSP-clean (default-src 'self'). The console works fully
 // without JS; this only adds convenience.
 

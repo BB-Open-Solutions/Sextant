@@ -67,11 +67,11 @@
       <form method="post" action="/assurance" class="!flex-col !items-stretch gap-4">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <label class="flex items-start gap-3 !normal-case !tracking-normal text-body-md text-text-secondary"><input type="checkbox" name="requireFourEyes" {{if .FourEyes}}checked{{end}} class="!w-auto mt-1">
-          <span><span class="font-medium text-ink">Four-eyes</span> — a change may not be merged by its own author (segregation of duties).</span></label>
+          <span><span class="font-medium text-ink">Four-eyes</span> - a change may not be merged by its own author (segregation of duties).</span></label>
         <label class="flex items-start gap-3 !normal-case !tracking-normal text-body-md text-text-secondary"><input type="checkbox" name="requireChangeRequest" {{if .RequireChange}}checked{{end}} class="!w-auto mt-1">
-          <span><span class="font-medium text-ink">Require change-request</span> — configuration edits must go through a reviewed change, never a direct commit.</span></label>
+          <span><span class="font-medium text-ink">Require change-request</span> - configuration edits must go through a reviewed change, never a direct commit.</span></label>
         <label class="flex items-start gap-3 !normal-case !tracking-normal text-body-md text-text-secondary"><input type="checkbox" name="requireTestWave" {{if .RequireTestWave}}checked{{end}} class="!w-auto mt-1">
-          <span><span class="font-medium text-ink">Require test wave</span> — a rollout must have a gated test wave first; an owner can skip it per rollout.</span></label>
+          <span><span class="font-medium text-ink">Require test wave</span> - a rollout must have a gated test wave first; an owner can skip it per rollout.</span></label>
         <button type="submit" class="quiet self-start">Save approval flows</button>
       </form>
     </div>

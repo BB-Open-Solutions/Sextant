@@ -31,7 +31,7 @@
           <span class="tag {{if eq .Status "ready"}}ok{{else if eq .Status "failed"}}bad{{else if eq .Status "merged"}}ok{{else if eq .Status "building"}}lock{{end}}">{{.Status}}</span>
         </div>
         <div class="mt-1 text-body-md font-medium text-ink">{{.Title}}</div>
-        <div class="mt-1 flex items-center gap-2 text-label-md text-text-tertiary"><span class="material-symbols-outlined ms-14">person</span>{{.Author}} · {{$.L.Time .Updated}}</div>
+        <div class="mt-1 flex items-center gap-2 text-label-md text-text-tertiary"><span class="material-symbols-outlined ms-14">person</span>{{.Author}} | {{$.L.Time .Updated}}</div>
         {{with .Error}}<div class="mt-2"><span class="tag bad">{{.}}</span></div>{{end}}
       </div>
       <div class="flex flex-wrap items-center gap-2">

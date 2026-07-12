@@ -33,7 +33,7 @@
       </div>
       <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border-hairline px-5 py-3">
         <div class="flex flex-wrap items-center gap-1">
-          {{range .Assignments}}<span class="tag">{{.Target}}{{with .Filter}} · {{.}}{{end}}</span>{{else}}<span class="muted">unassigned</span>{{end}}
+          {{range .Assignments}}<span class="tag">{{.Target}}{{with .Filter}} | {{.}}{{end}}</span>{{else}}<span class="muted">unassigned</span>{{end}}
         </div>
         {{if $.CanOwn}}
         <details class="relative">
@@ -84,7 +84,7 @@
       {{$ := .}}
       {{range .Policies}}{{$pol := .ID}}{{range .Assignments}}
       <div class="mt-3 flex items-center justify-between rounded-md border border-border-soft p-3">
-        <div><div class="text-label-md font-medium text-ink">{{$pol}}</div><div class="text-label-xs-caps uppercase text-text-tertiary">{{.Target}}{{with .Filter}} · filter {{.}}{{end}}</div></div>
+        <div><div class="text-label-md font-medium text-ink">{{$pol}}</div><div class="text-label-xs-caps uppercase text-text-tertiary">{{.Target}}{{with .Filter}} | filter {{.}}{{end}}</div></div>
         <form method="post" action="/assignments/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="policy" value="{{$pol}}"><input type="hidden" name="target" value="{{.Target}}"><input type="hidden" name="filter" value="{{.Filter}}"><button type="submit" aria-label="unassign {{$pol}}" title="unassign" class="!rounded-full !border-0 !bg-transparent !p-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined ms-18">delete</span></button></form>
       </div>
       {{end}}{{end}}
