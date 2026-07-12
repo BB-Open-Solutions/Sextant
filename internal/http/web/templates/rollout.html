@@ -1,84 +1,102 @@
 {{define "content"}}
-<h1>Rollout</h1>
-<p class="mb-6 text-body-md text-text-tertiary max-w-2xl">Rings promote in order: a ring must converge healthy through its soak window before the next one starts.</p>
-
-{{if .State}}
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <div class="flex flex-wrap items-center gap-4">
-    <div>
-      <div class="text-label-md uppercase tracking-wider text-text-tertiary">Target</div>
-      <code class="text-body-lg text-ink">{{.State.Target}}</code>
-    </div>
-    <div>
-      <div class="text-label-md uppercase tracking-wider text-text-tertiary">Status</div>
-      <span class="tag {{if eq (printf "%s" .State.Status) "active"}}ok{{else if eq (printf "%s" .State.Status) "halted"}}bad{{end}}">{{.State.Status}}</span>
-      {{with .State.Reason}}<span class="muted">{{.}}</span>{{end}}
-    </div>
-    <div>
-      <div class="text-label-md uppercase tracking-wider text-text-tertiary">Current ring</div>
-      <span class="text-body-lg text-ink">{{.State.Ring}}</span>
-    </div>
-    {{if .CanOwn}}
-    <div class="ml-auto flex gap-2">
-      <form class="inline" method="post" action="/rollout/tick"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">Advance now</button></form>
-      <form class="inline" method="post" action="/rollout/cancel"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">Cancel run</button></form>
-    </div>
-    {{end}}
+<div class="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+  <div>
+    <h1 class="mb-1 flex items-center gap-2">{{if .State}}<span class="material-symbols-outlined text-mint-deep">autorenew</span>Active rollout{{else}}Rollout{{end}}</h1>
+    {{if .State}}<p class="mb-0 flex items-center gap-2 text-body-md text-text-tertiary">Target revision <code class="rounded bg-surface-container px-2 py-0.5 text-ink">{{.State.Target}}</code></p>
+    {{else}}<p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Rings promote in order: a ring must converge healthy through its soak window before the next one starts.</p>{{end}}
   </div>
-</div>
-
-<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary">lan</span>
-    <h2 class="mt-0 mb-0 text-headline-sm">Rings</h2>
+  {{if and .State .CanOwn}}
+  <div class="flex shrink-0 gap-2">
+    <form class="inline" method="post" action="/rollout/tick"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">Advance now</button></form>
+    <form class="inline" method="post" action="/rollout/cancel" onsubmit="return confirm('Halt this rollout run?')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet !border-status-error/50 !text-status-error">Halt rollout</button></form>
   </div>
-  <table>
-    <tr><th>#</th><th>Group</th><th>Soak</th><th>Health gate</th><th>Convergence</th></tr>
-    {{range $i, $r := .Rings}}
-    <tr class="hover:bg-surface-container-low transition-colors">
-      <td>{{$i}}</td><td class="font-medium">{{$r.Ring.Group}}</td>
-      <td>{{$r.Ring.SoakMinutes}}m</td>
-      <td>{{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}%{{else}}100%{{end}}</td>
-      <td>{{$r.Status.OnTarget}}/{{$r.Status.Total}} on target · {{$r.Status.Healthy}} healthy</td>
-    </tr>
-    {{end}}
-  </table>
-</div>
-{{else}}
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <p class="muted mb-4">No rollout run.{{if not .HasRings}} Configure rollout rings below first.{{end}}</p>
-  {{if and .CanOwn .HasRings}}
-  <form method="post" action="/rollout" class="!items-end">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex flex-col gap-1"><label>Target revision</label><input name="target" placeholder="rev to roll out" required></div>
-    <button type="submit">Start rollout</button>
-  </form>
   {{end}}
 </div>
-{{end}}
 
-{{if .CanOwn}}
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">tune</span>Ring plan</h2>
-  <p class="muted mb-4">Saving replaces the whole plan; an empty form clears it.</p>
-  <form method="post" action="/rollout/plan" class="!block">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    {{$ := .}}
-    <div class="flex flex-col gap-2">
-    {{range $i := .RingRows}}
-    <div class="flex items-center gap-3">
-      <span class="w-6 text-label-md text-text-tertiary">{{$i}}</span>
-      <select name="group{{$i}}">
-        <option value="">(unused ring)</option>
-        {{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}
-      </select>
-      <input name="soak{{$i}}" type="number" min="0" placeholder="soak (min)" value="{{index $.PlanSoaks $i}}" class="w-32">
-      <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="min healthy %" value="{{index $.PlanHealthy $i}}" class="w-36">
+<div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+  <!-- Left: progression + convergence -->
+  <div class="flex flex-col gap-6 xl:col-span-2">
+    {{if .State}}
+    <!-- Progression -->
+    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+      <div class="flex items-center justify-between">
+        <h2 class="mt-0 mb-0 text-headline-sm">Progression</h2>
+        <span class="rounded bg-mint-vibrant/10 px-3 py-1 text-label-xs-caps uppercase text-mint-deep">{{.State.Status}}{{range .Rings}}{{if .Active}} · {{.Ring.Group}} ({{.Label}}){{end}}{{end}}</span>
+      </div>
+      <div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-surface-container-high">
+        <div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div>
+      </div>
+      <div class="mt-3 flex items-center justify-between text-body-sm text-text-tertiary">
+        <span><span class="font-mono text-ink">{{.TotalOnTarget}}</span> / <span class="font-mono">{{.TotalDevices}}</span> devices converged</span>
+        {{with .State.Reason}}<span class="text-status-error">{{.}}</span>{{end}}
+      </div>
+    </div>
+
+    <!-- Convergence by ring -->
+    <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+      <div class="border-b border-border-hairline bg-surface px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Convergence by ring</h2></div>
+      <table>
+        <tr><th class="!px-6 uppercase tracking-wide">Ring</th><th class="!px-6 uppercase tracking-wide">Soak</th><th class="!px-6 uppercase tracking-wide">Health gate</th><th class="!px-6 uppercase tracking-wide">On target</th><th class="!px-6 uppercase tracking-wide">Status</th></tr>
+        {{range $i, $r := .Rings}}
+        <tr class="{{if $r.Active}}bg-mint-vibrant/5{{end}} hover:bg-surface-bright transition-colors">
+          <td class="!px-6"><span class="flex items-center gap-2 font-medium"><span class="h-2 w-2 rounded-full {{if eq $r.Label "Complete"}}bg-ink{{else if $r.Active}}bg-mint-vibrant{{else}}bg-surface-container-highest{{end}}"></span>{{$r.Ring.Group}}</span></td>
+          <td class="!px-6 text-text-secondary">{{if $r.Ring.SoakMinutes}}{{$r.Ring.SoakMinutes}}m{{else}}-{{end}}</td>
+          <td class="!px-6 text-text-secondary">&ge; {{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}{{else}}100{{end}}%</td>
+          <td class="!px-6 font-mono text-code-inline">{{$r.Status.OnTarget}}/{{$r.Status.Total}}</td>
+          <td class="!px-6">
+            {{if eq $r.Label "Complete"}}<span class="flex items-center gap-1 text-text-secondary"><span class="material-symbols-outlined ms-16">check_circle</span>Complete</span>
+            {{else if eq $r.Label "Deploying"}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined ms-16">sync</span>Deploying</span>
+            {{else if eq $r.Label "Soaking"}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined ms-16">schedule</span>Soaking</span>
+            {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined ms-16">lock</span>Queued</span>{{end}}
+          </td>
+        </tr>
+        {{end}}
+      </table>
+    </div>
+    {{else}}
+    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+      <p class="muted mb-4">No rollout run.{{if not .HasRings}} Configure rollout rings first.{{end}}</p>
+      {{if and .CanOwn .HasRings}}
+      <form method="post" action="/rollout" class="!items-end">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div class="flex flex-col gap-1"><label>Target revision</label><input name="target" placeholder="rev to roll out" required></div>
+        <button type="submit">Start rollout</button>
+      </form>
+      {{end}}
     </div>
     {{end}}
+  </div>
+
+  <!-- Right: ring plan editor -->
+  <div>
+    {{if .CanOwn}}
+    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+      <h2 class="mt-0 mb-1 text-headline-sm">Ring plan editor</h2>
+      <p class="muted mb-4">Progressive promotion with health gates. Saving replaces the whole plan; an empty form clears it.</p>
+      <form method="post" action="/rollout/plan" class="!block">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        {{$ := .}}
+        <div class="flex flex-col gap-3">
+        {{range $i := .RingRows}}
+        <div class="rounded-md border border-border-soft p-3">
+          <div class="mb-2 flex items-center justify-between"><span class="text-label-xs-caps uppercase text-text-tertiary">Ring {{$i}}</span></div>
+          <div class="flex flex-col gap-2">
+            <select name="group{{$i}}">
+              <option value="">(unused ring)</option>
+              {{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}
+            </select>
+            <div class="flex gap-2">
+              <input name="soak{{$i}}" type="number" min="0" placeholder="soak (min)" value="{{index $.PlanSoaks $i}}" class="w-full">
+              <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="min healthy %" value="{{index $.PlanHealthy $i}}" class="w-full">
+            </div>
+          </div>
+        </div>
+        {{end}}
+        </div>
+        <button type="submit" class="mt-4 w-full">Save plan</button>
+      </form>
     </div>
-    <button type="submit" class="mt-4">Save plan</button>
-  </form>
+    {{end}}
+  </div>
 </div>
-{{end}}
 {{end}}

@@ -20,6 +20,12 @@ import (
 //go:embed templates/*.html static/*
 var assets embed.FS
 
+// diffLine is one classified line of a unified diff for the change viewer.
+type diffLine struct {
+	Kind string // add | del | hunk | meta | ctx
+	Text string
+}
+
 // Sessions provides the authenticated user for a request (the oidc
 // adapter, or a dev stub on loopback).
 type Sessions interface {
@@ -73,6 +79,28 @@ func New(svc Services, sessions Sessions, write bool,
 	funcs := template.FuncMap{
 		"list":      func(items ...any) []any { return items },
 		"hasPrefix": strings.HasPrefix,
+		// difflines classifies a unified diff into coloured lines for the
+		// change viewer (add/del/hunk/meta/context), CSP-safe via classes.
+		"difflines": func(diff string) []diffLine {
+			lines := strings.Split(diff, "\n")
+			out := make([]diffLine, 0, len(lines))
+			for _, ln := range lines {
+				kind := "ctx"
+				switch {
+				case strings.HasPrefix(ln, "+++"), strings.HasPrefix(ln, "---"),
+					strings.HasPrefix(ln, "diff "), strings.HasPrefix(ln, "index "):
+					kind = "meta"
+				case strings.HasPrefix(ln, "@@"):
+					kind = "hunk"
+				case strings.HasPrefix(ln, "+"):
+					kind = "add"
+				case strings.HasPrefix(ln, "-"):
+					kind = "del"
+				}
+				out = append(out, diffLine{Kind: kind, Text: ln})
+			}
+			return out
+		},
 		// initials renders up to two uppercase initials from a display
 		// name for the audit avatar (a display transform, not new data).
 		"initials": func(name string) string {

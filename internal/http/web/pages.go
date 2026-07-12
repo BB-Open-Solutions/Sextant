@@ -335,18 +335,51 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 		type ringRow struct {
 			Ring   fleet.RolloutRing
 			Status rollout.RingStatus
+			Label  string // observed phase: Complete | Deploying | Soaking | Queued
+			Active bool
 		}
 		var rows []ringRow
+		total, onTarget := 0, 0
 		if f.Rollout != nil {
 			for i, rr := range f.Rollout.Rings {
 				row := ringRow{Ring: rr}
 				if i < len(ringStatus) {
 					row.Status = ringStatus[i]
 				}
+				total += row.Status.Total
+				onTarget += row.Status.OnTarget
+				switch {
+				case st.Status != rollout.Active:
+					row.Label = "Queued"
+				case i < st.Ring:
+					row.Label = "Complete"
+				case i == st.Ring:
+					row.Active = true
+					if row.Status.Total > 0 && row.Status.OnTarget >= row.Status.Total {
+						row.Label = "Soaking"
+					} else {
+						row.Label = "Deploying"
+					}
+				default:
+					row.Label = "Queued"
+				}
 				rows = append(rows, row)
 			}
 		}
 		data["Rings"] = rows
+		// Overall convergence bar: devices on the target across all rings,
+		// bucketed to the nearest 5% so the width is a static CSP-safe class
+		// (bar-w-0 .. bar-w-100) rather than an inline style.
+		data["TotalDevices"], data["TotalOnTarget"] = total, onTarget
+		bucket := 0
+		if total > 0 {
+			pct := (onTarget*100 + total/2) / total
+			bucket = ((pct + 2) / 5) * 5
+			if bucket > 100 {
+				bucket = 100
+			}
+		}
+		data["BarClass"] = fmt.Sprintf("bar-w-%d", bucket)
 	}
 	s.render(w, "rollout", data, v)
 }

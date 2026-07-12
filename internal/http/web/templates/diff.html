@@ -1,12 +1,24 @@
 {{define "content"}}
-<div class="mb-2 flex items-center gap-3">
-  <a href="/changes" class="flex h-8 w-8 items-center justify-center rounded hover:bg-surface-container"><span class="material-symbols-outlined text-text-secondary">arrow_back</span></a>
-  <h1 class="mb-0">Change {{.ID}} — diff</h1>
+<div class="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+  <div class="flex items-center gap-3">
+    <a href="/changes" class="flex h-8 w-8 items-center justify-center rounded hover:bg-surface-container"><span class="material-symbols-outlined text-text-secondary">arrow_back</span></a>
+    <div>
+      <h1 class="mb-0 flex items-center gap-2">{{.Change.Title}}<span class="font-mono text-code-inline text-text-tertiary">{{.ID}}</span></h1>
+      <p class="mb-0 mt-1 flex items-center gap-2 text-body-md text-text-tertiary"><span class="tag {{if eq (printf "%s" .Change.Status) "ready"}}ok{{else if eq (printf "%s" .Change.Status) "failed"}}bad{{end}}">{{.Change.Status}}</span>by {{.Change.Author}}</p>
+    </div>
+  </div>
 </div>
-<p class="mb-6 text-body-md text-text-tertiary">{{.Change.Title}} · <span class="tag {{if eq (printf "%s" .Change.Status) "ready"}}ok{{end}}">{{.Change.Status}}</span> · by {{.Change.Author}}. This is what merging applies to the fleet configuration.</p>
 
-<div class="overflow-hidden rounded-lg border border-border-hairline bg-surface-code shadow-sm">
-  {{if .Diff}}<pre class="overflow-x-auto p-5 text-label-md leading-relaxed text-canvas">{{.Diff}}</pre>
+<div class="overflow-hidden rounded-lg border border-[#2f2f2f] bg-surface-code shadow-sm">
+  <div class="flex items-center justify-between border-b border-[#2f2f2f] px-4 py-2">
+    <span class="font-mono text-code-inline text-text-tertiary">fleet.json</span>
+  </div>
+  {{if .Diff}}
+  <div class="overflow-x-auto py-2 font-mono text-code-inline leading-relaxed">
+    {{range difflines .Diff}}
+    <div class="whitespace-pre px-4 {{if eq .Kind "add"}}bg-mint-vibrant/10 text-mint-soft{{else if eq .Kind "del"}}bg-error/15 text-[#ff9a9a]{{else if eq .Kind "hunk"}}text-mint-vibrant{{else if eq .Kind "meta"}}text-text-tertiary{{else}}text-canvas/80{{end}}">{{.Text}}</div>
+    {{end}}
+  </div>
   {{else}}<p class="muted p-6">No changes on this branch yet.</p>{{end}}
 </div>
 {{end}}

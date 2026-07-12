@@ -1,58 +1,99 @@
 {{define "content"}}
-<h1>Groups</h1>
-<p class="mb-6 text-body-md text-text-tertiary max-w-2xl">Policy resolves org &rarr; parent groups &rarr; group &rarr; device. Enforced values flow down; defaults may be overridden. Re-parenting moves a whole subtree's governance and needs organisation owner.</p>
-
-<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4">
-    <span class="material-symbols-outlined text-text-tertiary">account_tree</span>
-    <h2 class="mt-0 mb-0 text-headline-sm">Group tree</h2>
+<div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+  <div>
+    <h1 class="mb-1">Fleet groups</h1>
+    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Hierarchical device groups, identity-provider mappings and pin status. Policy resolves org &rarr; parent groups &rarr; group &rarr; device; enforced values flow down.</p>
   </div>
-  <table>
-    <tr><th>Group</th><th>IdP mapping</th><th>Pin</th><th>Devices</th><th></th></tr>
-    {{$ := .}}
-    {{range .Rows}}
-    <tr class="hover:bg-surface-container-low transition-colors">
-      <td class="{{indent .Depth}}">
-        <span class="font-medium">{{.Name}}</span>
-        <a class="ml-2 text-label-md text-text-tertiary" href="/settings?scope=group:{{.Name}}">settings</a>
-      </td>
-      <td>{{with .IdpGroup}}<code class="text-text-secondary">{{.}}</code>{{else}}<span class="muted">-</span>{{end}}</td>
-      <td>{{with .Pin}}<code class="text-text-secondary">{{.}}</code>{{else}}<span class="muted">follows HEAD</span>{{end}}</td>
-      <td>{{.Devices}}</td>
-      <td class="text-right">
+  {{if .CanOrgOwn}}<a href="#create" class="btn shrink-0"><span class="material-symbols-outlined ms-18">create_new_folder</span>Create group</a>{{end}}
+</div>
+
+<div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+  <!-- Organization hierarchy -->
+  <div class="flex h-[600px] flex-col overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm xl:col-span-2">
+    <div class="flex items-center justify-between border-b border-border-hairline bg-surface-bright px-6 py-4">
+      <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="material-symbols-outlined ms-18 text-text-tertiary">account_tree</span>Organization hierarchy</h2>
+      <div class="hidden items-center gap-4 text-label-xs-caps uppercase text-text-tertiary sm:flex">
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined ms-14">push_pin</span>Pinned</span>
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined ms-14">devices</span>Devices</span>
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined ms-14">vpn_key</span>IdP</span>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-2">
+      {{range .Rows}}
+      <a href="#g-{{.Name}}" class="flex items-center gap-2 rounded-md py-2 pr-3 {{indent .Depth}} hover:bg-surface-bright transition-colors">
+        <span class="material-symbols-outlined ms-20 text-text-tertiary">{{if eq .Depth 0}}domain{{else}}folder{{end}}</span>
+        <span class="min-w-0 flex-1">
+          <span class="flex items-center gap-1 text-label-md font-medium text-ink">{{.Name}}{{if .Pin}}<span class="material-symbols-outlined ms-14 text-text-tertiary" title="Pinned to {{.Pin}}">push_pin</span>{{end}}</span>
+          {{with .IdpGroup}}<span class="block font-mono text-label-xs-caps text-text-tertiary">idP: {{.}}</span>{{end}}
+        </span>
+        <span class="w-16 text-right font-mono text-code-inline text-text-secondary">{{.Devices}}</span>
+        {{if .IdpGroup}}<span class="material-symbols-outlined ms-18 text-mint-deep" title="IdP mapped">check_circle</span>{{else}}<span class="material-symbols-outlined ms-18 text-text-tertiary" title="not mapped">sync_disabled</span>{{end}}
+      </a>
+      {{else}}
+      <p class="muted p-4">No groups yet.</p>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Group details (right pane; :target reveals the selected group) -->
+  <div class="flex h-[600px] flex-col overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+    <div class="border-b border-border-hairline bg-surface-bright px-6 py-4">
+      <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="material-symbols-outlined ms-18 text-mint-deep">info</span>Group details</h2>
+    </div>
+    <div class="flex-1 overflow-y-auto">
+      {{$ := .}}
+      {{range .Rows}}
+      <div id="g-{{.Name}}" class="gdetail p-6">
+        <div class="flex items-start justify-between">
+          <h3 class="mt-0 mb-0 text-headline-sm">{{.Name}}</h3>
+          {{if .Pin}}<span class="tag lock"><span class="material-symbols-outlined ms-14">push_pin</span>pinned</span>{{end}}
+        </div>
+        <dl class="mt-5 flex flex-col divide-y divide-border-soft text-body-sm">
+          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">Parent</dt><dd>{{if .Parent}}{{.Parent}}{{else}}<span class="muted">(root)</span>{{end}}</dd></div>
+          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">Device count</dt><dd class="font-mono text-code-inline text-ink">{{.Devices}}</dd></div>
+          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">IdP mapping</dt><dd>{{if .IdpGroup}}<code class="text-text-secondary">{{.IdpGroup}}</code>{{else}}<span class="flex items-center gap-1 text-status-warn">Unmapped<span class="material-symbols-outlined ms-14">warning</span></span>{{end}}</dd></div>
+          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">Pin</dt><dd>{{with .Pin}}<code class="text-text-secondary">{{.}}</code>{{else}}<span class="muted">follows HEAD</span>{{end}}</dd></div>
+        </dl>
+        <a href="/settings?scope=group:{{.Name}}" class="mt-2 inline-flex items-center gap-1 text-label-md text-secondary">Open settings <span class="material-symbols-outlined ms-14">arrow_forward</span></a>
         {{if $.CanOrgOwn}}
-        <details class="inline-block text-left">
-          <summary class="cursor-pointer text-label-md text-text-tertiary hover:text-primary">manage</summary>
-          <div class="mt-2 flex flex-col gap-2 rounded-md border border-border-soft bg-surface-container-low p-3">
-            <form method="post" action="/groups/{{.Name}}/update" class="inline">
+        <div class="mt-6">
+          <h4 class="mb-3 text-label-xs-caps uppercase text-text-tertiary">Owner actions</h4>
+          <div class="flex flex-col gap-3">
+            <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="reparent" value="1">
-              <select name="parent">
-                <option value="" {{if not .Parent}}selected{{end}}>(root)</option>
-                {{$row := .}}{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}
-              </select>
-              <button type="submit" class="quiet">Re-parent</button>
+              <label>Re-parent</label>
+              {{$row := .}}
+              <div class="flex gap-2">
+                <select name="parent" class="flex-1"><option value="" {{if not .Parent}}selected{{end}}>(root)</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
+                <button type="submit" class="quiet">Move</button>
+              </div>
             </form>
-            <form method="post" action="/groups/{{.Name}}/update" class="inline">
+            <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="setidp" value="1">
-              <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group">
-              <button type="submit" class="quiet">Map</button>
+              <label>Map IdP group</label>
+              <div class="flex gap-2">
+                <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group" class="flex-1">
+                <button type="submit" class="quiet">Map</button>
+              </div>
             </form>
-            <form method="post" action="/groups/{{.Name}}/remove" class="inline">
-              <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet">Remove</button>
+            <form method="post" action="/groups/{{.Name}}/remove" class="inline" onsubmit="return confirm('Remove group {{.Name}}?')">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined ms-16">delete</span>Remove group</button>
             </form>
           </div>
-        </details>
+        </div>
         {{end}}
-      </td>
-    </tr>
-    {{else}}
-    <tr><td colspan="5" class="muted">No groups yet.</td></tr>
-    {{end}}
-  </table>
+      </div>
+      {{end}}
+      <div class="gplaceholder flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+        <span class="material-symbols-outlined ms-22 text-text-tertiary">ads_click</span>
+        <p class="muted">Select a group from the hierarchy to see its details and owner actions.</p>
+      </div>
+    </div>
+  </div>
 </div>
 
 {{if .CanOrgOwn}}
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+<div id="create" class="mt-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
   <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">create_new_folder</span>Create a group</h2>
   <form method="post" action="/groups" class="!items-end">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
