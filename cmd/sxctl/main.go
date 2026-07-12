@@ -1,8 +1,8 @@
-// Command dfctl is the headless client for the Sextant API (/api/v1):
+// Command sxctl is the headless client for the Sextant API (/api/v1):
 // the CLI half of API-first. Configuration via environment (SEXTANT_URL,
 // SEXTANT_TOKEN - a secret never travels on argv) or flags for the URL.
 //
-// Usage: dfctl [-url U] [-json] <resource> <verb> [args]
+// Usage: sxctl [-url U] [-json] <resource> <verb> [args]
 package main
 
 import (
@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const usage = `dfctl - Sextant fleet CLI
+const usage = `sxctl - Sextant fleet CLI
 
 Resources and verbs:
   devices   list | get TAG | enroll TAG -hardware H [-group G] [-class C] |
@@ -47,7 +47,7 @@ func main() {
 }
 
 func run(args []string) int {
-	fs := flag.NewFlagSet("dfctl", flag.ContinueOnError)
+	fs := flag.NewFlagSet("sxctl", flag.ContinueOnError)
 	url := fs.String("url", os.Getenv("SEXTANT_URL"), "Sextant base URL")
 	asJSON := fs.Bool("json", false, "JSON output for lists")
 	fs.Usage = func() { fmt.Fprintln(os.Stderr, usage) }
@@ -61,7 +61,7 @@ func run(args []string) int {
 	}
 	token := os.Getenv("SEXTANT_TOKEN")
 	if *url == "" || token == "" {
-		fmt.Fprintln(os.Stderr, "dfctl: SEXTANT_URL and SEXTANT_TOKEN are required")
+		fmt.Fprintln(os.Stderr, "sxctl: SEXTANT_URL and SEXTANT_TOKEN are required")
 		return 2
 	}
 	c := newClient(*url, token)
@@ -71,10 +71,10 @@ func run(args []string) int {
 	case err == nil:
 		return 0
 	case errors.As(err, new(*usageError)):
-		fmt.Fprintln(os.Stderr, "dfctl:", err)
+		fmt.Fprintln(os.Stderr, "sxctl:", err)
 		return 2
 	default:
-		fmt.Fprintln(os.Stderr, "dfctl:", err)
+		fmt.Fprintln(os.Stderr, "sxctl:", err)
 		return 1
 	}
 }

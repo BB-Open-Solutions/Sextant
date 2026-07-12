@@ -79,6 +79,16 @@ func New(svc Services, sessions Sessions, write bool,
 	funcs := template.FuncMap{
 		"list":      func(items ...any) []any { return items },
 		"hasPrefix": strings.HasPrefix,
+		// contains reports whether a string slice holds v (e.g. is a
+		// setting key in a policy's enforced/locked list).
+		"contains": func(list []string, v string) bool {
+			for _, s := range list {
+				if s == v {
+					return true
+				}
+			}
+			return false
+		},
 		// difflines classifies a unified diff into coloured lines for the
 		// change viewer (add/del/hunk/meta/context), CSP-safe via classes.
 		"difflines": func(diff string) []diffLine {

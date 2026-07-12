@@ -1,111 +1,131 @@
 {{define "content"}}
-<h1>Policies</h1>
-<p class="mb-6 text-body-md text-text-tertiary max-w-2xl">Reusable setting bundles, bound to scopes by assignments and narrowed by filters. The Intune-shaped core of fleet configuration.</p>
+<div class="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+  <div>
+    <h1 class="mb-1">Policies</h1>
+    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Reusable setting bundles, bound to scopes by assignments and narrowed by filters. Manage and enforce configuration state across the fleet.</p>
+  </div>
+  {{if .CanOwn}}<div class="flex shrink-0 gap-2"><a href="#create-filter" class="btn quiet"><span class="material-symbols-outlined ms-18">add</span>Create filter</a><a href="#create-policy" class="btn !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined ms-18">add_circle</span>Create policy</a></div>{{end}}
+</div>
 
-<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4"><span class="material-symbols-outlined text-text-tertiary">policy</span><h2 class="mt-0 mb-0 text-headline-sm">Policies</h2></div>
-  <table>
-    <tr><th>Policy</th><th>Settings</th><th>Locked keys</th><th>Assigned to</th>{{if .CanOwn}}<th></th>{{end}}</tr>
+<div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+  <!-- Policy cards -->
+  <div class="flex flex-col gap-6 xl:col-span-2">
     {{$ := .}}
     {{range .Policies}}
-    <tr class="hover:bg-surface-container-low transition-colors">
-      <td><span class="font-medium">{{.ID}}</span>{{with .Description}}<div class="muted">{{.}}</div>{{end}}</td>
-      <td>{{range $k, $v := .Settings}}<div><code class="text-text-secondary">{{$k}} = {{printf "%v" $v}}</code></div>{{end}}</td>
-      <td>{{range .Enforced}}<span class="tag lock">{{.}}</span> {{end}}</td>
-      <td>
-        {{$pol := .ID}}
-        {{range .Assignments}}
-        <div class="mb-1 flex items-center gap-1">
-          <span class="tag">{{.Target}}</span>{{with .Filter}}<span class="muted">filter</span><span class="tag">{{.}}</span>{{end}}
-          {{if $.CanOwn}}<form method="post" action="/assignments/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="policy" value="{{$pol}}"><input type="hidden" name="target" value="{{.Target}}"><input type="hidden" name="filter" value="{{.Filter}}"><button type="submit" class="quiet !py-0.5 !px-2">unassign</button></form>{{end}}
+    <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+      <div class="flex items-center justify-between px-5 py-4">
+        <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-deep">policy</span>{{.ID}}</h2>
+        {{if .Enforced}}<span class="tag lock"><span class="material-symbols-outlined ms-14">lock</span>{{len .Enforced}} locked</span>{{end}}
+      </div>
+      {{with .Description}}<p class="mb-0 px-5 text-body-md text-text-tertiary">{{.}}</p>{{end}}
+      <!-- Payload configuration -->
+      <div class="m-5 rounded-md bg-surface-code p-4 font-mono text-code-inline">
+        <div class="mb-2 flex items-center justify-between text-label-xs-caps uppercase text-text-tertiary"><span>Payload configuration</span></div>
+        {{$enf := .Enforced}}
+        {{range $k, $v := .Settings}}
+        <div class="flex items-center justify-between gap-4 py-1">
+          <span class="text-mint-soft">{{$k}}</span>
+          <span class="flex items-center gap-1 text-canvas/70">{{printf "%v" $v}}{{if contains $enf $k}}<span class="material-symbols-outlined ms-14 text-mint-vibrant" title="enforced">lock</span>{{end}}</span>
         </div>
-        {{else}}<span class="muted">unassigned</span>
+        {{else}}
+        <div class="text-text-tertiary">no settings</div>
         {{end}}
-      </td>
-      {{if $.CanOwn}}
-      <td class="text-right">
-        <details class="inline-block text-left">
-          <summary class="cursor-pointer text-label-md text-text-tertiary hover:text-primary">edit</summary>
-          <form method="post" action="/policies" class="mt-2 !flex-col !items-stretch gap-2 rounded-md border border-border-soft bg-surface-container-low p-3">
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border-hairline px-5 py-3">
+        <div class="flex flex-wrap items-center gap-1">
+          {{range .Assignments}}<span class="tag">{{.Target}}{{with .Filter}} · {{.}}{{end}}</span>{{else}}<span class="muted">unassigned</span>{{end}}
+        </div>
+        {{if $.CanOwn}}
+        <details class="relative">
+          <summary class="cursor-pointer list-none text-label-md text-text-tertiary hover:text-primary">edit</summary>
+          <form method="post" action="/policies" class="!absolute right-0 z-10 mt-2 w-72 !flex-col !items-stretch gap-2 rounded-md border border-border-soft bg-canvas p-3 shadow-lg">
             <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}">
             <input name="description" value="{{.Description}}" placeholder="description">
             <textarea name="settings" rows="4" placeholder="key = value">{{.SettingsText}}</textarea>
             <input name="enforced" value="{{.EnforcedText}}" placeholder="locked keys, comma-separated">
-            <div class="flex gap-2"><button type="submit">Save</button>
-              <button type="submit" formaction="/policies/{{.ID}}/delete" class="quiet">Delete</button></div>
+            <div class="flex gap-2"><button type="submit">Save</button><button type="submit" formaction="/policies/{{.ID}}/delete" class="quiet">Delete</button></div>
           </form>
         </details>
-      </td>
-      {{end}}
-    </tr>
-    {{else}}
-    <tr><td colspan="5" class="muted">No policies defined.</td></tr>
-    {{end}}
-  </table>
-</div>
-
-{{if .CanOwn}}
-<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>Create a policy</h2>
-    <form method="post" action="/policies" class="!flex-col !items-stretch gap-3">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <input name="id" placeholder="id (lowercase slug)" required>
-      <input name="description" placeholder="description">
-      <textarea name="settings" rows="4" placeholder="apps.office = true&#10;desktop = plasma" required></textarea>
-      <input name="enforced" placeholder="locked keys, comma-separated (optional)">
-      <div class="flex items-center gap-3"><button type="submit">Create</button><span class="muted">one <code>key = value</code> per line; the gate validates.</span></div>
-    </form>
-  </div>
-  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">link</span>Assign a policy</h2>
-    <form method="post" action="/assignments" class="!flex-col !items-stretch gap-3">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <select name="policy" required><option value="" disabled selected>policy</option>{{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-      <select name="target" required><option value="org">org</option>{{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
-      <select name="filter"><option value="">no filter (all devices)</option>{{range .FilterIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-      <input name="priority" type="number" placeholder="priority (tie-break)">
-      <button type="submit">Assign</button>
-    </form>
-  </div>
-</div>
-{{end}}
-
-<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline px-6 py-4"><span class="material-symbols-outlined text-text-tertiary">filter_list</span><h2 class="mt-0 mb-0 text-headline-sm">Filters</h2></div>
-  <table>
-    <tr><th>Filter</th><th>Match</th><th>Rules</th>{{if .CanOwn}}<th></th>{{end}}</tr>
-    {{range .Filters}}
-    <tr class="hover:bg-surface-container-low transition-colors">
-      <td class="font-medium">{{.ID}}</td>
-      <td>{{.Match}}</td>
-      <td>{{range .Rules}}<div><code class="text-text-secondary">{{.Attr}} {{.Op}} {{.Value}}{{range .Values}}{{.}} {{end}}</code></div>{{end}}</td>
-      {{if $.CanOwn}}<td class="text-right"><form method="post" action="/filters/{{.ID}}/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet">Delete</button></form></td>{{end}}
-    </tr>
-    {{else}}
-    <tr><td colspan="4" class="muted">No filters defined.</td></tr>
-    {{end}}
-  </table>
-</div>
-
-{{if .CanOwn}}
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>Create a filter</h2>
-  <form method="post" action="/filters" class="!flex-col !items-stretch gap-3">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex gap-3">
-      <input name="id" placeholder="id (lowercase slug)" required>
-      <select name="match"><option value="all">all rules must hold</option><option value="any">any rule suffices</option></select>
+        {{end}}
+      </div>
     </div>
-    {{range $i := .RuleRows}}
-    <div class="flex gap-3">
-      <input name="attr{{$i}}" placeholder="attr (tag, class, hardware, assignedUser, group, label:key)" class="flex-1">
-      <select name="op{{$i}}"><option value="eq">eq</option><option value="ne">ne</option><option value="prefix">prefix</option><option value="in">in</option></select>
-      <input name="value{{$i}}" placeholder="value (comma list for in)" class="flex-1">
+    {{else}}
+    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm"><p class="muted mb-0">No policies defined.</p></div>
+    {{end}}
+
+    {{if .CanOwn}}
+    <div id="create-policy" class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+      <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>Create a policy</h2>
+      <form method="post" action="/policies" class="!flex-col !items-stretch gap-3">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input name="id" placeholder="id (lowercase slug)" required>
+        <input name="description" placeholder="description">
+        <textarea name="settings" rows="4" placeholder="apps.office = true&#10;desktop = plasma" required></textarea>
+        <input name="enforced" placeholder="locked keys, comma-separated (optional)">
+        <div class="flex items-center gap-3"><button type="submit">Create</button><span class="muted">one <code>key = value</code> per line; the gate validates.</span></div>
+      </form>
     </div>
     {{end}}
-    <button type="submit" class="self-start">Create</button>
-  </form>
+  </div>
+
+  <!-- Assignments + filters rail -->
+  <div class="flex flex-col gap-6">
+    {{if .CanOwn}}
+    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+      <h2 class="mt-0 mb-4 text-headline-sm">Assign a policy</h2>
+      <form method="post" action="/assignments" class="!flex-col !items-stretch gap-3">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <select name="policy" required><option value="" disabled selected>policy</option>{{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+        <select name="target" required><option value="org">org</option>{{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
+        <select name="filter"><option value="">no filter (all devices)</option>{{range .FilterIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+        <input name="priority" type="number" placeholder="priority (tie-break)">
+        <button type="submit" class="w-full">Add assignment</button>
+      </form>
+      {{$ := .}}
+      {{range .Policies}}{{$pol := .ID}}{{range .Assignments}}
+      <div class="mt-3 flex items-center justify-between rounded-md border border-border-soft p-3">
+        <div><div class="text-label-md font-medium text-ink">{{$pol}}</div><div class="text-label-xs-caps uppercase text-text-tertiary">{{.Target}}{{with .Filter}} · filter {{.}}{{end}}</div></div>
+        <form method="post" action="/assignments/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="policy" value="{{$pol}}"><input type="hidden" name="target" value="{{.Target}}"><input type="hidden" name="filter" value="{{.Filter}}"><button type="submit" aria-label="unassign {{$pol}}" title="unassign" class="!rounded-full !border-0 !bg-transparent !p-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined ms-18">delete</span></button></form>
+      </div>
+      {{end}}{{end}}
+    </div>
+    {{end}}
+
+    <!-- Filters -->
+    <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+      <div class="flex items-center gap-2 border-b border-border-hairline bg-surface px-6 py-4"><span class="material-symbols-outlined ms-18 text-text-tertiary">filter_list</span><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Filters</h2></div>
+      <div class="flex flex-col divide-y divide-border-hairline">
+        {{range .Filters}}
+        <div class="flex items-start justify-between p-4">
+          <div><div class="font-medium">{{.ID}}</div><div class="text-label-xs-caps uppercase text-text-tertiary">match {{.Match}}</div>{{range .Rules}}<div class="mt-1"><code class="text-code-inline text-text-secondary">{{.Attr}} {{.Op}} {{.Value}}{{range .Values}}{{.}} {{end}}</code></div>{{end}}</div>
+          {{if $.CanOwn}}<form method="post" action="/filters/{{.ID}}/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" title="Delete" class="!rounded-full !border-0 !bg-transparent !p-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined ms-18">delete</span></button></form>{{end}}
+        </div>
+        {{else}}
+        <p class="muted p-4">No filters defined.</p>
+        {{end}}
+      </div>
+    </div>
+
+    {{if .CanOwn}}
+    <div id="create-filter" class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+      <h2 class="mt-0 mb-4 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>Create a filter</h2>
+      <form method="post" action="/filters" class="!flex-col !items-stretch gap-3">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div class="flex gap-3">
+          <input name="id" placeholder="id (lowercase slug)" required class="flex-1">
+          <select name="match"><option value="all">all</option><option value="any">any</option></select>
+        </div>
+        {{range $i := .RuleRows}}
+        <div class="flex gap-2">
+          <input name="attr{{$i}}" placeholder="attr" class="flex-1">
+          <select name="op{{$i}}"><option value="eq">eq</option><option value="ne">ne</option><option value="prefix">prefix</option><option value="in">in</option></select>
+          <input name="value{{$i}}" placeholder="value" class="flex-1">
+        </div>
+        {{end}}
+        <button type="submit" class="w-full">Create filter</button>
+      </form>
+    </div>
+    {{end}}
+  </div>
 </div>
-{{end}}
 {{end}}

@@ -16,7 +16,7 @@ Status legend: [x] done, [~] partial, [ ] not started.
 - [x] External commits to the overlay are not picked up (snapshot only
       refreshes on the console's own writes/merges). Need a sync loop or
       forge webhook, with conflict handling.
-- [x] `dfctl` is a stub - the "API/CLI-first" claim needs a real CLI.
+- [x] `sxctl` is a stub - the "API/CLI-first" claim needs a real CLI.
 - [x] No diff view: an approver cannot see what a change alters before
       merge. Git has it; API and UI must surface it.
 - [x] Entra groups "overage": Graph transitiveMemberOf fallback with

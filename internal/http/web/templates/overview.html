@@ -91,12 +91,12 @@
       {{else}}<p class="muted">No devices reporting yet.</p>{{end}}
     </div>
 
-    <!-- CLI toolbelt (G5: real dfctl commands, copyable) -->
+    <!-- CLI toolbelt (G5: real sxctl commands, copyable) -->
     <div class="rounded-lg border border-border-hairline bg-surface-code p-5">
       <h2 class="mt-0 mb-3 flex items-center gap-2 text-headline-sm text-canvas"><span class="material-symbols-outlined text-mint-vibrant">terminal</span>CLI toolbelt</h2>
       <p class="mb-4 text-label-md text-canvas/60">Same actions, scriptable. Set <code class="text-mint-soft">SEXTANT_URL</code> and <code class="text-mint-soft">SEXTANT_TOKEN</code> first.</p>
       <div class="flex flex-col gap-2">
-        {{range $cmd := (list "dfctl devices list" "dfctl device get <tag>" "dfctl changes list" "dfctl rollout status" "dfctl evidence 2026-01-01T00:00:00Z 2026-12-31T00:00:00Z")}}
+        {{range $cmd := (list "sxctl devices list" "sxctl device get <tag>" "sxctl changes list" "sxctl rollout status" "sxctl evidence 2026-01-01T00:00:00Z 2026-12-31T00:00:00Z")}}
         <div class="flex items-center gap-2 rounded bg-black/30 px-3 py-2">
           <code class="flex-1 text-label-md text-canvas">{{$cmd}}</code>
           <button type="button" class="quiet !border-canvas/20 !py-1 !px-2 !text-canvas/70" data-copy="{{$cmd}}" data-copied="✓"><span class="material-symbols-outlined ms-16">content_copy</span></button>

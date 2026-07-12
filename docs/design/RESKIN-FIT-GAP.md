@@ -32,7 +32,7 @@ Attention{Kind,Detail}, Status{Tag,Revision,Phase,Online}.
   device, coloured online/offline/error/drift from live status) →
   **BUILD** (G8). Honest data, keeps the visual richness.
 - CLI Toolbelt (terminal snippets) → **ADAPT**: show real, copyable
-  `dfctl` commands (genuinely useful, static, no fake data).
+  `sxctl` commands (genuinely useful, static, no fake data).
 
 ### Devices  (devices_sextant)
 Stitch: Device Fleet header · Fast Enrollment card (Asset Tag / Hardware
@@ -171,7 +171,7 @@ BUILD (new UI over existing backend — real value):
 - [ ] G2. Devices → the fleet list table in Stitch style.
 - [ ] G3. Groups → two-pane with a Group Details panel + client search.
 - [ ] G4. Rollout → progression bar from real ring data.
-- [ ] G5. Overview → real CLI toolbelt (dfctl) + clipboard copy helper.
+- [ ] G5. Overview → real CLI toolbelt (sxctl) + clipboard copy helper.
 - [ ] G6. Profile → clipboard copy on tokens/secret (shared helper).
 - [ ] G7. Reusable partials: empty-state + flash/toast after POST.
 

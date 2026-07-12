@@ -15,7 +15,7 @@ toolchain, and a larger surface for quality drift.
 Keep the UI server-rendered with html/template, add htmx (vendored, embedded)
 for partial updates and interactivity. All labels come from a message catalog
 (English default); no user-facing strings in Go code. The JSON API under
-/api/v1 is the stable machine contract: dfctl, CI, AI agents and any future
+/api/v1 is the stable machine contract: sxctl, CI, AI agents and any future
 SPA are all clients of the same API the UI capabilities map onto.
 
 ## Consequences

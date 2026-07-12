@@ -27,7 +27,7 @@ clippy clean, OpenAPI contract-tested.
   DeviceCredentials, EvidenceService.
 - `internal/ports` interfaces; `internal/adapters/{git,nix,postgres,
   oidc,ldap}` implement them.
-- `internal/http/{api,web,mw}` transport; `cmd/{sextant,dfctl}`.
+- `internal/http/{api,web,mw}` transport; `cmd/{sextant,sxctl}`.
 - `agent/` Rust device agent. `nix/` generator + resolver twin +
   catalog export + eval-assertion tests. `deploy/{helm,nixos,docker}`.
 - ADRs in `docs/adr/` (0001-0011). Build-ready designs in

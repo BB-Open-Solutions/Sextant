@@ -10,7 +10,7 @@ Built (server + console + agent):
   200 + {intent} synchronously (no store-and-forward, no replay); the
   agent echoes an ack, recorded on device_status.ack (sticky)
 - console red-zone panel (lock/wipe with typed-tag confirmation, cancel,
-  armed/delivered indicator); dfctl devices lock/wipe/unlock
+  armed/delivered indicator); sxctl devices lock/wipe/unlock
 - agent: on an intent, react() writes the persistent lock flag and
   spools the request under /run/sextant-intent for a root executor
 
@@ -95,7 +95,7 @@ be issued BEFORE retire; document the order: lock -> wipe -> retire).
   only the two verbs)
 - console: red-zone panel + typed confirm; evidence export includes
   intent commits automatically (they are commits)
-- OpenAPI + dfctl (`devices lock TAG`, `devices wipe TAG --force`)
+- OpenAPI + sxctl (`devices lock TAG`, `devices wipe TAG --force`)
 
 ## Test plan
 

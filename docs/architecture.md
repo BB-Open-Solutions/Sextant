@@ -9,7 +9,7 @@ the rollout, and reports what each device actually runs.
 
 ```
 transport   internal/http/web (SSR html/template, form-POST)
-            internal/http/api (/api/v1 JSON: dfctl, AI, CI)
+            internal/http/api (/api/v1 JSON: sxctl, AI, CI)
             internal/http/mw  (recover, access log, secure headers, csrf, ratelimit)
                  |
 application internal/app      use-case services; one service per capability

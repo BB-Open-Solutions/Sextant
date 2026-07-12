@@ -1,4 +1,4 @@
-// Package api serves /api/v1, the machine contract of Sextant: dfctl, CI,
+// Package api serves /api/v1, the machine contract of Sextant: sxctl, CI,
 // AI agents and any future frontend are all clients of this surface.
 // Handlers are thin: decode -> one service call -> encode.
 package api

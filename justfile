@@ -38,4 +38,4 @@ run: build
     ./sextant --addr 127.0.0.1:8080
 
 clean:
-    rm -f sextant dfctl coverage.out coverage.html
+    rm -f sextant sxctl coverage.out coverage.html
