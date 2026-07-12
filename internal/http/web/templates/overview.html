@@ -34,6 +34,26 @@
 <div class="grid grid-cols-1 gap-8 xl:grid-cols-3">
   <!-- Main column -->
   <div class="flex flex-col gap-8 xl:col-span-2">
+    {{if .Approvals}}
+    <div>
+      <div class="mb-4 flex items-center justify-between border-b border-border-hairline pb-2">
+        <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-deep">how_to_reg</span>Awaiting your approval</h2>
+        <a href="/changes" class="text-label-md text-mint-deep">All changes -&gt; </a>
+      </div>
+      <div class="flex flex-col gap-3">
+        {{range .Approvals}}
+        <a href="/changes/{{.ID}}/diff" class="flex items-center justify-between rounded-lg border border-mint-vibrant/30 bg-mint-vibrant/5 p-4 transition-colors hover:bg-mint-vibrant/10 no-underline">
+          <span class="flex items-center gap-3">
+            <span class="material-symbols-outlined ms-20 text-mint-deep">rate_review</span>
+            <span><span class="font-medium text-ink">{{.ID}}</span> <span class="text-body-sm text-text-tertiary">by {{.Author}} - built green, ready to merge</span></span>
+          </span>
+          <span class="material-symbols-outlined ms-20 text-text-tertiary">arrow_forward</span>
+        </a>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+
     {{if .Attention}}
     <div>
       <div class="mb-4 flex items-center justify-between border-b border-border-hairline pb-2">

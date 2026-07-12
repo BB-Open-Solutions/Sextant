@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
@@ -41,6 +42,12 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 		}
 	}
 	openChanges := 0
+	// Approvals awaiting this user: a change built green (Ready) that they may
+	// merge. Under four-eyes a user cannot approve their own change.
+	type approval struct{ ID, Author string }
+	var approvals []approval
+	fourEyes := f.Assurance != nil && f.Assurance.RequireFourEyes
+	canApprove := v.roleAt("org").Meets(identity.Editor)
 	// Change requests span the whole document; only org-wide viewers see them.
 	if s.svc.Changes != nil && v.canView("org") {
 		crs, _ := s.svc.Changes.List(r.Context())
@@ -51,6 +58,9 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 			if cr.Status == "failed" {
 				attn = append(attn, attention{"change failed", cr.ID + ": " + cr.Error})
 			}
+			if cr.Status == change.Ready && canApprove && !(fourEyes && cr.AuthorSubject == v.User.Subject) {
+				approvals = append(approvals, approval{ID: cr.ID, Author: cr.Author})
+			}
 		}
 	}
 	s.render(w, "overview", map[string]any{
@@ -60,6 +70,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 			"Policies": len(f.Policies), "OpenChanges": openChanges,
 		},
 		"Attention": attn,
+		"Approvals": approvals,
 		"Status":    status,
 	}, v)
 }
