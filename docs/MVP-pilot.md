@@ -80,6 +80,21 @@ service-account management, …) so nothing built sits unused. Closes H.
 
 **Cross-cutting — gate flip** *(task #37)*: verify runner, flip when green.
 
+## Engineering bar (non-negotiable — ships to code.overheid.nl)
+Every batch is held to this, during the build, not just in the #48 audit:
+- **Security first**: secrets never in git (setup-keys, bind-passwords,
+  client-secrets go through env/agenix/secret-refs); injection firewall on
+  every new input; RBAC owner-only on integration/admin config; new ingestion
+  endpoints (station report) authenticated with a scoped credential; CSP clean;
+  fail-closed on the gate/destructive paths.
+- **Tests, a lot of them**: domain unit tests, adapter integration tests
+  (testcontainers/ephemeral PG), HTTP tests per route (RBAC/CSRF/authz cases),
+  contract tests for `/api/v1`. Nothing ships without tests around it.
+- **Error logging**: structured `slog` with context, no swallowed errors; every
+  failure path logs actionably; readiness reflects real dependency health.
+- **No god-files, no AI slop**: small cohesive files, clean layering, idiom of
+  the surrounding code, no dead/speculative helpers, human-led commit language.
+
 ## Not in the pilot MVP (post-pilot)
 Cells / multi-tenant admin plane (ADR 0009), 1M-device scale hardening,
 backup/DR drills, load tests, public code.overheid release (#19, needs go).
