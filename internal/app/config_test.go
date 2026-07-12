@@ -256,3 +256,46 @@ func TestSyncLoopPicksUpExternalCommits(t *testing.T) {
 	}
 	t.Fatal("external commit never reached the snapshot")
 }
+
+func TestOverlayWriteListReadDelete(t *testing.T) {
+	svc, _ := newService(t, nil) // allow-all gate
+	ctx := context.Background()
+	code := "{ ... }:\n{\n  environment.systemPackages = [ ];\n}\n"
+
+	if err := svc.WriteOverlay(ctx, "k8s-node", code, ports.Author{Name: "op"}); err != nil {
+		t.Fatalf("WriteOverlay: %v", err)
+	}
+	names, err := svc.ListOverlays()
+	if err != nil || len(names) != 1 || names[0] != "k8s-node" {
+		t.Fatalf("ListOverlays = %v, %v", names, err)
+	}
+	got, err := svc.ReadOverlay("k8s-node")
+	if err != nil || got != code {
+		t.Fatalf("ReadOverlay mismatch: %q", got)
+	}
+	// A bad name is rejected.
+	if err := svc.WriteOverlay(ctx, "Bad Name", code, ports.Author{}); err == nil {
+		t.Fatal("accepted a non-slug overlay name")
+	}
+	if err := svc.DeleteOverlay(ctx, "k8s-node", ports.Author{Name: "op"}); err != nil {
+		t.Fatalf("DeleteOverlay: %v", err)
+	}
+	if names, _ := svc.ListOverlays(); len(names) != 0 {
+		t.Fatalf("overlay still present after delete: %v", names)
+	}
+}
+
+func TestOverlayWriteRejectedRollsBack(t *testing.T) {
+	reject := ports.GateFunc(func(context.Context, string, []string) error {
+		return fmt.Errorf("does not evaluate")
+	})
+	svc, _ := newService(t, reject)
+	err := svc.WriteOverlay(context.Background(), "broken", "{ this is not nix", ports.Author{})
+	if err == nil {
+		t.Fatal("rejected overlay was accepted")
+	}
+	// The rejected new file must not linger (rollback removed it).
+	if names, _ := svc.ListOverlays(); len(names) != 0 {
+		t.Fatalf("rejected overlay left behind: %v", names)
+	}
+}

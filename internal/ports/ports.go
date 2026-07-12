@@ -45,6 +45,11 @@ type ConfigRepo interface {
 	ReadFile(name string) ([]byte, error)
 	// WriteFile writes a repo-relative file (uncommitted).
 	WriteFile(name string, data []byte) error
+	// ListFiles lists the regular file names directly under a repo-relative
+	// directory (empty when the directory does not exist).
+	ListFiles(dir string) ([]string, error)
+	// RemoveFile deletes a repo-relative file (uncommitted).
+	RemoveFile(name string) error
 	// Commit stages the given repo-relative files and commits them with the
 	// author's attribution.
 	Commit(ctx context.Context, msg string, a Author, files ...string) error

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -49,13 +50,50 @@ func (r *Repo) ReadFile(name string) ([]byte, error) {
 	return os.ReadFile(p)
 }
 
-// WriteFile implements ports.ConfigRepo.
+// WriteFile implements ports.ConfigRepo. Parent directories are created so a
+// nested file (e.g. overlays/<name>.nix) can be written into a fresh tree.
 func (r *Repo) WriteFile(name string, data []byte) error {
 	p, err := r.safePath(name)
 	if err != nil {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return err
+	}
 	return os.WriteFile(p, data, 0o644)
+}
+
+// ListFiles implements ports.ConfigRepo: the regular file names directly under
+// a repo-relative directory, sorted. A missing directory is empty, not an error.
+func (r *Repo) ListFiles(dir string) ([]string, error) {
+	p, err := r.safePath(dir)
+	if err != nil {
+		return nil, err
+	}
+	ents, err := os.ReadDir(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []string
+	for _, e := range ents {
+		if !e.IsDir() {
+			out = append(out, e.Name())
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// RemoveFile implements ports.ConfigRepo.
+func (r *Repo) RemoveFile(name string) error {
+	p, err := r.safePath(name)
+	if err != nil {
+		return err
+	}
+	return os.Remove(p)
 }
 
 // safePath confines repo-relative names to the working tree.
