@@ -1,0 +1,69 @@
+{{define "content"}}
+<div class="mb-8">
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">extension</span>Integrations</h1>
+  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Connect the fleet to NetBird, your directory and Wazuh. These are device-side options the overlay publishes in the catalog; set them once at the organisation and they flow down to every device. Secret values are stored as references (never the secret itself).</p>
+</div>
+
+<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+  {{$ := .}}
+  {{range .Cards}}
+  <div class="flex flex-col rounded-lg border border-border-hairline bg-canvas shadow-sm">
+    <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
+      <div class="flex items-center gap-3">
+        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary"><span class="material-symbols-outlined ms-20">{{.Icon}}</span></span>
+        <div>
+          <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">{{.Name}}</h2>
+          {{if .Published}}<span class="text-label-xs-caps uppercase text-mint-deep">available</span>{{else}}<span class="text-label-xs-caps uppercase text-text-tertiary">not published</span>{{end}}
+        </div>
+      </div>
+    </div>
+    <div class="flex flex-1 flex-col gap-4 p-6">
+      <p class="mb-0 text-body-sm text-text-secondary">{{.Desc}}</p>
+      {{if not .Published}}
+      <div class="rounded-md border border-dashed border-border-soft p-4 text-body-sm text-text-tertiary">
+        This overlay has not published <code>{{.Prefix}}*</code> options yet. Add the module to the overlay and export the catalog to configure it here.
+      </div>
+      {{else}}
+      <div class="flex flex-col divide-y divide-border-soft">
+        {{range .Rows}}
+        <div class="py-3">
+          <div class="mb-1 flex items-center gap-2">
+            <span class="font-mono text-code-inline font-medium text-ink">{{.Entry.Name}}</span>
+            {{if .Entry.Secret}}<span class="tag lock"><span class="material-symbols-outlined ms-14">key</span>secret</span>{{end}}
+            {{if .Entry.RiskClass}}<span class="tag bad">{{.Entry.RiskClass}} risk</span>{{end}}
+          </div>
+          <div class="mb-2 text-body-sm text-text-tertiary">{{.Entry.Description}}</div>
+          {{if $.CanEdit}}
+          <form method="post" action="/settings" class="!flex-row !flex-wrap !items-end gap-2">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="scope" value="org">
+            <input type="hidden" name="key" value="{{.Entry.Name}}">
+            {{$set := .Set}}{{$val := .Value}}
+            {{if eq .Entry.Widget "toggle"}}
+              <select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}} disabled>inherit</option><option value="true" {{if and $set (eq $val "true")}}selected{{end}}>true</option><option value="false" {{if and $set (eq $val "false")}}selected{{end}}>false</option></select>
+            {{else if eq .Entry.Widget "select"}}
+              <select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}} disabled>inherit</option>{{range .Entry.Options}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+            {{else if eq .Entry.Widget "secret"}}
+              {{if $.SecretRefs}}<select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}}>none</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+              {{else}}<span class="text-body-sm text-text-tertiary">no secrets registered - <a href="/secrets" class="text-secondary">register one</a></span>{{end}}
+            {{else if eq .Entry.Widget "number"}}
+              <input type="number" name="value" value="{{if .Set}}{{.Value}}{{end}}" placeholder="inherit" class="min-w-0 flex-1">
+            {{else}}
+              <input name="value" value="{{if .Set}}{{.Value}}{{end}}" placeholder="inherit" class="min-w-0 flex-1">
+            {{end}}
+            <button type="submit" name="action" value="set" class="shrink-0">Save</button>
+            {{if .Set}}<button type="submit" name="action" value="clear" class="quiet shrink-0" formnovalidate>Clear</button>{{end}}
+          </form>
+          {{else}}
+          <div class="text-body-sm">{{if .Set}}<code>{{.Value}}</code>{{else}}<span class="muted">not set</span>{{end}}</div>
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+      <a href="/settings?scope=org" class="mt-1 inline-flex items-center gap-1 text-label-md text-secondary">Open in the configuration editor <span class="material-symbols-outlined ms-14">arrow_forward</span></a>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}

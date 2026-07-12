@@ -151,7 +151,7 @@ func New(svc Services, sessions Sessions, write bool,
 			return fmt.Sprintf("gd-%d", depth)
 		},
 	}
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "integrations"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -197,6 +197,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/audit/evidence", s.auditEvidence)
 	get("/station", s.stationPage)
 	get("/enroll", s.enrollPage)
+	get("/integrations", s.integrationsPage)
 	get("/secrets", s.secretsPage)
 	get("/service-accounts", s.serviceAccountsPage)
 	get("/profile", s.profilePage)
