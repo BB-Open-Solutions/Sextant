@@ -231,6 +231,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/station/{tag}/enroll", s.postStationEnroll)
 	post("/secrets", s.postSecretRegister)
 	post("/secrets/{name}/remove", s.postSecretRemove)
+	post("/acceptances", s.postAcceptance)
+	post("/acceptances/clear", s.postAcceptanceClear)
 }
 
 // view is the per-request context every page gets.

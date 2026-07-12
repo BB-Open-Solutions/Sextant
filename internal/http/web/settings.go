@@ -91,6 +91,20 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	sort.Strings(secretRefs)
 
+	// Risk acceptances recorded directly at this scope (comply-or-explain).
+	type acceptRow struct{ Key, Reason string }
+	var acceptances []acceptRow
+	if acc, _ := f.AcceptancesAt(scope); acc != nil {
+		keys := make([]string, 0, len(acc))
+		for k := range acc {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			acceptances = append(acceptances, acceptRow{Key: k, Reason: acc[k]})
+		}
+	}
+
 	// The scope's own app lists (additive across the chain; edited here).
 	var pkgs, flats, ovs []string
 	switch {
@@ -109,10 +123,12 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	s.render(w, "settings", map[string]any{
 		"Title": "Settings", "Nav": "settings",
 		"Scope": scope, "Groups": groups, "Sections": sections,
-		"SecretRefs": secretRefs,
-		"IsDevice":   strings.HasPrefix(scope, "device:"),
-		"Empty":      len(cat.Entries) == 0,
-		"CanEdit":    v.roleAt(scope).Meets(identity.Editor),
+		"SecretRefs":  secretRefs,
+		"Acceptances": acceptances,
+		"IsDevice":    strings.HasPrefix(scope, "device:"),
+		"Empty":       len(cat.Entries) == 0,
+		"CanEdit":     v.roleAt(scope).Meets(identity.Editor),
+		"CanAccept":   v.roleAt(scope).Meets(identity.Owner),
 		"Apps": []map[string]string{
 			{"Kind": "packages", "Names": strings.Join(pkgs, ", ")},
 			{"Kind": "flatpaks", "Names": strings.Join(flats, ", ")},

@@ -104,4 +104,31 @@
   {{end}}
 </div>
 {{end}}
+
+<!-- Risk acceptances (comply-or-explain, ADR 0007) -->
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-status-warn">gpp_maybe</span>Risk acceptances</h2>
+  <p class="muted mb-4">Accept a control that cannot be met at this scope, with a documented justification. A failing-but-accepted control reads as explained, not open.</p>
+  {{if .Acceptances}}
+  <table class="mb-4">
+    <tr><th>Control</th><th>Justification</th>{{if .CanAccept}}<th></th>{{end}}</tr>
+    {{$ := .}}
+    {{range .Acceptances}}
+    <tr>
+      <td class="font-mono">{{.Key}}</td>
+      <td class="text-text-secondary">{{.Reason}}</td>
+      {{if $.CanAccept}}<td class="text-right"><form method="post" action="/acceptances/clear" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{$.Scope}}"><input type="hidden" name="key" value="{{.Key}}"><button type="submit" class="quiet">Withdraw</button></form></td>{{end}}
+    </tr>
+    {{end}}
+  </table>
+  {{else}}<p class="muted mb-4">No risk acceptances at this scope.</p>{{end}}
+  {{if .CanAccept}}
+  <form method="post" action="/acceptances" class="!items-end">
+    <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="scope" value="{{.Scope}}">
+    <div class="flex flex-col gap-1"><label>Control key</label><input name="key" placeholder="e.g. secureboot.enable" required class="font-mono"></div>
+    <div class="flex flex-1 flex-col gap-1"><label>Justification</label><input name="reason" placeholder="why this control cannot be met here" required class="w-full"></div>
+    <button type="submit">Accept risk</button>
+  </form>
+  {{end}}
+</div>
 {{end}}

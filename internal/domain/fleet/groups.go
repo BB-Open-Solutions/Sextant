@@ -1,6 +1,10 @@
 package fleet
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
 
 // GroupAncestry returns g's chain from the root ancestor down to g itself
 // (general -> specific), e.g. [root, mid, g]. A broken or cyclic parent link
@@ -108,4 +112,30 @@ func (f *Fleet) AcceptanceFor(tag, key string) (reason, scope string, ok bool) {
 		}
 	}
 	return "", "", false
+}
+
+// AcceptancesAt returns the risk-acceptance register recorded directly at one
+// scope (org / group:x / device:y): control key -> justification. Unknown
+// scopes error like the mutators do.
+func (f *Fleet) AcceptancesAt(ref string) (map[string]string, error) {
+	switch {
+	case ref == "org":
+		if f.Org == nil {
+			return nil, nil
+		}
+		return f.Org.Accepted, nil
+	case strings.HasPrefix(ref, "group:"):
+		g, ok := f.Groups[strings.TrimPrefix(ref, "group:")]
+		if !ok {
+			return nil, fmt.Errorf("unknown group %q", strings.TrimPrefix(ref, "group:"))
+		}
+		return g.Accepted, nil
+	case strings.HasPrefix(ref, "device:"):
+		d, ok := f.Devices[strings.TrimPrefix(ref, "device:")]
+		if !ok {
+			return nil, fmt.Errorf("unknown device %q", strings.TrimPrefix(ref, "device:"))
+		}
+		return d.Accepted, nil
+	}
+	return nil, fmt.Errorf("bad scope %q", ref)
 }
