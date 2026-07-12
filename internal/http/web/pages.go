@@ -292,6 +292,9 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 	data := map[string]any{"Title": "Rollout", "Nav": "rollout",
 		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
 		"HasRings": f.Rollout != nil && len(f.Rollout.Rings) > 0,
+		// A required-but-missing test wave: the start form then offers the
+		// owner an explicit skip (governance: instelbare test-flow).
+		"NeedsTestWaveSkip": f.Assurance != nil && f.Assurance.RequireTestWave && !f.Rollout.HasTestGate(),
 	}
 	// Ring-plan editor state: every existing ring plus two blank rows.
 	// Sizing to the plan (not a fixed cap) means a large plan can never
@@ -407,8 +410,10 @@ func (s *Server) accessPage(w http.ResponseWriter, r *http.Request, v view) {
 	data := map[string]any{
 		"Title": "Access", "Nav": "access",
 		"Bindings": f.Access, "Groups": groups,
-		"CanOwn":   canOwn,
-		"FourEyes": f.Assurance != nil && f.Assurance.RequireFourEyes,
+		"CanOwn":          canOwn,
+		"FourEyes":        f.Assurance != nil && f.Assurance.RequireFourEyes,
+		"RequireChange":   f.Assurance != nil && f.Assurance.RequireChangeRequest,
+		"RequireTestWave": f.Assurance != nil && f.Assurance.RequireTestWave,
 	}
 	// Directory picker: real IdP groups instead of free text. Best-effort;
 	// a slow or absent directory must not break the page.
@@ -523,6 +528,16 @@ func (s *Server) postChangeAbandon(w http.ResponseWriter, r *http.Request, v vie
 func (s *Server) postRolloutStart(w http.ResponseWriter, r *http.Request, v view) error {
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
+	}
+	// Governance: when a test wave is required, refuse a plan without a gated
+	// test wave unless this owner explicitly skips it ("hoeft niet").
+	f := s.svc.Config.Fleet()
+	if f.Assurance != nil && f.Assurance.RequireTestWave && !f.Rollout.HasTestGate() {
+		if r.FormValue("skipTestWave") == "" {
+			return fmt.Errorf("a gated test wave is required: add a wave with manual approval on the plan, or check “skip test wave” to proceed without one")
+		}
+		s.log.Warn("rollout started without the required test wave (owner skip)",
+			"by", v.User.Subject, "target", r.FormValue("target"))
 	}
 	if _, err := s.svc.Rollouts.Start(r.Context(), r.FormValue("target"), webAuthor(v)); err != nil {
 		return err

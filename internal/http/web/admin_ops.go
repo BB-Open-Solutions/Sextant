@@ -71,15 +71,21 @@ func (s *Server) auditEvidence(w http.ResponseWriter, r *http.Request, v view) {
 	}
 }
 
-// postAssurance toggles the four-eyes control (org Owner).
+// postAssurance saves the organisation's approval controls (org Owner): the
+// instelbare governance flows - four-eyes, require-change-request, and
+// require-test-wave.
 func (s *Server) postAssurance(w http.ResponseWriter, r *http.Request, v view) error {
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
-	on := r.FormValue("requireFourEyes") != ""
-	msg := fmt.Sprintf("assurance: four-eyes %v", on)
-	if err := s.svc.Config.Apply(r.Context(),
-		fleet.SetAssurance(fleet.Assurance{RequireFourEyes: on}), msg, webAuthor(v)); err != nil {
+	a := fleet.Assurance{
+		RequireFourEyes:      r.FormValue("requireFourEyes") != "",
+		RequireChangeRequest: r.FormValue("requireChangeRequest") != "",
+		RequireTestWave:      r.FormValue("requireTestWave") != "",
+	}
+	msg := fmt.Sprintf("assurance: four-eyes=%v change-request=%v test-wave=%v",
+		a.RequireFourEyes, a.RequireChangeRequest, a.RequireTestWave)
+	if err := s.svc.Config.Apply(r.Context(), fleet.SetAssurance(a), msg, webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/access", http.StatusSeeOther)

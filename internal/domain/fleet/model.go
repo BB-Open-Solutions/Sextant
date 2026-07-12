@@ -58,10 +58,35 @@ type Station struct {
 	Site        string `json:"site,omitempty"`
 }
 
-// Assurance configures audit controls. RequireFourEyes rejects merging a
-// change by its own author (segregation of duties).
+// Assurance configures the organisation's approval controls (ADR 0007). These
+// are the instelbare governance flows: whether a change needs a second pair of
+// eyes, whether config edits must go through a reviewed change-request at all,
+// and whether an update must pass a gated test wave before it rolls out.
 type Assurance struct {
+	// RequireFourEyes rejects merging a change by its own author (SoD).
 	RequireFourEyes bool `json:"requireFourEyes,omitempty"`
+	// RequireChangeRequest forbids direct config edits: every policy change
+	// must flow through a reviewed change-request, not a straight commit.
+	RequireChangeRequest bool `json:"requireChangeRequest,omitempty"`
+	// RequireTestWave forbids starting a rollout whose plan has no gated test
+	// wave (a first ring with a manual approval gate). An org owner may skip
+	// it for a specific rollout ("hoeft niet, direct doorvoeren").
+	RequireTestWave bool `json:"requireTestWave,omitempty"`
+}
+
+// HasTestGate reports whether the rollout plan has a gated test wave: a ring
+// that requires manual approval before promotion. That first human checkpoint
+// is what "the update was tested" means in the wave model.
+func (p *RolloutPolicy) HasTestGate() bool {
+	if p == nil {
+		return false
+	}
+	for _, r := range p.Rings {
+		if r.RequireApproval {
+			return true
+		}
+	}
+	return false
 }
 
 // Scope carries the settings set directly at a scope plus the subset of keys

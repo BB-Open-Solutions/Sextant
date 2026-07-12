@@ -61,10 +61,13 @@
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
       <p class="muted mb-4">No rollout run.{{if not .HasRings}} Configure rollout rings first.{{end}}</p>
       {{if and .CanOwn .HasRings}}
-      <form method="post" action="/rollout" class="!items-end">
+      <form method="post" action="/rollout" class="!flex-col !items-stretch gap-3 sm:!flex-row sm:!items-end">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <div class="flex flex-col gap-1"><label>Target revision</label><input name="target" placeholder="rev to roll out" required></div>
         <button type="submit">Start rollout</button>
+        {{if .NeedsTestWaveSkip}}
+        <label class="flex items-center gap-2 !normal-case !tracking-normal text-body-sm text-status-warn sm:pb-2"><input type="checkbox" name="skipTestWave" class="!w-auto">This plan has no gated test wave &mdash; skip (owner override)</label>
+        {{end}}
       </form>
       {{end}}
     </div>
