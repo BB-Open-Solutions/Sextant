@@ -86,15 +86,23 @@ func (d *Directory) ListGroups(ctx context.Context, query string) ([]ports.Direc
 			return nil, fmt.Errorf("ldap search: %w", err)
 		}
 	}
-	out := make([]ports.DirectoryGroup, 0, len(res.Entries))
-	for _, e := range res.Entries {
-		name := e.GetAttributeValue(d.cfg.NameAttr)
+	return mapGroups(res.Entries, d.cfg.NameAttr), nil
+}
+
+// mapGroups projects LDAP search entries onto directory groups, keyed by DN
+// with the configured name attribute as the display name. Entries without a
+// name are skipped (a group with no cn is not selectable). Pure, so the
+// projection is unit-tested without a live directory.
+func mapGroups(entries []*ldapv3.Entry, nameAttr string) []ports.DirectoryGroup {
+	out := make([]ports.DirectoryGroup, 0, len(entries))
+	for _, e := range entries {
+		name := e.GetAttributeValue(nameAttr)
 		if name == "" {
 			continue
 		}
 		out = append(out, ports.DirectoryGroup{ID: e.DN, Name: name})
 	}
-	return out, nil
+	return out
 }
 
 // dial connects with a per-call deadline; ldaps URLs get TLS.
