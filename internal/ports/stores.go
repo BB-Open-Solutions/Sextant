@@ -7,6 +7,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 )
@@ -66,6 +67,26 @@ type DiscoveredStore interface {
 	List(ctx context.Context, tenant, station string) ([]discovery.Discovered, error)
 	// Remove drops one MAC once it has been enrolled.
 	Remove(ctx context.Context, tenant, station, mac string) error
+}
+
+// ImageJobStore persists the imaging-execution plane: image jobs an operator
+// dispatched for a station, namespaced by tenant and station and keyed by MAC.
+// Console-authoritative (unlike the station-replaced discovered set), so a
+// discovery report can never clobber a job. Transient observed state, so it
+// lives in Postgres, not git.
+type ImageJobStore interface {
+	// Upsert creates or replaces a job (keyed tenant, station, mac).
+	Upsert(ctx context.Context, tenant string, job imaging.Job, now time.Time) error
+	// ListByStation returns every job for a station, newest first.
+	ListByStation(ctx context.Context, tenant, station string) ([]imaging.Job, error)
+	// ListPending returns a station's jobs awaiting or mid-install (the poll).
+	ListPending(ctx context.Context, tenant, station string) ([]imaging.Job, error)
+	// Get returns one job by MAC, or false.
+	Get(ctx context.Context, tenant, station, mac string) (imaging.Job, bool, error)
+	// UpdateStatus moves a job to a new status with an optional message.
+	UpdateStatus(ctx context.Context, tenant, station, mac string, status imaging.Status, message string, now time.Time) error
+	// Delete removes a job (once installed and reconciled, or canceled).
+	Delete(ctx context.Context, tenant, station, mac string) error
 }
 
 // PrefsStore persists per-user presentation preferences, tenant-namespaced.
