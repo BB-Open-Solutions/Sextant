@@ -181,7 +181,10 @@ func (d *deps) buildConfigPlane() error {
 		if err != nil {
 			return err
 		}
-		d.dir = dir
+		// Cache group listings for a minute: the groups/access pages then do
+		// not dial LDAP on every load, and an unreachable directory stalls at
+		// most one request per minute instead of every one.
+		d.dir = app.NewCachedDirectory(dir, time.Minute, clock)
 		log.Info("directory browse mounted", "ldap", cfg.LDAPURL, "base", cfg.LDAPBaseDN)
 	}
 
