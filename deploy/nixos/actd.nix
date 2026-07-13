@@ -42,20 +42,28 @@ let
       set -euo pipefail
       spool="${spoolDir}"
 
-      # lock: lock every session. Idempotent - safe to run each beat.
+      # lock: lock every session. Idempotent. The marker is removed after
+      # handling so the path unit does not re-trigger this oneshot in a loop
+      # while the file lingers; the agent re-spools it next beat if the console
+      # intent is still set.
       if [ -e "$spool/lock.intent" ]; then
         echo "sextant-actd: lock intent - locking all sessions"
         loginctl lock-sessions || true
+        rm -f "$spool/lock.intent" || true
       fi
 
       # wipe: destructive, heavily gated.
       if [ -e "$spool/wipe.intent" ]; then
       ${if !cfg.armWipe then ''
         echo "sextant-actd: WIPE intent present but this host is NOT armed (services.sextant-actd.armWipe=false); refusing" >&2
+        # Clear the refused marker so the path unit does not respawn on a tight
+        # loop; the agent re-spools it next beat if the intent is still armed.
+        rm -f "$spool/wipe.intent" || true
       '' else ''
         ${lib.optionalString (!cfg.allowUnlockedWipe) ''
         if [ ! -e "${lockFlag}" ]; then
           echo "sextant-actd: WIPE refused - device is not locked first (lock interlock); set allowUnlockedWipe to override" >&2
+          rm -f "$spool/wipe.intent" || true
           exit 0
         fi
         ''}
@@ -64,10 +72,22 @@ let
         if [ ''${#devs[@]} -eq 0 ]; then
           echo "sextant-actd: no LUKS devices found to erase" >&2
         fi
+        failed=0
         for dev in "''${devs[@]}"; do
           echo "sextant-actd: luksErase $dev" >&2
-          cryptsetup luksErase --batch-mode "$dev" || echo "sextant-actd: luksErase failed on $dev" >&2
+          if ! cryptsetup luksErase --batch-mode "$dev"; then
+            echo "sextant-actd: luksErase FAILED on $dev" >&2
+            failed=1
+          fi
         done
+        # A partial erase is NOT a completed wipe: keep the intent for a
+        # rate-limited retry, do not power off, and fail loudly so the operator
+        # sees the device is not fully wiped. Only a fully successful erase
+        # clears the marker (and powers off).
+        if [ "$failed" -ne 0 ]; then
+          echo "sextant-actd: WIPE INCOMPLETE - one or more slots not erased; leaving intent for retry" >&2
+          exit 1
+        fi
         rm -f "$spool/wipe.intent" || true
         ${lib.optionalString cfg.poweroffAfterWipe ''
         echo "sextant-actd: wipe complete - powering off" >&2
@@ -119,14 +139,22 @@ in
 
     systemd.services.sextant-actd = {
       description = "Sextant root action executor";
+      # A wipe that keeps failing (busy device, I/O error) leaves its intent and
+      # exits non-zero; bound the retries so a broken erase is rate-limited into
+      # a visible failed state instead of respawning forever.
+      startLimitIntervalSec = 300;
+      startLimitBurst = 5;
       serviceConfig = {
         Type = "oneshot";
         ExecStart = lib.getExe actd;
-        # Root, but no more than needed: it locks sessions and runs cryptsetup.
+        # Root - it locks sessions and runs cryptsetup - but no more than that.
         User = "root";
+        NoNewPrivileges = true;
         ProtectHome = true;
         ProtectKernelTunables = true;
         ProtectKernelModules = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
         LockPersonality = true;
       };
     };

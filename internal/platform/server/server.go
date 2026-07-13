@@ -71,7 +71,9 @@ func New(addr string, handler http.Handler, log *slog.Logger, opts Options) *Ser
 	}
 }
 
-// Addr returns the bound listen address once Run has started listening.
+// Addr returns the bound listen address once Run has started listening, or
+// "" if Run failed to listen. A receive from a closed channel yields the
+// zero value, so this cannot block forever on a listen failure.
 func (s *Server) Addr() string { return <-s.addrCh }
 
 // Run serves until ctx is cancelled, then shuts down gracefully within the
@@ -79,6 +81,9 @@ func (s *Server) Addr() string { return <-s.addrCh }
 func (s *Server) Run(ctx context.Context) error {
 	ln, err := net.Listen("tcp", s.srv.Addr)
 	if err != nil {
+		// Unblock any Addr() caller instead of leaving it waiting forever
+		// on a send that will now never happen.
+		close(s.addrCh)
 		return fmt.Errorf("listen %s: %w", s.srv.Addr, err)
 	}
 	s.addrCh <- ln.Addr().String()

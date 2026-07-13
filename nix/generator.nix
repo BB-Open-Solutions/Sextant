@@ -80,10 +80,10 @@ let
     let
       dev = fleet.devices.${tag} or { };
       rings = (fleet.rollout or { }).rings or [ ];
-      ancestry = g:
-        let parent = (fleet.groups.${g} or { }).parent or ""; in
-        [ g ] ++ lib.optionals (parent != "") (ancestry parent);
-      covered = lib.concatMap ancestry (dev.groups or [ ]);
+      # Reuse the resolver's ancestry walk - it carries the cycle guard, so a
+      # cyclic groups.*.parent chain truncates instead of overflowing the stack.
+      covered = lib.unique
+        (lib.concatMap (g: resolver.groupAncestry fleet g) (dev.groups or [ ]));
       matching = lib.filter (r: lib.elem r.group covered) rings;
       released = lib.filter
         (r: ((r.maxDevices or 0) == 0) || ((dev.pin or "") == r.group))
@@ -103,7 +103,12 @@ let
       overlayModules = map
         (name:
           let path = "${toString overlaysDir}/${name}.nix"; in
-          if overlaysDir == null
+          # Overlay names are lookups, never paths: reject anything but a plain
+          # slug so a value like "../secret/payload" from fleet.json cannot
+          # escape overlaysDir and pull an arbitrary .nix file into the build.
+          if builtins.match "[A-Za-z0-9_-]+" name == null
+          then throw "device ${tag}: invalid overlay name '${name}' (only letters, digits, - and _)"
+          else if overlaysDir == null
           then throw "device ${tag} selects overlay '${name}' but the generator got no overlaysDir"
           else if !builtins.pathExists path
           then throw "device ${tag} selects overlay '${name}' but ${path} does not exist"

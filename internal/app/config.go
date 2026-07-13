@@ -182,8 +182,21 @@ func (s *ConfigService) AuditLog(ctx context.Context, limit int) ([]ports.AuditE
 // Reload re-reads the working tree into the snapshot (e.g. after a change
 // request merged behind the service's back).
 func (s *ConfigService) Reload() error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 	_, err := s.reload()
 	return err
+}
+
+// WithWriteLock runs fn while holding the single-writer lock. It lets another
+// service in this package that mutates the same main-branch working tree (the
+// change service, merging a change) serialize against the config write
+// transaction instead of racing it on the shared index. fn may call the
+// unexported reload() directly, since the lock is already held.
+func (s *ConfigService) WithWriteLock(fn func() error) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return fn()
 }
 
 // SyncLoop keeps the working tree and snapshot in sync with the remote:

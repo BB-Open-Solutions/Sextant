@@ -227,15 +227,16 @@ func (c *Config) validate() error {
 		if len(c.SessionKey) != 32 {
 			return fmt.Errorf("oidc needs SEXTANT_SESSION_KEY (base64 of 32 random bytes)")
 		}
+		// Session auth over anything but loopback must mark cookies Secure -
+		// otherwise a session cookie can be sent in the clear on a
+		// misconfigured (non-TLS, or TLS-terminating-proxy) deployment. Fail
+		// fast rather than ship an insecure default.
+		if !c.SecureCookies && !isLoopback(c.Addr) {
+			return fmt.Errorf("session auth on non-loopback --addr %q requires --secure-cookies (or SEXTANT_SECURE_COOKIES=true); refusing to ship session cookies without the Secure flag", c.Addr)
+		}
 	}
 	if c.DevAuth {
-		host := c.Addr
-		if i := strings.LastIndex(host, ":"); i >= 0 {
-			host = host[:i]
-		}
-		switch host {
-		case "127.0.0.1", "localhost", "::1", "[::1]":
-		default:
+		if !isLoopback(c.Addr) {
 			return fmt.Errorf("--dev-auth requires a loopback --addr, got %s", c.Addr)
 		}
 		if c.OIDCIssuer != "" {
@@ -243,6 +244,19 @@ func (c *Config) validate() error {
 		}
 	}
 	return nil
+}
+
+// isLoopback reports whether addr's host part is a loopback address.
+func isLoopback(addr string) bool {
+	host := addr
+	if i := strings.LastIndex(host, ":"); i >= 0 {
+		host = host[:i]
+	}
+	switch host {
+	case "127.0.0.1", "localhost", "::1", "[::1]":
+		return true
+	}
+	return false
 }
 
 func envOr(getenv Getenv, key, def string) string {

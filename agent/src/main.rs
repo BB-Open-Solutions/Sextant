@@ -14,10 +14,8 @@ mod config;
 mod posture;
 
 use client::{CheckIn, Client, Outcome};
-use std::collections::hash_map::RandomState;
-use std::hash::{BuildHasher, Hasher};
 use std::process::ExitCode;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 fn main() -> ExitCode {
     let once = std::env::args().any(|a| a == "--once");
@@ -101,6 +99,11 @@ fn main() -> ExitCode {
 /// together does not thundering-herd the console.
 fn jitter(interval: Duration) -> Duration {
     let max_ms = (interval.as_millis() / 10).max(1) as u64;
-    let r = RandomState::new().build_hasher().finish();
-    Duration::from_millis(r % max_ms)
+    // Spread beats using the sub-second wall-clock as a cheap, dependency-free
+    // source of variation - jitter wants spread, not cryptographic randomness.
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| u64::from(d.subsec_nanos()))
+        .unwrap_or(0);
+    Duration::from_millis(nanos % max_ms)
 }

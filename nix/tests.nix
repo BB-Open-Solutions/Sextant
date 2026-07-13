@@ -173,6 +173,39 @@ in
     in
     ev.config.sextant.cominBranch == "rings/zaanstad";
 
+  # A cyclic groups.*.parent chain must not overflow the generator: ancestry
+  # is walked through the resolver's cycle-guarded helper, so it degrades to
+  # "main" instead of crashing the build.
+  cyclicGroupsDoNotOverflow =
+    let
+      cyc = fleet // {
+        groups = { a = { parent = "b"; }; b = { parent = "a"; }; };
+        devices = { lt-1 = { hardware = "hw"; groups = [ "a" ]; }; };
+        rollout = { rings = [ ]; };
+        policies = { };
+        filters = { };
+      };
+      ev = lib.evalModules {
+        modules = [ core site ] ++ generator.mkModules { fleet = cyc; tag = "lt-1"; };
+        specialArgs = { pkgs = fakePkgs; };
+      };
+    in
+    ev.config.sextant.cominBranch == "main";
+
+  # An overlay name is a lookup, never a path: a traversal like "../evil"
+  # from fleet.json is rejected rather than pulling in an arbitrary .nix file.
+  overlayNameRejectsTraversal =
+    let
+      cfg = fleet // {
+        devices = { lt-1 = { hardware = "hw"; groups = [ ]; overlays = [ "../evil" ]; }; };
+        policies = { };
+        filters = { };
+      };
+      r = builtins.tryEval (builtins.deepSeq
+        (generator.mkModules { fleet = cfg; tag = "lt-1"; overlaysDir = ./.; }) true);
+    in
+    !r.success;
+
   # Lifecycle: a retired device has no host attribute (attrNames is lazy,
   # so the dummy nixpkgs is never forced).
   retiredDeviceHasNoHost =

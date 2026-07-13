@@ -292,13 +292,6 @@ func (s *Server) diffPage(w http.ResponseWriter, r *http.Request, v view) {
 	s.render(w, "diff", data, v)
 }
 
-func (s *Server) requireWeb(v view, ref string, role identity.Role) error {
-	if got := v.roleAt(ref); !got.Meets(role) {
-		return fmt.Errorf("requires %s at %s (you hold %s)", role, ref, got)
-	}
-	return nil
-}
-
 func webAuthor(v view) ports.Author {
 	email := v.User.Email
 	if email == "" {

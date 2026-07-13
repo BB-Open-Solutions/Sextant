@@ -23,7 +23,9 @@ var (
 // (dotted paths like python3Packages.requests allowed).
 func ValidatePackage(n string) bool { return pkgNameRe.MatchString(n) && !strings.Contains(n, "..") }
 
-// ValidateFlatpak reports whether n is a safe flathub app id.
+// ValidateFlatpak reports whether n is a safe name: it applies the same
+// injection firewall as ValidatePackage (pkgNameRe, no ".."). It does not
+// verify the reverse-DNS flathub id shape (e.g. org.mozilla.firefox).
 func ValidateFlatpak(n string) bool { return pkgNameRe.MatchString(n) && !strings.Contains(n, "..") }
 
 // ValidateOverlay reports whether n is a safe overlay name.

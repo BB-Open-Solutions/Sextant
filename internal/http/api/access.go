@@ -10,8 +10,11 @@ import (
 
 // --- access bindings (per-scope RBAC, config-as-data) ---
 
-func (a *API) getAccess(w http.ResponseWriter, _ *http.Request) error {
-	writeJSON(w, http.StatusOK, a.cfg.Fleet().Access)
+// getAccess lists role bindings, narrowed to what the caller may view - a
+// viewer bound to one group must not learn other groups' bindings, IdP group
+// names or scopes (the visibility invariant every other read handler honours).
+func (a *API) getAccess(w http.ResponseWriter, r *http.Request) error {
+	writeJSON(w, http.StatusOK, a.cfg.Fleet().VisibleTo(a.canView(r)).Access)
 	return nil
 }
 

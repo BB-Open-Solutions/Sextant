@@ -124,14 +124,11 @@ func (t Token) Expired(now time.Time) bool { return !now.Before(t.Expires) }
 // User projects the token onto the one authorization path: an
 // identity.User the resolver judges exactly like a session. Personal
 // tokens carry the owner's group snapshot; service tokens are principals
-// whose bindings live in the access list.
+// whose bindings live in the access list. Both kinds project the same
+// fields - the resolver treats a service token as its own principal via
+// Subject, not via a kind switch.
 func (t Token) User() identity.User {
-	switch t.Kind {
-	case Service:
-		return identity.User{Subject: t.Subject, Name: t.Name, Groups: t.Groups}
-	default:
-		return identity.User{Subject: t.Subject, Name: t.Name, Groups: t.Groups}
-	}
+	return identity.User{Subject: t.Subject, Name: t.Name, Groups: t.Groups}
 }
 
 // CeilingRole returns the parsed ceiling and whether one is set.

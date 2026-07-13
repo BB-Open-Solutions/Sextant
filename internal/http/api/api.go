@@ -226,6 +226,9 @@ func reject(err error) error { return &badRequest{err} }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	// Several API responses carry one-shot secrets (tokens, device
+	// credentials) that must never be cached - mirrors web.render.
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }

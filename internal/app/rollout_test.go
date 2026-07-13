@@ -309,8 +309,8 @@ func TestRolloutCappedCohort(t *testing.T) {
 
 	// Cohort converges healthy; soak (0) then widen to release w-2.
 	conv.set("wave", rollout.RingStatus{Total: 1, OnTarget: 1, Healthy: 1})
-	tick(t, rs)                     // Wait: records ConvergedAt
-	clock.Advance(time.Minute)      // past the 0 soak
+	tick(t, rs)                // Wait: records ConvergedAt
+	clock.Advance(time.Minute) // past the 0 soak
 	if k := tick(t, rs); k != rollout.WidenCohort {
 		t.Fatalf("widen1 = %s, want widen-cohort", k)
 	}

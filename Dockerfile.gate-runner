@@ -17,10 +17,14 @@ FROM nixos/nix:2.24.9
 # Flakes on; single-user nix. The store is chowned to an unprivileged uid so
 # the pod satisfies the cluster's strict non-root PodSecurity (ADR-0029) - nix
 # runs rootless with a store it owns, no daemon, no capabilities.
-RUN mkdir -p /etc/nix \
+RUN mkdir -p /etc/nix /data \
  && printf 'experimental-features = nix-command flakes\nsandbox = false\n' >> /etc/nix/nix.conf \
  && nix-env -iA nixpkgs.git \
- && chown -R 65532:65532 /nix /etc/nix
+ # nix resolves the user's home via getpwuid() on some paths, not just $HOME;
+ # uid 65532 has no passwd entry, which fails with "cannot determine user's
+ # home directory". Give it one (home = /data) so nix eval runs rootless.
+ && printf 'gate:x:65532:65532::/data:/sbin/nologin\n' >> /etc/passwd \
+ && chown -R 65532:65532 /nix /etc/nix /data
 COPY --from=build /out/gate-runner /usr/local/bin/gate-runner
 USER 65532:65532
 # HOME must be writable for nix's per-user state; the pod sets HOME=/data.

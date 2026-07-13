@@ -63,22 +63,25 @@ let
   matchesRule = fleet: tag: r:
     let
       dev = fleet.devices.${tag} or null;
+      # attr is read once with a default so a rule missing the key fails closed
+      # (matches nothing) instead of throwing "attribute missing" mid-eval.
+      attr = r.attr or "";
       op = r.op or "";
       val = r.value or "";
       vals = r.values or [ ];
       groupsExpanded =
         unique (concatMap (g: groupAncestry fleet g) (dev.groups or [ ]));
       got =
-        if (r.attr or "") == "tag" then tag
-        else if r.attr == "class" then dev.class or ""
-        else if r.attr == "hardware" then dev.hardware or ""
-        else if r.attr == "assignedUser" then dev.assignedUser or ""
-        else if hasPrefix "label:" (r.attr or "")
-        then (dev.labels or { }).${substring 6 (stringLength r.attr - 6) r.attr} or ""
+        if attr == "tag" then tag
+        else if attr == "class" then dev.class or ""
+        else if attr == "hardware" then dev.hardware or ""
+        else if attr == "assignedUser" then dev.assignedUser or ""
+        else if hasPrefix "label:" attr
+        then (dev.labels or { }).${substring 6 (stringLength attr - 6) attr} or ""
         else null;
     in
     if dev == null then false
-    else if (r.attr or "") == "group" then
+    else if attr == "group" then
       (if op == "eq" then elem val groupsExpanded
       else if op == "ne" then !(elem val groupsExpanded)
       else if op == "prefix" then any (g: hasPrefix val g) groupsExpanded

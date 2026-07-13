@@ -125,10 +125,10 @@ func TestEnrollBatchImagesManyDevices(t *testing.T) {
 			t.Fatalf("device %s wrong: %+v", tag, d)
 		}
 	}
-	// The un-selected device (…02) was left on the station set.
+	// The un-selected device (...02) was left on the station set.
 	left, _ := disc.List(context.Background(), app.DefaultTenant, "nuc-1")
 	if len(left) != 1 || left[0].MAC != "aa:bb:cc:dd:ee:02" {
-		t.Fatalf("station set after batch = %v, want only …02", left)
+		t.Fatalf("station set after batch = %v, want only ...02", left)
 	}
 
 	// A bad prefix is rejected (no partial enroll).

@@ -65,3 +65,18 @@ func TestAddGroup(t *testing.T) {
 		t.Error("bad slug accepted")
 	}
 }
+
+func TestGroupMembershipDelta(t *testing.T) {
+	got := GroupMembershipDelta([]string{"a", "b"}, []string{"b", "c"})
+	// symmetric difference: a left, c joined; b unchanged (not in result)
+	set := map[string]bool{}
+	for _, g := range got {
+		set[g] = true
+	}
+	if len(got) != 2 || !set["a"] || !set["c"] || set["b"] {
+		t.Fatalf("delta = %v, want {a, c}", got)
+	}
+	if d := GroupMembershipDelta([]string{"x"}, []string{"x"}); len(d) != 0 {
+		t.Fatalf("no change should be empty, got %v", d)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -26,15 +27,16 @@ func gitRun(ctx context.Context, dir string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// CreateBranch implements ports.BranchRepo.
+// CreateBranch implements ports.BranchRepo. The "--" stops a name starting
+// with "-" from being misread as a flag (mirrors Commit's "git add --").
 func (r *Repo) CreateBranch(ctx context.Context, name string) error {
-	_, err := gitRun(ctx, r.dir, "branch", name)
+	_, err := gitRun(ctx, r.dir, "branch", "--", name)
 	return err
 }
 
-// DeleteBranch implements ports.BranchRepo.
+// DeleteBranch implements ports.BranchRepo. Same "--" guard as CreateBranch.
 func (r *Repo) DeleteBranch(ctx context.Context, name string) error {
-	_, err := gitRun(ctx, r.dir, "branch", "-D", name)
+	_, err := gitRun(ctx, r.dir, "branch", "-D", "--", name)
 	return err
 }
 
@@ -62,7 +64,18 @@ func (r *Repo) Diff(ctx context.Context, branch string) (string, error) {
 		return "", err
 	}
 	if len(out) > maxDiffBytes {
-		return out[:maxDiffBytes] + "\n... (diff truncated)", nil
+		cut := out[:maxDiffBytes]
+		// Back off byte-by-byte while the tail is an incomplete/invalid
+		// UTF-8 sequence, so the raw byte cutoff never splits a multibyte
+		// rune (which would corrupt the diff text).
+		for len(cut) > 0 {
+			r, size := utf8.DecodeLastRuneInString(cut)
+			if r != utf8.RuneError || size > 1 {
+				break
+			}
+			cut = cut[:len(cut)-1]
+		}
+		return cut + "\n... (diff truncated)", nil
 	}
 	return out, nil
 }

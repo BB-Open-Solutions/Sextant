@@ -170,7 +170,7 @@ func (s *Server) postRolloutStart(w http.ResponseWriter, r *http.Request, v view
 	f := s.svc.Config.Fleet()
 	if f.Assurance != nil && f.Assurance.RequireTestWave && !f.Rollout.HasTestGate() {
 		if r.FormValue("skipTestWave") == "" {
-			return fmt.Errorf("a gated test wave is required: add a wave with manual approval on the plan, or check “skip test wave” to proceed without one")
+			return fmt.Errorf("a gated test wave is required: add a wave with manual approval on the plan, or check 'skip test wave' to proceed without one")
 		}
 		s.log.Warn("rollout started without the required test wave (owner skip)",
 			"by", v.User.Subject, "target", r.FormValue("target"))

@@ -229,8 +229,10 @@ func (r *Repo) SetRef(ctx context.Context, name, rev string) (bool, error) {
 	if strings.TrimSpace(string(cur)) == target {
 		return false, nil
 	}
+	// "--" stops a ref built from a caller-influenced name from being
+	// misread as a flag (mirrors Commit's "git add --").
 	if out, err := exec.CommandContext(ctx, "git", "-C", r.dir,
-		"update-ref", ref, target).CombinedOutput(); err != nil {
+		"update-ref", "--", ref, target).CombinedOutput(); err != nil {
 		return false, fmt.Errorf("git update-ref: %s", strings.TrimSpace(string(out)))
 	}
 	return true, nil
@@ -244,8 +246,10 @@ func (r *Repo) PushRef(ctx context.Context, name string) error {
 		return nil
 	}
 	ref := "refs/heads/" + name
+	// "--" stops the repository/refspec pair from being misread as flags
+	// (mirrors Commit's "git add --").
 	if out, err := exec.CommandContext(ctx, "git", "-C", r.dir,
-		"push", "--force", r.remote, ref+":"+ref).CombinedOutput(); err != nil {
+		"push", "--force", "--", r.remote, ref+":"+ref).CombinedOutput(); err != nil {
 		return fmt.Errorf("git push ref %s: %s", name, strings.TrimSpace(string(out)))
 	}
 	return nil

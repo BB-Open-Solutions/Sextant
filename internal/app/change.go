@@ -125,14 +125,18 @@ func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error
 	if err != nil {
 		return change.CR{}, err
 	}
+	// Prepare the worktree BEFORE committing the change to Building. A worktree
+	// failure here leaves the change in its prior status (retryable), instead
+	// of stranding it in Building - a state only Submit can leave, which would
+	// then reject its own retry (Building -> Building is not a legal step).
+	wt, err := s.ensureWorktree(ctx, cr)
+	if err != nil {
+		return change.CR{}, err
+	}
 	if err := cr.Transition(change.Building, s.clock.Now()); err != nil {
 		return change.CR{}, err
 	}
 	if err := s.store.Put(ctx, cr); err != nil {
-		return change.CR{}, err
-	}
-	wt, err := s.ensureWorktree(ctx, cr)
-	if err != nil {
 		return change.CR{}, err
 	}
 
@@ -169,22 +173,36 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 		cr.AuthorSubject != "" && a.Subject != "" && cr.AuthorSubject == a.Subject {
 		return change.CR{}, fmt.Errorf("four-eyes required: change %q cannot be approved by its author", id)
 	}
-	if err := s.repo.MergeNoFF(ctx, cr.Branch, fmt.Sprintf("merge change %s: %s", cr.ID, cr.Title), a); err != nil {
+	// The merge mutates the same main-branch working tree the config service
+	// writes to, so it runs under that service's single-writer lock - a
+	// concurrent Apply and Merge must not interleave on the shared index.
+	// Once MergeNoFF lands, the merge is irreversible, so the Merged status is
+	// persisted immediately (before the snapshot reload / remote push), keeping
+	// the store in step with git even if a later step fails.
+	if err := s.cfg.WithWriteLock(func() error {
+		if err := s.repo.MergeNoFF(ctx, cr.Branch, fmt.Sprintf("merge change %s: %s", cr.ID, cr.Title), a); err != nil {
+			return err
+		}
+		if err := cr.Transition(change.Merged, s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.store.Put(ctx, cr); err != nil {
+			return fmt.Errorf("merged, but recording the change status failed: %w", err)
+		}
+		s.cleanup(ctx, cr)
+		if _, err := s.cfg.reload(); err != nil {
+			return fmt.Errorf("merged, but snapshot reload failed: %w", err)
+		}
+		return nil
+	}); err != nil {
 		return change.CR{}, err
-	}
-	if err := cr.Transition(change.Merged, s.clock.Now()); err != nil {
-		return change.CR{}, err
-	}
-	s.cleanup(ctx, cr)
-	if err := s.cfg.Reload(); err != nil {
-		return change.CR{}, fmt.Errorf("merged, but snapshot reload failed: %w", err)
 	}
 	if s.repo.HasRemote() {
 		if err := s.repo.Push(ctx); err != nil {
-			return change.CR{}, fmt.Errorf("merged locally, push failed: %w", err)
+			return cr, fmt.Errorf("merged locally, push failed: %w", err)
 		}
 	}
-	return cr, s.store.Put(ctx, cr)
+	return cr, nil
 }
 
 // Diff returns what merging the change would alter - the artifact an

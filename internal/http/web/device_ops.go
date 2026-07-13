@@ -131,7 +131,11 @@ func (s *Server) postDeviceUpdate(w http.ResponseWriter, r *http.Request, v view
 	}
 	if r.FormValue("setgroups") == "1" {
 		groups := r.Form["groups"]
-		for _, g := range groups {
+		// Editor on groups joined AND left: a device move must not silently
+		// pull the device out of a group the editor does not control (that
+		// would evade that group's policy enforcement).
+		cur := s.svc.Config.Fleet().Devices[tag].Groups
+		for _, g := range fleet.GroupMembershipDelta(cur, groups) {
 			if err := s.requireWeb(v, "group:"+g, identity.Editor); err != nil {
 				return err
 			}

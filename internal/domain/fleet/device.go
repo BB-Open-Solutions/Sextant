@@ -214,3 +214,31 @@ func RemoveGroup(name string) Mutation {
 		return nil
 	}
 }
+
+// GroupMembershipDelta returns the groups a device would join or leave when
+// its membership changes from old to next: the symmetric difference. Moving a
+// device touches policy on both sides, so an authorization check must cover
+// groups gained AND groups lost, not just the new list. Order is not
+// significant; duplicates are collapsed.
+func GroupMembershipDelta(old, next []string) []string {
+	set := func(xs []string) map[string]bool {
+		m := make(map[string]bool, len(xs))
+		for _, x := range xs {
+			m[x] = true
+		}
+		return m
+	}
+	oldSet, nextSet := set(old), set(next)
+	var out []string
+	for g := range oldSet {
+		if !nextSet[g] {
+			out = append(out, g)
+		}
+	}
+	for g := range nextSet {
+		if !oldSet[g] {
+			out = append(out, g)
+		}
+	}
+	return out
+}

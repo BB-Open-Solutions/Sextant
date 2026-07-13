@@ -33,7 +33,12 @@ func (a *API) patchDevice(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if in.Groups != nil {
-		for _, g := range *in.Groups {
+		// Require Editor on every group the device joins AND every group it
+		// leaves: stripping a device out of a group changes which policies
+		// apply to it, so a device-scoped editor must not do it to a group
+		// they do not control.
+		cur := a.cfg.Fleet().Devices[tag].Groups
+		for _, g := range fleet.GroupMembershipDelta(cur, *in.Groups) {
 			if err := a.require(r, "group:"+g, identity.Editor); err != nil {
 				return err
 			}

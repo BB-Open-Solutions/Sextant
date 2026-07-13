@@ -55,11 +55,13 @@ func run(args []string, getenv config.Getenv) error {
 	mux.Handle("GET /metrics", m.Handler())
 
 	caps, cleanup, err := buildCapabilities(ctx, cfg, log, checks)
-	if err != nil {
-		return err
-	}
+	// Release anything already opened even when the build failed partway
+	// (buildCapabilities returns its partial cleanup on error).
 	for _, c := range cleanup {
 		defer c()
+	}
+	if err != nil {
+		return err
 	}
 	mounted := capability.Mount(mux, log, caps...)
 

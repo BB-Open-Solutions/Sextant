@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -47,7 +48,7 @@ func runNixResolve(t *testing.T, f *Fleet, tag string) map[string]nixResolution 
 		resolvePath, fleetPath, tag)
 	out, err := exec.Command("nix", "eval", "--impure", "--json", "--expr", expr).CombinedOutput()
 	if err != nil {
-		if len(out) > 0 && (contains(out, "nixpkgs/lib") || contains(out, "NIX_PATH")) {
+		if len(out) > 0 && (strings.Contains(string(out), "nixpkgs/lib") || strings.Contains(string(out), "NIX_PATH")) {
 			t.Skipf("nixpkgs lib unavailable: %s", out)
 		}
 		t.Fatalf("nix eval: %v\n%s", err, out)
@@ -57,19 +58,6 @@ func runNixResolve(t *testing.T, f *Fleet, tag string) map[string]nixResolution 
 		t.Fatalf("parse nix output: %v\n%s", err, out)
 	}
 	return got
-}
-
-func contains(b []byte, s string) bool {
-	return len(b) >= len(s) && (string(b) == s || len(b) > 0 && indexOf(string(b), s) >= 0)
-}
-
-func indexOf(h, n string) int {
-	for i := 0; i+len(n) <= len(h); i++ {
-		if h[i:i+len(n)] == n {
-			return i
-		}
-	}
-	return -1
 }
 
 // assertParity compares Go and nix resolution for one device.

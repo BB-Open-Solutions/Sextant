@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -55,6 +56,19 @@ type deps struct {
 	evidence  *app.EvidenceService
 	authz     api.Authz
 	cleanup   []func()
+	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
+	// can wait for them to observe cancellation - they end in git commits, and
+	// cutting one mid-write is never acceptable.
+	wg sync.WaitGroup
+}
+
+// background starts a worker under the WaitGroup so shutdown can join it.
+func (d *deps) background(fn func()) {
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		fn()
+	}()
 }
 
 // buildCapabilities wires the config plane and returns the registry list
@@ -65,7 +79,10 @@ func buildCapabilities(ctx context.Context, cfg *config.Config, log *slog.Logger
 	}
 	d := &deps{ctx: ctx, cfg: cfg, log: log, checks: checks}
 	if err := d.buildConfigPlane(); err != nil {
-		return nil, nil, err
+		// Return whatever cleanup was already registered (e.g. an opened
+		// Postgres pool) so the caller can release it; a later failure in the
+		// config plane must not leak resources opened earlier.
+		return nil, d.cleanup, err
 	}
 	caps := []capability.Capability{
 		d.observedCapability(),
@@ -108,7 +125,7 @@ func (d *deps) buildConfigPlane() error {
 	// The remote is the source of truth: keep the snapshot in sync with
 	// commits made outside this console (engineers, other tools).
 	if repo.HasRemote() {
-		go svc.SyncLoop(d.ctx, 30*time.Second, log)
+		d.background(func() { svc.SyncLoop(d.ctx, 30*time.Second, log) })
 		log.Info("remote sync loop started", "remote", cfg.GitRemote)
 	}
 
@@ -172,11 +189,25 @@ func (d *deps) buildConfigPlane() error {
 	// machine-owned rings/<group> branches devices follow.
 	d.rollouts = app.NewRolloutService(svc, st.Rollouts(), conv, clock, log).WithRefs(repo)
 	d.evidence = app.NewEvidenceService(svc, d.changes, clock)
-	go d.rollouts.Run(d.ctx, 30*time.Second)
+	d.background(func() { d.rollouts.Run(d.ctx, 30*time.Second) })
 	d.checks.Register("config-repo", func(context.Context) error {
 		_, err := repo.ReadFile(app.FleetFile)
 		return err
 	})
+	// Join the background workers on shutdown, bounded by the grace period, so
+	// an in-flight sync/rollout write finishes (or is abandoned loudly) instead
+	// of being cut off. Appended last so it runs BEFORE cleanups added earlier
+	// (e.g. the Postgres pool the rollout ticker uses): workers stop first.
+	d.cleanup = append(d.cleanup, func() {
+		done := make(chan struct{})
+		go func() { d.wg.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(cfg.ShutdownGrace):
+			log.Warn("background workers did not stop within the shutdown grace")
+		}
+	})
+
 	log.Info("config plane mounted", "repo", cfg.RepoDir, "write", cfg.Write,
 		"gate", cfg.GateMode, "remote", cfg.GitRemote, "state", stateDir)
 	return nil

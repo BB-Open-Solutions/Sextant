@@ -57,7 +57,10 @@ func (g *EvalGate) Validate(ctx context.Context, repoDir string, hosts []string)
 		run = execRunner
 	}
 
-	apply := g.applyExpr(hosts)
+	apply, err := g.applyExpr(hosts)
+	if err != nil {
+		return err
+	}
 	out, err := run(ctx, "nix", "eval", "--json", repoDir+"#nixosConfigurations",
 		"--apply", apply, "--no-warn-dirty")
 	if err != nil {
@@ -69,9 +72,9 @@ func (g *EvalGate) Validate(ctx context.Context, repoDir string, hosts []string)
 // applyExpr builds the nix --apply expression. Scoped hosts keep the
 // interactive gate fast; no hosts forces the whole set (e.g. a flake.lock
 // update touches everything).
-func (g *EvalGate) applyExpr(hosts []string) string {
+func (g *EvalGate) applyExpr(hosts []string) (string, error) {
 	if len(hosts) == 0 {
-		return "cfgs: builtins.attrValues (builtins.mapAttrs (_: c: c.config.system.build.toplevel.drvPath) cfgs)"
+		return "cfgs: builtins.attrValues (builtins.mapAttrs (_: c: c.config.system.build.toplevel.drvPath) cfgs)", nil
 	}
 	variants := g.HostVariants
 	if len(variants) == 0 {
@@ -81,13 +84,25 @@ func (g *EvalGate) applyExpr(hosts []string) string {
 	b.WriteString("cfgs: map (n: cfgs.${n}.config.system.build.toplevel.drvPath) [ ")
 	for _, h := range hosts {
 		for _, v := range variants {
-			// hosts are validated slugs; quote them as nix strings.
-			fmt.Fprintf(&b, "%q ", h+v)
+			// hosts are validated slugs upstream; re-check here before
+			// interpolation - this function must not trust that.
+			hv := h + v
+			if !hostRe.MatchString(hv) {
+				return "", fmt.Errorf("invalid host %q", hv)
+			}
+			fmt.Fprintf(&b, "%q ", hv)
 		}
 	}
 	b.WriteString("]")
-	return b.String()
+	return b.String(), nil
 }
+
+// hostRe is defense-in-depth against nix expression injection: hosts are
+// spliced into --apply/target expressions via %q, and callers already
+// validate against fleet.ValidateSlug several layers away, but this
+// function must not trust that a caller upstream did its job. Shared with
+// build.go's targets.
+var hostRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 
 // storePathRe strips store-path noise so gate errors show the assert
 // message, not derivation internals.

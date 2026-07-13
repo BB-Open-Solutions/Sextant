@@ -36,7 +36,10 @@ func TestValidateInvocation(t *testing.T) {
 
 func TestHostVariantsExpand(t *testing.T) {
 	g := &EvalGate{HostVariants: []string{"", "-sb"}}
-	expr := g.applyExpr([]string{"lt-1"})
+	expr, err := g.applyExpr([]string{"lt-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(expr, `"lt-1"`) || !strings.Contains(expr, `"lt-1-sb"`) {
 		t.Fatalf("variants not expanded: %s", expr)
 	}
@@ -44,7 +47,10 @@ func TestHostVariantsExpand(t *testing.T) {
 
 func TestEmptyHostsForcesWholeSet(t *testing.T) {
 	g := &EvalGate{}
-	expr := g.applyExpr(nil)
+	expr, err := g.applyExpr(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(expr, "mapAttrs") {
 		t.Fatalf("whole-set expr wrong: %s", expr)
 	}

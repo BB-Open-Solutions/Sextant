@@ -39,7 +39,10 @@ func (b *Builder) Build(ctx context.Context, repoDir string, hosts []string) err
 		run = execRunner
 	}
 
-	targets := b.targets(repoDir, hosts)
+	targets, err := b.targets(repoDir, hosts)
+	if err != nil {
+		return err
+	}
 	args := append([]string{"build", "--no-link", "--no-warn-dirty"}, targets...)
 	if out, err := run(ctx, "nix", args...); err != nil {
 		return &ports.ValidationError{Detail: sanitize(string(out))}
@@ -49,11 +52,11 @@ func (b *Builder) Build(ctx context.Context, repoDir string, hosts []string) err
 
 // targets expands hosts (with variants) into flake build attrs; empty hosts
 // builds the whole set via the flake's nixosConfigurations.
-func (b *Builder) targets(repoDir string, hosts []string) []string {
+func (b *Builder) targets(repoDir string, hosts []string) ([]string, error) {
 	if len(hosts) == 0 {
 		// Realising every host: rely on the flake exposing a build-all
 		// check or fall back to the bare flake (its default outputs).
-		return []string{repoDir + "#nixosConfigurations"}
+		return []string{repoDir + "#nixosConfigurations"}, nil
 	}
 	variants := b.HostVariants
 	if len(variants) == 0 {
@@ -62,9 +65,15 @@ func (b *Builder) targets(repoDir string, hosts []string) []string {
 	var out []string
 	for _, h := range hosts {
 		for _, v := range variants {
+			// hosts are validated slugs upstream; re-check here before
+			// interpolation - this function must not trust that.
+			hv := h + v
+			if !hostRe.MatchString(hv) {
+				return nil, fmt.Errorf("invalid host %q", hv)
+			}
 			out = append(out, fmt.Sprintf(
-				"%s#nixosConfigurations.%q.config.system.build.toplevel", repoDir, h+v))
+				"%s#nixosConfigurations.%q.config.system.build.toplevel", repoDir, hv))
 		}
 	}
-	return out
+	return out, nil
 }
