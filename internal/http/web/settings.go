@@ -86,6 +86,15 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	sort.Strings(groups)
 
+	// Devices the user may view, for the scope selector's device drill-down.
+	devices := make([]string, 0, len(f.Devices))
+	for tag := range f.Devices {
+		if v.canView("device:" + tag) {
+			devices = append(devices, tag)
+		}
+	}
+	sort.Strings(devices)
+
 	// Registered secret-reference names, for the secret-widget picker.
 	secretRefs := make([]string, 0, len(f.SecretRefs))
 	for name := range f.SecretRefs {
@@ -124,7 +133,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 
 	s.render(w, "settings", map[string]any{
 		"Title": "Settings", "Nav": "settings",
-		"Scope": scope, "Groups": groups, "Sections": sections,
+		"Scope": scope, "Groups": groups, "Devices": devices, "Sections": sections,
 		"SecretRefs":  secretRefs,
 		"Acceptances": acceptances,
 		"IsDevice":    strings.HasPrefix(scope, "device:"),
