@@ -58,16 +58,11 @@
       <p class="nav-section">{{.L.T "layout.section_governance"}}</p>
       <ul class="space-y-1 px-2">
         <li><a href="/access" class="nav-link {{if eq $n "access"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">admin_panel_settings</span>{{.L.T "nav.access"}}</a></li>
+        <!-- Organisation-global settings hub (e-mail, service accounts, audit,
+             org defaults). Single-org-per-deployment, so these are the whole
+             org's global settings; a superadmin surface can steer many later. -->
+        {{if .CanOrgView}}<li><a href="/org" class="nav-link {{if or (eq $n "org") (eq $n "service-accounts") (eq $n "mail") (eq $n "audit")}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">corporate_fare</span>{{.L.T "nav.org"}}</a></li>{{end}}
       </ul>
-      <!-- Service accounts, e-mail and audit live under Settings (Beheer), keeping
-           the sidebar to frequently used features. -->
-      {{if or (eq $n "service-accounts") (eq $n "mail") (eq $n "audit")}}
-      <ul class="space-y-1 px-2 pt-1">
-        {{if .CanOrgOwn}}<li><a href="/service-accounts" class="nav-link {{if eq $n "service-accounts"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">robot_2</span>{{.L.T "nav.serviceaccounts"}}</a></li>{{end}}
-        {{if .CanOrgOwn}}<li><a href="/mail" class="nav-link {{if eq $n "mail"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">mail</span>{{.L.T "nav.mail"}}</a></li>{{end}}
-        {{if .CanOrgView}}<li><a href="/audit" class="nav-link {{if eq $n "audit"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">history_edu</span>{{.L.T "nav.audit"}}</a></li>{{end}}
-      </ul>
-      {{end}}
     </div>
 
     <div class="border-t border-border-hairline p-4">

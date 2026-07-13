@@ -33,19 +33,6 @@
   </div>
 </div>
 
-{{if or .CanOrgView .CanOrgOwn}}
-<!-- Beheer: the less-used administrative surfaces, tucked here to keep the
-     sidebar to frequently used features. -->
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
-  <p class="mb-3 text-label-xs-caps uppercase text-text-tertiary">{{.L.T "settings.admin"}}</p>
-  <div class="flex flex-wrap gap-2">
-    {{if .CanOrgOwn}}<a href="/service-accounts" class="inline-flex items-center gap-2 rounded-lg border border-border-hairline px-3 py-2 text-label-md text-text-secondary transition-colors hover:bg-surface-bright hover:text-ink"><span class="material-symbols-outlined msz-18">robot_2</span>{{.L.T "nav.serviceaccounts"}}</a>{{end}}
-    {{if .CanOrgOwn}}<a href="/mail" class="inline-flex items-center gap-2 rounded-lg border border-border-hairline px-3 py-2 text-label-md text-text-secondary transition-colors hover:bg-surface-bright hover:text-ink"><span class="material-symbols-outlined msz-18">mail</span>{{.L.T "nav.mail"}}</a>{{end}}
-    {{if .CanOrgView}}<a href="/audit" class="inline-flex items-center gap-2 rounded-lg border border-border-hairline px-3 py-2 text-label-md text-text-secondary transition-colors hover:bg-surface-bright hover:text-ink"><span class="material-symbols-outlined msz-18">history_edu</span>{{.L.T "nav.audit"}}</a>{{end}}
-  </div>
-</div>
-{{end}}
-
 {{if .Empty}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
   <p class="muted">{{.L.T "settings.no_catalog_pre"}} <code>nix eval .#catalog --json &gt; catalog.json</code> {{.L.T "settings.no_catalog_post"}}</p>

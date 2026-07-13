@@ -1,0 +1,35 @@
+{{define "content"}}
+<div class="mb-8">
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">corporate_fare</span>{{.L.T "org.title"}}</h1>
+  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "org.subtitle"}}</p>
+</div>
+
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  {{if .CanOrgOwn}}
+  <a href="/mail" class="group flex flex-col gap-2 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm transition-colors hover:border-mint-deep/40 hover:bg-surface-bright">
+    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary group-hover:text-mint-deep"><span class="material-symbols-outlined msz-20">mail</span></span>
+    <span class="mt-1 text-label-md font-bold text-ink">{{.L.T "nav.mail"}}</span>
+    <span class="text-body-sm text-text-tertiary">{{.L.T "org.mail_desc"}}</span>
+  </a>
+  <a href="/service-accounts" class="group flex flex-col gap-2 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm transition-colors hover:border-mint-deep/40 hover:bg-surface-bright">
+    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary group-hover:text-mint-deep"><span class="material-symbols-outlined msz-20">robot_2</span></span>
+    <span class="mt-1 text-label-md font-bold text-ink">{{.L.T "nav.serviceaccounts"}}</span>
+    <span class="text-body-sm text-text-tertiary">{{.L.T "org.sa_desc"}}</span>
+  </a>
+  {{end}}
+  <a href="/audit" class="group flex flex-col gap-2 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm transition-colors hover:border-mint-deep/40 hover:bg-surface-bright">
+    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary group-hover:text-mint-deep"><span class="material-symbols-outlined msz-20">history_edu</span></span>
+    <span class="mt-1 text-label-md font-bold text-ink">{{.L.T "nav.audit"}}</span>
+    <span class="text-body-sm text-text-tertiary">{{.L.T "org.audit_desc"}}</span>
+  </a>
+</div>
+
+<div class="mt-6 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+  <p class="mb-3 text-label-xs-caps uppercase text-text-tertiary">{{.L.T "org.defaults"}}</p>
+  <div class="flex flex-wrap gap-6 text-body-sm">
+    <div><span class="text-text-tertiary">{{.L.T "org.default_locale"}}</span> <span class="ml-1 font-mono text-ink">{{.Locale}}</span></div>
+    <div><span class="text-text-tertiary">{{.L.T "org.default_timezone"}}</span> <span class="ml-1 font-mono text-ink">{{.Timezone}}</span></div>
+  </div>
+  <p class="muted mt-2 mb-0">{{.L.T "org.defaults_help"}}</p>
+</div>
+{{end}}
