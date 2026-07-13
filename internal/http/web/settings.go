@@ -133,7 +133,8 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 
 	s.render(w, "settings", map[string]any{
 		"Title": "Settings", "Nav": "settings",
-		"Scope": scope, "Groups": groups, "Devices": devices, "Sections": sections,
+		"Scope": scope, "ScopeLabel": scopeLabel(scope),
+		"Groups": groups, "Devices": devices, "Sections": sections,
 		"SecretRefs":  secretRefs,
 		"Acceptances": acceptances,
 		"IsDevice":    strings.HasPrefix(scope, "device:"),
@@ -216,6 +217,18 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
 	return nil
+}
+
+// scopeLabel is the human name of the scope being edited, for a clear
+// "Editing ..." indicator above the editor.
+func scopeLabel(scope string) string {
+	if g, ok := strings.CutPrefix(scope, "group:"); ok {
+		return "group " + g
+	}
+	if d, ok := strings.CutPrefix(scope, "device:"); ok {
+		return "device " + d
+	}
+	return "the organisation"
 }
 
 // valueLines renders a list-valued setting as one item per line, so the code

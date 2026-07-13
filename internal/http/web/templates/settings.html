@@ -2,18 +2,19 @@
 <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
   <div>
     <h1 class="mb-1">Configuration editor</h1>
+    <p class="mb-1 text-body-md"><span class="text-text-tertiary">You are editing</span> <span class="tag lock font-semibold">{{.ScopeLabel}}</span></p>
     <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Values set here apply at the selected scope. <strong>Enforce</strong> locks a value for everything below (most-general wins); a plain value is a default the more specific scope may override. Every change passes the gate and commits to git.</p>
   </div>
   <!-- Scope selector: drill organisation -> group -> device; the open scope is black. -->
   {{$scope := .Scope}}
   <div class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border-hairline bg-canvas p-1 text-label-md shadow-sm">
     <span class="pl-2 pr-1 text-text-tertiary">Scope</span>
-    <a href="/settings?scope=org" class="inline-flex items-center gap-1 rounded-md px-3 py-1.5 transition-colors {{if eq $scope "org"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}"><span class="material-symbols-outlined msz-16">domain</span>Organisation</a>
+    <a href="/settings?scope=org" data-scope-link class="inline-flex items-center gap-1 rounded-md px-3 py-1.5 transition-colors {{if eq $scope "org"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}"><span class="material-symbols-outlined msz-16">domain</span>Organisation</a>
     <span class="material-symbols-outlined msz-16 text-text-tertiary">chevron_right</span>
     <form method="get" action="/settings" class="!m-0 !inline-flex !border-0 !p-0 !shadow-none">
       <label class="inline-flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors {{if hasPrefix $scope "group:"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}">
         <span class="material-symbols-outlined msz-16">group_work</span>
-        <select name="scope" onchange="this.form.submit()" class="!border-0 !bg-transparent !p-0 !pr-4 focus:!ring-0 {{if hasPrefix $scope "group:"}}!text-canvas{{end}}">
+        <select name="scope" data-scope-select data-current="{{$scope}}" class="!border-0 !bg-transparent !p-0 !pr-4 focus:!ring-0 {{if hasPrefix $scope "group:"}}!text-canvas{{end}}">
           <option value="" disabled {{if not (hasPrefix $scope "group:")}}selected{{end}}>Group...</option>
           {{range .Groups}}<option value="group:{{.}}" {{if eq $scope (printf "group:%s" .)}}selected{{end}}>{{.}}</option>{{end}}
         </select>
@@ -23,7 +24,7 @@
     <form method="get" action="/settings" class="!m-0 !inline-flex !border-0 !p-0 !shadow-none">
       <label class="inline-flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors {{if .IsDevice}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}">
         <span class="material-symbols-outlined msz-16">desktop_windows</span>
-        <select name="scope" onchange="this.form.submit()" class="!border-0 !bg-transparent !p-0 !pr-4 focus:!ring-0 {{if .IsDevice}}!text-canvas{{end}}">
+        <select name="scope" data-scope-select data-current="{{$scope}}" class="!border-0 !bg-transparent !p-0 !pr-4 focus:!ring-0 {{if .IsDevice}}!text-canvas{{end}}">
           <option value="" disabled {{if not .IsDevice}}selected{{end}}>Device...</option>
           {{range .Devices}}<option value="device:{{.}}" {{if eq $scope (printf "device:%s" .)}}selected{{end}}>{{.}}</option>{{end}}
         </select>
