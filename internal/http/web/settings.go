@@ -86,12 +86,29 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	sort.Strings(groups)
 
-	// Devices the user may view, for the scope selector's device drill-down.
-	devices := make([]string, 0, len(f.Devices))
-	for tag := range f.Devices {
-		if v.canView("device:" + tag) {
-			devices = append(devices, tag)
+	// Scope selector cascade: organisation -> group (default "all") -> device
+	// (default "all"). The selected group is the group in scope, or the group a
+	// device in scope belongs to; "" means all groups (organisation level).
+	selGroup := ""
+	if g, ok := strings.CutPrefix(scope, "group:"); ok {
+		selGroup = g
+	} else if tag, ok := strings.CutPrefix(scope, "device:"); ok {
+		if d, ok := f.Devices[tag]; ok && len(d.Groups) > 0 {
+			selGroup = d.Groups[0]
 		}
+	}
+
+	// Devices for the drill-down: filtered to the selected group, or all
+	// viewable devices when no group is selected. Selecting one edits it.
+	devices := make([]string, 0, len(f.Devices))
+	for tag, d := range f.Devices {
+		if !v.canView("device:" + tag) {
+			continue
+		}
+		if selGroup != "" && !deviceInGroup(d, selGroup) {
+			continue
+		}
+		devices = append(devices, tag)
 	}
 	sort.Strings(devices)
 
@@ -134,7 +151,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	s.render(w, "settings", map[string]any{
 		"Title": "Settings", "Nav": "settings",
 		"Scope": scope, "ScopeLabel": scopeLabel(scope),
-		"Groups": groups, "Devices": devices, "Sections": sections,
+		"Groups": groups, "Devices": devices, "SelGroup": selGroup, "Sections": sections,
 		"SecretRefs":  secretRefs,
 		"Acceptances": acceptances,
 		"IsDevice":    strings.HasPrefix(scope, "device:"),
@@ -217,6 +234,16 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
 	return nil
+}
+
+// deviceInGroup reports whether a device is a direct member of the group.
+func deviceInGroup(d fleet.Device, group string) bool {
+	for _, g := range d.Groups {
+		if g == group {
+			return true
+		}
+	}
+	return false
 }
 
 // scopeLabel is the human name of the scope being edited, for a clear
