@@ -57,3 +57,20 @@ document.addEventListener("click", function (e) {
     if (link && dirty && !window.confirm(warn)) e.preventDefault();
   });
 })();
+
+// Account menu (and any <details data-menu>): the native disclosure opens and
+// closes on the summary already; this only adds the expected "click outside to
+// close" and Escape-to-close, so it behaves like a dropdown.
+(function () {
+  document.addEventListener("click", function (e) {
+    document.querySelectorAll("details[data-menu][open]").forEach(function (d) {
+      if (!d.contains(e.target)) d.removeAttribute("open");
+    });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    document.querySelectorAll("details[data-menu][open]").forEach(function (d) {
+      d.removeAttribute("open");
+    });
+  });
+})();

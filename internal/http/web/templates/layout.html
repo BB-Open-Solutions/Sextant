@@ -58,18 +58,6 @@
       </ul>
     </div>
 
-    <div class="border-t border-border-hairline p-4">
-      <!-- Organisation-global settings hub: the whole org's global settings and
-           the technical/admin surfaces (e-mail, service accounts, audit,
-           overlays, secrets, imaging stations, defaults). Anchored at the bottom
-           so the sidebar above stays the frequently used features. -->
-      {{if .CanOrgView}}<a href="/org" class="nav-link {{if or (eq $n "org") (eq $n "service-accounts") (eq $n "mail") (eq $n "audit") (eq $n "overlays") (eq $n "secrets") (eq $n "station")}}nav-active{{end}} mb-2"><span class="material-symbols-outlined nav-ico">corporate_fare</span>{{.L.T "nav.org"}}</a>{{end}}
-      <a href="/profile" class="nav-link {{if eq .Nav "profile"}}nav-active{{end}} mb-2"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-label-xs-caps font-semibold text-canvas">{{initial .User.Name}}</span><span class="truncate">{{.User.Name}}</span></a>
-      <form method="post" action="/logout">
-        <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <button type="submit" class="nav-link w-full"><span class="material-symbols-outlined nav-ico">logout</span>{{.L.T "nav.signout"}}</button>
-      </form>
-    </div>
   </nav>
 
   <!-- Main -->
@@ -94,6 +82,26 @@
         <a href="/changes" class="btn quiet !py-1.5" title="{{.L.T "layout.review_changes_title"}}"><span class="material-symbols-outlined msz-18">difference</span><span class="hidden sm:inline">{{.L.T "nav.changes"}}</span></a>
         <a href="/rollout" class="btn !py-1.5" title="{{.L.T "layout.staged_rollout_title"}}"><span class="material-symbols-outlined msz-18">rocket_launch</span><span class="hidden sm:inline">{{.L.T "nav.rollout"}}</span></a>
         {{end}}
+        <!-- Account menu: profile, org settings and sign out. Native <details>
+             disclosure so it needs no inline script (strict CSP); app.js only
+             adds close-on-outside-click as progressive enhancement. -->
+        <details class="relative ml-1" data-menu>
+          <summary class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full bg-ink text-label-xs-caps font-semibold text-canvas [&::-webkit-details-marker]:hidden" title="{{.User.Name}}" aria-haspopup="menu">{{initial .User.Name}}</summary>
+          <div class="absolute right-0 z-40 mt-2 w-60 rounded-lg border border-border-hairline bg-canvas p-1 shadow-lg" role="menu">
+            <div class="px-3 py-2">
+              <p class="mb-0 truncate text-label-md font-semibold text-ink">{{.User.Name}}</p>
+              <p class="mb-0 truncate text-body-sm text-text-tertiary">{{.User.Email}}</p>
+            </div>
+            <div class="my-1 border-t border-border-soft"></div>
+            <a href="/profile" class="flex items-center gap-2 rounded-md px-3 py-2 text-label-md text-text-secondary transition-colors hover:bg-surface-bright hover:text-ink" role="menuitem"><span class="material-symbols-outlined msz-18">person</span>{{.L.T "nav.profile"}}</a>
+            {{if .CanOrgView}}<a href="/org" class="flex items-center gap-2 rounded-md px-3 py-2 text-label-md text-text-secondary transition-colors hover:bg-surface-bright hover:text-ink" role="menuitem"><span class="material-symbols-outlined msz-18">corporate_fare</span>{{.L.T "nav.org"}}</a>{{end}}
+            <div class="my-1 border-t border-border-soft"></div>
+            <form method="post" action="/logout" class="!m-0">
+              <input type="hidden" name="csrf" value="{{.CSRF}}">
+              <button type="submit" class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-label-md text-text-secondary transition-colors hover:bg-surface-bright hover:text-ink" role="menuitem"><span class="material-symbols-outlined msz-18">logout</span>{{.L.T "nav.signout"}}</button>
+            </form>
+          </div>
+        </details>
       </div>
     </header>
 
