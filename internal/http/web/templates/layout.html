@@ -47,9 +47,10 @@
       {{if .CanOrgView}}
       <p class="nav-section">{{.L.T "layout.section_shipping"}}</p>
       <ul class="space-y-1 px-2">
-        <li><a href="/pipeline" class="nav-link {{if eq $n "pipeline"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">conveyor_belt</span>{{.L.T "nav.pipeline"}}</a></li>
-        <li><a href="/changes" class="nav-link {{if eq $n "changes"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">difference</span>{{.L.T "nav.changes"}}</a></li>
-        <li><a href="/rollout" class="nav-link {{if eq $n "rollout"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">rocket_launch</span>{{.L.T "nav.rollout"}}</a></li>
+        <!-- One delivery journey: the board is the spine (propose -> review ->
+             ready -> rolling out in waves). Changes and Rollout are drill-downs
+             reached from the cards, not separate top-level items. -->
+        <li><a href="/pipeline" class="nav-link {{if or (eq $n "pipeline") (eq $n "changes") (eq $n "rollout") (eq $n "diff")}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">conveyor_belt</span>{{.L.T "nav.delivery"}}</a></li>
       </ul>
       {{end}}
       <p class="nav-section">{{.L.T "layout.section_governance"}}</p>
