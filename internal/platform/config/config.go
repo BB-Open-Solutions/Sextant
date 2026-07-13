@@ -101,6 +101,10 @@ type Config struct {
 	// Organisation presentation defaults; per-user preferences override.
 	DefaultLocale   string
 	DefaultTimezone string
+
+	// ConsoleURL is the console's public base (e.g. https://console.example.com),
+	// used to make notification e-mails clickable. Empty omits the link.
+	ConsoleURL string
 }
 
 // Getenv is the environment lookup used by Load. Injected so tests can supply
@@ -138,6 +142,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		LDAPNameAttr:     envOr(getenv, "LDAP_NAME_ATTR", ""),
 		DefaultLocale:    envOr(getenv, "DEFAULT_LOCALE", "en"),
 		DefaultTimezone:  envOr(getenv, "DEFAULT_TIMEZONE", "UTC"),
+		ConsoleURL:       envOr(getenv, "CONSOLE_URL", ""),
 	}
 	if v := getenv(EnvPrefix + "SHUTDOWN_GRACE"); v != "" {
 		d, err := time.ParseDuration(v)

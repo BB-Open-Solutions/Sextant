@@ -4,6 +4,7 @@
 package web
 
 import (
+	"context"
 	"crypto/subtle"
 	"embed"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
@@ -48,6 +50,7 @@ type Services struct {
 	StationCreds *app.StationCredentials
 	Notify       *app.NotifyService
 	Mail         *app.MailService
+	Users        ports.UserDirectory
 }
 
 // Server renders the console.
@@ -310,6 +313,16 @@ func (s *Server) authed(w http.ResponseWriter, r *http.Request) (view, bool) {
 		}
 	}
 	l := newLocalizer(prefs, s.defaultLocale, s.defaultTZ)
+	// Record the login for the notifier's address book (subject -> e-mail, and
+	// group membership for audience mail). Off the request path and best-effort:
+	// a directory write must never slow or fail a page load.
+	if s.svc.Users != nil {
+		go func(u identity.User) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = s.svc.Users.RecordUser(ctx, app.DefaultTenant, u.Subject, u.Email, u.Name, u.Groups)
+		}(u)
+	}
 	v := view{User: u, CSRF: csrf, L: l, rv: rv}
 	// Bell badge: best-effort unread count. A store error leaves the badge at
 	// zero rather than blocking the page - notifications are never load-bearing.

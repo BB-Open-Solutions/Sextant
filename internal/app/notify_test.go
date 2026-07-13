@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -83,6 +84,83 @@ func TestNotifyServiceEmitStampsAndValidates(t *testing.T) {
 	}
 	if len(store.added) != 1 {
 		t.Fatalf("invalid notification was stored: %d", len(store.added))
+	}
+}
+
+// fakeUserDir is an in-memory ports.UserDirectory for fan-out tests.
+type fakeUserDir struct {
+	emailBySubject map[string]string
+	emailsByGroup  map[string][]string
+}
+
+func (f fakeUserDir) RecordUser(context.Context, string, string, string, string, []string) error {
+	return nil
+}
+func (f fakeUserDir) EmailForSubject(_ context.Context, _, subject string) (string, bool, error) {
+	e, ok := f.emailBySubject[subject]
+	return e, ok, nil
+}
+func (f fakeUserDir) EmailsForAudience(_ context.Context, _, group string) ([]string, error) {
+	return f.emailsByGroup[group], nil
+}
+
+type recordingMailer struct {
+	to      []string
+	subject string
+	body    string
+	sends   int
+}
+
+func (m *recordingMailer) SendTo(_ context.Context, to []string, subject, body string) error {
+	m.to, m.subject, m.body, m.sends = to, subject, body, m.sends+1
+	return nil
+}
+
+func TestNotifyEmailFanOut(t *testing.T) {
+	dir := fakeUserDir{
+		emailBySubject: map[string]string{"author-1": "author@example.com"},
+		emailsByGroup:  map[string][]string{"approvers": {"a@example.com", "b@example.com"}},
+	}
+	mailer := &recordingMailer{}
+	svc := NewNotifyService(newFakeNotifyStore(), clockAt{time.Unix(0, 0).UTC()}, "default").
+		WithMail(mailer, dir, "https://console.example.com/")
+	ctx := context.Background()
+
+	// A recipient-addressed notification mails that one person, with the link
+	// joined onto the console base.
+	n := notify.Notification{Recipient: "author-1", Kind: notify.ChangeMerged,
+		Title: "Merged", Body: "your change merged", Link: "/changes/x", Tenant: "default"}
+	if err := svc.mailNotification(ctx, n); err != nil {
+		t.Fatalf("mail recipient: %v", err)
+	}
+	if len(mailer.to) != 1 || mailer.to[0] != "author@example.com" {
+		t.Fatalf("recipient mail went to %v", mailer.to)
+	}
+	if !strings.Contains(mailer.body, "https://console.example.com/changes/x") {
+		t.Fatalf("link not appended: %q", mailer.body)
+	}
+
+	// An audience-addressed notification mails every seen member of the group.
+	a := notify.Notification{Audience: "approvers", Kind: notify.ApprovalNeeded,
+		Title: "Review", Tenant: "default"}
+	if err := svc.mailNotification(ctx, a); err != nil {
+		t.Fatalf("mail audience: %v", err)
+	}
+	if len(mailer.to) != 2 {
+		t.Fatalf("audience mail went to %v", mailer.to)
+	}
+}
+
+func TestNotifyNoMailerNoSend(t *testing.T) {
+	// Without WithMail, emitting never tries to send.
+	store := newFakeNotifyStore()
+	svc := NewNotifyService(store, clockAt{time.Unix(0, 0).UTC()}, "default")
+	if err := svc.Emit(context.Background(), notify.Notification{
+		Recipient: "u", Kind: notify.GateFailed, Title: "x"}); err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+	if len(store.added) != 1 {
+		t.Fatal("in-app notification should still be stored")
 	}
 }
 

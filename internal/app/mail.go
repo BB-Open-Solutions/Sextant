@@ -102,6 +102,13 @@ func (s *MailService) Send(ctx context.Context, msg mail.Message) error {
 	return s.mailer.Send(ctx, cfg, pw, msg)
 }
 
+// SendTo is the notifier's entry point: send a plain message to addresses the
+// notifier already resolved. It is a thin wrapper over Send so the notifier
+// never builds a mail.Message itself.
+func (s *MailService) SendTo(ctx context.Context, to []string, subject, body string) error {
+	return s.Send(ctx, mail.Message{To: to, Subject: subject, Body: body})
+}
+
 // SendTest sends a canned message proving the configuration works.
 func (s *MailService) SendTest(ctx context.Context, to string) error {
 	return s.Send(ctx, mail.Message{

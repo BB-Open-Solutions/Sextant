@@ -60,6 +60,7 @@ type deps struct {
 	evidence  *app.EvidenceService
 	notify    *app.NotifyService
 	mail      *app.MailService
+	users     ports.UserDirectory
 	authz     api.Authz
 	cleanup   []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
@@ -192,6 +193,11 @@ func (d *deps) buildConfigPlane() error {
 			return strings.TrimSpace(string(b)), nil
 		}
 		d.mail = app.NewMailService(pg, smtpadapter.New(10*time.Second), sealer, readRef, app.DefaultTenant)
+		// Deliver notifications by e-mail too: the seen-users directory (pg)
+		// resolves a recipient or audience to addresses; ConsoleURL makes the
+		// mail clickable. Delivery is best-effort and off the emitter's path.
+		d.notify.WithMail(d.mail, pg, cfg.ConsoleURL)
+		d.users = pg
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
 			// Convergence is scoped to the wave's RELEASED devices: the whole
@@ -350,7 +356,7 @@ func (d *deps) consoleCapability() capability.Capability {
 					Inventory: d.inv, Tokens: d.tokens, Prefs: d.prefs,
 					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence,
 					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds,
-					Notify: d.notify, Mail: d.mail},
+					Notify: d.notify, Mail: d.mail, Users: d.users},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {
