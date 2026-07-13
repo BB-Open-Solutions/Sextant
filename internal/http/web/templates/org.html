@@ -22,6 +22,27 @@
     <span class="mt-1 text-label-md font-bold text-ink">{{.L.T "nav.audit"}}</span>
     <span class="text-body-sm text-text-tertiary">{{.L.T "org.audit_desc"}}</span>
   </a>
+  {{if .CanOrgOwn}}
+  <a href="/overlays" class="group flex flex-col gap-2 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm transition-colors hover:border-mint-deep/40 hover:bg-surface-bright">
+    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary group-hover:text-mint-deep"><span class="material-symbols-outlined msz-20">layers</span></span>
+    <span class="mt-1 text-label-md font-bold text-ink">{{.L.T "nav.overlays"}}</span>
+    <span class="text-body-sm text-text-tertiary">{{.L.T "org.overlays_desc"}}</span>
+  </a>
+  {{end}}
+  {{if .CanOrgView}}
+  <a href="/secrets" class="group flex flex-col gap-2 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm transition-colors hover:border-mint-deep/40 hover:bg-surface-bright">
+    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary group-hover:text-mint-deep"><span class="material-symbols-outlined msz-20">password</span></span>
+    <span class="mt-1 text-label-md font-bold text-ink">{{.L.T "nav.secrets"}}</span>
+    <span class="text-body-sm text-text-tertiary">{{.L.T "org.secrets_desc"}}</span>
+  </a>
+  {{end}}
+  {{if .CanOrgOwn}}
+  <a href="/station" class="group flex flex-col gap-2 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm transition-colors hover:border-mint-deep/40 hover:bg-surface-bright">
+    <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary group-hover:text-mint-deep"><span class="material-symbols-outlined msz-20">lan</span></span>
+    <span class="mt-1 text-label-md font-bold text-ink">{{.L.T "nav.stations"}}</span>
+    <span class="text-body-sm text-text-tertiary">{{.L.T "org.stations_desc"}}</span>
+  </a>
+  {{end}}
 </div>
 
 <div class="mt-6 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">

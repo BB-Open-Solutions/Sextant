@@ -42,10 +42,7 @@
       <ul class="space-y-1 px-2">
         <li><a href="/settings" class="nav-link {{if eq $n "settings"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">settings</span>{{.L.T "nav.settings"}}</a></li>
         <li><a href="/policies" class="nav-link {{if eq $n "policies"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">policy</span>{{.L.T "nav.policies"}}</a></li>
-        {{if .CanOrgOwn}}<li><a href="/overlays" class="nav-link {{if eq $n "overlays"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">layers</span>{{.L.T "nav.overlays"}}</a></li>{{end}}
         {{if .CanOrgView}}<li><a href="/integrations" class="nav-link {{if eq $n "integrations"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">extension</span>{{.L.T "nav.integrations"}}</a></li>{{end}}
-        {{if .CanOrgView}}<li><a href="/secrets" class="nav-link {{if eq $n "secrets"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">password</span>{{.L.T "nav.secrets"}}</a></li>{{end}}
-        {{if .CanOrgOwn}}<li><a href="/station" class="nav-link {{if eq $n "station"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">lan</span>{{.L.T "nav.stations"}}</a></li>{{end}}
       </ul>
       {{if .CanOrgView}}
       <p class="nav-section">{{.L.T "layout.section_shipping"}}</p>
@@ -58,14 +55,15 @@
       <p class="nav-section">{{.L.T "layout.section_governance"}}</p>
       <ul class="space-y-1 px-2">
         <li><a href="/access" class="nav-link {{if eq $n "access"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">admin_panel_settings</span>{{.L.T "nav.access"}}</a></li>
-        <!-- Organisation-global settings hub (e-mail, service accounts, audit,
-             org defaults). Single-org-per-deployment, so these are the whole
-             org's global settings; a superadmin surface can steer many later. -->
-        {{if .CanOrgView}}<li><a href="/org" class="nav-link {{if or (eq $n "org") (eq $n "service-accounts") (eq $n "mail") (eq $n "audit")}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">corporate_fare</span>{{.L.T "nav.org"}}</a></li>{{end}}
       </ul>
     </div>
 
     <div class="border-t border-border-hairline p-4">
+      <!-- Organisation-global settings hub: the whole org's global settings and
+           the technical/admin surfaces (e-mail, service accounts, audit,
+           overlays, secrets, imaging stations, defaults). Anchored at the bottom
+           so the sidebar above stays the frequently used features. -->
+      {{if .CanOrgView}}<a href="/org" class="nav-link {{if or (eq $n "org") (eq $n "service-accounts") (eq $n "mail") (eq $n "audit") (eq $n "overlays") (eq $n "secrets") (eq $n "station")}}nav-active{{end}} mb-2"><span class="material-symbols-outlined nav-ico">corporate_fare</span>{{.L.T "nav.org"}}</a>{{end}}
       <a href="/profile" class="nav-link {{if eq .Nav "profile"}}nav-active{{end}} mb-2"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-label-xs-caps font-semibold text-canvas">{{initial .User.Name}}</span><span class="truncate">{{.User.Name}}</span></a>
       <form method="post" action="/logout">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
