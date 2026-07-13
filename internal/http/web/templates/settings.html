@@ -6,7 +6,7 @@
   </div>
   <!-- A2: segmented scope selector (org / group / device) -->
   <form method="get" action="/settings" class="!inline-flex shrink-0 items-stretch gap-1 rounded-lg border border-border-hairline bg-canvas p-1 shadow-sm">
-    <button type="submit" name="scope" value="org" class="!rounded-md !px-4 !py-2 {{if eq .Scope "org"}}!bg-surface-container !text-primary{{else}}!bg-transparent !text-text-tertiary hover:!bg-surface-bright{{end}}"><span class="material-symbols-outlined ms-16">domain</span>Organisation</button>
+    <button type="submit" name="scope" value="org" class="inline-flex items-center justify-center gap-1 !rounded-md !px-4 !py-2 {{if eq .Scope "org"}}!bg-surface-container !text-primary{{else}}!bg-transparent !text-text-tertiary hover:!bg-surface-bright{{end}}"><span class="material-symbols-outlined ms-16">domain</span>Organisation</button>
     <label class="flex items-center gap-1 rounded-md px-2 {{if hasPrefix .Scope "group:"}}bg-surface-container text-primary{{else}}text-text-tertiary{{end}}">
       <span class="material-symbols-outlined ms-16">group_work</span>
       <select name="scope" onchange="this.form.submit()" class="!border-0 !bg-transparent !px-1 !py-2 focus:!ring-0">
