@@ -4,7 +4,7 @@
     <h1 class="mb-1">Policies</h1>
     <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Reusable setting bundles, bound to scopes by assignments and narrowed by filters. Manage and enforce configuration state across the fleet.</p>
   </div>
-  {{if .CanOwn}}<div class="flex shrink-0 gap-2"><a href="#create-filter" class="btn quiet"><span class="material-symbols-outlined ms-18">add</span>Create filter</a><a href="#create-policy" class="btn !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined ms-18">add_circle</span>Create policy</a></div>{{end}}
+  {{if .CanOwn}}<div class="flex shrink-0 gap-2"><a href="#create-filter" class="btn quiet"><span class="material-symbols-outlined msz-18">add</span>Create filter</a><a href="#create-policy" class="btn !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">add_circle</span>Create policy</a></div>{{end}}
 </div>
 
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -15,7 +15,7 @@
     <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
       <div class="flex items-center justify-between px-5 py-4">
         <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-deep">policy</span>{{.ID}}</h2>
-        {{if .Enforced}}<span class="tag lock"><span class="material-symbols-outlined ms-14">lock</span>{{len .Enforced}} locked</span>{{end}}
+        {{if .Enforced}}<span class="tag lock"><span class="material-symbols-outlined msz-14">lock</span>{{len .Enforced}} locked</span>{{end}}
       </div>
       {{with .Description}}<p class="mb-0 px-5 text-body-md text-text-tertiary">{{.}}</p>{{end}}
       <!-- Payload configuration -->
@@ -25,7 +25,7 @@
         {{range $k, $v := .Settings}}
         <div class="flex items-center justify-between gap-4 py-1">
           <span class="text-mint-soft">{{$k}}</span>
-          <span class="flex items-center gap-1 text-canvas/70">{{printf "%v" $v}}{{if contains $enf $k}}<span class="material-symbols-outlined ms-14 text-mint-vibrant" title="enforced">lock</span>{{end}}</span>
+          <span class="flex items-center gap-1 text-canvas/70">{{printf "%v" $v}}{{if contains $enf $k}}<span class="material-symbols-outlined msz-14 text-mint-vibrant" title="enforced">lock</span>{{end}}</span>
         </div>
         {{else}}
         <div class="text-text-tertiary">no settings</div>
@@ -85,7 +85,7 @@
       {{range .Policies}}{{$pol := .ID}}{{range .Assignments}}
       <div class="mt-3 flex items-center justify-between rounded-md border border-border-soft p-3">
         <div><div class="text-label-md font-medium text-ink">{{$pol}}</div><div class="text-label-xs-caps uppercase text-text-tertiary">{{.Target}}{{with .Filter}} | filter {{.}}{{end}}</div></div>
-        <form method="post" action="/assignments/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="policy" value="{{$pol}}"><input type="hidden" name="target" value="{{.Target}}"><input type="hidden" name="filter" value="{{.Filter}}"><button type="submit" aria-label="unassign {{$pol}}" title="unassign" class="!rounded-full !border-0 !bg-transparent !p-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined ms-18">delete</span></button></form>
+        <form method="post" action="/assignments/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="policy" value="{{$pol}}"><input type="hidden" name="target" value="{{.Target}}"><input type="hidden" name="filter" value="{{.Filter}}"><button type="submit" aria-label="unassign {{$pol}}" title="unassign" class="!rounded-full !border-0 !bg-transparent !p-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined msz-18">delete</span></button></form>
       </div>
       {{end}}{{end}}
     </div>
@@ -95,7 +95,7 @@
 
 <!-- Filters: full width - rule rows (attr / op / value) need the room -->
 <div class="mt-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center gap-2 border-b border-border-hairline bg-surface px-6 py-4"><span class="material-symbols-outlined ms-18 text-text-tertiary">filter_list</span><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Filters</h2><span class="ml-auto text-label-md text-text-tertiary">narrow an assignment to matching devices</span></div>
+  <div class="flex items-center gap-2 border-b border-border-hairline bg-surface px-6 py-4"><span class="material-symbols-outlined msz-18 text-text-tertiary">filter_list</span><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Filters</h2><span class="ml-auto text-label-md text-text-tertiary">narrow an assignment to matching devices</span></div>
   <table>
     <tr><th class="!px-6">Filter</th><th class="!px-6">Match</th><th class="!px-6">Rules</th>{{if .CanOwn}}<th class="!px-6"></th>{{end}}</tr>
     {{$ := .}}
@@ -104,7 +104,7 @@
       <td class="!px-6 font-medium">{{.ID}}</td>
       <td class="!px-6"><span class="tag">{{.Match}}</span></td>
       <td class="!px-6">{{range .Rules}}<div><code class="text-code-inline text-text-secondary">{{.Attr}} {{.Op}} {{.Value}}{{range .Values}}{{.}} {{end}}</code></div>{{end}}</td>
-      {{if $.CanOwn}}<td class="!px-6 text-right"><form method="post" action="/filters/{{.ID}}/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" title="Delete" class="!rounded-full !border-0 !bg-transparent !p-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined ms-18">delete</span></button></form></td>{{end}}
+      {{if $.CanOwn}}<td class="!px-6 text-right"><form method="post" action="/filters/{{.ID}}/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" title="Delete" class="!rounded-full !border-0 !bg-transparent !p-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined msz-18">delete</span></button></form></td>{{end}}
     </tr>
     {{else}}
     <tr><td colspan="4" class="muted !px-6">No filters defined.</td></tr>

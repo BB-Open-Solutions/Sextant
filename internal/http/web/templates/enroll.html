@@ -15,7 +15,7 @@
         {{$sel := .Station}}{{range .Stations}}<option value="{{.}}" {{if eq . $sel}}selected{{end}}>{{.}}</option>{{end}}
       </select>
     </div>
-    <button type="submit"><span class="material-symbols-outlined ms-18">arrow_forward</span>Continue</button>
+    <button type="submit"><span class="material-symbols-outlined msz-18">arrow_forward</span>Continue</button>
   </form>
   {{else}}
   <p class="muted mb-0">No imaging stations are registered yet. Register one on the <a href="/station">Imaging stations</a> page first.</p>
@@ -38,7 +38,7 @@
   <!-- Batch: one rack of identical machines in a single pass -->
   <form method="post" action="/enroll/{{.Station}}/batch" class="border-b border-border-hairline bg-surface-container-low !flex-col !items-stretch gap-4 p-6">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined ms-18 text-mint-deep">library_add</span>Enrol many at once</div>
+    <div class="flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-mint-deep">library_add</span>Enrol many at once</div>
     <p class="mb-0 text-body-sm text-text-secondary">Tick the devices below, then enrol them all onto one profile and group. Each device is tagged <code>prefix-&lt;mac tail&gt;</code>.</p>
     <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
       <div class="flex flex-col gap-1"><label>Tag prefix</label><input name="prefix" placeholder="lab-nuc" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
@@ -55,11 +55,11 @@
         <input type="checkbox" name="mac" value="{{.Dev.MAC}}" class="!w-auto">
         <span class="font-mono text-code-inline text-ink">{{.Dev.MAC}}</span>
         <span class="text-text-tertiary">{{with .Dev.Vendor}}{{.}}{{end}}{{with .Dev.Model}} {{.}}{{end}}</span>
-        {{with .Suggest}}<span class="tag ok ml-auto"><span class="material-symbols-outlined ms-14">auto_awesome</span>{{.}}</span>{{end}}
+        {{with .Suggest}}<span class="tag ok ml-auto"><span class="material-symbols-outlined msz-14">auto_awesome</span>{{.}}</span>{{end}}
       </label>
       {{end}}
     </div>
-    <button type="submit" class="self-start"><span class="material-symbols-outlined ms-18">precision_manufacturing</span>Dispatch imaging to selected</button>
+    <button type="submit" class="self-start"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>Dispatch imaging to selected</button>
   </form>
   {{end}}
 
@@ -72,7 +72,7 @@
         <div class="min-w-0">
           <div class="flex items-center gap-2">
             <span class="font-mono text-code-inline text-ink">{{.Dev.MAC}}</span>
-            {{with .Suggest}}<span class="tag ok"><span class="material-symbols-outlined ms-14">auto_awesome</span>suggested: {{.}}</span>{{end}}
+            {{with .Suggest}}<span class="tag ok"><span class="material-symbols-outlined msz-14">auto_awesome</span>suggested: {{.}}</span>{{end}}
           </div>
           <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-md text-text-tertiary">
             {{with .Dev.Vendor}}<span>{{.}}</span>{{end}}{{with .Dev.Model}}<span>{{.}}</span>{{end}}
@@ -82,14 +82,14 @@
         </div>
         {{if $.CanEnroll}}
         <details class="shrink-0">
-          <summary class="btn cursor-pointer list-none"><span class="material-symbols-outlined ms-18">note_add</span>Image this device</summary>
+          <summary class="btn cursor-pointer list-none"><span class="material-symbols-outlined msz-18">note_add</span>Image this device</summary>
           <div class="mt-3 rounded-md border border-border-soft bg-surface-container-low p-4 md:w-96">
             {{if .Steps}}
             <p class="mb-2 text-label-xs-caps uppercase text-text-tertiary">Imaging steps</p>
             <ol class="mb-4 flex flex-col gap-2">
               {{range .Steps}}
               <li class="flex items-start gap-2 text-body-sm text-text-secondary">
-                <span class="material-symbols-outlined ms-16 mt-0.5 text-mint-deep">check_circle</span>
+                <span class="material-symbols-outlined msz-16 mt-0.5 text-mint-deep">check_circle</span>
                 <span><span class="font-medium text-ink">{{.Title}}</span>{{with .Key}} <kbd class="rounded border border-border-soft bg-canvas px-1.5 py-0.5 font-mono text-label-xs-caps text-ink">{{.}}</kbd>{{end}}{{with .Detail}}<span class="block text-text-tertiary">{{.}}</span>{{end}}</span>
               </li>
               {{end}}
@@ -107,7 +107,7 @@
               </div>
               <div class="flex flex-col gap-1"><label>Class</label><select name="class">{{range $.Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
               <div class="flex flex-col gap-1"><label>Group</label><select name="group"><option value="">No group</option>{{range $.Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-              <button type="submit" class="w-full !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined ms-18">precision_manufacturing</span>Dispatch imaging</button>
+              <button type="submit" class="w-full !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>Dispatch imaging</button>
             </form>
           </div>
         </details>
@@ -135,15 +135,15 @@
       <td class="font-mono text-code-inline text-text-tertiary">{{.MAC}}</td>
       <td>{{.Hardware}}</td>
       <td>
-        {{if eq (printf "%s" .Status) "installed"}}<span class="tag ok"><span class="material-symbols-outlined ms-14">check_circle</span>installed</span>
-        {{else if eq (printf "%s" .Status) "imaging"}}<span class="tag"><span class="material-symbols-outlined ms-14">sync</span>imaging</span>
-        {{else if eq (printf "%s" .Status) "failed"}}<span class="tag bad" title="{{.Message}}"><span class="material-symbols-outlined ms-14">error</span>failed</span>
-        {{else if eq (printf "%s" .Status) "canceled"}}<span class="tag"><span class="material-symbols-outlined ms-14">block</span>canceled</span>
-        {{else}}<span class="tag"><span class="material-symbols-outlined ms-14">schedule</span>pending</span>{{end}}
+        {{if eq (printf "%s" .Status) "installed"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>installed</span>
+        {{else if eq (printf "%s" .Status) "imaging"}}<span class="tag"><span class="material-symbols-outlined msz-14">sync</span>imaging</span>
+        {{else if eq (printf "%s" .Status) "failed"}}<span class="tag bad" title="{{.Message}}"><span class="material-symbols-outlined msz-14">error</span>failed</span>
+        {{else if eq (printf "%s" .Status) "canceled"}}<span class="tag"><span class="material-symbols-outlined msz-14">block</span>canceled</span>
+        {{else}}<span class="tag"><span class="material-symbols-outlined msz-14">schedule</span>pending</span>{{end}}
       </td>
       <td class="text-right !px-6">
         {{if or (eq (printf "%s" .Status) "pending") (eq (printf "%s" .Status) "failed")}}
-        <form method="post" action="/enroll/{{$st}}/jobs/{{.MAC}}/cancel" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="Cancel job" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined ms-18">cancel</span></button></form>
+        <form method="post" action="/enroll/{{$st}}/jobs/{{.MAC}}/cancel" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="Cancel job" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-18">cancel</span></button></form>
         {{else}}<span class="muted">-</span>{{end}}
       </td>
     </tr>

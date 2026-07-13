@@ -6,16 +6,16 @@
   </div>
   <!-- A2: segmented scope selector (org / group / device) -->
   <form method="get" action="/settings" class="!inline-flex shrink-0 items-stretch gap-1 rounded-lg border border-border-hairline bg-canvas p-1 shadow-sm">
-    <button type="submit" name="scope" value="org" class="inline-flex items-center justify-center gap-1 !rounded-md !px-4 !py-2 {{if eq .Scope "org"}}!bg-surface-container !text-primary{{else}}!bg-transparent !text-text-tertiary hover:!bg-surface-bright{{end}}"><span class="material-symbols-outlined ms-16">domain</span>Organisation</button>
+    <button type="submit" name="scope" value="org" class="inline-flex items-center justify-center gap-1 !rounded-md !px-4 !py-2 {{if eq .Scope "org"}}!bg-surface-container !text-primary{{else}}!bg-transparent !text-text-tertiary hover:!bg-surface-bright{{end}}"><span class="material-symbols-outlined msz-16">domain</span>Organisation</button>
     <label class="flex items-center gap-1 rounded-md px-2 {{if hasPrefix .Scope "group:"}}bg-surface-container text-primary{{else}}text-text-tertiary{{end}}">
-      <span class="material-symbols-outlined ms-16">group_work</span>
+      <span class="material-symbols-outlined msz-16">group_work</span>
       <select name="scope" onchange="this.form.submit()" class="!border-0 !bg-transparent !px-1 !py-2 focus:!ring-0">
         <option value="" {{if not (hasPrefix .Scope "group:")}}selected{{end}} disabled>Group</option>
         {{$scope := .Scope}}
         {{range .Groups}}<option value="group:{{.}}" {{if eq $scope (printf "group:%s" .)}}selected{{end}}>{{.}}</option>{{end}}
       </select>
     </label>
-    {{if .IsDevice}}<span class="flex items-center gap-1 rounded-md bg-surface-container px-4 py-2 text-primary"><span class="material-symbols-outlined ms-16">desktop_windows</span>{{.Scope}}</span>{{end}}
+    {{if .IsDevice}}<span class="flex items-center gap-1 rounded-md bg-surface-container px-4 py-2 text-primary"><span class="material-symbols-outlined msz-16">desktop_windows</span>{{.Scope}}</span>{{end}}
   </form>
 </div>
 
@@ -28,11 +28,11 @@
 <!-- Cascade explainer: how settings flow org -> group -> device -->
 <div class="mb-6 flex flex-col gap-3 rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
   <div class="flex flex-wrap items-center gap-2 text-label-md">
-    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if eq .Scope "org"}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined ms-16">domain</span>Organisation</span>
+    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if eq .Scope "org"}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined msz-16">domain</span>Organisation</span>
     <span class="material-symbols-outlined text-text-tertiary">arrow_forward</span>
-    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if hasPrefix .Scope "group:"}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined ms-16">group_work</span>Group</span>
+    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if hasPrefix .Scope "group:"}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined msz-16">group_work</span>Group</span>
     <span class="material-symbols-outlined text-text-tertiary">arrow_forward</span>
-    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if .IsDevice}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined ms-16">desktop_windows</span>Device</span>
+    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if .IsDevice}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined msz-16">desktop_windows</span>Device</span>
   </div>
   <p class="mb-0 text-body-sm text-text-tertiary">Settings flow down. A value set at the organisation applies to every group and device below it, unless a more specific scope sets its own value. Mark a value <strong>Enforce</strong> to lock it, so lower scopes cannot change it (the most general locked value wins).</p>
 </div>

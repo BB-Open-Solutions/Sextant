@@ -15,7 +15,7 @@
       <div class="flex flex-col">
         {{$sel := .Selected}}
         {{range .Overlays}}
-        <a href="/overlays?name={{.}}" class="flex items-center gap-2 border-b border-border-soft px-4 py-2 font-mono text-code-inline transition-colors hover:bg-surface-bright {{if eq . $sel}}bg-mint-vibrant/5 text-ink{{else}}text-text-secondary{{end}}"><span class="material-symbols-outlined ms-16 text-text-tertiary">description</span>{{.}}</a>
+        <a href="/overlays?name={{.}}" class="flex items-center gap-2 border-b border-border-soft px-4 py-2 font-mono text-code-inline transition-colors hover:bg-surface-bright {{if eq . $sel}}bg-mint-vibrant/5 text-ink{{else}}text-text-secondary{{end}}"><span class="material-symbols-outlined msz-16 text-text-tertiary">description</span>{{.}}</a>
         {{else}}
         <p class="muted p-4">No overlays yet. Write your first one on the right.</p>
         {{end}}
@@ -48,7 +48,7 @@
           {{else}}<span class="text-body-sm text-text-tertiary">new overlay</span>{{end}}
         </div>
         {{if .Selected}}
-        <form method="post" action="/overlays/{{.Selected}}/remove" class="inline shrink-0" onsubmit="return confirm('Delete overlay {{.Selected}}? Any scope selecting it will fail the gate.')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined ms-18">delete</span>Delete</button></form>
+        <form method="post" action="/overlays/{{.Selected}}/remove" class="inline shrink-0" onsubmit="return confirm('Delete overlay {{.Selected}}? Any scope selecting it will fail the gate.')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>Delete</button></form>
         {{end}}
       </div>
       <form method="post" action="/overlays" class="!flex-col !items-stretch gap-3">
@@ -59,7 +59,7 @@
         <textarea name="code" rows="20" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{ config, lib, pkgs, ... }:&#10;{&#10;  # your NixOS module for this device class&#10;}">{{.Code}}</textarea>
         <div class="flex items-center justify-between">
           <p class="mb-0 text-label-md text-text-tertiary">Imported by every device whose scope selects this overlay. It must evaluate and build, or the save is rejected.</p>
-          <button type="submit" class="shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined ms-18">save</span>Save &amp; validate</button>
+          <button type="submit" class="shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">save</span>Save &amp; validate</button>
         </div>
       </form>
     </div>

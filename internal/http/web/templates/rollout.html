@@ -30,9 +30,9 @@
         <div class="mt-1 font-mono text-label-xs-caps text-text-tertiary">{{.Group}}</div>
         {{if .Max}}<div class="mt-1 text-label-xs-caps text-mint-deep">{{.Max}} at a time</div>{{end}}
         <div class="mt-2 flex flex-wrap gap-1">
-          {{if .Soak}}<span class="tag"><span class="material-symbols-outlined ms-14">schedule</span>{{.Soak}}m</span>{{end}}
+          {{if .Soak}}<span class="tag"><span class="material-symbols-outlined msz-14">schedule</span>{{.Soak}}m</span>{{end}}
           <span class="tag">&gt;={{if .Healthy}}{{.Healthy}}{{else}}100{{end}}%</span>
-          {{if .Approval}}<span class="tag lock"><span class="material-symbols-outlined ms-14">how_to_reg</span>gate</span>{{end}}
+          {{if .Approval}}<span class="tag lock"><span class="material-symbols-outlined msz-14">how_to_reg</span>gate</span>{{end}}
         </div>
       </div>
       <span class="material-symbols-outlined text-text-tertiary">arrow_forward</span>
@@ -72,16 +72,16 @@
         <tr class="{{if $r.Active}}bg-mint-vibrant/5{{end}} hover:bg-surface-bright transition-colors">
           <td class="!px-6">
             <span class="flex items-center gap-2 font-medium"><span class="flex h-5 w-5 items-center justify-center rounded-full text-label-xs-caps {{if eq $r.Label "Complete"}}bg-ink text-canvas{{else if $r.Active}}bg-mint-vibrant text-ink{{else}}bg-surface-container-highest text-text-tertiary{{end}}">{{$i}}</span>{{$r.Ring.Label}}</span>
-            <span class="ml-7 block text-label-md text-text-tertiary">{{$r.Ring.Group}}{{if $r.Ring.RequireApproval}} | <span class="material-symbols-outlined ms-14">how_to_reg</span>manual gate{{end}}</span>
+            <span class="ml-7 block text-label-md text-text-tertiary">{{$r.Ring.Group}}{{if $r.Ring.RequireApproval}} | <span class="material-symbols-outlined msz-14">how_to_reg</span>manual gate{{end}}</span>
           </td>
           <td class="!px-6 text-text-secondary">{{if $r.Ring.SoakMinutes}}soak {{$r.Ring.SoakMinutes}}m | {{end}}&gt;= {{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}{{else}}100{{end}}% healthy</td>
           <td class="!px-6 font-mono text-code-inline">{{$r.Status.OnTarget}}/{{$r.Status.Total}}</td>
           <td class="!px-6">
-            {{if $r.Await}}<span class="flex items-center gap-2"><span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined ms-16">how_to_reg</span>Awaiting approval</span>{{if $.CanOwn}}<form method="post" action="/rollout/approve" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="!py-1 !bg-mint-vibrant !text-ink">Approve &amp; promote</button></form>{{end}}</span>
-            {{else if eq $r.Label "Complete"}}<span class="flex items-center gap-1 text-text-secondary"><span class="material-symbols-outlined ms-16">check_circle</span>Complete</span>
-            {{else if eq $r.Label "Deploying"}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined ms-16">sync</span>Deploying</span>
-            {{else if eq $r.Label "Soaking"}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined ms-16">schedule</span>Soaking</span>
-            {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined ms-16">lock</span>Queued</span>{{end}}
+            {{if $r.Await}}<span class="flex items-center gap-2"><span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined msz-16">how_to_reg</span>Awaiting approval</span>{{if $.CanOwn}}<form method="post" action="/rollout/approve" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="!py-1 !bg-mint-vibrant !text-ink">Approve &amp; promote</button></form>{{end}}</span>
+            {{else if eq $r.Label "Complete"}}<span class="flex items-center gap-1 text-text-secondary"><span class="material-symbols-outlined msz-16">check_circle</span>Complete</span>
+            {{else if eq $r.Label "Deploying"}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined msz-16">sync</span>Deploying</span>
+            {{else if eq $r.Label "Soaking"}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined msz-16">schedule</span>Soaking</span>
+            {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined msz-16">lock</span>Queued</span>{{end}}
           </td>
         </tr>
         {{end}}

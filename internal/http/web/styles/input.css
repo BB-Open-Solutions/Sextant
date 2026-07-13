@@ -32,12 +32,12 @@
      blocks inline style= attributes, so no style="font-size"). Default
      20px; size + fill variants below. */
   .material-symbols-outlined { font-size: 20px; vertical-align: middle; }
-  .ms-14 { font-size: 14px; }
-  .ms-16 { font-size: 16px; }
-  .ms-18 { font-size: 18px; }
-  .ms-20 { font-size: 20px; }
-  .ms-22 { font-size: 22px; }
-  .ms-fill { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24; }
+  .msz-14 { font-size: 14px; }
+  .msz-16 { font-size: 16px; }
+  .msz-18 { font-size: 18px; }
+  .msz-20 { font-size: 20px; }
+  .msz-22 { font-size: 22px; }
+  .msz-fill { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24; }
 
   /* Rollout convergence bar width buckets (nearest 5%). The class is
      chosen in Go, so these are safelisted in tailwind.config.js. */

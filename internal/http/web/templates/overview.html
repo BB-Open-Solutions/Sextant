@@ -4,7 +4,7 @@
     <h1 class="mb-1">Fleet Overview</h1>
     <p class="mb-0 text-body-md text-text-tertiary">Live state of the fleet - every figure is real, sourced from the config plane and device check-ins.</p>
   </div>
-  {{if .CanOrgView}}<a href="/enroll" class="btn shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined ms-18">add</span>Start enrollment</a>{{end}}
+  {{if .CanOrgView}}<a href="/enroll" class="btn shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">add</span>Start enrollment</a>{{end}}
 </div>
 
 <!-- Stat cards -->
@@ -44,10 +44,10 @@
         {{range .Approvals}}
         <a href="/changes/{{.ID}}/diff" class="flex items-center justify-between rounded-lg border border-mint-vibrant/30 bg-mint-vibrant/5 p-4 transition-colors hover:bg-mint-vibrant/10 no-underline">
           <span class="flex items-center gap-3">
-            <span class="material-symbols-outlined ms-20 text-mint-deep">rate_review</span>
+            <span class="material-symbols-outlined msz-20 text-mint-deep">rate_review</span>
             <span><span class="font-medium text-ink">{{.ID}}</span> <span class="text-body-sm text-text-tertiary">by {{.Author}} - built green, ready to merge</span></span>
           </span>
-          <span class="material-symbols-outlined ms-20 text-text-tertiary">arrow_forward</span>
+          <span class="material-symbols-outlined msz-20 text-text-tertiary">arrow_forward</span>
         </a>
         {{end}}
       </div>
@@ -63,7 +63,7 @@
         {{range .Attention}}
         <div class="rounded-lg border border-status-error/30 bg-error-container p-4">
           <div class="flex items-start gap-3">
-            <span class="material-symbols-outlined ms-20 mt-0.5 text-status-error">error</span>
+            <span class="material-symbols-outlined msz-20 mt-0.5 text-status-error">error</span>
             <div class="flex-1">
               <div class="mb-1 flex items-center gap-2"><span class="tag bad">{{.Kind}}</span></div>
               <p class="text-body-md text-text-secondary">{{.Detail}}</p>
@@ -88,7 +88,7 @@
             <td class="whitespace-nowrap align-middle"><a href="/devices/{{.Tag}}" class="font-mono font-medium">{{.Tag}}</a></td>
             <td class="align-middle"><span class="block max-w-[18rem] truncate font-mono text-text-secondary" title="{{.Revision}}">{{.Revision}}</span></td>
             <td class="align-middle">{{.Phase}}</td>
-            <td class="align-middle text-right">{{if .Online}}<span class="tag ok"><span class="material-symbols-outlined ms-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}</td>
+            <td class="align-middle text-right">{{if .Online}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}</td>
           </tr>
           {{else}}
           <tr><td colspan="4" class="muted">No check-ins yet.</td></tr>
@@ -122,7 +122,7 @@
         {{range $cmd := (list "sxctl devices list" "sxctl device get <tag>" "sxctl changes list" "sxctl rollout status" "sxctl evidence 2026-01-01T00:00:00Z 2026-12-31T00:00:00Z")}}
         <div class="flex items-center gap-2 rounded bg-black/30 px-3 py-2">
           <code class="flex-1 text-label-md text-canvas">{{$cmd}}</code>
-          <button type="button" class="quiet !border-canvas/20 !py-1 !px-2 !text-canvas/70" data-copy="{{$cmd}}" data-copied="[ok]"><span class="material-symbols-outlined ms-16">content_copy</span></button>
+          <button type="button" class="quiet !border-canvas/20 !py-1 !px-2 !text-canvas/70" data-copy="{{$cmd}}" data-copied="[ok]"><span class="material-symbols-outlined msz-16">content_copy</span></button>
         </div>
         {{end}}
       </div>

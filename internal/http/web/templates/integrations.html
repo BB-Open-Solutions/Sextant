@@ -10,7 +10,7 @@
   <div class="flex flex-col rounded-lg border border-border-hairline bg-canvas shadow-sm">
     <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
       <div class="flex items-center gap-3">
-        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary"><span class="material-symbols-outlined ms-20">{{.Icon}}</span></span>
+        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary"><span class="material-symbols-outlined msz-20">{{.Icon}}</span></span>
         <div>
           <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">{{.Name}}</h2>
           {{if .Published}}<span class="text-label-xs-caps uppercase text-mint-deep">available</span>{{else}}<span class="text-label-xs-caps uppercase text-text-tertiary">not published</span>{{end}}
@@ -29,7 +29,7 @@
         <div class="py-3">
           <div class="mb-1 flex items-center gap-2">
             <span class="font-mono text-code-inline font-medium text-ink">{{.Entry.Name}}</span>
-            {{if .Entry.Secret}}<span class="tag lock"><span class="material-symbols-outlined ms-14">key</span>secret</span>{{end}}
+            {{if .Entry.Secret}}<span class="tag lock"><span class="material-symbols-outlined msz-14">key</span>secret</span>{{end}}
             {{if .Entry.RiskClass}}<span class="tag bad">{{.Entry.RiskClass}} risk</span>{{end}}
           </div>
           <div class="mb-2 text-body-sm text-text-tertiary">{{.Entry.Description}}</div>
@@ -60,7 +60,7 @@
         </div>
         {{end}}
       </div>
-      <a href="/settings?scope=org" class="mt-1 inline-flex items-center gap-1 text-label-md text-secondary">Open in the configuration editor <span class="material-symbols-outlined ms-14">arrow_forward</span></a>
+      <a href="/settings?scope=org" class="mt-1 inline-flex items-center gap-1 text-label-md text-secondary">Open in the configuration editor <span class="material-symbols-outlined msz-14">arrow_forward</span></a>
       {{end}}
     </div>
   </div>
