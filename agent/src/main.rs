@@ -49,6 +49,11 @@ fn main() -> ExitCode {
 
         let revision = collect::revision();
         let post = posture::probe(&posture::default_root());
+        // Forward the executor's recorded outcome (executed/refused/failed) if
+        // one is waiting - the real ack, distinct from merely having spooled.
+        if let Some(outcome) = action::executed_ack(&posture::default_root()) {
+            pending_ack = outcome;
+        }
         let ack = std::mem::take(&mut pending_ack);
         let beat = CheckIn {
             tag: &cfg.tag,
@@ -70,8 +75,9 @@ fn main() -> ExitCode {
                 if facts.is_some() {
                     last_facts = Some(Instant::now());
                 }
-                // Act locally; echo the ack on the next beat.
-                pending_ack = action::react(&posture::default_root(), &intent);
+                // Spool it for the privileged executor; the real outcome is
+                // reported on a later beat via action::executed_ack.
+                action::react(&posture::default_root(), &intent);
             }
             Outcome::Retired => {
                 eprintln!("sextant-agent: device is retired; stopping permanently");

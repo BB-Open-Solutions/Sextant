@@ -232,8 +232,12 @@
   <div class="mt-2 flex flex-col gap-4 rounded-lg border border-status-error/30 bg-error-container/20 p-6">
     <h3 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-status-error"><span class="material-symbols-outlined msz-20">warning</span>Remote actions</h3>
     {{if .Intent}}
+    {{$ack := ""}}{{if .HasStatus}}{{$ack = .Status.Ack}}{{end}}
     <p class="mb-0 text-body-md"><strong>Armed:</strong> <span class="tag bad">{{.Intent}}</span>
-      {{if and .HasStatus (eq .Status.Ack .Intent)}}<span class="tag ok">delivered</span>{{else}}<span class="muted">pending delivery on next check-in</span>{{end}}</p>
+      {{if eq $ack "wipe-refused"}}<span class="tag bad">refused by device (not armed / not locked)</span>
+      {{else if eq $ack "wipe-failed"}}<span class="tag bad">wipe failed - not fully erased</span>
+      {{else if eq $ack .Intent}}<span class="tag ok">executed</span>
+      {{else}}<span class="muted">pending delivery on next check-in</span>{{end}}</p>
     <form method="post" action="/devices/{{.Tag}}/intent/clear" class="inline">
       <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">Cancel</button>
     </form>

@@ -5,11 +5,18 @@ deployed by comin. Sextant is the human and API surface that edits fleet
 configuration safely, proves it builds, stages the rollout, and reports what
 each device actually runs. Not MDM: declarative pull, no remote wipe.
 
-## Status
+## Status: Alpha - not for production use
 
-Ground-up rebuild of the Sextant proof of concept with a production
-architecture. See `docs/adr/` for the decisions and `docs/architecture.md`
-for the design. Contributors welcome - see CONTRIBUTING.md.
+This is an **alpha** release: a ground-up rebuild of the Sextant proof of
+concept with a production architecture, published early and openly. It is
+**not yet intended for production use** - APIs, schemas and behaviour may still
+change.
+
+**Help wanted:** developers, testers and maintainers. If you would like to
+collaborate, please contact Bram Buijs at **b.buijs@bb-open.com**.
+
+See `docs/adr/` for the decisions and `docs/architecture.md` for the design.
+Contributors welcome - see CONTRIBUTING.md.
 
 ## Architecture (short)
 

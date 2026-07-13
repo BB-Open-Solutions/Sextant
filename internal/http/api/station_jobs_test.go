@@ -52,6 +52,15 @@ func (s *jobMemStore) UpdateStatus(_ context.Context, _, station, mac string, st
 	s.m[jk(station, mac)] = j
 	return nil
 }
+func (s *jobMemStore) TransitionStatus(_ context.Context, _, station, mac string, from, to imaging.Status, msg string, _ time.Time) (bool, error) {
+	j, ok := s.m[jk(station, mac)]
+	if !ok || j.Status != from {
+		return false, nil
+	}
+	j.Status, j.Message = to, msg
+	s.m[jk(station, mac)] = j
+	return true, nil
+}
 func (s *jobMemStore) Delete(_ context.Context, _, station, mac string) error {
 	delete(s.m, jk(station, mac))
 	return nil

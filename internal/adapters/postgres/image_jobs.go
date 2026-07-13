@@ -98,6 +98,23 @@ func (j *ImageJobStore) UpdateStatus(ctx context.Context, tenant, station, mac s
 	return err
 }
 
+// TransitionStatus atomically moves a job from `from` to `to`: the WHERE
+// clause pins the row's current status, so of two concurrent reports for the
+// same job only the one that still finds `from` in the database matches a
+// row - the loser's UPDATE affects zero rows instead of clobbering the
+// winner's write. This closes the check-then-act race a separate Get +
+// CanTransition + UpdateStatus sequence has at the application layer.
+func (j *ImageJobStore) TransitionStatus(ctx context.Context, tenant, station, mac string, from, to imaging.Status, message string, now time.Time) (bool, error) {
+	tag, err := j.s.pool.Exec(ctx, `
+		UPDATE image_jobs SET status=$5, message=$6, updated=$7
+		WHERE tenant=$1 AND station=$2 AND mac=$3 AND status=$4`,
+		tenant, station, mac, string(from), string(to), message, now)
+	if err != nil {
+		return false, fmt.Errorf("transition image job %s %s->%s: %w", mac, from, to, err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
 // Delete removes a job.
 func (j *ImageJobStore) Delete(ctx context.Context, tenant, station, mac string) error {
 	_, err := j.s.pool.Exec(ctx,

@@ -40,7 +40,11 @@ let
     stringLength s >= stringLength pre && substring 0 (stringLength pre) s == pre;
 
   # scopePositions (chain.go): org=0, each device group's ancestry in device
-  # order (first-seen position wins), device last.
+  # order (first-seen position wins), device last. When a device belongs to
+  # two UNRELATED hierarchies, this is where their relative specificity is
+  # decided: by the ORDER groups appear in `groups`, not by tree depth - a
+  # shallow group listed second can outrank a deeper group listed first.
+  # Intentional; matches the Go twin (chain.go) exactly, see tests.nix.
   scopePositions = fleet: tag:
     let
       dev = fleet.devices.${tag} or { };

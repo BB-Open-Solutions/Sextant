@@ -84,7 +84,19 @@ type ImageJobStore interface {
 	// Get returns one job by MAC, or false.
 	Get(ctx context.Context, tenant, station, mac string) (imaging.Job, bool, error)
 	// UpdateStatus moves a job to a new status with an optional message.
+	// Unconditional: callers that need the from-state guard atomic (a report
+	// applying the domain's transition rule) must use TransitionStatus
+	// instead, or two concurrent writers can both pass a check-then-act guard
+	// in application code and both write.
 	UpdateStatus(ctx context.Context, tenant, station, mac string, status imaging.Status, message string, now time.Time) error
+	// TransitionStatus atomically moves a job from `from` to `to`, applying
+	// the write only if the job's current status still equals `from` (a
+	// conditional UPDATE, compare-and-swap on status). Returns whether it
+	// applied; false means another writer already moved the job off `from`
+	// between the caller's read and this call, so the caller's transition
+	// decision (made against a status that no longer holds) must not be
+	// silently honoured.
+	TransitionStatus(ctx context.Context, tenant, station, mac string, from, to imaging.Status, message string, now time.Time) (bool, error)
 	// Delete removes a job (once installed and reconciled, or canceled).
 	Delete(ctx context.Context, tenant, station, mac string) error
 }

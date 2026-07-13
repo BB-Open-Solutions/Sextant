@@ -5,6 +5,7 @@
 let
   generator = import ./generator.nix { inherit lib; };
   catalog = import ./export-catalog.nix { inherit lib; };
+  resolver = import ./resolve.nix { };
 
   # A miniature "core": the option surface a real DAWO core would declare.
   core = {
@@ -88,6 +89,23 @@ let
 
   entries = catalog.exportCatalog { modules = [ core ]; };
   names = map (e: e.name) entries;
+
+  # Cross-hierarchy tie-break fixture (see the crossHierarchy* assertions
+  # below): two UNRELATED group hierarchies of different tree depth.
+  # "a-root" is a lone root (depth 1); "b-root"->"b-leaf" is a two-level
+  # chain (depth 2 at the leaf).
+  crossHierarchyGroups = {
+    a-root = { settings = { theme = "a"; lock = "a"; }; enforced = [ "lock" ]; };
+    b-root = { };
+    b-leaf = { parent = "b-root"; settings = { theme = "b"; lock = "b"; }; enforced = [ "lock" ]; };
+  };
+  crossHierarchyFleet = order: {
+    version = 3;
+    groups = crossHierarchyGroups;
+    devices.d = { groups = order; hardware = "hw"; };
+  };
+  crossHierarchyBLeafFirst = resolver.resolve (crossHierarchyFleet [ "b-leaf" "a-root" ]) "d";
+  crossHierarchyARootFirst = resolver.resolve (crossHierarchyFleet [ "a-root" "b-leaf" ]) "d";
 in
 {
   # Enforced (group, mkForce) beats the site module's normal set.
@@ -219,4 +237,30 @@ in
       });
     in
     hosts == [ "lt-1" ];
+
+  # Cross-hierarchy tie-break (parity anchor for
+  # TestResolve_CrossHierarchyGroupOrderDecidesTies, internal/domain/fleet):
+  # a device in two UNRELATED group hierarchies gets its tie-break specificity
+  # from the ORDER groups appear in devices.*.groups, not from tree depth.
+  # Same trees on both fixtures (see crossHierarchyGroups above), only the
+  # device's group order differs, and it flips both the default-wins and
+  # enforced-wins keys - exactly like the Go twin, proving nix and Go agree.
+  #
+  # b-leaf first in the array: a-root ends up most specific (default wins
+  # theme=a), b-leaf ends up more general (enforced wins lock=b) - despite
+  # a-root being the shallower tree.
+  crossHierarchyOrderDefault =
+    crossHierarchyBLeafFirst.theme.value == "a"
+    && crossHierarchyBLeafFirst.theme.source.scope == "group:a-root";
+  crossHierarchyOrderEnforced =
+    crossHierarchyBLeafFirst.lock.value == "b"
+    && crossHierarchyBLeafFirst.lock.source.scope == "group:b-leaf";
+  # Same trees, reversed device order: both winners flip, purely from array
+  # order - the parity guarantee that order (not depth) decides.
+  crossHierarchyOrderDefaultFlips =
+    crossHierarchyARootFirst.theme.value == "b"
+    && crossHierarchyARootFirst.theme.source.scope == "group:b-leaf";
+  crossHierarchyOrderEnforcedFlips =
+    crossHierarchyARootFirst.lock.value == "a"
+    && crossHierarchyARootFirst.lock.source.scope == "group:a-root";
 }

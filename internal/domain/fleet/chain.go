@@ -41,6 +41,13 @@ func enforcedSet(list []string) map[string]bool {
 // org, then each group's ancestry (root..leaf) in device group order, then
 // the device. A scope reached via two group memberships keeps its first
 // (most general) position; its settings are identical either way.
+//
+// When a device belongs to two UNRELATED group hierarchies, this is where
+// their relative specificity is decided: by the ORDER the groups appear in
+// Device.Groups (first-seen scan), NOT by tree depth. A shallow group listed
+// second can outrank a deeper group listed first. This is intentional and
+// matches the nix twin (nix/resolve.nix scopePositions) - see
+// TestResolve_CrossHierarchyGroupOrderDecidesTies for the pinned behavior.
 func (f *Fleet) scopePositions(tag string) (map[string]int, int) {
 	pos := map[string]int{"org": 0}
 	next := 1

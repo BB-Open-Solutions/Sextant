@@ -42,6 +42,11 @@ let
       set -euo pipefail
       spool="${spoolDir}"
 
+      # writeAck records the OUTCOME for the unprivileged agent to read and
+      # forward to the console on its next beat, so "delivered" (spooled) is
+      # never confused with "executed"/"refused"/"failed" (design 0004).
+      writeAck() { printf '%s' "$1" > "$spool/action.ack" 2>/dev/null || true; }
+
       # lock: lock every session. Idempotent. The marker is removed after
       # handling so the path unit does not re-trigger this oneshot in a loop
       # while the file lingers; the agent re-spools it next beat if the console
@@ -49,6 +54,7 @@ let
       if [ -e "$spool/lock.intent" ]; then
         echo "sextant-actd: lock intent - locking all sessions"
         loginctl lock-sessions || true
+        writeAck lock
         rm -f "$spool/lock.intent" || true
       fi
 
@@ -56,6 +62,7 @@ let
       if [ -e "$spool/wipe.intent" ]; then
       ${if !cfg.armWipe then ''
         echo "sextant-actd: WIPE intent present but this host is NOT armed (services.sextant-actd.armWipe=false); refusing" >&2
+        writeAck wipe-refused
         # Clear the refused marker so the path unit does not respawn on a tight
         # loop; the agent re-spools it next beat if the intent is still armed.
         rm -f "$spool/wipe.intent" || true
@@ -63,6 +70,7 @@ let
         ${lib.optionalString (!cfg.allowUnlockedWipe) ''
         if [ ! -e "${lockFlag}" ]; then
           echo "sextant-actd: WIPE refused - device is not locked first (lock interlock); set allowUnlockedWipe to override" >&2
+          writeAck wipe-refused
           rm -f "$spool/wipe.intent" || true
           exit 0
         fi
@@ -86,8 +94,10 @@ let
         # clears the marker (and powers off).
         if [ "$failed" -ne 0 ]; then
           echo "sextant-actd: WIPE INCOMPLETE - one or more slots not erased; leaving intent for retry" >&2
+          writeAck wipe-failed
           exit 1
         fi
+        writeAck wipe
         rm -f "$spool/wipe.intent" || true
         ${lib.optionalString cfg.poweroffAfterWipe ''
         echo "sextant-actd: wipe complete - powering off" >&2

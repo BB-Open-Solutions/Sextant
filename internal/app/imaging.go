@@ -57,6 +57,13 @@ func (s *ImagingService) Get(ctx context.Context, station, mac string) (imaging.
 // Report moves a job to a new status, enforcing the domain transition rules
 // (a station cannot report a status a job cannot reach). Message carries
 // failure detail; it is cleared on a non-failure transition.
+//
+// The Get here only validates the requested transition and produces a clear
+// unknown-MAC error; it is NOT the guard. The guard is the store's atomic
+// TransitionStatus, which re-checks the from-status at write time. Without
+// that, two concurrent reports for the same MAC could both read the same
+// job.Status, both pass CanTransition, and both write - the second silently
+// clobbering the first and defeating the domain's transition invariant.
 func (s *ImagingService) Report(ctx context.Context, station, mac string, to imaging.Status, message string) error {
 	mac = imaging.NormalizeMAC(mac)
 	job, ok, err := s.store.Get(ctx, s.tenant, station, mac)
@@ -72,7 +79,16 @@ func (s *ImagingService) Report(ctx context.Context, station, mac string, to ima
 	if to != imaging.Failed {
 		message = ""
 	}
-	return s.store.UpdateStatus(ctx, s.tenant, station, mac, to, message, s.clock.Now())
+	applied, err := s.store.TransitionStatus(ctx, s.tenant, station, mac, job.Status, to, message, s.clock.Now())
+	if err != nil {
+		return err
+	}
+	if !applied {
+		// Another report already moved the job off job.Status between our
+		// Get and this write: the transition we validated no longer applies.
+		return fmt.Errorf("image job %s: %w: status changed since read", mac, ports.ErrConflict)
+	}
+	return nil
 }
 
 // Cancel withdraws a job the operator no longer wants imaged.

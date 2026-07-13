@@ -115,6 +115,54 @@ func TestResolve_DeviceEnforced(t *testing.T) {
 	want(t, f.Resolve("d"), "desktop", "gnome", "device", true)
 }
 
+// TestResolve_CrossHierarchyGroupOrderDecidesTies: when a device belongs to
+// two UNRELATED group hierarchies, scopePositions (chain.go) assigns
+// specificity by the order groups appear in Device.Groups - a first-seen scan
+// of each group's ancestry - NOT by how deep a group sits in its own tree.
+// This is intentional (it matches the nix twin, nix/resolve.nix) and is the
+// documented, tested contract this case pins down: two fixtures with the
+// SAME group trees but a swapped Device.Groups order produce OPPOSITE
+// winners, for both default (most-specific-wins) and enforced
+// (most-general-wins) semantics.
+//
+//	a-root:          a lone root group, tree depth 1.
+//	b-root -> b-leaf: a two-level chain, tree depth 2 at the leaf.
+//
+// If depth decided ties, b-leaf (deeper) would always beat a-root regardless
+// of array order. It does not: array order decides, and reversing it flips
+// both outcomes.
+func TestResolve_CrossHierarchyGroupOrderDecidesTies(t *testing.T) {
+	const groups = `
+	  "a-root": {"settings": {"theme": "a", "lock": "a"}, "enforced": ["lock"]},
+	  "b-root": {},
+	  "b-leaf": {"parent": "b-root", "settings": {"theme": "b", "lock": "b"}, "enforced": ["lock"]}`
+
+	fleetWithOrder := func(t *testing.T, order string) *Fleet {
+		t.Helper()
+		j := `{"version":3,"groups":{` + groups + `},"devices":{"d":{"groups":` + order + `,"hardware":"hw"}}}`
+		f, err := Decode([]byte(j))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+
+	// b-leaf first: ancestry scan assigns group:b-root=1, group:b-leaf=2,
+	// then group:a-root=3 - a-root ends up MOST specific despite being the
+	// shallower tree, so it wins the default key; b-leaf ends up MORE
+	// general than a-root, so it wins the enforced key.
+	fBLeafFirst := fleetWithOrder(t, `["b-leaf","a-root"]`)
+	want(t, fBLeafFirst.Resolve("d"), "theme", "a", "group:a-root", false)
+	want(t, fBLeafFirst.Resolve("d"), "lock", "b", "group:b-leaf", true)
+
+	// Same trees, reversed device order: a-root first, so a-root=1,
+	// group:b-root=2, group:b-leaf=3 - the winners flip on BOTH keys, purely
+	// from array order, with the tree structure unchanged.
+	fARootFirst := fleetWithOrder(t, `["a-root","b-leaf"]`)
+	want(t, fARootFirst.Resolve("d"), "theme", "b", "group:b-leaf", false)
+	want(t, fARootFirst.Resolve("d"), "lock", "a", "group:a-root", true)
+}
+
 func TestSetScopeSettingAndEnforce(t *testing.T) {
 	f := load(t)
 	if err := SetScopeSetting("group:pilot", "apps.media", true)(f); err != nil {

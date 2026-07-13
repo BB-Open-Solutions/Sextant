@@ -44,11 +44,21 @@ type CheckIn struct {
 	// empty means the agent did not report it (old agent / probe failed).
 	SB   SBState   `json:"sb,omitempty"`
 	TPM2 TPM2State `json:"tpm2,omitempty"`
-	// Ack echoes a remote-action intent the device has executed
-	// ("lock"/"wipe"), so the console can show delivered vs armed
-	// (design 0004). Empty on an ordinary beat.
+	// Ack reports the OUTCOME of a remote-action intent (design 0004), so the
+	// console shows what the root executor actually did, not merely that the
+	// agent spooled the request: the bare intent name means it executed, and
+	// the -refused/-failed variants mean it was declined (unarmed host / lock
+	// interlock) or could not finish. Empty on an ordinary beat.
 	Ack string `json:"ack,omitempty"`
 }
+
+// Remote-action ack outcomes.
+const (
+	AckLock        = "lock"         // session lock carried out
+	AckWipe        = "wipe"         // crypto-wipe carried out
+	AckWipeRefused = "wipe-refused" // executor declined (unarmed / interlock)
+	AckWipeFailed  = "wipe-failed"  // erase attempted but did not complete
+)
 
 // Validate rejects malformed check-ins before they reach storage.
 func (c CheckIn) Validate() error {
@@ -65,7 +75,7 @@ func (c CheckIn) Validate() error {
 		return fmt.Errorf("check-in field too long")
 	}
 	switch c.Ack {
-	case "", "lock", "wipe":
+	case "", AckLock, AckWipe, AckWipeRefused, AckWipeFailed:
 	default:
 		return fmt.Errorf("unknown ack %q", c.Ack)
 	}

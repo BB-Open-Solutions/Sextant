@@ -159,7 +159,10 @@ type Device struct {
 	// when set to a ring's group, the device follows that ring's branch even
 	// though the whole group is not yet released. Empty means the group-level
 	// rollout decides. Mirrors Group.Pin at the device level.
-	Pin          string   `json:"pin,omitempty"`
+	Pin string `json:"pin,omitempty"`
+	// Groups is ORDER-SIGNIFICANT: when two entries belong to unrelated
+	// hierarchies, array order (not tree depth) decides which one is more
+	// specific on ties (see scopePositions in chain.go).
 	Groups       []string `json:"groups,omitempty"`
 	AssignedUser string   `json:"assignedUser,omitempty"`
 	// Class categorises the device (laptop, server, station); filterable.
