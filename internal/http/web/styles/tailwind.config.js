@@ -203,7 +203,7 @@ module.exports = {
       },
           },
         };
-module.exports.content = ["internal/http/web/templates/**/*.html"];
+module.exports.content = ["internal/http/web/templates/**/*.html", "internal/platform/health/*.go"];
 // Group-tree indent classes are chosen at render time by the `indent`
 // template func, so the scanner never sees them literally.
 module.exports.safelist = [

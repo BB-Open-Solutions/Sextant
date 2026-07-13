@@ -51,6 +51,7 @@ func run(args []string, getenv config.Getenv) error {
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", checks.Liveness())
 	mux.Handle("GET /readyz", checks.Readiness())
+	mux.Handle("GET /status", checks.StatusPage())
 	mux.Handle("GET /metrics", m.Handler())
 
 	caps, cleanup, err := buildCapabilities(ctx, cfg, log, checks)

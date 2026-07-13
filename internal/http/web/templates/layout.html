@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{.Title}} - Sextant</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/fonts.css">
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/app.js" defer></script>
@@ -84,6 +85,7 @@
         <span class="font-semibold text-ink">{{.Title}}</span>
       </nav>
       <div class="flex items-center gap-2">
+        <a href="/enroll" class="btn quiet !py-1.5" title="Enroll a device"><span class="material-symbols-outlined msz-18">cable</span><span class="hidden sm:inline">Enroll device</span></a>
         {{if .CanOrgView}}
         <a href="/changes" class="btn quiet !py-1.5" title="Review pending changes"><span class="material-symbols-outlined msz-18">difference</span><span class="hidden sm:inline">Changes</span></a>
         <a href="/rollout" class="btn !py-1.5" title="Staged rollout"><span class="material-symbols-outlined msz-18">rocket_launch</span><span class="hidden sm:inline">Rollout</span></a>
@@ -105,12 +107,12 @@
 
     <!-- Footer -->
     <footer class="mt-auto flex flex-col gap-2 border-t border-border-hairline bg-surface-container-low px-8 py-4 text-label-md text-text-tertiary sm:flex-row sm:items-center sm:justify-between">
-      <span>Sextant &middot; DAWO fleet control-plane &middot; self-hosted, no external CDN</span>
+      <span>Sextant - NixOS fleet control plane</span>
       <nav class="flex flex-wrap items-center gap-4" aria-label="Resources">
         {{if .CanOrgView}}<a href="/audit" class="transition-colors hover:text-ink">Audit log</a>{{end}}
-        <a href="/readyz" class="transition-colors hover:text-ink">System status</a>
-        <a href="https://forgejo.bb-open.com/bb-open/DAWO-Sextant" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">Documentation</a>
-        <a href="https://forgejo.bb-open.com/bb-open/DAWO-Sextant/issues" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">Support</a>
+        <a href="/status" class="transition-colors hover:text-ink">System status</a>
+        <a href="https://docs.sextant.bb-open.com" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">Documentation</a>
+        <a href="https://support.bb-open.com" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">Support</a>
       </nav>
     </footer>
 
