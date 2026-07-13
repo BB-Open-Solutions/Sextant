@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/notify"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -24,7 +25,11 @@ type RolloutService struct {
 	// refs steers the rings/<group> branches devices follow (ADR 0011);
 	// nil disables the funnel (pins remain data-only).
 	refs ports.RefUpdater
-	mu   sync.Mutex // one tick / start / cancel at a time
+	// notifier and audience are optional: when set, a completed rollout tells
+	// the owning groups the fleet reached its target.
+	notifier Notifier
+	audience []string
+	mu       sync.Mutex // one tick / start / cancel at a time
 }
 
 // NewRolloutService wires the rollout engine.
@@ -38,6 +43,33 @@ func NewRolloutService(cfg *ConfigService, store ports.RolloutStore,
 func (s *RolloutService) WithRefs(refs ports.RefUpdater) *RolloutService {
 	s.refs = refs
 	return s
+}
+
+// WithNotifier makes a completed rollout notify the given groups.
+func (s *RolloutService) WithNotifier(n Notifier, audience []string) *RolloutService {
+	s.notifier = n
+	s.audience = audience
+	return s
+}
+
+// notifyDone tells the owning groups a rollout reached the whole fleet. Best
+// effort: a notifier error never disturbs the engine tick.
+func (s *RolloutService) notifyDone(ctx context.Context, target string) {
+	if s.notifier == nil {
+		return
+	}
+	short := target
+	if len(short) > 12 {
+		short = short[:12]
+	}
+	for _, g := range s.audience {
+		_ = s.notifier.Emit(ctx, notify.Notification{
+			Audience: g, Kind: notify.RolloutDone,
+			Title: "Rollout complete",
+			Body:  fmt.Sprintf("Every ring converged on %s. The fleet is on the target revision.", short),
+			Link:  "/rollout",
+		})
+	}
 }
 
 // RingBranch names the machine-owned branch a ring group's devices follow.
@@ -292,6 +324,7 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 	case rollout.Done:
 		st.Status = rollout.Completed
 		st.Reason = act.Reason
+		s.notifyDone(ctx, st.Target)
 	}
 	st.Updated = now
 	if err := s.store.Put(ctx, st); err != nil {

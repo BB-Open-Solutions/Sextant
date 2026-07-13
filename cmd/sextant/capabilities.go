@@ -198,6 +198,12 @@ func (d *deps) buildConfigPlane() error {
 	// The update funnel (ADR 0011): the same repo adapter moves the
 	// machine-owned rings/<group> branches devices follow.
 	d.rollouts = app.NewRolloutService(svc, st.Rollouts(), conv, clock, log).WithRefs(repo)
+	// Guard on the concrete pointer: passing a typed-nil *NotifyService as the
+	// Notifier interface would be a non-nil interface wrapping nil and panic on
+	// use, so only attach when Postgres actually gave us a notifier.
+	if d.notify != nil {
+		d.rollouts.WithNotifier(d.notify, cfg.OwnerGroups)
+	}
 	d.evidence = app.NewEvidenceService(svc, d.changes, clock)
 	d.background(func() { d.rollouts.Run(d.ctx, 30*time.Second) })
 	d.checks.Register("config-repo", func(context.Context) error {
