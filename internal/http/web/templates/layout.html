@@ -77,10 +77,9 @@
           {{if .Unread}}<span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-error px-1 text-[10px] font-bold leading-none text-canvas">{{if gt .Unread 99}}99+{{else}}{{.Unread}}{{end}}</span>{{end}}
         </a>
         {{end}}
-        <a href="/enroll" class="btn quiet !py-1.5" title="{{.L.T "layout.enroll_title"}}"><span class="material-symbols-outlined msz-18">cable</span><span class="hidden sm:inline">{{.L.T "layout.enroll_device"}}</span></a>
+        <a href="/enroll" class="btn !py-1.5" title="{{.L.T "layout.enroll_title"}}"><span class="material-symbols-outlined msz-18">cable</span><span class="hidden sm:inline">{{.L.T "layout.enroll_device"}}</span></a>
         {{if .CanOrgView}}
-        <a href="/changes" class="btn quiet !py-1.5" title="{{.L.T "layout.review_changes_title"}}"><span class="material-symbols-outlined msz-18">difference</span><span class="hidden sm:inline">{{.L.T "nav.changes"}}</span></a>
-        <a href="/rollout" class="btn !py-1.5" title="{{.L.T "layout.staged_rollout_title"}}"><span class="material-symbols-outlined msz-18">rocket_launch</span><span class="hidden sm:inline">{{.L.T "nav.rollout"}}</span></a>
+        <a href="/rollout" class="btn quiet !py-1.5" title="{{.L.T "layout.staged_rollout_title"}}"><span class="material-symbols-outlined msz-18">rocket_launch</span><span class="hidden sm:inline">{{.L.T "nav.rollout"}}</span></a>
         {{end}}
         <!-- Account menu: profile, org settings and sign out. Native <details>
              disclosure so it needs no inline script (strict CSP); app.js only
@@ -98,7 +97,7 @@
             <div class="my-1 border-t border-border-soft"></div>
             <form method="post" action="/logout" class="!m-0">
               <input type="hidden" name="csrf" value="{{.CSRF}}">
-              <button type="submit" class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-label-md text-text-secondary transition-colors hover:bg-surface-bright hover:text-ink" role="menuitem"><span class="material-symbols-outlined msz-18">logout</span>{{.L.T "nav.signout"}}</button>
+              <button type="submit" class="flex w-full items-center gap-2 rounded-md bg-transparent px-3 py-2 text-left text-label-md font-normal text-text-secondary transition-colors hover:bg-surface-bright hover:text-ink" role="menuitem"><span class="material-symbols-outlined msz-18">logout</span>{{.L.T "nav.signout"}}</button>
             </form>
           </div>
         </details>
