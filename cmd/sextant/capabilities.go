@@ -167,6 +167,7 @@ func (d *deps) buildConfigPlane() error {
 		// authors when it merges or the gate rejects it.
 		d.notify = app.NewNotifyService(pg, clock, app.DefaultTenant)
 		d.changes.WithNotifier(d.notify, cfg.OwnerGroups)
+		d.inv.WithNotifier(d.notify, cfg.OwnerGroups)
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
 			// Convergence is scoped to the wave's RELEASED devices: the whole

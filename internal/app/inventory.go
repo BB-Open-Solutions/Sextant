@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/notify"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -24,6 +25,12 @@ type InventoryService struct {
 	facts  ports.InventoryStore
 	clock  ports.Clock
 	tenant string
+
+	// notifier and wipeAudience are optional: when set, the FIRST check-in
+	// that confirms a crypto-wipe outcome raises a notification to the
+	// audience (the groups that own the fleet).
+	notifier     Notifier
+	wipeAudience []string
 }
 
 // NewInventoryService wires the observed plane for one tenant namespace.
@@ -34,6 +41,14 @@ func NewInventoryService(status ports.StatusStore, facts ports.InventoryStore, c
 	return &InventoryService{status: status, facts: facts, clock: clock, tenant: tenant}
 }
 
+// WithNotifier makes check-in raise a notification the first time a device
+// confirms a wipe outcome (executed, refused or failed), to the given groups.
+func (s *InventoryService) WithNotifier(n Notifier, audience []string) *InventoryService {
+	s.notifier = n
+	s.wipeAudience = audience
+	return s
+}
+
 // CheckIn records one device report; facts, when present, must be valid
 // JSON and within bounds.
 func (s *InventoryService) CheckIn(ctx context.Context, c observed.CheckIn, facts []byte) error {
@@ -41,8 +56,20 @@ func (s *InventoryService) CheckIn(ctx context.Context, c observed.CheckIn, fact
 		return err
 	}
 	now := s.clock.Now()
+	// A device echoes its last ack on every beat, so only the transition INTO
+	// a wipe outcome is news. Read the prior ack solely for wipe-class acks
+	// (rare) to keep the hot check-in path a single write otherwise.
+	notifyWipe := false
+	if s.notifier != nil && isWipeAck(c.Ack) {
+		if prev, ok, err := s.status.Get(ctx, s.tenant, c.Tag); err == nil && (!ok || prev.Ack != c.Ack) {
+			notifyWipe = true
+		}
+	}
 	if err := s.status.Upsert(ctx, s.tenant, c, now); err != nil {
 		return err
+	}
+	if notifyWipe {
+		s.emitWipe(ctx, c.Tag, c.Ack)
 	}
 	if len(facts) > 0 {
 		if len(facts) > maxFactsBytes {
@@ -74,6 +101,36 @@ func (s *InventoryService) RecordFacts(ctx context.Context, tag string, facts []
 		return fmt.Errorf("facts report is not valid JSON")
 	}
 	return s.facts.PutFacts(ctx, s.tenant, tag, facts, s.clock.Now())
+}
+
+// isWipeAck reports whether an ack is one of the crypto-wipe outcomes.
+func isWipeAck(ack string) bool {
+	switch ack {
+	case observed.AckWipe, observed.AckWipeRefused, observed.AckWipeFailed:
+		return true
+	}
+	return false
+}
+
+// emitWipe raises a best-effort notification to each owner group describing a
+// device's wipe outcome. The tone is carried by the title so it stands out in
+// the inbox: a completed wipe is final, a refusal or failure needs attention.
+func (s *InventoryService) emitWipe(ctx context.Context, tag, ack string) {
+	title, body := "Device wiped: "+tag, "The device confirmed a crypto-wipe. Its disk key is destroyed."
+	switch ack {
+	case observed.AckWipeRefused:
+		title = "Wipe refused: " + tag
+		body = "The device declined the wipe intent (unarmed or an interlock blocked it)."
+	case observed.AckWipeFailed:
+		title = "Wipe failed: " + tag
+		body = "The device attempted a crypto-wipe but did not complete it. Investigate the device."
+	}
+	for _, g := range s.wipeAudience {
+		_ = s.notifier.Emit(ctx, notify.Notification{
+			Audience: g, Kind: notify.WipeExecuted,
+			Title: title, Body: body, Link: "/devices/" + tag,
+		})
+	}
 }
 
 // StatusView is a device's observed state plus the derived online flag.
