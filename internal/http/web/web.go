@@ -231,6 +231,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/access", s.accessPage)
 	get("/audit", s.auditPage)
 	get("/audit/evidence", s.auditEvidence)
+	get("/downloads/sxctl", s.downloadCLI)
+	get("/downloads/sxctl.sha256", s.cliChecksum)
 	get("/station", s.stationPage)
 	get("/enroll", s.enrollPage)
 	get("/integrations", s.integrationsPage)
