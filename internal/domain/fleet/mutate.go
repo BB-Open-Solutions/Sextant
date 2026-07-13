@@ -151,7 +151,7 @@ func SetRolloutPlan(p *RolloutPolicy) Mutation {
 				return fmt.Errorf("ring %d: unknown group %q", i, ring.Group)
 			}
 			if seen[ring.Group] {
-				return fmt.Errorf("ring %d: group %q appears twice", i, ring.Group)
+				return fmt.Errorf("ring %d: group %q is already in an earlier wave (a group belongs to one wave, since a device follows one ring). For a staged rollout within a group - e.g. 10 first, then the rest after soak - set that wave's \"max at once\" cap instead of adding the group again", i, ring.Group)
 			}
 			seen[ring.Group] = true
 			if ring.SoakMinutes < 0 {
