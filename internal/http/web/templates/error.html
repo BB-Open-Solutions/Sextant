@@ -1,0 +1,8 @@
+{{define "content"}}
+<div class="mx-auto max-w-xl py-16 text-center">
+  <span class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-error-container text-on-error-container"><span class="material-symbols-outlined">error</span></span>
+  <h1 class="mb-2 text-headline-sm">That did not go through</h1>
+  <p class="mb-6 text-body-md text-text-secondary">{{.Message}}</p>
+  <a href="{{.Back}}" class="btn quiet"><span class="material-symbols-outlined msz-18">arrow_back</span>Go back</a>
+</div>
+{{end}}

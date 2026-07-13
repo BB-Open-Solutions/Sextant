@@ -151,7 +151,7 @@ func New(svc Services, sessions Sessions, write bool,
 			return fmt.Sprintf("gd-%d", depth)
 		},
 	}
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "integrations", "overlays"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "integrations", "overlays", "error"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -333,7 +333,14 @@ func (s *Server) action(h func(http.ResponseWriter, *http.Request, view) error) 
 		}
 		if err := h(w, r, v); err != nil {
 			s.log.Warn("console action failed", "path", r.URL.Path, "err", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			back := r.Referer()
+			if back == "" {
+				back = "/"
+			}
+			s.render(w, "error", map[string]any{
+				"Title": "Error", "Message": err.Error(), "Back": back,
+				"__status": http.StatusBadRequest,
+			}, v)
 			return
 		}
 	})
@@ -360,6 +367,11 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 	// device credentials); no browser or intermediary may cache them, or
 	// the back button re-renders a secret after its cookie is consumed.
 	w.Header().Set("Cache-Control", "no-store")
+	// An error page renders a themed body but must keep its 4xx status; set it
+	// after the headers, before the body.
+	if st, ok := data["__status"].(int); ok {
+		w.WriteHeader(st)
+	}
 	if err := s.tmpl[name].ExecuteTemplate(w, "layout", data); err != nil {
 		s.log.Error("template render failed", "page", name, "err", err)
 	}

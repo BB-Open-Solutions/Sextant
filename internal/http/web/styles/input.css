@@ -81,7 +81,7 @@
   .tag { @apply inline-flex items-center gap-1 rounded-full bg-surface-container px-2.5 py-0.5 text-label-md font-medium text-text-secondary; }
   .tag.ok { @apply bg-secondary-container text-on-secondary-container; }
   .tag.bad { @apply bg-error-container text-on-error-container; }
-  .tag.lock { @apply bg-tertiary-container text-on-tertiary-container; }
+  .tag.lock { @apply bg-tertiary-container text-canvas; }
   .tag.viewer { @apply bg-mint-vibrant/10 text-mint-deep border border-mint-vibrant/30; }
 
   /* Role: plain coloured text with a small icon - no pill. */
