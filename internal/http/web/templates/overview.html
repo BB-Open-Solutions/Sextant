@@ -1,32 +1,32 @@
 {{define "content"}}
 <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
   <div>
-    <h1 class="mb-1">Fleet Overview</h1>
-    <p class="mb-0 text-body-md text-text-tertiary">Live state of the fleet - every figure is real, sourced from the config plane and device check-ins.</p>
+    <h1 class="mb-1">{{.L.T "page.overview.title"}}</h1>
+    <p class="mb-0 text-body-md text-text-tertiary">{{.L.T "page.overview.subtitle"}}</p>
   </div>
-  {{if .CanOrgView}}<a href="/enroll" class="btn shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">add</span>Start enrollment</a>{{end}}
+  {{if .CanOrgView}}<a href="/enroll" class="btn shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">add</span>{{.L.T "page.overview.start_enrollment"}}</a>{{end}}
 </div>
 
 <!-- Stat cards -->
 <div class="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
   <div class="rounded-lg border border-border-hairline bg-canvas p-5">
-    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">Devices</span><span class="material-symbols-outlined text-text-tertiary">devices</span></div>
+    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.stat_devices"}}</span><span class="material-symbols-outlined text-text-tertiary">devices</span></div>
     <div class="text-headline-md font-bold text-ink">{{.Stats.Devices}}</div>
   </div>
   <div class="rounded-lg border border-border-hairline bg-canvas p-5">
-    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">Online</span><span class="material-symbols-outlined text-mint-vibrant">wifi</span></div>
+    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.stat_online"}}</span><span class="material-symbols-outlined text-mint-vibrant">wifi</span></div>
     <div class="text-headline-md font-bold text-ink">{{.Stats.Online}}<span class="text-body-md font-normal text-text-tertiary"> / {{.Stats.Devices}}</span></div>
   </div>
   <div class="rounded-lg border border-border-hairline bg-canvas p-5">
-    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">Groups</span><span class="material-symbols-outlined text-text-tertiary">group_work</span></div>
+    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.stat_groups"}}</span><span class="material-symbols-outlined text-text-tertiary">group_work</span></div>
     <div class="text-headline-md font-bold text-ink">{{.Stats.Groups}}</div>
   </div>
   <div class="rounded-lg border border-border-hairline bg-canvas p-5">
-    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">Policies</span><span class="material-symbols-outlined text-text-tertiary">policy</span></div>
+    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.stat_policies"}}</span><span class="material-symbols-outlined text-text-tertiary">policy</span></div>
     <div class="text-headline-md font-bold text-ink">{{.Stats.Policies}}</div>
   </div>
   <div class="rounded-lg border border-border-hairline bg-canvas p-5">
-    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">Open changes</span><span class="material-symbols-outlined {{if .Stats.OpenChanges}}text-status-warn{{else}}text-text-tertiary{{end}}">difference</span></div>
+    <div class="mb-3 flex items-center justify-between"><span class="text-label-md uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.stat_open_changes"}}</span><span class="material-symbols-outlined {{if .Stats.OpenChanges}}text-status-warn{{else}}text-text-tertiary{{end}}">difference</span></div>
     <div class="text-headline-md font-bold text-ink">{{.Stats.OpenChanges}}</div>
   </div>
 </div>
@@ -37,15 +37,15 @@
     {{if .Approvals}}
     <div>
       <div class="mb-4 flex items-center justify-between border-b border-border-hairline pb-2">
-        <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-deep">how_to_reg</span>Awaiting your approval</h2>
-        <a href="/changes" class="text-label-md text-mint-deep">All changes -&gt; </a>
+        <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-deep">how_to_reg</span>{{.L.T "page.overview.awaiting_approval"}}</h2>
+        <a href="/changes" class="text-label-md text-mint-deep">{{.L.T "page.overview.all_changes"}}</a>
       </div>
       <div class="flex flex-col gap-3">
         {{range .Approvals}}
         <a href="/changes/{{.ID}}/diff" class="flex items-center justify-between rounded-lg border border-mint-vibrant/30 bg-mint-vibrant/5 p-4 transition-colors hover:bg-mint-vibrant/10 no-underline">
           <span class="flex items-center gap-3">
             <span class="material-symbols-outlined msz-20 text-mint-deep">rate_review</span>
-            <span><span class="font-medium text-ink">{{.ID}}</span> <span class="text-body-sm text-text-tertiary">by {{.Author}} - built green, ready to merge</span></span>
+            <span><span class="font-medium text-ink">{{.ID}}</span> <span class="text-body-sm text-text-tertiary">{{$.L.T "page.overview.approval_by"}} {{.Author}} {{$.L.T "page.overview.approval_ready"}}</span></span>
           </span>
           <span class="material-symbols-outlined msz-20 text-text-tertiary">arrow_forward</span>
         </a>
@@ -57,7 +57,7 @@
     {{if .Attention}}
     <div>
       <div class="mb-4 flex items-center justify-between border-b border-border-hairline pb-2">
-        <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-status-error">warning</span>Needs attention</h2>
+        <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-status-error">warning</span>{{.L.T "page.overview.needs_attention"}}</h2>
       </div>
       <div class="flex flex-col gap-3">
         {{range .Attention}}
@@ -77,12 +77,12 @@
 
     <div>
       <div class="mb-4 flex items-center justify-between border-b border-border-hairline pb-2">
-        <h2 class="mt-0 mb-0 text-headline-sm">Recent device activity</h2>
-        <a href="/devices" class="text-label-md text-mint-deep">All devices -> </a>
+        <h2 class="mt-0 mb-0 text-headline-sm">{{.L.T "page.overview.recent_activity"}}</h2>
+        <a href="/devices" class="text-label-md text-mint-deep">{{.L.T "page.overview.all_devices"}}</a>
       </div>
       <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas">
         <table>
-          <tr><th>Device</th><th>Revision</th><th>Phase</th><th>State</th></tr>
+          <tr><th>{{.L.T "page.overview.col_device"}}</th><th>{{.L.T "page.overview.col_revision"}}</th><th>{{.L.T "page.overview.col_phase"}}</th><th>{{.L.T "page.overview.col_state"}}</th></tr>
           {{range .Status}}
           <tr class="hover:bg-surface-container-low transition-colors">
             <td class="whitespace-nowrap align-middle"><a href="/devices/{{.Tag}}" class="font-mono font-medium">{{.Tag}}</a></td>
@@ -91,7 +91,7 @@
             <td class="align-middle text-right">{{if .Online}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}</td>
           </tr>
           {{else}}
-          <tr><td colspan="4" class="muted">No check-ins yet.</td></tr>
+          <tr><td colspan="4" class="muted">{{$.L.T "page.overview.no_checkins"}}</td></tr>
           {{end}}
         </table>
       </div>
@@ -102,8 +102,8 @@
   <div class="flex flex-col gap-8">
     <!-- Fleet status grid (G8: real per-device heat map) -->
     <div class="rounded-lg border border-border-hairline bg-canvas p-5">
-      <h2 class="mt-0 mb-1 text-headline-sm">Fleet status</h2>
-      <p class="mb-4 text-label-md text-text-tertiary">One cell per device | <span class="text-mint-deep">online</span> | <span class="text-status-error">error</span> | <span class="text-text-tertiary">offline</span></p>
+      <h2 class="mt-0 mb-1 text-headline-sm">{{.L.T "page.overview.fleet_status"}}</h2>
+      <p class="mb-4 text-label-md text-text-tertiary">{{.L.T "page.overview.legend_prefix"}} | <span class="text-mint-deep">{{.L.T "common.online"}}</span> | <span class="text-status-error">{{.L.T "page.overview.legend_error"}}</span> | <span class="text-text-tertiary">{{.L.T "common.offline"}}</span></p>
       {{if .Status}}
       <div class="flex flex-wrap gap-1.5">
         {{range .Status}}
@@ -111,13 +111,13 @@
            class="h-5 w-5 rounded-sm {{if .Error}}bg-status-error{{else if .Online}}bg-mint-vibrant{{else}}bg-surface-container-highest{{end}} hover:ring-2 hover:ring-ink/20"></a>
         {{end}}
       </div>
-      {{else}}<p class="muted">No devices reporting yet.</p>{{end}}
+      {{else}}<p class="muted">{{.L.T "page.overview.no_devices"}}</p>{{end}}
     </div>
 
     <!-- CLI toolbelt (G5: real sxctl commands, copyable) -->
     <div class="rounded-lg border border-border-hairline bg-surface-code p-5">
-      <h2 class="mt-0 mb-3 flex items-center gap-2 text-headline-sm text-canvas"><span class="material-symbols-outlined text-mint-vibrant">terminal</span>CLI toolbelt</h2>
-      <p class="mb-4 text-label-md text-canvas/60">Same actions, scriptable. Set <code class="text-mint-soft">SEXTANT_URL</code> and <code class="text-mint-soft">SEXTANT_TOKEN</code> first.</p>
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-headline-sm text-canvas"><span class="material-symbols-outlined text-mint-vibrant">terminal</span>{{.L.T "page.overview.cli_toolbelt"}}</h2>
+      <p class="mb-4 text-label-md text-canvas/60">{{.L.T "page.overview.cli_desc_pre"}} <code class="text-mint-soft">SEXTANT_URL</code> {{.L.T "page.overview.cli_desc_mid"}} <code class="text-mint-soft">SEXTANT_TOKEN</code> {{.L.T "page.overview.cli_desc_post"}}</p>
       <div class="flex flex-col gap-2">
         {{range $cmd := (list "sxctl devices list" "sxctl device get <tag>" "sxctl changes list" "sxctl rollout status" "sxctl evidence 2026-01-01T00:00:00Z 2026-12-31T00:00:00Z")}}
         <div class="flex items-center gap-2 rounded bg-black/30 px-3 py-2">

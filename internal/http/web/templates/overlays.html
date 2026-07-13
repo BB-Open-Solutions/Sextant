@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="mb-8">
-  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">layers</span>Overlays</h1>
-  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Code once, manage via the interface. Write a custom Nix module for a device class (IoT, k8s node, POS terminal) here - each save must pass the Nix eval gate before it commits. Then manage it without touching code: assign it to a scope (org, group or device) from Settings, and if the module declares <code>dawo.*</code> options they appear in Settings and Integrations to tune per scope. Overlays are additive down the scope chain.</p>
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">layers</span>{{.L.T "overlays.title"}}</h1>
+  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "overlays.intro_pre"}} <code>dawo.*</code> {{.L.T "overlays.intro_post"}}</p>
 </div>
 
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-4">
@@ -9,15 +9,15 @@
   <div class="xl:col-span-1">
     <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
       <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-4 py-3">
-        <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Modules</h2>
-        <a href="/overlays" class="text-label-md text-mint-deep">+ new</a>
+        <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">{{.L.T "overlays.modules_title"}}</h2>
+        <a href="/overlays" class="text-label-md text-mint-deep">{{.L.T "common.new_short"}}</a>
       </div>
       <div class="flex flex-col">
         {{$sel := .Selected}}
         {{range .Overlays}}
         <a href="/overlays?name={{.}}" class="flex items-center gap-2 border-b border-border-soft px-4 py-2 font-mono text-code-inline transition-colors hover:bg-surface-bright {{if eq . $sel}}bg-mint-vibrant/5 text-ink{{else}}text-text-secondary{{end}}"><span class="material-symbols-outlined msz-16 text-text-tertiary">description</span>{{.}}</a>
         {{else}}
-        <p class="muted p-4">No overlays yet. Write your first one on the right.</p>
+        <p class="muted p-4">{{$.L.T "overlays.none_yet"}}</p>
         {{end}}
       </div>
     </div>
@@ -28,7 +28,7 @@
     {{if not .Selected}}
     <!-- Class starter templates: code once from a working base -->
     <div class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
-      <p class="mb-3 text-label-md font-bold text-ink">Start from a class template</p>
+      <p class="mb-3 text-label-md font-bold text-ink">{{.L.T "overlays.start_template"}}</p>
       <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {{range .Templates}}
         <a href="/overlays?template={{.Key}}" class="rounded-md border border-border-soft p-3 transition-colors hover:border-mint-vibrant hover:bg-mint-vibrant/5 no-underline">
@@ -43,23 +43,23 @@
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
       <div class="mb-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div class="flex flex-col gap-1">
-          <label>Overlay name</label>
+          <label>{{.L.T "overlays.name_label"}}</label>
           {{if .Selected}}<span class="font-mono text-code-inline text-ink">{{.Selected}}.nix</span>
-          {{else}}<span class="text-body-sm text-text-tertiary">new overlay</span>{{end}}
+          {{else}}<span class="text-body-sm text-text-tertiary">{{.L.T "overlays.new_overlay_label"}}</span>{{end}}
         </div>
         {{if .Selected}}
-        <form method="post" action="/overlays/{{.Selected}}/remove" class="inline shrink-0" onsubmit="return confirm('Delete overlay {{.Selected}}? Any scope selecting it will fail the gate.')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>Delete</button></form>
+        <form method="post" action="/overlays/{{.Selected}}/remove" class="inline shrink-0" onsubmit="return confirm('Delete overlay {{.Selected}}? Any scope selecting it will fail the gate.')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>{{.L.T "common.delete"}}</button></form>
         {{end}}
       </div>
       <form method="post" action="/overlays" class="!flex-col !items-stretch gap-3">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         {{if .Selected}}<input type="hidden" name="name" value="{{.Selected}}">
-        {{else}}<div class="flex flex-col gap-1"><label>Name</label><input name="name" value="{{.SuggestName}}" placeholder="e.g. k8s-node" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>{{end}}
-        <label>Module (Nix)</label>
+        {{else}}<div class="flex flex-col gap-1"><label>{{.L.T "common.name"}}</label><input name="name" value="{{.SuggestName}}" placeholder="{{.L.T "common.eg"}} k8s-node" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>{{end}}
+        <label>{{.L.T "overlays.module_label"}}</label>
         <textarea name="code" rows="20" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{ config, lib, pkgs, ... }:&#10;{&#10;  # your NixOS module for this device class&#10;}">{{.Code}}</textarea>
         <div class="flex items-center justify-between">
-          <p class="mb-0 text-label-md text-text-tertiary">Imported by every device whose scope selects this overlay. It must evaluate and build, or the save is rejected.</p>
-          <button type="submit" class="shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">save</span>Save &amp; validate</button>
+          <p class="mb-0 text-label-md text-text-tertiary">{{.L.T "overlays.help_text"}}</p>
+          <button type="submit" class="shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "overlays.save_validate"}}</button>
         </div>
       </form>
     </div>

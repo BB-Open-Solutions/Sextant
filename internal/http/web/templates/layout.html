@@ -26,40 +26,40 @@
         </span>
         <span class="text-headline-sm font-bold text-ink">Sextant</span>
       </a>
-      <p class="text-label-md text-text-tertiary">Fleet Control Plane</p>
+      <p class="text-label-md text-text-tertiary">{{.L.T "layout.tagline"}}</p>
     </div>
 
     <div class="flex-1 overflow-y-auto py-2">
       {{$n := .Nav}}
-      <p class="nav-section">Fleet</p>
+      <p class="nav-section">{{.L.T "layout.section_fleet"}}</p>
       <ul class="space-y-1 px-2">
         <li><a href="/" class="nav-link {{if eq $n "overview"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">dashboard</span>{{.L.T "nav.overview"}}</a></li>
         <li><a href="/devices" class="nav-link {{if eq $n "devices"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">devices</span>{{.L.T "nav.devices"}}</a></li>
         <li><a href="/groups" class="nav-link {{if eq $n "groups"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">group_work</span>{{.L.T "nav.groups"}}</a></li>
-        <li><a href="/enroll" class="nav-link {{if eq $n "enroll"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">cable</span>Enrollment</a></li>
+        <li><a href="/enroll" class="nav-link {{if eq $n "enroll"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">cable</span>{{.L.T "nav.enroll"}}</a></li>
       </ul>
-      <p class="nav-section">Configuration</p>
+      <p class="nav-section">{{.L.T "layout.section_configuration"}}</p>
       <ul class="space-y-1 px-2">
         <li><a href="/settings" class="nav-link {{if eq $n "settings"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">settings</span>{{.L.T "nav.settings"}}</a></li>
         <li><a href="/policies" class="nav-link {{if eq $n "policies"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">policy</span>{{.L.T "nav.policies"}}</a></li>
-        {{if .CanOrgOwn}}<li><a href="/overlays" class="nav-link {{if eq $n "overlays"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">layers</span>Overlays</a></li>{{end}}
-        {{if .CanOrgView}}<li><a href="/integrations" class="nav-link {{if eq $n "integrations"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">extension</span>Integrations</a></li>{{end}}
-        {{if .CanOrgView}}<li><a href="/secrets" class="nav-link {{if eq $n "secrets"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">password</span>Secrets</a></li>{{end}}
-        {{if .CanOrgOwn}}<li><a href="/station" class="nav-link {{if eq $n "station"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">lan</span>Imaging stations</a></li>{{end}}
+        {{if .CanOrgOwn}}<li><a href="/overlays" class="nav-link {{if eq $n "overlays"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">layers</span>{{.L.T "nav.overlays"}}</a></li>{{end}}
+        {{if .CanOrgView}}<li><a href="/integrations" class="nav-link {{if eq $n "integrations"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">extension</span>{{.L.T "nav.integrations"}}</a></li>{{end}}
+        {{if .CanOrgView}}<li><a href="/secrets" class="nav-link {{if eq $n "secrets"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">password</span>{{.L.T "nav.secrets"}}</a></li>{{end}}
+        {{if .CanOrgOwn}}<li><a href="/station" class="nav-link {{if eq $n "station"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">lan</span>{{.L.T "nav.stations"}}</a></li>{{end}}
       </ul>
       {{if .CanOrgView}}
-      <p class="nav-section">Shipping</p>
+      <p class="nav-section">{{.L.T "layout.section_shipping"}}</p>
       <ul class="space-y-1 px-2">
-        <li><a href="/pipeline" class="nav-link {{if eq $n "pipeline"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">conveyor_belt</span>Pipeline</a></li>
+        <li><a href="/pipeline" class="nav-link {{if eq $n "pipeline"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">conveyor_belt</span>{{.L.T "nav.pipeline"}}</a></li>
         <li><a href="/changes" class="nav-link {{if eq $n "changes"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">difference</span>{{.L.T "nav.changes"}}</a></li>
         <li><a href="/rollout" class="nav-link {{if eq $n "rollout"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">rocket_launch</span>{{.L.T "nav.rollout"}}</a></li>
       </ul>
       {{end}}
-      <p class="nav-section">Governance</p>
+      <p class="nav-section">{{.L.T "layout.section_governance"}}</p>
       <ul class="space-y-1 px-2">
         <li><a href="/access" class="nav-link {{if eq $n "access"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">admin_panel_settings</span>{{.L.T "nav.access"}}</a></li>
-        {{if .CanOrgOwn}}<li><a href="/service-accounts" class="nav-link {{if eq $n "service-accounts"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">robot_2</span>Service accounts</a></li>{{end}}
-        {{if .CanOrgOwn}}<li><a href="/mail" class="nav-link {{if eq $n "mail"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">mail</span>E-mail (SMTP)</a></li>{{end}}
+        {{if .CanOrgOwn}}<li><a href="/service-accounts" class="nav-link {{if eq $n "service-accounts"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">robot_2</span>{{.L.T "nav.serviceaccounts"}}</a></li>{{end}}
+        {{if .CanOrgOwn}}<li><a href="/mail" class="nav-link {{if eq $n "mail"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">mail</span>{{.L.T "nav.mail"}}</a></li>{{end}}
         {{if .CanOrgView}}
         <li><a href="/audit" class="nav-link {{if eq $n "audit"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">history_edu</span>{{.L.T "nav.audit"}}</a></li>
         {{end}}
@@ -80,22 +80,22 @@
 
     <!-- Top app bar -->
     <header class="sticky top-0 z-30 flex items-center justify-between border-b border-border-hairline bg-canvas px-8 py-3">
-      <nav class="flex items-center gap-1 text-label-md text-text-tertiary" aria-label="Breadcrumb">
+      <nav class="flex items-center gap-1 text-label-md text-text-tertiary" aria-label="{{.L.T "layout.breadcrumb_aria"}}">
         <a href="/" class="transition-colors hover:text-ink">Sextant</a>
         <span class="material-symbols-outlined msz-16 -mx-1 text-text-tertiary/70">chevron_right</span>
         <span class="font-semibold text-ink">{{.Title}}</span>
       </nav>
       <div class="flex items-center gap-2">
         {{if .HasNotify}}
-        <a href="/notifications" class="relative flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-container hover:text-ink {{if eq .Nav "notifications"}}bg-surface-container text-ink{{end}}" title="Notifications" aria-label="Notifications{{if .Unread}} ({{.Unread}} unread){{end}}">
+        <a href="/notifications" class="relative flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-container hover:text-ink {{if eq .Nav "notifications"}}bg-surface-container text-ink{{end}}" title="{{.L.T "page.notifications.title"}}" aria-label="{{.L.T "page.notifications.title"}}{{if .Unread}} ({{.Unread}} {{.L.T "layout.unread_suffix"}}){{end}}">
           <span class="material-symbols-outlined msz-20">notifications</span>
           {{if .Unread}}<span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-error px-1 text-[10px] font-bold leading-none text-canvas">{{if gt .Unread 99}}99+{{else}}{{.Unread}}{{end}}</span>{{end}}
         </a>
         {{end}}
-        <a href="/enroll" class="btn quiet !py-1.5" title="Enroll a device"><span class="material-symbols-outlined msz-18">cable</span><span class="hidden sm:inline">Enroll device</span></a>
+        <a href="/enroll" class="btn quiet !py-1.5" title="{{.L.T "layout.enroll_title"}}"><span class="material-symbols-outlined msz-18">cable</span><span class="hidden sm:inline">{{.L.T "layout.enroll_device"}}</span></a>
         {{if .CanOrgView}}
-        <a href="/changes" class="btn quiet !py-1.5" title="Review pending changes"><span class="material-symbols-outlined msz-18">difference</span><span class="hidden sm:inline">Changes</span></a>
-        <a href="/rollout" class="btn !py-1.5" title="Staged rollout"><span class="material-symbols-outlined msz-18">rocket_launch</span><span class="hidden sm:inline">Rollout</span></a>
+        <a href="/changes" class="btn quiet !py-1.5" title="{{.L.T "layout.review_changes_title"}}"><span class="material-symbols-outlined msz-18">difference</span><span class="hidden sm:inline">{{.L.T "nav.changes"}}</span></a>
+        <a href="/rollout" class="btn !py-1.5" title="{{.L.T "layout.staged_rollout_title"}}"><span class="material-symbols-outlined msz-18">rocket_launch</span><span class="hidden sm:inline">{{.L.T "nav.rollout"}}</span></a>
         {{end}}
       </div>
     </header>
@@ -113,12 +113,12 @@
 
     <!-- Footer -->
     <footer class="mt-auto flex flex-col gap-2 border-t border-border-hairline bg-surface-container-low px-8 py-4 text-label-md text-text-tertiary sm:flex-row sm:items-center sm:justify-between">
-      <span>Sextant - NixOS fleet control plane</span>
-      <nav class="flex flex-wrap items-center gap-4" aria-label="Resources">
-        {{if .CanOrgView}}<a href="/audit" class="transition-colors hover:text-ink">Audit log</a>{{end}}
-        <a href="/status" class="transition-colors hover:text-ink">System status</a>
-        <a href="https://docs.sextant.bb-open.com" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">Documentation</a>
-        <a href="https://bb-open.com/en/contact" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">Support</a>
+      <span>Sextant - {{.L.T "footer.tagline"}}</span>
+      <nav class="flex flex-wrap items-center gap-4" aria-label="{{.L.T "footer.aria_resources"}}">
+        {{if .CanOrgView}}<a href="/audit" class="transition-colors hover:text-ink">{{.L.T "footer.audit"}}</a>{{end}}
+        <a href="/status" class="transition-colors hover:text-ink">{{.L.T "footer.status"}}</a>
+        <a href="https://docs.sextant.bb-open.com" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">{{.L.T "footer.docs"}}</a>
+        <a href="https://bb-open.com/en/contact" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">{{.L.T "footer.support"}}</a>
       </nav>
     </footer>
 

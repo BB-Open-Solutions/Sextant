@@ -1,21 +1,21 @@
 {{define "content"}}
 <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
   <div>
-    <h1 class="mb-1">Fleet groups</h1>
-    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Hierarchical device groups, identity-provider mappings and pin status. Policy resolves org &rarr; parent groups &rarr; group &rarr; device; enforced values flow down.</p>
+    <h1 class="mb-1">{{.L.T "groups.title"}}</h1>
+    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "groups.intro"}}</p>
   </div>
-  {{if .CanOrgOwn}}<a href="#create" class="btn shrink-0"><span class="material-symbols-outlined msz-18">create_new_folder</span>Create group</a>{{end}}
+  {{if .CanOrgOwn}}<a href="#create" class="btn shrink-0"><span class="material-symbols-outlined msz-18">create_new_folder</span>{{.L.T "groups.create"}}</a>{{end}}
 </div>
 
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
   <!-- Organization hierarchy -->
   <div class="flex h-[600px] flex-col overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm xl:col-span-2">
     <div class="flex items-center justify-between border-b border-border-hairline bg-surface-bright px-6 py-4">
-      <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="material-symbols-outlined msz-18 text-text-tertiary">account_tree</span>Organization hierarchy</h2>
+      <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="material-symbols-outlined msz-18 text-text-tertiary">account_tree</span>{{.L.T "groups.hierarchy_title"}}</h2>
       <div class="hidden items-center gap-4 text-label-xs-caps uppercase text-text-tertiary sm:flex">
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">push_pin</span>Pinned</span>
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">devices</span>Devices</span>
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">vpn_key</span>IdP</span>
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">push_pin</span>{{.L.T "groups.legend_pinned"}}</span>
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">devices</span>{{.L.T "groups.legend_devices"}}</span>
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">vpn_key</span>{{.L.T "groups.legend_idp"}}</span>
       </div>
     </div>
     <div class="flex-1 overflow-y-auto p-2">
@@ -23,14 +23,14 @@
       <a href="#g-{{.Name}}" class="flex items-center gap-2 rounded-md py-2 pr-3 {{indent .Depth}} hover:bg-surface-bright transition-colors">
         <span class="material-symbols-outlined msz-20 text-text-tertiary">{{if eq .Depth 0}}domain{{else}}folder{{end}}</span>
         <span class="min-w-0 flex-1">
-          <span class="flex items-center gap-1 text-label-md font-medium text-ink">{{.Name}}{{if .Pin}}<span class="material-symbols-outlined msz-14 text-text-tertiary" title="Pinned to {{.Pin}}">push_pin</span>{{end}}</span>
+          <span class="flex items-center gap-1 text-label-md font-medium text-ink">{{.Name}}{{if .Pin}}<span class="material-symbols-outlined msz-14 text-text-tertiary" title="{{$.L.T "groups.pinned_to"}} {{.Pin}}">push_pin</span>{{end}}</span>
           {{with .IdpGroup}}<span class="block font-mono text-label-xs-caps text-text-tertiary">idP: {{.}}</span>{{end}}
         </span>
         <span class="w-16 text-right font-mono text-code-inline text-text-secondary">{{.Devices}}</span>
-        {{if .IdpGroup}}<span class="material-symbols-outlined msz-18 text-mint-deep" title="IdP mapped">check_circle</span>{{else}}<span class="material-symbols-outlined msz-18 text-text-tertiary" title="not mapped">sync_disabled</span>{{end}}
+        {{if .IdpGroup}}<span class="material-symbols-outlined msz-18 text-mint-deep" title="{{$.L.T "groups.idp_mapped"}}">check_circle</span>{{else}}<span class="material-symbols-outlined msz-18 text-text-tertiary" title="{{$.L.T "groups.not_mapped"}}">sync_disabled</span>{{end}}
       </a>
       {{else}}
-      <p class="muted p-4">No groups yet.</p>
+      <p class="muted p-4">{{.L.T "groups.empty"}}</p>
       {{end}}
     </div>
   </div>
@@ -38,7 +38,7 @@
   <!-- Group details (right pane; :target reveals the selected group) -->
   <div class="flex h-[600px] flex-col overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
     <div class="border-b border-border-hairline bg-surface-bright px-6 py-4">
-      <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="material-symbols-outlined msz-18 text-mint-deep">info</span>Group details</h2>
+      <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="material-symbols-outlined msz-18 text-mint-deep">info</span>{{.L.T "groups.details_title"}}</h2>
     </div>
     <div class="flex-1 overflow-y-auto">
       {{$ := .}}
@@ -46,39 +46,39 @@
       <div id="g-{{.Name}}" class="gdetail p-6">
         <div class="flex items-start justify-between">
           <h3 class="mt-0 mb-0 text-headline-sm">{{.Name}}</h3>
-          {{if .Pin}}<span class="tag lock"><span class="material-symbols-outlined msz-14">push_pin</span>pinned</span>{{end}}
+          {{if .Pin}}<span class="tag lock"><span class="material-symbols-outlined msz-14">push_pin</span>{{$.L.T "groups.pinned_badge"}}</span>{{end}}
         </div>
         <dl class="mt-5 flex flex-col divide-y divide-border-soft text-body-sm">
-          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">Parent</dt><dd>{{if .Parent}}{{.Parent}}{{else}}<span class="muted">(root)</span>{{end}}</dd></div>
-          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">Device count</dt><dd class="font-mono text-code-inline text-ink">{{.Devices}}</dd></div>
-          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">IdP mapping</dt><dd>{{if .IdpGroup}}<code class="text-text-secondary">{{.IdpGroup}}</code>{{else}}<span class="flex items-center gap-1 text-status-warn">Unmapped<span class="material-symbols-outlined msz-14">warning</span></span>{{end}}</dd></div>
-          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">Pin</dt><dd>{{with .Pin}}<code class="text-text-secondary">{{.}}</code>{{else}}<span class="muted">follows HEAD</span>{{end}}</dd></div>
+          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">{{$.L.T "groups.parent"}}</dt><dd>{{if .Parent}}{{.Parent}}{{else}}<span class="muted">{{$.L.T "groups.root"}}</span>{{end}}</dd></div>
+          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">{{$.L.T "groups.device_count"}}</dt><dd class="font-mono text-code-inline text-ink">{{.Devices}}</dd></div>
+          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">{{$.L.T "groups.idp_mapping"}}</dt><dd>{{if .IdpGroup}}<code class="text-text-secondary">{{.IdpGroup}}</code>{{else}}<span class="flex items-center gap-1 text-status-warn">{{$.L.T "groups.unmapped"}}<span class="material-symbols-outlined msz-14">warning</span></span>{{end}}</dd></div>
+          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">{{$.L.T "groups.pin_field"}}</dt><dd>{{with .Pin}}<code class="text-text-secondary">{{.}}</code>{{else}}<span class="muted">{{$.L.T "groups.follows_head"}}</span>{{end}}</dd></div>
         </dl>
-        <a href="/settings?scope=group:{{.Name}}" class="mt-2 inline-flex items-center gap-1 text-label-md text-secondary">Open settings <span class="material-symbols-outlined msz-14">arrow_forward</span></a>
+        <a href="/settings?scope=group:{{.Name}}" class="mt-2 inline-flex items-center gap-1 text-label-md text-secondary">{{$.L.T "groups.open_settings"}} <span class="material-symbols-outlined msz-14">arrow_forward</span></a>
         {{if $.CanOrgOwn}}
         <div class="mt-6">
-          <h4 class="mb-3 text-label-xs-caps uppercase text-text-tertiary">Owner actions</h4>
+          <h4 class="mb-3 text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "groups.owner_actions"}}</h4>
           <div class="flex flex-col gap-3">
             <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="reparent" value="1">
-              <label>Re-parent</label>
+              <label>{{$.L.T "groups.reparent"}}</label>
               {{$row := .}}
-              <select name="parent" class="w-full"><option value="" {{if not .Parent}}selected{{end}}>(root)</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
-              <button type="submit" class="quiet mt-2 self-start">Move</button>
+              <select name="parent" class="w-full"><option value="" {{if not .Parent}}selected{{end}}>{{$.L.T "groups.root"}}</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
+              <button type="submit" class="quiet mt-2 self-start">{{$.L.T "groups.move"}}</button>
             </form>
             <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="setidp" value="1">
-              <label>Map IdP group</label>
+              <label>{{$.L.T "groups.map_idp"}}</label>
               {{if $.DirGroups}}
               {{$cur := .IdpGroup}}
-              <select name="idpGroup" class="w-full"><option value="">- unmapped -</option>{{range $.DirGroups}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
+              <select name="idpGroup" class="w-full"><option value="">{{$.L.T "groups.unmapped_option"}}</option>{{range $.DirGroups}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
               {{else}}
-              <input name="idpGroup" value="{{.IdpGroup}}" placeholder="IdP group" class="w-full">
+              <input name="idpGroup" value="{{.IdpGroup}}" placeholder="{{$.L.T "groups.idp_group_placeholder"}}" class="w-full">
               {{end}}
-              <button type="submit" class="quiet mt-2 self-start">Map</button>
+              <button type="submit" class="quiet mt-2 self-start">{{$.L.T "groups.map_button"}}</button>
             </form>
             <form method="post" action="/groups/{{.Name}}/remove" class="!block" onsubmit="return confirm('Remove group {{.Name}}?')">
-              <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet w-full justify-center !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-16">delete</span>Remove group</button>
+              <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet w-full justify-center !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-16">delete</span>{{$.L.T "groups.remove_group"}}</button>
             </form>
           </div>
         </div>
@@ -87,7 +87,7 @@
       {{end}}
       <div class="gplaceholder flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
         <span class="material-symbols-outlined msz-22 text-text-tertiary">ads_click</span>
-        <p class="muted">Select a group from the hierarchy to see its details and owner actions.</p>
+        <p class="muted">{{.L.T "groups.select_hint"}}</p>
       </div>
     </div>
   </div>
@@ -95,16 +95,16 @@
 
 {{if .CanOrgOwn}}
 <div id="create" class="mt-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">create_new_folder</span>Create a group</h2>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">create_new_folder</span>{{.L.T "groups.create_heading"}}</h2>
   <form method="post" action="/groups" class="!items-end">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex flex-col gap-1"><label>Name</label><input name="name" placeholder="lowercase slug" required></div>
-    <div class="flex flex-col gap-1"><label>Parent</label><select name="parent"><option value="">(root)</option>{{range .AllGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-    <div class="flex flex-col gap-1"><label>IdP mapping</label>
-      {{if .DirGroups}}<select name="idpGroup"><option value=""> - none - </option>{{range .DirGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-      {{else}}<input name="idpGroup" placeholder="optional">{{end}}
+    <div class="flex flex-col gap-1"><label>{{.L.T "common.name"}}</label><input name="name" placeholder="{{.L.T "groups.slug_placeholder"}}" required></div>
+    <div class="flex flex-col gap-1"><label>{{.L.T "groups.parent"}}</label><select name="parent"><option value="">{{.L.T "groups.root"}}</option>{{range .AllGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
+    <div class="flex flex-col gap-1"><label>{{.L.T "groups.idp_mapping"}}</label>
+      {{if .DirGroups}}<select name="idpGroup"><option value=""> {{.L.T "groups.none_option"}} </option>{{range .DirGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+      {{else}}<input name="idpGroup" placeholder="{{.L.T "common.optional"}}">{{end}}
     </div>
-    <button type="submit">Create</button>
+    <button type="submit">{{.L.T "common.create"}}</button>
   </form>
 </div>
 {{end}}

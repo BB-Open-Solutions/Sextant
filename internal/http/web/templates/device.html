@@ -5,18 +5,18 @@
     <div class="flex items-center gap-3">
       <span class="material-symbols-outlined msz-22 text-text-tertiary">desktop_windows</span>
       <h1 class="mb-0 font-mono tracking-tight">{{.Tag}}</h1>
-      {{if .Retired}}<span class="tag bad">retired</span>{{end}}
+      {{if .Retired}}<span class="tag bad">{{.L.T "device.retired"}}</span>{{end}}
     </div>
     <div class="flex flex-wrap items-center gap-4">
       {{if .HasStatus}}
         {{if .Status.Online}}
-        <span class="flex items-center gap-1.5 text-label-md font-medium text-mint-deep"><span class="h-2 w-2 rounded-full bg-mint-vibrant"></span>Online</span>
+        <span class="flex items-center gap-1.5 text-label-md font-medium text-mint-deep"><span class="h-2 w-2 rounded-full bg-mint-vibrant"></span>{{.L.T "common.online"}}</span>
         {{else}}
-        <span class="flex items-center gap-1.5 text-label-md font-medium text-text-tertiary"><span class="h-2 w-2 rounded-full bg-surface-container-highest"></span>Offline</span>
+        <span class="flex items-center gap-1.5 text-label-md font-medium text-text-tertiary"><span class="h-2 w-2 rounded-full bg-surface-container-highest"></span>{{.L.T "common.offline"}}</span>
         {{end}}
-        <span class="flex items-center gap-1 text-body-sm text-text-tertiary"><span class="material-symbols-outlined msz-16">schedule</span>Last seen {{.L.TimeSec .Status.LastSeen}}</span>
+        <span class="flex items-center gap-1 text-body-sm text-text-tertiary"><span class="material-symbols-outlined msz-16">schedule</span>{{.L.T "device.last_seen"}} {{.L.TimeSec .Status.LastSeen}}</span>
       {{else}}
-        <span class="flex items-center gap-1.5 text-label-md font-medium text-text-tertiary"><span class="h-2 w-2 rounded-full bg-surface-container-highest"></span>Never seen</span>
+        <span class="flex items-center gap-1.5 text-label-md font-medium text-text-tertiary"><span class="h-2 w-2 rounded-full bg-surface-container-highest"></span>{{.L.T "common.never_seen"}}</span>
       {{end}}
       {{with .Device.Class}}<span class="rounded border border-border-hairline bg-surface px-2 py-0.5 text-label-xs-caps uppercase text-text-secondary">{{.}}</span>{{end}}
     </div>
@@ -26,13 +26,13 @@
   <!-- One-shot credential: shown once, never persisted -->
   <div class="flex min-w-[320px] flex-col gap-3 rounded-lg border border-[#333] bg-surface-code p-4 text-canvas shadow-lg">
     <div class="flex items-center justify-between">
-      <span class="flex items-center gap-1 text-label-xs-caps uppercase text-mint-vibrant"><span class="material-symbols-outlined msz-14">key</span>One-shot credential</span>
+      <span class="flex items-center gap-1 text-label-xs-caps uppercase text-mint-vibrant"><span class="material-symbols-outlined msz-14">key</span>{{$.L.T "device.credential_label"}}</span>
     </div>
     <button type="button" data-copy="{{.}}" data-copied="copied" class="group !justify-between !rounded !border !border-[#333] !bg-ink !px-3 !py-2 hover:!border-mint-soft">
       <code class="font-mono text-code-md tracking-wider text-mint-soft">{{.}}</code>
       <span class="material-symbols-outlined msz-18 text-text-tertiary group-hover:text-canvas">content_copy</span>
     </button>
-    <span class="text-label-md text-text-tertiary">Store it now; it is not shown again. The device checks in as itself with it.</span>
+    <span class="text-label-md text-text-tertiary">{{$.L.T "device.credential_hint"}}</span>
   </div>
   {{end}}
 </section>
@@ -44,21 +44,21 @@
     <!-- Effective configuration -->
     <section class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
       <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-4 py-3">
-        <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">account_tree</span>Effective configuration</h2>
-        {{if .CanEdit}}<a href="/settings?scope=device:{{.Tag}}" class="flex items-center gap-1 text-label-xs-caps uppercase text-text-tertiary hover:text-ink"><span class="material-symbols-outlined msz-14">edit</span>Open editor</a>{{end}}
+        <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">account_tree</span>{{.L.T "device.effective_config"}}</h2>
+        {{if .CanEdit}}<a href="/settings?scope=device:{{.Tag}}" class="flex items-center gap-1 text-label-xs-caps uppercase text-text-tertiary hover:text-ink"><span class="material-symbols-outlined msz-14">edit</span>{{.L.T "device.open_editor"}}</a>{{end}}
       </div>
       <div class="overflow-x-auto">
         <table>
-          <tr><th>Setting</th><th>Value</th><th>Provenance</th><th class="text-center">Enforced</th></tr>
+          <tr><th>{{.L.T "device.col_setting"}}</th><th>{{.L.T "common.value"}}</th><th>{{.L.T "device.col_provenance"}}</th><th class="text-center">{{.L.T "device.col_enforced"}}</th></tr>
           {{range .Resolved}}
           <tr class="group hover:bg-surface-bright transition-colors">
             <td class="font-mono text-code-inline text-ink">{{.Key}}</td>
             <td><code>{{printf "%v" .Value}}</code></td>
             <td><span class="inline-flex items-center gap-1 rounded border border-border-soft bg-surface-container px-2 py-0.5 text-label-md font-medium text-text-secondary"><span class="material-symbols-outlined msz-14 text-text-tertiary">{{if hasPrefix .Source "device"}}devices{{else if hasPrefix .Source "group"}}group_work{{else if hasPrefix .Source "policy"}}policy{{else}}corporate_fare{{end}}</span>{{.Source}}</span></td>
-            <td class="text-center">{{if .Enforced}}<span class="material-symbols-outlined msz-18 text-mint-deep" title="locked">lock</span>{{else}}<span class="material-symbols-outlined msz-18 text-text-tertiary" title="overridable">lock_open</span>{{end}}</td>
+            <td class="text-center">{{if .Enforced}}<span class="material-symbols-outlined msz-18 text-mint-deep" title="{{$.L.T "device.locked_title"}}">lock</span>{{else}}<span class="material-symbols-outlined msz-18 text-text-tertiary" title="{{$.L.T "device.overridable_title"}}">lock_open</span>{{end}}</td>
           </tr>
           {{else}}
-          <tr><td colspan="4" class="muted">Nothing configured yet.</td></tr>
+          <tr><td colspan="4" class="muted">{{$.L.T "device.nothing_configured"}}</td></tr>
           {{end}}
         </table>
       </div>
@@ -66,12 +66,12 @@
 
     <!-- Apps -->
     <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
-      <h2 class="mt-0 mb-4 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">apps</span>Managed applications</h2>
+      <h2 class="mt-0 mb-4 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">apps</span>{{.L.T "device.managed_apps"}}</h2>
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {{range .Packages}}
         <div class="flex items-start gap-3 rounded border border-border-soft bg-surface-bright p-3">
           <span class="flex h-8 w-8 items-center justify-center rounded bg-surface-container-high text-text-secondary"><span class="material-symbols-outlined msz-18">terminal</span></span>
-          <div><div class="text-label-md text-ink">{{.}}</div><div class="text-label-md text-text-tertiary">Package</div></div>
+          <div><div class="text-label-md text-ink">{{.}}</div><div class="text-label-md text-text-tertiary">{{$.L.T "device.type_package"}}</div></div>
         </div>
         {{end}}
         {{range .Flatpaks}}
@@ -83,10 +83,10 @@
         {{range .Overlays}}
         <div class="flex items-start gap-3 rounded border border-border-soft bg-surface-bright p-3">
           <span class="flex h-8 w-8 items-center justify-center rounded bg-surface-container-high text-text-secondary"><span class="material-symbols-outlined msz-18">layers</span></span>
-          <div><div class="text-label-md text-ink">{{.}}</div><div class="text-label-md text-text-tertiary">Overlay</div></div>
+          <div><div class="text-label-md text-ink">{{.}}</div><div class="text-label-md text-text-tertiary">{{$.L.T "device.type_overlay"}}</div></div>
         </div>
         {{end}}
-        {{if and (not .Packages) (not .Flatpaks) (not .Overlays)}}<p class="muted">No applications assigned.</p>{{end}}
+        {{if and (not .Packages) (not .Flatpaks) (not .Overlays)}}<p class="muted">{{.L.T "device.no_apps"}}</p>{{end}}
       </div>
     </section>
   </div>
@@ -97,30 +97,30 @@
     {{if or .WantSB .WantTPM2}}
     <section class="relative overflow-hidden rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
       <div class="pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-bl-full bg-mint-vibrant opacity-5"></div>
-      <h2 class="relative z-10 mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">verified_user</span>Security posture</h2>
+      <h2 class="relative z-10 mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">verified_user</span>{{$.L.T "device.security_posture"}}</h2>
       {{if not .Reported}}
-      <p class="muted relative z-10">Waiting for a posture-aware check-in from the device agent.</p>
+      <p class="muted relative z-10">{{$.L.T "device.posture_waiting"}}</p>
       {{else}}
       <div class="relative z-10 flex flex-col gap-1">
         {{if .WantSB}}
         <div class="flex items-center justify-between rounded p-2 hover:bg-surface-bright">
-          <span class="flex items-center gap-2 text-body-sm text-ink">{{if eq (printf "%s" .SB) "enforcing"}}<span class="material-symbols-outlined msz-20 text-mint-deep">check_circle</span>{{else}}<span class="material-symbols-outlined msz-20 text-status-warn">error</span>{{end}}Secure Boot</span>
-          {{if eq (printf "%s" .SB) "enforcing"}}<span class="rounded bg-mint-vibrant/10 px-2 py-0.5 text-label-xs-caps uppercase text-mint-deep">enforcing</span>{{else if eq (printf "%s" .SB) "audit"}}<span class="text-label-md text-text-tertiary">audit mode</span>{{else if eq (printf "%s" .SB) "off"}}<span class="tag bad">off</span>{{else}}<span class="muted">unknown</span>{{end}}
+          <span class="flex items-center gap-2 text-body-sm text-ink">{{if eq (printf "%s" .SB) "enforcing"}}<span class="material-symbols-outlined msz-20 text-mint-deep">check_circle</span>{{else}}<span class="material-symbols-outlined msz-20 text-status-warn">error</span>{{end}}{{$.L.T "device.secure_boot"}}</span>
+          {{if eq (printf "%s" .SB) "enforcing"}}<span class="rounded bg-mint-vibrant/10 px-2 py-0.5 text-label-xs-caps uppercase text-mint-deep">{{$.L.T "device.sb_enforcing"}}</span>{{else if eq (printf "%s" .SB) "audit"}}<span class="text-label-md text-text-tertiary">{{$.L.T "device.sb_audit_mode"}}</span>{{else if eq (printf "%s" .SB) "off"}}<span class="tag bad">{{$.L.T "device.sb_off"}}</span>{{else}}<span class="muted">{{$.L.T "common.unknown"}}</span>{{end}}
         </div>
         {{end}}
         {{if .WantTPM2}}
         <div class="h-px w-full bg-border-soft"></div>
         <div class="flex items-center justify-between rounded p-2 hover:bg-surface-bright">
-          <span class="flex items-center gap-2 text-body-sm text-ink">{{if eq (printf "%s" .TPM2) "enrolled"}}<span class="material-symbols-outlined msz-20 text-mint-deep">check_circle</span>{{else}}<span class="material-symbols-outlined msz-20 text-status-warn">error</span>{{end}}TPM2 unlock</span>
-          {{if eq (printf "%s" .TPM2) "enrolled"}}<span class="rounded bg-mint-vibrant/10 px-2 py-0.5 text-label-xs-caps uppercase text-mint-deep">enrolled</span>{{else if eq (printf "%s" .TPM2) "present"}}<span class="text-label-md text-text-tertiary">present, not bound</span>{{else if eq (printf "%s" .TPM2) "absent"}}<span class="tag bad">absent</span>{{else}}<span class="muted">unknown</span>{{end}}
+          <span class="flex items-center gap-2 text-body-sm text-ink">{{if eq (printf "%s" .TPM2) "enrolled"}}<span class="material-symbols-outlined msz-20 text-mint-deep">check_circle</span>{{else}}<span class="material-symbols-outlined msz-20 text-status-warn">error</span>{{end}}{{$.L.T "device.tpm2_unlock"}}</span>
+          {{if eq (printf "%s" .TPM2) "enrolled"}}<span class="rounded bg-mint-vibrant/10 px-2 py-0.5 text-label-xs-caps uppercase text-mint-deep">{{$.L.T "device.tpm2_enrolled"}}</span>{{else if eq (printf "%s" .TPM2) "present"}}<span class="text-label-md text-text-tertiary">{{$.L.T "device.tpm2_present_unbound"}}</span>{{else if eq (printf "%s" .TPM2) "absent"}}<span class="tag bad">{{$.L.T "device.tpm2_absent"}}</span>{{else}}<span class="muted">{{$.L.T "common.unknown"}}</span>{{end}}
         </div>
         {{end}}
       </div>
       <div class="relative z-10 mt-3 flex flex-wrap items-center gap-2 rounded-md bg-surface-container-low p-3">
         {{if .Complete}}
-        <span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>complete</span>
+        <span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "device.complete"}}</span>
         {{else}}
-        <span class="text-body-sm"><strong>Next:</strong> {{.StepText}}</span>{{if .Warn}}<span class="tag bad">attention</span>{{end}}
+        <span class="text-body-sm"><strong>{{$.L.T "device.next_label"}}</strong> {{.StepText}}</span>{{if .Warn}}<span class="tag bad">{{$.L.T "device.attention"}}</span>{{end}}
         {{end}}
         {{if $.CanEdit}}
         <span class="ml-auto flex gap-2">
@@ -140,26 +140,26 @@
 
     <!-- Identity -->
     <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
-      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">badge</span>Identity</h2>
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">badge</span>{{.L.T "device.identity_title"}}</h2>
       <div class="flex flex-col gap-2 text-body-sm text-text-secondary">
-        <div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Groups</span><span>{{range .Device.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</span></div>
-        <div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Hardware</span><span class="font-mono text-code-inline text-ink">{{with .Device.Hardware}}{{.}}{{else}}-{{end}}</span></div>
-        <div class="flex items-center justify-between"><span>Assigned user</span><span class="text-ink">{{with .Device.AssignedUser}}{{.}}{{else}}<span class="muted">-</span>{{end}}</span></div>
+        <div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{.L.T "common.groups"}}</span><span>{{range .Device.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">{{$.L.T "common.none"}}</span>{{end}}</span></div>
+        <div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{.L.T "common.hardware"}}</span><span class="font-mono text-code-inline text-ink">{{with .Device.Hardware}}{{.}}{{else}}-{{end}}</span></div>
+        <div class="flex items-center justify-between"><span>{{.L.T "device.assigned_user"}}</span><span class="text-ink">{{with .Device.AssignedUser}}{{.}}{{else}}<span class="muted">-</span>{{end}}</span></div>
       </div>
     </section>
 
     {{with .Device.Spec}}
     <!-- Hardware specification captured at imaging (inspoelstraat) -->
     <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
-      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>Hardware specification</h2>
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>{{$.L.T "device.hardware_spec_title"}}</h2>
       <div class="flex flex-col gap-2 text-body-sm text-text-secondary">
-        {{with .Vendor}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Vendor</span><span class="text-ink">{{.}}</span></div>{{end}}
-        {{with .Model}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Model</span><span class="text-ink">{{.}}</span></div>{{end}}
-        {{with .Serial}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Serial</span><span class="font-mono text-code-inline text-ink">{{.}}</span></div>{{end}}
-        {{with .CPU}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>CPU</span><span class="text-ink">{{.}}{{with $.Device.Spec.Cores}} ({{.}} cores){{end}}</span></div>{{end}}
-        {{if .MemGB}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Memory</span><span class="text-ink">{{.MemGB}} GB</span></div>{{end}}
-        {{if .DiskGB}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>Disk</span><span class="text-ink">{{.DiskGB}} GB</span></div>{{end}}
-        {{with .Firmware}}<div class="flex items-center justify-between"><span>Firmware</span><span class="text-ink">{{.}}</span></div>{{end}}
+        {{with .Vendor}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{$.L.T "common.vendor"}}</span><span class="text-ink">{{.}}</span></div>{{end}}
+        {{with .Model}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{$.L.T "common.model"}}</span><span class="text-ink">{{.}}</span></div>{{end}}
+        {{with .Serial}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{$.L.T "common.serial"}}</span><span class="font-mono text-code-inline text-ink">{{.}}</span></div>{{end}}
+        {{with .CPU}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{$.L.T "common.cpu"}}</span><span class="text-ink">{{.}}{{with $.Device.Spec.Cores}} ({{.}} {{$.L.T "device.cores"}}){{end}}</span></div>{{end}}
+        {{if .MemGB}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{$.L.T "common.memory"}}</span><span class="text-ink">{{.MemGB}} GB</span></div>{{end}}
+        {{if .DiskGB}}<div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{$.L.T "common.disk"}}</span><span class="text-ink">{{.DiskGB}} GB</span></div>{{end}}
+        {{with .Firmware}}<div class="flex items-center justify-between"><span>{{$.L.T "common.firmware"}}</span><span class="text-ink">{{.}}</span></div>{{end}}
       </div>
     </section>
     {{end}}
@@ -168,11 +168,11 @@
     <!-- Hardware facts (raw nixos-facter document) -->
     <section class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
       <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-4 py-3">
-        <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">memory</span>Hardware facts (nixos-facter)</h2>
+        <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">memory</span>{{$.L.T "device.facts_title"}}</h2>
       </div>
       <div class="p-4">
-        <p class="muted mb-2">Reported {{$.L.Time $.FactsAt}} (nixos-facter)</p>
-        <details><summary class="muted cursor-pointer">raw document</summary><pre class="mt-2 max-h-96 overflow-auto rounded-md bg-surface-code p-4 text-label-md text-canvas">{{.}}</pre></details>
+        <p class="muted mb-2">{{$.L.T "device.reported"}} {{$.L.Time $.FactsAt}} (nixos-facter)</p>
+        <details><summary class="muted cursor-pointer">{{$.L.T "device.raw_document"}}</summary><pre class="mt-2 max-h-96 overflow-auto rounded-md bg-surface-code p-4 text-label-md text-canvas">{{.}}</pre></details>
       </div>
     </section>
     {{end}}
@@ -183,45 +183,45 @@
 <!-- Manage + destructive actions -->
 <section class="mt-8 flex flex-col gap-6 border-t border-border-hairline pt-8">
   <div>
-    <h2 class="mt-0 mb-1 text-headline-sm font-bold text-ink">Manage device</h2>
-    <p class="muted mb-4">Administrative actions for assignment and lifecycle state. Every change is a gated, signed git commit.</p>
+    <h2 class="mt-0 mb-1 text-headline-sm font-bold text-ink">{{.L.T "device.manage_title"}}</h2>
+    <p class="muted mb-4">{{.L.T "device.manage_desc"}}</p>
     <div class="flex flex-col gap-3">
       <form method="post" action="/devices/{{.Tag}}/update" class="inline">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setclass" value="1">
-        <input name="class" value="{{.Device.Class}}" placeholder="class (laptop, kiosk)">
-        <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">category</span>Set class</button>
+        <input name="class" value="{{.Device.Class}}" placeholder="{{.L.T "device.class_placeholder"}}">
+        <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">category</span>{{.L.T "device.set_class"}}</button>
       </form>
       <form method="post" action="/devices/{{.Tag}}/update" class="inline">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setuser" value="1">
-        <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="assigned user">
-        <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">person_add</span>Assign user</button>
+        <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="{{.L.T "device.assigned_user_placeholder"}}">
+        <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">person_add</span>{{.L.T "device.assign_user"}}</button>
       </form>
       <form method="post" action="/devices/{{.Tag}}/update" class="inline">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setgroups" value="1">
         <select name="groups" multiple size="3">
           {{range .GroupOpts}}<option value="{{.Name}}" {{if .Member}}selected{{end}}>{{.Name}}</option>{{end}}
         </select>
-        <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">group_add</span>Set groups</button>
+        <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">group_add</span>{{.L.T "device.set_groups"}}</button>
       </form>
     </div>
     <div class="mt-4 flex flex-wrap items-center gap-3">
       {{if .Retired}}
       <form method="post" action="/devices/{{.Tag}}/reactivate" class="inline">
-        <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit">Reactivate</button>
+        <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit">{{.L.T "device.reactivate"}}</button>
       </form>
-      <span class="muted">returns to service with a fresh credential</span>
+      <span class="muted">{{.L.T "device.reactivate_hint"}}</span>
       {{else}}
       <form method="post" action="/devices/{{.Tag}}/credential" class="inline">
-        <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">autorenew</span>Re-issue credential</button>
+        <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">autorenew</span>{{.L.T "device.reissue_credential"}}</button>
       </form>
       <form method="post" action="/devices/{{.Tag}}/retire" class="inline"
             onsubmit="return confirm('Retire {{.Tag}}? Builds and check-ins stop; the record stays for audit.')">
-        <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">Retire</button>
+        <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">{{.L.T "device.retire"}}</button>
       </form>
       {{end}}
       <form method="post" action="/devices/{{.Tag}}/remove" class="inline"
             onsubmit="return confirm('Remove {{.Tag}} entirely? This unenrolls the device.')">
-        <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">Remove</button>
+        <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">{{.L.T "common.remove"}}</button>
       </form>
     </div>
   </div>
@@ -230,30 +230,30 @@
   {{if not .Retired}}
   <!-- Red zone -->
   <div class="mt-2 flex flex-col gap-4 rounded-lg border border-status-error/30 bg-error-container/20 p-6">
-    <h3 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-status-error"><span class="material-symbols-outlined msz-20">warning</span>Remote actions</h3>
+    <h3 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-status-error"><span class="material-symbols-outlined msz-20">warning</span>{{.L.T "device.remote_actions_title"}}</h3>
     {{if .Intent}}
     {{$ack := ""}}{{if .HasStatus}}{{$ack = .Status.Ack}}{{end}}
-    <p class="mb-0 text-body-md"><strong>Armed:</strong> <span class="tag bad">{{.Intent}}</span>
-      {{if eq $ack "wipe-refused"}}<span class="tag bad">refused by device (not armed / not locked)</span>
-      {{else if eq $ack "wipe-failed"}}<span class="tag bad">wipe failed - not fully erased</span>
-      {{else if eq $ack .Intent}}<span class="tag ok">executed</span>
-      {{else}}<span class="muted">pending delivery on next check-in</span>{{end}}</p>
+    <p class="mb-0 text-body-md"><strong>{{.L.T "device.armed_label"}}</strong> <span class="tag bad">{{.Intent}}</span>
+      {{if eq $ack "wipe-refused"}}<span class="tag bad">{{.L.T "device.wipe_refused"}}</span>
+      {{else if eq $ack "wipe-failed"}}<span class="tag bad">{{.L.T "device.wipe_failed"}}</span>
+      {{else if eq $ack .Intent}}<span class="tag ok">{{.L.T "device.executed"}}</span>
+      {{else}}<span class="muted">{{.L.T "device.pending_delivery"}}</span>{{end}}</p>
     <form method="post" action="/devices/{{.Tag}}/intent/clear" class="inline">
-      <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">Cancel</button>
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">{{.L.T "common.cancel"}}</button>
     </form>
     {{else}}
-    <p class="mb-0 text-body-md text-on-error-container">Lost or stolen device. Lock is reversible; wipe destroys the disk encryption keys and is irreversible. Every action is an audited commit.</p>
+    <p class="mb-0 text-body-md text-on-error-container">{{.L.T "device.lost_stolen_desc"}}</p>
     <div class="flex flex-wrap items-end gap-4">
       <form method="post" action="/devices/{{.Tag}}/intent" class="inline">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="lock">
-        <button type="submit"><span class="material-symbols-outlined msz-18">lock</span>Lock device</button>
+        <button type="submit"><span class="material-symbols-outlined msz-18">lock</span>{{.L.T "device.lock_device"}}</button>
       </form>
       <form method="post" action="/devices/{{.Tag}}/intent" class="inline"
             onsubmit="return confirm('WIPE {{.Tag}}? This destroys the disk encryption keys - irreversible.')">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="wipe"><input type="hidden" name="force" value="1">
-        <span class="flex flex-col gap-1"><label>Type the tag to confirm a wipe</label>
+        <span class="flex flex-col gap-1"><label>{{.L.T "device.confirm_wipe_label"}}</label>
           <input name="confirm" placeholder="{{.Tag}}" required></span>
-        <button type="submit" class="quiet">Wipe device</button>
+        <button type="submit" class="quiet">{{.L.T "device.wipe_device"}}</button>
       </form>
     </div>
     {{end}}

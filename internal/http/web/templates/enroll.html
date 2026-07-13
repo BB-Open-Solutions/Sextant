@@ -1,24 +1,24 @@
 {{define "content"}}
 <div class="mb-8">
-  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">cable</span>Enrollment</h1>
-  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Image devices from an imaging station: pick a station, see what is on its PXE network, and enrol one machine with brand-specific guidance or a whole rack at once.</p>
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">cable</span>{{.L.T "enroll.title"}}</h1>
+  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "enroll.subtitle"}}</p>
 </div>
 
 <!-- Step 1: choose the imaging station -->
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">1</span>Imaging station</h2>
+  <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">1</span>{{.L.T "enroll.step1_title"}}</h2>
   {{if .Stations}}
   <form method="get" action="/enroll" class="!items-end gap-3">
-    <div class="flex flex-col gap-1"><label>Station</label>
+    <div class="flex flex-col gap-1"><label>{{.L.T "station.station_label"}}</label>
       <select name="station" class="min-w-64">
-        <option value="">Select a station...</option>
+        <option value="">{{.L.T "enroll.select_station"}}</option>
         {{$sel := .Station}}{{range .Stations}}<option value="{{.}}" {{if eq . $sel}}selected{{end}}>{{.}}</option>{{end}}
       </select>
     </div>
-    <button type="submit"><span class="material-symbols-outlined msz-18">arrow_forward</span>Continue</button>
+    <button type="submit"><span class="material-symbols-outlined msz-18">arrow_forward</span>{{.L.T "common.continue"}}</button>
   </form>
   {{else}}
-  <p class="muted mb-0">No imaging stations are registered yet. Register one on the <a href="/station">Imaging stations</a> page first.</p>
+  <p class="muted mb-0">{{.L.T "enroll.no_stations_pre"}} <a href="/station">{{.L.T "station.title"}}</a> {{.L.T "enroll.no_stations_post"}}</p>
   {{end}}
 </div>
 
@@ -26,28 +26,28 @@
 <!-- Step 2: devices on the PXE network -->
 <div class="rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
-    <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">2</span>Devices on {{.Station}}</h2>
-    <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Rows}} on PXE</span>
+    <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">2</span>{{.L.T "enroll.devices_on"}} {{.Station}}</h2>
+    <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Rows}} {{.L.T "enroll.on_pxe"}}</span>
   </div>
 
   {{if not .Rows}}
-  <p class="muted p-6">Nothing on the PXE network yet. Boot a device on this station's imaging network and it appears here.</p>
+  <p class="muted p-6">{{.L.T "enroll.pxe_empty"}}</p>
   {{else}}
 
   {{if .CanEnroll}}
   <!-- Batch: one rack of identical machines in a single pass -->
   <form method="post" action="/enroll/{{.Station}}/batch" class="border-b border-border-hairline bg-surface-container-low !flex-col !items-stretch gap-4 p-6">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-mint-deep">library_add</span>Enrol many at once</div>
-    <p class="mb-0 text-body-sm text-text-secondary">Tick the devices below, then enrol them all onto one profile and group. Each device is tagged <code>prefix-&lt;mac tail&gt;</code>.</p>
+    <div class="flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-mint-deep">library_add</span>{{.L.T "enroll.batch_title"}}</div>
+    <p class="mb-0 text-body-sm text-text-secondary">{{.L.T "enroll.batch_desc"}} <code>prefix-&lt;mac tail&gt;</code>.</p>
     <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
-      <div class="flex flex-col gap-1"><label>Tag prefix</label><input name="prefix" placeholder="lab-nuc" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
-      <div class="flex flex-col gap-1"><label>Hardware profile</label>
-        {{if .Profiles}}<select name="hardware" required><option value="" disabled selected>Select...</option>{{range .Profiles}}<option value="{{.Name}}">{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}</select>
-        {{else}}<input name="hardware" placeholder="profile name" required>{{end}}
+      <div class="flex flex-col gap-1"><label>{{.L.T "enroll.tag_prefix"}}</label><input name="prefix" placeholder="lab-nuc" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "common.hardware_profile"}}</label>
+        {{if .Profiles}}<select name="hardware" required><option value="" disabled selected>{{.L.T "common.select"}}</option>{{range .Profiles}}<option value="{{.Name}}">{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}</select>
+        {{else}}<input name="hardware" placeholder="{{.L.T "enroll.profile_name_placeholder"}}" required>{{end}}
       </div>
-      <div class="flex flex-col gap-1"><label>Class</label><select name="class">{{range .Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-      <div class="flex flex-col gap-1"><label>Group</label><select name="group"><option value="">No group</option>{{range .Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "common.class"}}</label><select name="class">{{range .Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "common.group"}}</label><select name="group"><option value="">{{.L.T "common.no_group"}}</option>{{range .Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
     </div>
     <div class="flex flex-col divide-y divide-border-hairline rounded-md border border-border-soft bg-canvas">
       {{range .Rows}}
@@ -59,7 +59,7 @@
       </label>
       {{end}}
     </div>
-    <button type="submit" class="self-start"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>Dispatch imaging to selected</button>
+    <button type="submit" class="self-start"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>{{.L.T "enroll.dispatch_selected"}}</button>
   </form>
   {{end}}
 
@@ -72,20 +72,20 @@
         <div class="min-w-0">
           <div class="flex items-center gap-2">
             <span class="font-mono text-code-inline text-ink">{{.Dev.MAC}}</span>
-            {{with .Suggest}}<span class="tag ok"><span class="material-symbols-outlined msz-14">auto_awesome</span>suggested: {{.}}</span>{{end}}
+            {{with .Suggest}}<span class="tag ok"><span class="material-symbols-outlined msz-14">auto_awesome</span>{{$.L.T "enroll.suggested"}}: {{.}}</span>{{end}}
           </div>
           <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-md text-text-tertiary">
             {{with .Dev.Vendor}}<span>{{.}}</span>{{end}}{{with .Dev.Model}}<span>{{.}}</span>{{end}}
-            {{with .Dev.CPU}}<span>{{.}}</span>{{end}}{{if .Dev.MemGB}}<span>{{.Dev.MemGB}} GB</span>{{end}}{{if .Dev.DiskGB}}<span>{{.Dev.DiskGB}} GB disk</span>{{end}}
-            <span>seen {{$.L.TimeSec .Dev.LastSeen}}</span>
+            {{with .Dev.CPU}}<span>{{.}}</span>{{end}}{{if .Dev.MemGB}}<span>{{.Dev.MemGB}} GB</span>{{end}}{{if .Dev.DiskGB}}<span>{{.Dev.DiskGB}} GB {{$.L.T "enroll.disk_suffix"}}</span>{{end}}
+            <span>{{$.L.T "enroll.seen_prefix"}} {{$.L.TimeSec .Dev.LastSeen}}</span>
           </div>
         </div>
         {{if $.CanEnroll}}
         <details class="shrink-0">
-          <summary class="btn cursor-pointer list-none"><span class="material-symbols-outlined msz-18">note_add</span>Image this device</summary>
+          <summary class="btn cursor-pointer list-none"><span class="material-symbols-outlined msz-18">note_add</span>{{$.L.T "enroll.image_device"}}</summary>
           <div class="mt-3 rounded-md border border-border-soft bg-surface-container-low p-4 md:w-96">
             {{if .Steps}}
-            <p class="mb-2 text-label-xs-caps uppercase text-text-tertiary">Imaging steps</p>
+            <p class="mb-2 text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "enroll.imaging_steps"}}</p>
             <ol class="mb-4 flex flex-col gap-2">
               {{range .Steps}}
               <li class="flex items-start gap-2 text-body-sm text-text-secondary">
@@ -98,16 +98,16 @@
             <form method="post" action="/enroll/{{$.Station}}/image" class="!flex-col !items-stretch gap-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}">
               <input type="hidden" name="mac" value="{{.Dev.MAC}}">
-              <div class="flex flex-col gap-1"><label>Asset tag</label><input name="tag" placeholder="e.g. zaanstad-t495s" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
-              <div class="flex flex-col gap-1"><label>Hardware profile</label>
+              <div class="flex flex-col gap-1"><label>{{$.L.T "common.asset_tag"}}</label><input name="tag" placeholder="{{$.L.T "common.eg"}} zaanstad-t495s" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
+              <div class="flex flex-col gap-1"><label>{{$.L.T "common.hardware_profile"}}</label>
                 {{if $.Profiles}}
                 {{$sug := .Suggest}}
-                <select name="hardware" required><option value="" disabled {{if not $sug}}selected{{end}}>Select...</option>{{range $.Profiles}}<option value="{{.Name}}" {{if eq .Name $sug}}selected{{end}}>{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}</select>
+                <select name="hardware" required><option value="" disabled {{if not $sug}}selected{{end}}>{{$.L.T "common.select"}}</option>{{range $.Profiles}}<option value="{{.Name}}" {{if eq .Name $sug}}selected{{end}}>{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}</select>
                 {{else}}<input name="hardware" value="{{with .Dev.Vendor}}{{.}}{{end}}{{with .Dev.Model}} {{.}}{{end}}" required>{{end}}
               </div>
-              <div class="flex flex-col gap-1"><label>Class</label><select name="class">{{range $.Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-              <div class="flex flex-col gap-1"><label>Group</label><select name="group"><option value="">No group</option>{{range $.Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-              <button type="submit" class="w-full !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>Dispatch imaging</button>
+              <div class="flex flex-col gap-1"><label>{{$.L.T "common.class"}}</label><select name="class">{{range $.Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
+              <div class="flex flex-col gap-1"><label>{{$.L.T "common.group"}}</label><select name="group"><option value="">{{$.L.T "common.no_group"}}</option>{{range $.Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
+              <button type="submit" class="w-full !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>{{$.L.T "enroll.dispatch_single"}}</button>
             </form>
           </div>
         </details>
@@ -123,11 +123,11 @@
 <!-- Step 3: imaging jobs in flight -->
 <div class="mt-6 rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
-    <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">3</span>Imaging jobs</h2>
+    <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">3</span>{{.L.T "enroll.jobs_title"}}</h2>
     <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Jobs}}</span>
   </div>
   <table>
-    <tr><th class="!px-6">Device tag</th><th>MAC</th><th>Profile</th><th>Status</th><th class="text-right !px-6">Actions</th></tr>
+    <tr><th class="!px-6">{{.L.T "enroll.device_tag"}}</th><th>MAC</th><th>{{.L.T "common.profile"}}</th><th>{{.L.T "common.status"}}</th><th class="text-right !px-6">{{.L.T "common.actions"}}</th></tr>
     {{$csrf := .CSRF}}{{$st := .Station}}
     {{range .Jobs}}
     <tr class="group hover:bg-surface-bright transition-colors">
@@ -135,15 +135,15 @@
       <td class="font-mono text-code-inline text-text-tertiary">{{.MAC}}</td>
       <td>{{.Hardware}}</td>
       <td>
-        {{if eq (printf "%s" .Status) "installed"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>installed</span>
-        {{else if eq (printf "%s" .Status) "imaging"}}<span class="tag"><span class="material-symbols-outlined msz-14">sync</span>imaging</span>
-        {{else if eq (printf "%s" .Status) "failed"}}<span class="tag bad" title="{{.Message}}"><span class="material-symbols-outlined msz-14">error</span>failed</span>
-        {{else if eq (printf "%s" .Status) "canceled"}}<span class="tag"><span class="material-symbols-outlined msz-14">block</span>canceled</span>
-        {{else}}<span class="tag"><span class="material-symbols-outlined msz-14">schedule</span>pending</span>{{end}}
+        {{if eq (printf "%s" .Status) "installed"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "enroll.status_installed"}}</span>
+        {{else if eq (printf "%s" .Status) "imaging"}}<span class="tag"><span class="material-symbols-outlined msz-14">sync</span>{{$.L.T "enroll.status_imaging"}}</span>
+        {{else if eq (printf "%s" .Status) "failed"}}<span class="tag bad" title="{{.Message}}"><span class="material-symbols-outlined msz-14">error</span>{{$.L.T "enroll.status_failed"}}</span>
+        {{else if eq (printf "%s" .Status) "canceled"}}<span class="tag"><span class="material-symbols-outlined msz-14">block</span>{{$.L.T "enroll.status_canceled"}}</span>
+        {{else}}<span class="tag"><span class="material-symbols-outlined msz-14">schedule</span>{{$.L.T "enroll.status_pending"}}</span>{{end}}
       </td>
       <td class="text-right !px-6">
         {{if or (eq (printf "%s" .Status) "pending") (eq (printf "%s" .Status) "failed")}}
-        <form method="post" action="/enroll/{{$st}}/jobs/{{.MAC}}/cancel" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="Cancel job" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-18">cancel</span></button></form>
+        <form method="post" action="/enroll/{{$st}}/jobs/{{.MAC}}/cancel" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="{{$.L.T "enroll.cancel_job_title"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-18">cancel</span></button></form>
         {{else}}<span class="muted">-</span>{{end}}
       </td>
     </tr>

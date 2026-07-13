@@ -1,18 +1,18 @@
 {{define "content"}}
 <div class="mb-8">
-  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">mail</span>E-mail (SMTP)</h1>
-  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">How this organisation sends notification e-mail, on its own domain. In-app notifications always work; configure SMTP here to also deliver them by mail.</p>
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">mail</span>{{.L.T "nav.mail"}}</h1>
+  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "page.mail.subtitle"}}</p>
 </div>
 
 {{if .Unavailable}}
 <div class="rounded-lg border border-dashed border-border-soft bg-canvas p-8 text-center text-body-md text-text-tertiary">
-  E-mail needs the Postgres store, which is not configured on this instance.
+  {{.L.T "page.mail.unavailable"}}
 </div>
 {{else}}
 
 {{if .Sent}}
 <div class="mb-4 flex items-center gap-2 rounded-lg border border-mint-deep/30 bg-mint-vibrant/10 px-4 py-3 text-body-md text-ink">
-  <span class="material-symbols-outlined text-mint-deep">check_circle</span>Test message sent. Check the inbox.
+  <span class="material-symbols-outlined text-mint-deep">check_circle</span>{{.L.T "page.mail.sent"}}
 </div>
 {{end}}
 
@@ -20,44 +20,44 @@
   <form method="post" action="/mail" class="!items-stretch">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div class="flex flex-col gap-1"><label>SMTP host</label><input name="host" value="{{.Cfg.Host}}" placeholder="smtp.example.com" required></div>
-      <div class="flex flex-col gap-1"><label>Port</label><input name="port" type="number" value="{{if .Cfg.Port}}{{.Cfg.Port}}{{else}}587{{end}}" required></div>
-      <div class="flex flex-col gap-1"><label>From address</label><input name="from" value="{{.Cfg.From}}" placeholder="no-reply@example.com" required></div>
-      <div class="flex flex-col gap-1"><label>Security</label>
+      <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.host"}}</label><input name="host" value="{{.Cfg.Host}}" placeholder="smtp.example.com" required></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.port"}}</label><input name="port" type="number" value="{{if .Cfg.Port}}{{.Cfg.Port}}{{else}}587{{end}}" required></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.from"}}</label><input name="from" value="{{.Cfg.From}}" placeholder="no-reply@example.com" required></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.security"}}</label>
         <select name="security">
-          <option value="starttls" {{if eq (printf "%s" .Cfg.Security) "tls"}}{{else if eq (printf "%s" .Cfg.Security) "none"}}{{else}}selected{{end}}>STARTTLS (587)</option>
-          <option value="tls" {{if eq (printf "%s" .Cfg.Security) "tls"}}selected{{end}}>TLS (465)</option>
-          <option value="none" {{if eq (printf "%s" .Cfg.Security) "none"}}selected{{end}}>None (local relay only)</option>
+          <option value="starttls" {{if eq (printf "%s" .Cfg.Security) "tls"}}{{else if eq (printf "%s" .Cfg.Security) "none"}}{{else}}selected{{end}}>{{.L.T "page.mail.opt_starttls"}}</option>
+          <option value="tls" {{if eq (printf "%s" .Cfg.Security) "tls"}}selected{{end}}>{{.L.T "page.mail.opt_tls"}}</option>
+          <option value="none" {{if eq (printf "%s" .Cfg.Security) "none"}}selected{{end}}>{{.L.T "page.mail.opt_none"}}</option>
         </select>
       </div>
-      <div class="flex flex-col gap-1"><label>Username <span class="text-text-tertiary">(blank = anonymous relay)</span></label><input name="username" value="{{.Cfg.Username}}" placeholder="postbus" autocomplete="off"></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.username"}} <span class="text-text-tertiary">{{.L.T "page.mail.username_hint"}}</span></label><input name="username" value="{{.Cfg.Username}}" placeholder="postbus" autocomplete="off"></div>
     </div>
 
     <div class="mt-2 rounded-md border border-border-soft bg-surface p-4">
-      <p class="mb-2 text-label-md font-semibold text-ink">Password</p>
+      <p class="mb-2 text-label-md font-semibold text-ink">{{.L.T "page.mail.password"}}</p>
       <div class="flex flex-col gap-1">
-        <label>Secret reference name <span class="text-text-tertiary">(recommended)</span></label>
+        <label>{{.L.T "page.mail.secretref_label"}} <span class="text-text-tertiary">{{.L.T "page.mail.recommended"}}</span></label>
         <div class="flex items-center gap-2">
           <input name="passwordRef" value="{{.Cfg.PasswordRef}}" placeholder="e.g. smtp-password" pattern="[a-z0-9][a-z0-9-]*" class="font-mono flex-1">
-          <a href="/secrets?name=smtp-password" class="text-label-md text-secondary whitespace-nowrap">+ new</a>
+          <a href="/secrets?name=smtp-password" class="text-label-md text-secondary whitespace-nowrap">{{.L.T "common.add"}}</a>
         </div>
-        <p class="muted mt-1 mb-0">The password lives in agenix or a cluster Secret; Sextant reads only the name. Nothing secret enters git or the console.</p>
+        <p class="muted mt-1 mb-0">{{.L.T "page.mail.secretref_hint"}}</p>
       </div>
       {{if .CanEnterSecret}}
       <div class="mt-3 flex flex-col gap-1 border-t border-border-soft pt-3">
-        <label>...or type a password <span class="text-text-tertiary">(stored encrypted)</span></label>
-        <input name="password" type="password" placeholder="{{if .Cfg.Username}}leave blank to keep the current password{{else}}enter to store encrypted{{end}}" autocomplete="new-password">
-        <p class="muted mt-1 mb-0">Entered here, the password is sealed with the instance key and stored in Postgres. Leave blank to keep a reference or the existing value.</p>
+        <label>{{.L.T "page.mail.typepw_label"}} <span class="text-text-tertiary">{{.L.T "page.mail.stored_encrypted"}}</span></label>
+        <input name="password" type="password" placeholder="{{if .Cfg.Username}}{{.L.T "page.mail.pw_placeholder_keep"}}{{else}}{{.L.T "page.mail.pw_placeholder_new"}}{{end}}" autocomplete="new-password">
+        <p class="muted mt-1 mb-0">{{.L.T "page.mail.typepw_hint"}}</p>
       </div>
       {{else}}
-      <p class="muted mt-3 mb-0 border-t border-border-soft pt-3">Typing a password directly is disabled: no encryption key is configured on this instance. Use a secret reference above.</p>
+      <p class="muted mt-3 mb-0 border-t border-border-soft pt-3">{{.L.T "page.mail.pw_disabled"}}</p>
       {{end}}
     </div>
 
     <div class="mt-2 flex items-center gap-2">
-      <button type="submit"><span class="material-symbols-outlined msz-18">save</span>Save</button>
+      <button type="submit"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "common.save"}}</button>
       {{if .Configured}}
-      <button type="submit" form="mail-delete" class="quiet !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>Remove</button>
+      <button type="submit" form="mail-delete" class="quiet !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>{{.L.T "common.remove"}}</button>
       {{end}}
     </div>
   </form>
@@ -66,12 +66,12 @@
 
 {{if .Configured}}
 <div class="mt-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">outgoing_mail</span>Send a test</h2>
-  <p class="muted mb-4">Prove the settings by sending a message. Uses the saved configuration exactly as notifications will.</p>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">outgoing_mail</span>{{.L.T "page.mail.send_test"}}</h2>
+  <p class="muted mb-4">{{.L.T "page.mail.send_test_hint"}}</p>
   <form method="post" action="/mail/test" class="!flex-row !items-end gap-2">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex flex-1 flex-col gap-1"><label>Send to</label><input name="to" value="{{.TestTo}}" placeholder="you@example.com" class="w-full"></div>
-    <button type="submit" class="shrink-0"><span class="material-symbols-outlined msz-18">send</span>Send test</button>
+    <div class="flex flex-1 flex-col gap-1"><label>{{.L.T "page.mail.send_to"}}</label><input name="to" value="{{.TestTo}}" placeholder="you@example.com" class="w-full"></div>
+    <button type="submit" class="shrink-0"><span class="material-symbols-outlined msz-18">send</span>{{.L.T "page.mail.send_test_btn"}}</button>
   </form>
 </div>
 {{end}}

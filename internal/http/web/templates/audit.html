@@ -1,20 +1,20 @@
 {{define "content"}}
 <div class="mb-8">
-  <h1 class="mb-1">Audit trail</h1>
-  <p class="text-body-md text-text-tertiary">Review configuration changes and access history. Every change is a signed git commit.</p>
+  <h1 class="mb-1">{{.L.T "audit.title"}}</h1>
+  <p class="text-body-md text-text-tertiary">{{.L.T "audit.intro"}}</p>
 </div>
 
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
   <!-- Commit trail -->
   <div class="flex h-[600px] flex-col overflow-hidden rounded-lg border border-border-hairline bg-canvas xl:col-span-2">
     <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-4 py-4">
-      <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Configuration commit trail</h2>
-      <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Entries}} entries</span>
+      <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">{{.L.T "audit.commit_trail"}}</h2>
+      <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Entries}} {{.L.T "audit.entries_label"}}</span>
     </div>
     <div class="flex-1 overflow-y-auto">
       <table>
         <thead class="sticky top-0 bg-canvas">
-          <tr><th class="!py-3 !px-4 uppercase tracking-wide">When</th><th class="!py-3 !px-4 uppercase tracking-wide">Who</th><th class="!py-3 !px-4 uppercase tracking-wide">What</th><th class="!py-3 !px-4 uppercase tracking-wide">Commit</th></tr>
+          <tr><th class="!py-3 !px-4 uppercase tracking-wide">{{.L.T "audit.when"}}</th><th class="!py-3 !px-4 uppercase tracking-wide">{{.L.T "audit.who"}}</th><th class="!py-3 !px-4 uppercase tracking-wide">{{.L.T "audit.what"}}</th><th class="!py-3 !px-4 uppercase tracking-wide">{{.L.T "audit.commit"}}</th></tr>
         </thead>
         <tbody>
         {{range .Entries}}
@@ -30,7 +30,7 @@
           <td class="!px-4 !py-3"><code class="font-mono text-code-inline text-ink">{{printf "%.10s" .Hash}}</code></td>
         </tr>
         {{else}}
-        <tr><td colspan="4" class="muted !px-4 !py-3">No history available.</td></tr>
+        <tr><td colspan="4" class="muted !px-4 !py-3">{{$.L.T "audit.no_history"}}</td></tr>
         {{end}}
         </tbody>
       </table>
@@ -40,18 +40,18 @@
   <!-- Evidence export (G1) -->
   <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-4 rounded-lg border border-border-hairline bg-canvas p-6">
-      <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">download</span>Evidence export</h2>
-      <p class="text-body-md text-text-tertiary">Download a signed JSON bundle for a period: every change, who approved it, and what rolled out. For auditors and compliance reviews.</p>
+      <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">download</span>{{.L.T "audit.evidence_export"}}</h2>
+      <p class="text-body-md text-text-tertiary">{{.L.T "audit.evidence_desc"}}</p>
       <form method="get" action="/audit/evidence" class="!flex-col !items-stretch gap-3">
         <div class="flex flex-col gap-1">
-          <label for="from">From date</label>
+          <label for="from">{{.L.T "audit.from_date"}}</label>
           <input id="from" type="date" name="from" required>
         </div>
         <div class="flex flex-col gap-1">
-          <label for="to">To date</label>
+          <label for="to">{{.L.T "audit.to_date"}}</label>
           <input id="to" type="date" name="to" required>
         </div>
-        <button type="submit" class="w-full"><span class="material-symbols-outlined msz-18">archive</span>Download JSON bundle</button>
+        <button type="submit" class="w-full"><span class="material-symbols-outlined msz-18">archive</span>{{.L.T "audit.download_bundle"}}</button>
       </form>
     </div>
   </div>

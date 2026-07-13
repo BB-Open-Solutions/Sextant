@@ -1,13 +1,13 @@
 {{define "content"}}
 <div class="flex flex-col gap-6">
-  <h1 class="mb-0">Profile</h1>
+  <h1 class="mb-0">{{.L.T "profile.title"}}</h1>
 
   {{with .MintedSecret}}
   <!-- One-time token reveal -->
   <div class="relative overflow-hidden rounded-lg border border-[#2f2f2f] bg-surface-code p-5 shadow-lg">
     <div class="absolute left-0 top-0 h-1 w-full bg-mint-vibrant"></div>
-    <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-canvas"><span class="material-symbols-outlined text-mint-vibrant">verified_user</span>Token created</h2>
-    <p class="mb-3 text-body-sm text-text-tertiary">Store this secret now; it is not shown again.</p>
+    <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-canvas"><span class="material-symbols-outlined text-mint-vibrant">verified_user</span>{{$.L.T "profile.token_created"}}</h2>
+    <p class="mb-3 text-body-sm text-text-tertiary">{{$.L.T "secret.store_now"}}</p>
     <div class="flex items-center justify-between gap-3 rounded border border-[#2f2f2f] bg-ink p-3">
       <code class="break-all font-mono text-code-md text-mint-soft">{{.}}</code>
       <button type="button" data-copy="{{.}}" data-copied="copied" class="!rounded !bg-transparent !p-1.5 text-text-tertiary hover:!text-canvas"><span class="material-symbols-outlined msz-18">content_copy</span></button>
@@ -28,12 +28,12 @@
           </div>
         </div>
         <div class="mt-5 flex flex-col gap-1">
-          <label>IdP groups</label>
-          <div>{{range .User.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">none</span>{{end}}</div>
+          <label>{{.L.T "profile.idp_groups"}}</label>
+          <div>{{range .User.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">{{$.L.T "common.none"}}</span>{{end}}</div>
         </div>
         <div class="mt-4 flex items-center justify-between border-t border-border-soft pt-4">
           <div class="flex flex-col gap-1">
-            <label>Subject</label>
+            <label>{{.L.T "profile.subject"}}</label>
             <code class="font-mono text-code-inline text-text-secondary break-all">{{.User.Subject}}</code>
           </div>
           <button type="button" data-copy="{{.User.Subject}}" data-copied="copied" class="!rounded-full !bg-transparent !p-1.5 text-text-tertiary hover:!text-ink"><span class="material-symbols-outlined msz-16">content_copy</span></button>
@@ -42,13 +42,13 @@
 
       <!-- Effective roles -->
       <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-        <div class="border-b border-border-hairline bg-surface px-4 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Effective roles</h2></div>
+        <div class="border-b border-border-hairline bg-surface px-4 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">{{.L.T "profile.effective_roles"}}</h2></div>
         <table>
-          <tr><th class="!px-4">Scope</th><th class="!px-4">Role</th></tr>
+          <tr><th class="!px-4">{{.L.T "common.scope"}}</th><th class="!px-4">{{.L.T "common.role"}}</th></tr>
           {{range $scope, $role := .Roles}}
           <tr><td class="!px-4 font-mono">{{$scope}}</td><td class="!px-4"><span class="role {{$role}}"><span class="material-symbols-outlined msz-16">{{if eq $role "owner"}}shield_person{{else if eq $role "editor"}}build{{else}}visibility{{end}}</span>{{$role}}</span></td></tr>
           {{else}}
-          <tr><td colspan="2" class="muted !px-4">No roles.</td></tr>
+          <tr><td colspan="2" class="muted !px-4">{{$.L.T "profile.no_roles"}}</td></tr>
           {{end}}
         </table>
       </div>
@@ -57,22 +57,22 @@
     {{if .HasPrefs}}
     <div class="md:col-span-4">
       <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-        <h2 class="mt-0 mb-4 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-text-tertiary">settings</span>Preferences</h2>
+        <h2 class="mt-0 mb-4 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-text-tertiary">settings</span>{{.L.T "profile.preferences"}}</h2>
         <form method="post" action="/profile/prefs" class="!flex-col !items-stretch gap-4">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
           <div class="flex flex-col gap-1">
-            <label for="timezone">Timezone</label>
-            <input id="timezone" name="timezone" value="{{.Prefs.Timezone}}" placeholder="organisation default" list="tz-common">
+            <label for="timezone">{{.L.T "profile.timezone"}}</label>
+            <input id="timezone" name="timezone" value="{{.Prefs.Timezone}}" placeholder="{{.L.T "common.org_default"}}" list="tz-common">
             <datalist id="tz-common"><option value="Europe/Amsterdam"><option value="Europe/Brussels"><option value="Europe/Paris"><option value="Europe/Berlin"><option value="UTC"></datalist>
           </div>
           <div class="flex flex-col gap-1">
-            <label for="locale">Language</label>
+            <label for="locale">{{.L.T "profile.language"}}</label>
             <select id="locale" name="locale">
-              <option value="" {{if not .Prefs.Locale}}selected{{end}}>organisation default</option>
+              <option value="" {{if not .Prefs.Locale}}selected{{end}}>{{.L.T "common.org_default"}}</option>
               {{$cur := .Prefs.Locale}}{{range .Locales}}<option value="{{.}}" {{if eq $cur .}}selected{{end}}>{{.}}</option>{{end}}
             </select>
           </div>
-          <button type="submit" class="quiet w-full">Save preferences</button>
+          <button type="submit" class="quiet w-full">{{.L.T "profile.save_prefs"}}</button>
         </form>
       </div>
     </div>
@@ -82,12 +82,12 @@
   {{if .HasTokens}}
   <!-- API tokens -->
   <div>
-    <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">vpn_key</span>My API tokens</h2>
-    <p class="mb-4 text-body-md text-text-tertiary">Personal access tokens for the CLI and API. Each acts as you, snapshotting your groups; a ceiling can only narrow rights. The secret is shown once.</p>
+    <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">vpn_key</span>{{.L.T "profile.my_tokens"}}</h2>
+    <p class="mb-4 text-body-md text-text-tertiary">{{.L.T "profile.tokens_intro"}}</p>
     <div class="grid grid-cols-1 gap-6 md:grid-cols-12">
       <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm md:col-span-8">
         <table>
-          <tr><th>Name</th><th>ID</th><th>Ceiling</th><th>Created</th><th>Expires</th><th>Last used</th><th class="text-right">Actions</th></tr>
+          <tr><th>{{.L.T "common.name"}}</th><th>{{.L.T "common.id"}}</th><th>{{.L.T "common.ceiling"}}</th><th>{{.L.T "common.created"}}</th><th>{{.L.T "common.expires"}}</th><th>{{.L.T "common.lastused"}}</th><th class="text-right">{{.L.T "common.actions"}}</th></tr>
           {{$csrf := .CSRF}}
           {{range .Tokens}}
           <tr class="group hover:bg-surface-bright transition-colors">
@@ -101,23 +101,23 @@
             <td>{{with .Ceiling}}<span class="tag">{{.}}</span>{{else}}<span class="muted">-</span>{{end}}</td>
             <td class="text-text-secondary">{{$.L.Date .Created}}</td>
             <td class="text-text-secondary">{{$.L.Date .Expires}}</td>
-            <td class="text-text-secondary">{{if .LastUsed}}{{$.L.TimePtr .LastUsed}}{{else}}<span class="muted">never</span>{{end}}</td>
-            <td class="text-right"><form method="post" action="/profile/tokens/{{.ID}}/revoke" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="Revoke" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-status-error hover:!bg-error-container/40"><span class="material-symbols-outlined msz-18">delete</span></button></form></td>
+            <td class="text-text-secondary">{{if .LastUsed}}{{$.L.TimePtr .LastUsed}}{{else}}<span class="muted">{{$.L.T "common.never"}}</span>{{end}}</td>
+            <td class="text-right"><form method="post" action="/profile/tokens/{{.ID}}/revoke" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="{{$.L.T "common.revoke"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-status-error hover:!bg-error-container/40"><span class="material-symbols-outlined msz-18">delete</span></button></form></td>
           </tr>
           {{else}}
-          <tr><td colspan="7" class="muted">No personal tokens.</td></tr>
+          <tr><td colspan="7" class="muted">{{$.L.T "profile.no_tokens"}}</td></tr>
           {{end}}
         </table>
       </div>
       <div class="md:col-span-4">
         <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-          <h3 class="mt-0 mb-4 border-b border-border-soft pb-2">Create a token</h3>
+          <h3 class="mt-0 mb-4 border-b border-border-soft pb-2">{{.L.T "profile.create_token"}}</h3>
           <form method="post" action="/profile/tokens" class="!flex-col !items-stretch gap-4">
             <input type="hidden" name="csrf" value="{{.CSRF}}">
-            <div class="flex flex-col gap-1"><label>Name</label><input name="name" placeholder="what is this token for?" required class="w-full"></div>
-            <div class="flex flex-col gap-1"><label>Ceiling</label><select name="ceiling"><option value="">no ceiling (full rights)</option><option value="viewer">viewer</option><option value="editor">editor</option></select></div>
-            <div class="flex flex-col gap-1"><label>TTL (days)</label><input name="ttlDays" type="number" min="1" value="90" class="w-full"></div>
-            <button type="submit" class="w-full !bg-mint-vibrant !text-ink">Generate token</button>
+            <div class="flex flex-col gap-1"><label>{{.L.T "common.name"}}</label><input name="name" placeholder="{{.L.T "profile.token_name_placeholder"}}" required class="w-full"></div>
+            <div class="flex flex-col gap-1"><label>{{.L.T "common.ceiling"}}</label><select name="ceiling"><option value="">{{.L.T "profile.no_ceiling_full"}}</option><option value="viewer">viewer</option><option value="editor">editor</option></select></div>
+            <div class="flex flex-col gap-1"><label>{{.L.T "common.ttl_days"}}</label><input name="ttlDays" type="number" min="1" value="90" class="w-full"></div>
+            <button type="submit" class="w-full !bg-mint-vibrant !text-ink">{{.L.T "profile.generate_token"}}</button>
           </form>
         </div>
       </div>
@@ -126,15 +126,15 @@
   {{end}}
 
   <div class="mt-8">
-    <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">terminal</span>Command-line tool</h2>
-    <p class="mb-4 max-w-2xl text-body-md text-text-tertiary"><code>sxctl</code> drives the same <code>/api/v1</code> the console uses, authenticated with a personal token above. This build matches the running server, so the CLI and the fleet never drift.</p>
+    <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">terminal</span>{{.L.T "profile.cli_title"}}</h2>
+    <p class="mb-4 max-w-2xl text-body-md text-text-tertiary"><code>sxctl</code>{{.L.T "profile.cli_desc_mid"}}<code>/api/v1</code>{{.L.T "profile.cli_desc_end"}}</p>
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
           <p class="mb-1 font-mono text-code-inline text-ink">sxctl</p>
-          <p class="mb-0 text-body-sm text-text-tertiary">Linux x86-64 static binary. Verify with <a href="/downloads/sxctl.sha256" class="text-secondary">sha256</a>, then <code>chmod +x sxctl</code>.</p>
+          <p class="mb-0 text-body-sm text-text-tertiary">{{.L.T "profile.cli_verify_1"}}<a href="/downloads/sxctl.sha256" class="text-secondary">sha256</a>{{.L.T "profile.cli_verify_2"}}<code>chmod +x sxctl</code>.</p>
         </div>
-        <a href="/downloads/sxctl" class="btn shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">download</span>Download</a>
+        <a href="/downloads/sxctl" class="btn shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">download</span>{{.L.T "common.download"}}</a>
       </div>
     </div>
   </div>

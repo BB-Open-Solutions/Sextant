@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="mb-8">
-  <h1 class="mb-1">Access control</h1>
-  <p class="text-body-md text-text-secondary max-w-2xl">Role bindings grant IdP groups a role at a scope. Bindings are part of the fleet configuration: every change is a gated, audited git commit.</p>
+  <h1 class="mb-1">{{.L.T "access.title"}}</h1>
+  <p class="text-body-md text-text-secondary max-w-2xl">{{.L.T "access.intro"}}</p>
 </div>
 
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -9,11 +9,11 @@
   <div class="xl:col-span-2">
     <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
       <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
-        <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">Active role bindings</h2>
-        <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Bindings}} bindings</span>
+        <h2 class="mt-0 mb-0 text-label-md font-bold text-ink">{{.L.T "access.active_bindings"}}</h2>
+        <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Bindings}} {{.L.T "access.bindings_suffix"}}</span>
       </div>
       <table>
-        <tr><th class="!px-6 uppercase tracking-wide">IdP group</th><th class="!px-6 uppercase tracking-wide">Role</th><th class="!px-6 uppercase tracking-wide">Scope</th><th class="!px-6"></th></tr>
+        <tr><th class="!px-6 uppercase tracking-wide">{{.L.T "common.idp_group"}}</th><th class="!px-6 uppercase tracking-wide">{{.L.T "common.role"}}</th><th class="!px-6 uppercase tracking-wide">{{.L.T "common.scope"}}</th><th class="!px-6"></th></tr>
         {{range .Bindings}}
         <tr class="group hover:bg-surface-bright transition-colors">
           <td class="!px-6 font-mono text-code-inline">{{.Group}}</td>
@@ -24,11 +24,11 @@
               <input type="hidden" name="csrf" value="{{$.CSRF}}">
               <input type="hidden" name="group" value="{{.Group}}">
               <input type="hidden" name="scope" value="{{.Scope}}">
-              <button type="submit" title="Revoke" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-20">delete</span></button>
+              <button type="submit" title="{{$.L.T "common.revoke"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-20">delete</span></button>
             </form>{{end}}</td>
         </tr>
         {{else}}
-        <tr><td colspan="4" class="muted !px-6">No bindings; only server-configured baseline groups apply.</td></tr>
+        <tr><td colspan="4" class="muted !px-6">{{$.L.T "access.no_bindings"}}</td></tr>
         {{end}}
       </table>
     </div>
@@ -39,40 +39,40 @@
     {{if .CanOwn}}
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
       <div class="mb-4 border-b border-border-hairline pb-4">
-        <h2 class="mt-0 mb-0 text-headline-sm font-bold text-ink">Grant access</h2>
-        <p class="mb-0 mt-1 text-body-sm text-text-secondary">Bind an IdP group to a role within a scope.</p>
+        <h2 class="mt-0 mb-0 text-headline-sm font-bold text-ink">{{.L.T "access.grant_title"}}</h2>
+        <p class="mb-0 mt-1 text-body-sm text-text-secondary">{{.L.T "access.grant_desc"}}</p>
       </div>
       <form method="post" action="/access/grant" class="!flex-col !items-stretch gap-4">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <div class="flex flex-col gap-1">
-          <label>IdP group</label>
-          <input name="group" placeholder="IdP group" required class="w-full" {{if .DirGroups}}list="dir-groups"{{end}}>
-          {{if .DirGroups}}<datalist id="dir-groups">{{range .DirGroups}}<option value="{{.Name}}">{{end}}</datalist>{{else}}<span class="muted">directory browse not configured; type the group name</span>{{end}}
+          <label>{{.L.T "common.idp_group"}}</label>
+          <input name="group" placeholder="{{.L.T "common.idp_group"}}" required class="w-full" {{if .DirGroups}}list="dir-groups"{{end}}>
+          {{if .DirGroups}}<datalist id="dir-groups">{{range .DirGroups}}<option value="{{.Name}}">{{end}}</datalist>{{else}}<span class="muted">{{.L.T "access.dir_not_configured"}}</span>{{end}}
         </div>
         <div class="flex flex-col gap-1">
-          <label>Role</label>
-          <select name="role"><option value="" disabled selected>Select a role...</option><option value="viewer">viewer</option><option value="editor">editor</option><option value="owner">owner</option></select>
+          <label>{{.L.T "common.role"}}</label>
+          <select name="role"><option value="" disabled selected>{{.L.T "access.select_role"}}</option><option value="viewer">viewer</option><option value="editor">editor</option><option value="owner">owner</option></select>
         </div>
         <div class="flex flex-col gap-1">
-          <label>Scope</label>
+          <label>{{.L.T "common.scope"}}</label>
           <select name="scope"><option value="org">org</option>{{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
         </div>
-        <button type="submit" class="w-full">Stage binding</button>
+        <button type="submit" class="w-full">{{.L.T "access.stage_binding"}}</button>
       </form>
     </div>
 
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-      <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">gavel</span>Approval flows</h2>
-      <p class="mb-4 text-body-sm text-text-secondary">How changes and updates must be reviewed before they take effect.</p>
+      <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">gavel</span>{{.L.T "access.approval_flows"}}</h2>
+      <p class="mb-4 text-body-sm text-text-secondary">{{.L.T "access.approval_desc"}}</p>
       <form method="post" action="/assurance" class="!flex-col !items-stretch gap-4">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <label class="flex items-start gap-3 !normal-case !tracking-normal text-body-md text-text-secondary"><input type="checkbox" name="requireFourEyes" {{if .FourEyes}}checked{{end}} class="!w-auto mt-1">
-          <span><span class="font-medium text-ink">Four-eyes</span> - a change may not be merged by its own author (segregation of duties).</span></label>
+          <span><span class="font-medium text-ink">{{.L.T "access.four_eyes_label"}}</span> - {{.L.T "access.four_eyes_desc"}}</span></label>
         <label class="flex items-start gap-3 !normal-case !tracking-normal text-body-md text-text-secondary"><input type="checkbox" name="requireChangeRequest" {{if .RequireChange}}checked{{end}} class="!w-auto mt-1">
-          <span><span class="font-medium text-ink">Require change-request</span> - configuration edits must go through a reviewed change, never a direct commit.</span></label>
+          <span><span class="font-medium text-ink">{{.L.T "access.require_change_label"}}</span> - {{.L.T "access.require_change_desc"}}</span></label>
         <label class="flex items-start gap-3 !normal-case !tracking-normal text-body-md text-text-secondary"><input type="checkbox" name="requireTestWave" {{if .RequireTestWave}}checked{{end}} class="!w-auto mt-1">
-          <span><span class="font-medium text-ink">Require test wave</span> - a rollout must have a gated test wave first; an owner can skip it per rollout.</span></label>
-        <button type="submit" class="quiet self-start">Save approval flows</button>
+          <span><span class="font-medium text-ink">{{.L.T "access.require_testwave_label"}}</span> - {{.L.T "access.require_testwave_desc"}}</span></label>
+        <button type="submit" class="quiet self-start">{{.L.T "access.save_approval_flows"}}</button>
       </form>
     </div>
     {{end}}

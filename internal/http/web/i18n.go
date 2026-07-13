@@ -12,66 +12,6 @@ import (
 // built per request from the user's preferences (organisation defaults
 // as fallback) and handed to templates as .L.
 
-// catalog maps locale -> key -> translation. A missing key falls back to
-// English; a missing English key renders the key itself, which makes an
-// untranslated string visible instead of silently blank.
-var catalog = map[string]map[string]string{
-	"en": {
-		"nav.overview": "Overview",
-		"nav.devices":  "Devices",
-		"nav.groups":   "Groups",
-		"nav.settings": "Settings",
-		"nav.policies": "Policies",
-		"nav.changes":  "Changes",
-		"nav.rollout":  "Rollout",
-		"nav.access":   "Access",
-		"nav.audit":    "Audit",
-		"nav.signout":  "Sign out",
-
-		"common.apply":   "Apply",
-		"common.save":    "Save",
-		"common.create":  "Create",
-		"common.remove":  "Remove",
-		"common.revoke":  "Revoke",
-		"common.online":  "online",
-		"common.offline": "offline",
-		"common.never":   "never",
-
-		"device.retired":    "retired",
-		"device.retire":     "Retire",
-		"device.reactivate": "Reactivate",
-
-		"secret.store_now": "Store this secret now; it is not shown again.",
-	},
-	"nl": {
-		"nav.overview": "Overzicht",
-		"nav.devices":  "Apparaten",
-		"nav.groups":   "Groepen",
-		"nav.settings": "Instellingen",
-		"nav.policies": "Beleid",
-		"nav.changes":  "Wijzigingen",
-		"nav.rollout":  "Uitrol",
-		"nav.access":   "Toegang",
-		"nav.audit":    "Audit",
-		"nav.signout":  "Uitloggen",
-
-		"common.apply":   "Toepassen",
-		"common.save":    "Opslaan",
-		"common.create":  "Aanmaken",
-		"common.remove":  "Verwijderen",
-		"common.revoke":  "Intrekken",
-		"common.online":  "online",
-		"common.offline": "offline",
-		"common.never":   "nooit",
-
-		"device.retired":    "uitgefaseerd",
-		"device.retire":     "Uitfaseren",
-		"device.reactivate": "Heractiveren",
-
-		"secret.store_now": "Bewaar dit geheim nu; het wordt niet nog eens getoond.",
-	},
-}
-
 // Localizer renders text and time for one user. Immutable per request.
 type Localizer struct {
 	locale string

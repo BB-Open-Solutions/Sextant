@@ -1,22 +1,22 @@
 {{define "content"}}
 <div class="mb-8">
-  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">lan</span>Imaging stations</h1>
-  <p class="mb-4 max-w-2xl text-body-md text-text-tertiary">An imaging station (the "inspoelstraat") boots devices over PXE and reports what it sees. This page registers stations and issues their report credential; to image the devices a station has found, go to <a href="/enroll">Enrollment</a>.</p>
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">lan</span>{{.L.T "station.title"}}</h1>
+  <p class="mb-4 max-w-2xl text-body-md text-text-tertiary">{{.L.T "station.intro"}} <a href="/enroll">{{.L.T "enroll.title"}}</a>.</p>
 
   {{if .Stations}}
   <form method="get" action="/station" class="!items-end">
     <div class="flex flex-col gap-1">
-      <label for="tag">Station</label>
+      <label for="tag">{{.L.T "station.station_label"}}</label>
       <select id="tag" name="tag">
-        <option value="" disabled {{if not .Station}}selected{{end}}>Choose a station...</option>
+        <option value="" disabled {{if not .Station}}selected{{end}}>{{.L.T "station.choose_station"}}</option>
         {{$sel := .Station}}
         {{range .Stations}}<option value="{{.}}" {{if eq . $sel}}selected{{end}}>{{.}}</option>{{end}}
       </select>
     </div>
-    <button type="submit">Open station</button>
+    <button type="submit">{{.L.T "station.open_station"}}</button>
   </form>
   {{else}}
-  <p class="muted">No stations registered yet. {{if .CanOwn}}Register your first one below.{{else}}An organisation owner must register one first.{{end}}</p>
+  <p class="muted">{{.L.T "station.no_stations"}} {{if .CanOwn}}{{.L.T "station.register_first_below"}}{{else}}{{.L.T "station.owner_must_register"}}{{end}}</p>
   {{end}}
 </div>
 
@@ -26,17 +26,17 @@
   <div>
     <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">dns</span>{{.Station}}</h2>
     {{with .StationInfo.Description}}<p class="mb-0 text-body-md text-text-tertiary">{{.}}</p>{{end}}
-    {{with .StationInfo.Site}}<p class="mb-0 text-label-md text-text-tertiary">Site: {{.}}</p>{{end}}
+    {{with .StationInfo.Site}}<p class="mb-0 text-label-md text-text-tertiary">{{$.L.T "station.site_label"}}: {{.}}</p>{{end}}
   </div>
   {{if .CanOwn}}
   <div class="flex shrink-0 flex-wrap gap-2">
     <form method="post" action="/station/{{.Station}}/credential" class="inline" onsubmit="return confirm('Mint a new report credential for {{.Station}}? Any previous one stops working.')">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">key</span>Mint credential</button>
+      <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">key</span>{{$.L.T "station.mint_credential"}}</button>
     </form>
     <form method="post" action="/station/{{.Station}}/remove" class="inline" onsubmit="return confirm('Remove station {{.Station}}? Its credential is revoked.')">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>Remove</button>
+      <button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>{{$.L.T "common.remove"}}</button>
     </form>
   </div>
   {{end}}
@@ -46,14 +46,14 @@
 <!-- One-time station credential + setup instructions -->
 <div class="relative mb-6 overflow-hidden rounded-lg border border-[#2f2f2f] bg-surface-code p-5 shadow-lg">
   <div class="absolute left-0 top-0 h-1 w-full bg-mint-vibrant"></div>
-  <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-canvas"><span class="material-symbols-outlined text-mint-vibrant">verified_user</span>Station credential created</h2>
-  <p class="mb-3 text-body-sm text-text-tertiary">Store it on the station now; it is not shown again. Configure the station agent with the endpoint and this bearer token:</p>
+  <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-canvas"><span class="material-symbols-outlined text-mint-vibrant">verified_user</span>{{$.L.T "station.credential_created"}}</h2>
+  <p class="mb-3 text-body-sm text-text-tertiary">{{$.L.T "station.credential_instructions"}}</p>
   <div class="mb-2 flex items-center justify-between gap-3 rounded border border-[#2f2f2f] bg-ink p-3">
-    <span class="text-label-xs-caps uppercase text-text-tertiary">Report endpoint</span>
+    <span class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "station.report_endpoint"}}</span>
     <code class="break-all font-mono text-code-md text-canvas">{{$.ReportURL}}</code>
   </div>
   <div class="flex items-center justify-between gap-3 rounded border border-[#2f2f2f] bg-ink p-3">
-    <span class="text-label-xs-caps uppercase text-text-tertiary">Bearer token</span>
+    <span class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "station.bearer_token"}}</span>
     <span class="flex items-center gap-2"><code class="break-all font-mono text-code-md text-mint-soft">{{.}}</code>
       <button type="button" data-copy="{{.}}" data-copied="copied" class="!rounded !bg-transparent !p-1.5 text-text-tertiary hover:!text-canvas"><span class="material-symbols-outlined msz-18">content_copy</span></button></span>
   </div>
@@ -65,25 +65,25 @@
   <div class="flex items-center gap-3">
     <span class="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container-highest text-text-secondary"><span class="material-symbols-outlined msz-20">devices</span></span>
     <div>
-      <p class="mb-0 font-medium text-ink">{{if .SeenCount}}{{.SeenCount}} device(s){{else}}No devices{{end}} on this station's PXE network</p>
-      <p class="mb-0 text-label-md text-text-tertiary">Image them from the guided enrollment flow.</p>
+      <p class="mb-0 font-medium text-ink">{{if .SeenCount}}{{.SeenCount}} {{.L.T "station.devices_suffix"}}{{else}}{{.L.T "station.no_devices"}}{{end}} {{.L.T "station.pxe_suffix"}}</p>
+      <p class="mb-0 text-label-md text-text-tertiary">{{.L.T "station.image_them_hint"}}</p>
     </div>
   </div>
-  <a href="/enroll?station={{.Station}}" class="btn shrink-0"><span class="material-symbols-outlined msz-18">cable</span>Go to enrollment</a>
+  <a href="/enroll?station={{.Station}}" class="btn shrink-0"><span class="material-symbols-outlined msz-18">cable</span>{{.L.T "station.go_to_enrollment"}}</a>
 </div>
 {{end}}
 
 {{if and .CanOwn (not .Station)}}
 <!-- Register a station (setup wizard) -->
 <div class="mt-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>Register an imaging station</h2>
-  <p class="muted mb-4">Give the station a tag; after registering, mint its credential and configure the station agent with the endpoint shown.</p>
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>{{.L.T "station.register_title"}}</h2>
+  <p class="muted mb-4">{{.L.T "station.register_desc"}}</p>
   <form method="post" action="/stations" class="!items-end">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex flex-col gap-1"><label>Station tag</label><input name="tag" placeholder="e.g. dawo-inspoelstraat" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
-    <div class="flex flex-1 flex-col gap-1"><label>Description</label><input name="description" placeholder="e.g. meterkast NUC" class="w-full"></div>
-    <div class="flex flex-col gap-1"><label>Site</label><input name="site" placeholder="optional"></div>
-    <button type="submit">Register station</button>
+    <div class="flex flex-col gap-1"><label>{{.L.T "station.station_tag_label"}}</label><input name="tag" placeholder="{{.L.T "common.eg"}} dawo-inspoelstraat" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
+    <div class="flex flex-1 flex-col gap-1"><label>{{.L.T "common.description"}}</label><input name="description" placeholder="{{.L.T "common.eg"}} meterkast NUC" class="w-full"></div>
+    <div class="flex flex-col gap-1"><label>{{.L.T "station.site_label"}}</label><input name="site" placeholder="{{.L.T "common.optional"}}"></div>
+    <button type="submit">{{.L.T "station.register_button"}}</button>
   </form>
 </div>
 {{end}}

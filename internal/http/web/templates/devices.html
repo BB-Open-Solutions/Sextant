@@ -1,8 +1,8 @@
 {{define "content"}}
 <section class="flex flex-col gap-6">
   <div class="flex flex-col gap-2">
-    <h1 class="mb-0">Device Fleet</h1>
-    <p class="text-body-md text-text-tertiary max-w-2xl">Provision new hardware and manage active assignments. Every change to a device is a gated, signed git commit.</p>
+    <h1 class="mb-0">{{.L.T "devices.title"}}</h1>
+    <p class="text-body-md text-text-tertiary max-w-2xl">{{.L.T "devices.subtitle"}}</p>
   </div>
 
   {{if .CanEdit}}
@@ -11,38 +11,38 @@
     <div class="absolute left-0 top-0 h-full w-1 bg-mint-vibrant"></div>
     <div class="flex items-center justify-between">
       <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm text-ink">
-        <span class="material-symbols-outlined text-mint-vibrant">add_box</span>Fast Enrollment
+        <span class="material-symbols-outlined text-mint-vibrant">add_box</span>{{.L.T "devices.fast_enrollment"}}
       </h2>
       <span class="inline-flex items-center gap-1 rounded border border-[#1f1f1f] bg-surface-code px-2 py-1 text-label-md text-canvas">
-        <span class="material-symbols-outlined msz-14">commit</span>Git-Ops managed
+        <span class="material-symbols-outlined msz-14">commit</span>{{.L.T "devices.gitops_managed"}}
       </span>
     </div>
     <form method="post" action="/devices" class="!block mt-5">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <div class="grid grid-cols-1 items-end gap-4 md:grid-cols-4">
         <div class="flex flex-col gap-1">
-          <label>Asset tag</label>
+          <label>{{.L.T "common.asset_tag"}}</label>
           <input name="tag" placeholder="ast-xxxx" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono">
         </div>
         <div class="flex flex-col gap-1">
-          <label>Hardware profile</label>
-          <input name="hardware" placeholder="e.g. lenovo-t495s" required>
+          <label>{{.L.T "common.hardware_profile"}}</label>
+          <input name="hardware" placeholder="{{.L.T "common.eg"}} lenovo-t495s" required>
         </div>
         <div class="flex flex-col gap-1">
-          <label>Device class</label>
+          <label>{{.L.T "devices.device_class"}}</label>
           <input name="class" placeholder="laptop / server / station">
         </div>
         <div class="flex flex-col gap-1">
-          <label>Primary group</label>
+          <label>{{.L.T "devices.primary_group"}}</label>
           <select name="group">
-            <option value="">no group</option>
+            <option value="">{{.L.T "common.no_group"}}</option>
             {{range .Groups}}<option value="{{.}}">{{.}}</option>{{end}}
           </select>
         </div>
       </div>
       <div class="mt-4 flex items-center justify-end gap-3">
-        <span class="muted mr-auto">Validated by the gate, committed to git.</span>
-        <button type="submit"><span class="material-symbols-outlined msz-18">note_add</span>Enroll device</button>
+        <span class="muted mr-auto">{{.L.T "devices.validated_hint"}}</span>
+        <button type="submit"><span class="material-symbols-outlined msz-18">note_add</span>{{.L.T "devices.enroll_device"}}</button>
       </div>
     </form>
   </div>
@@ -51,7 +51,7 @@
   <!-- Device list -->
   <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
     <table>
-      <tr><th>Tag</th><th>Groups</th><th>Class</th><th>Hardware</th><th>User</th><th>Status</th></tr>
+      <tr><th>{{.L.T "common.tag"}}</th><th>{{.L.T "common.groups"}}</th><th>{{.L.T "common.class"}}</th><th>{{.L.T "common.hardware"}}</th><th>{{.L.T "common.user"}}</th><th>{{.L.T "common.status"}}</th></tr>
       {{range .Devices}}
       <tr class="hover:bg-surface-container-low transition-colors">
         <td><a href="/devices/{{.Tag}}" class="font-mono font-medium">{{.Tag}}</a></td>
@@ -61,13 +61,13 @@
         <td>{{.AssignedUser}}</td>
         <td>
           {{if .HasStatus}}
-            {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>online</span>{{else}}<span class="tag bad">offline</span>{{end}}
+            {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}
             <span class="font-mono text-text-tertiary">{{.Revision}}</span>
-          {{else}}<span class="muted">never seen</span>{{end}}
+          {{else}}<span class="muted">{{$.L.T "common.never_seen"}}</span>{{end}}
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="6" class="muted">No devices enrolled yet.</td></tr>
+      <tr><td colspan="6" class="muted">{{$.L.T "devices.no_devices"}}</td></tr>
       {{end}}
     </table>
   </div>
