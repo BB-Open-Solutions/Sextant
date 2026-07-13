@@ -68,6 +68,10 @@
     <header class="sticky top-0 z-30 flex items-center justify-between border-b border-border-hairline bg-canvas px-8 py-3">
       <nav class="flex items-center gap-1 text-label-md text-text-tertiary" aria-label="{{.L.T "layout.breadcrumb_aria"}}">
         <a href="/" class="transition-colors hover:text-ink">Sextant</a>
+        {{if or (eq .Nav "org") (eq .Nav "station") (eq .Nav "mail") (eq .Nav "service-accounts") (eq .Nav "audit") (eq .Nav "overlays") (eq .Nav "secrets")}}
+        <span class="material-symbols-outlined msz-16 -mx-1 text-text-tertiary/70">chevron_right</span>
+        <a href="/org" class="transition-colors hover:text-ink">{{.L.T "nav.org"}}</a>
+        {{end}}
         <span class="material-symbols-outlined msz-16 -mx-1 text-text-tertiary/70">chevron_right</span>
         <span class="font-semibold text-ink">{{.Title}}</span>
       </nav>
@@ -98,7 +102,7 @@
             <div class="my-1 border-t border-border-soft"></div>
             <form method="post" action="/logout" class="!m-0">
               <input type="hidden" name="csrf" value="{{.CSRF}}">
-              <button type="submit" class="flex w-full items-center gap-2 rounded-md bg-transparent px-3 py-2 text-left text-label-md font-normal text-text-secondary transition-colors hover:bg-surface-bright hover:text-ink" role="menuitem"><span class="material-symbols-outlined msz-18">logout</span>{{.L.T "nav.signout"}}</button>
+              <button type="submit" class="flex w-full items-center gap-2 rounded-md !bg-transparent px-3 py-2 text-left text-label-md font-normal text-text-secondary transition-colors hover:!bg-surface-bright hover:text-ink" role="menuitem"><span class="material-symbols-outlined msz-18">logout</span>{{.L.T "nav.signout"}}</button>
             </form>
           </div>
         </details>

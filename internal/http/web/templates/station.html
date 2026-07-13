@@ -47,13 +47,13 @@
 <div class="relative mb-6 overflow-hidden rounded-lg border border-[#2f2f2f] bg-surface-code p-5 shadow-lg">
   <div class="absolute left-0 top-0 h-1 w-full bg-mint-vibrant"></div>
   <h2 class="mt-0 mb-1 flex items-center gap-2 text-headline-sm text-canvas"><span class="material-symbols-outlined text-mint-vibrant">verified_user</span>{{$.L.T "station.credential_created"}}</h2>
-  <p class="mb-3 text-body-sm text-text-tertiary">{{$.L.T "station.credential_instructions"}}</p>
+  <p class="mb-3 text-body-sm text-canvas/70">{{$.L.T "station.credential_instructions"}}</p>
   <div class="mb-2 flex items-center justify-between gap-3 rounded border border-[#2f2f2f] bg-ink p-3">
-    <span class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "station.report_endpoint"}}</span>
+    <span class="text-label-xs-caps uppercase text-canvas/50">{{$.L.T "station.report_endpoint"}}</span>
     <code class="break-all font-mono text-code-md text-canvas">{{$.ReportURL}}</code>
   </div>
   <div class="flex items-center justify-between gap-3 rounded border border-[#2f2f2f] bg-ink p-3">
-    <span class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "station.bearer_token"}}</span>
+    <span class="text-label-xs-caps uppercase text-canvas/50">{{$.L.T "station.bearer_token"}}</span>
     <span class="flex items-center gap-2"><code class="break-all font-mono text-code-md text-mint-soft">{{.}}</code>
       <button type="button" data-copy="{{.}}" data-copied="copied" class="!rounded !bg-transparent !p-1.5 text-text-tertiary hover:!text-canvas"><span class="material-symbols-outlined msz-18">content_copy</span></button></span>
   </div>
