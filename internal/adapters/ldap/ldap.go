@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -114,6 +115,16 @@ func (d *Directory) dial(ctx context.Context) (*ldapv3.Conn, error) {
 			MinVersion:         tls.VersionTLS12,
 		}))
 	}
+	// Bound the dial itself, not just post-connect operations: DialURL
+	// otherwise inherits the OS connect timeout (~60s), so an unreachable
+	// directory would hang the page instead of degrading to "no groups".
+	dialTimeout := 3 * time.Second
+	if dl, ok := ctx.Deadline(); ok {
+		if rem := time.Until(dl); rem > 0 && rem < dialTimeout {
+			dialTimeout = rem
+		}
+	}
+	opts = append(opts, ldapv3.DialWithDialer(&net.Dialer{Timeout: dialTimeout}))
 	conn, err := ldapv3.DialURL(d.cfg.URL, opts...)
 	if err != nil {
 		return nil, err
