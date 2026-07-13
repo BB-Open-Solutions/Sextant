@@ -11,6 +11,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/incident"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
@@ -62,16 +63,101 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 			}
 		}
 	}
+	// Compliance drives the attention queue and the health donut: incidents the
+	// viewer may see (scoped to their groups), plus a per-device worst-severity
+	// tally for the donut (healthy / warning / critical).
+	incidents := s.scopedIncidents(r, v)
+	crit, warn := 0, 0
+	worst := map[string]int{} // device tag -> worst severity seen (2 crit, 1 warn)
+	for _, in := range incidents {
+		sev := 1
+		if in.Severity == "critical" {
+			sev = 2
+		}
+		if sev > worst[in.Tag] {
+			worst[in.Tag] = sev
+		}
+	}
+	for _, s := range worst {
+		if s == 2 {
+			crit++
+		} else {
+			warn++
+		}
+	}
+	total := len(f.Devices)
+	healthy := total - crit - warn
+	if healthy < 0 {
+		healthy = 0
+	}
+	pct := func(n int) int {
+		if total == 0 {
+			return 0
+		}
+		return n * 100 / total
+	}
+	hp, wp, cp := pct(healthy), pct(warn), pct(crit)
+	// Stacked donut: each ring is dasharray "<pct> 100" offset by the sum of the
+	// rings before it (r=15.915 makes the circumference 100, so pct == length).
+	donut := []map[string]any{
+		{"Color": "#00d4a4", "Dash": hp, "Offset": 0},
+		{"Color": "#c37d0d", "Dash": wp, "Offset": -hp},
+		{"Color": "#d45656", "Dash": cp, "Offset": -(hp + wp)},
+	}
+
 	s.render(w, "overview", map[string]any{
 		"Title": "Overview", "Nav": "overview",
 		"Stats": map[string]int{
 			"Devices": len(f.Devices), "Online": online, "Groups": len(f.Groups),
 			"Policies": len(f.Policies), "OpenChanges": openChanges,
 		},
-		"Attention": attn,
-		"Approvals": approvals,
-		"Status":    status,
+		"Compliance": map[string]int{"Healthy": healthy, "Warning": warn, "Critical": crit, "Total": total, "Score": hp},
+		"Donut":      donut,
+		"Incidents":  incidents,
+		"Attention":  attn,
+		"Approvals":  approvals,
+		"Status":     status,
+		"CanEnroll":  v.roleAt("org").Meets(identity.Editor),
 	}, v)
+}
+
+// incidentRow is one attention-queue item prepared for the overview.
+type incidentRow struct {
+	Severity string // critical | warning | info
+	Title    string
+	Detail   string
+	Action   string
+	Tag      string
+	Link     string
+}
+
+// scopedIncidents returns the incidents the viewer may see, capped for the
+// overview queue. Empty when compliance (Postgres) is not configured.
+func (s *Server) scopedIncidents(r *http.Request, v view) []incidentRow {
+	if s.svc.Compliance == nil {
+		return nil
+	}
+	all, err := s.svc.Compliance.Incidents(r.Context())
+	if err != nil {
+		s.log.Warn("overview incidents failed", "err", err)
+		return nil
+	}
+	out := make([]incidentRow, 0, len(all))
+	for _, in := range all {
+		if !v.canView(in.Scope) {
+			continue
+		}
+		sev := "warning"
+		if in.Severity == incident.Critical {
+			sev = "critical"
+		}
+		out = append(out, incidentRow{Severity: sev, Title: in.Title, Detail: in.Detail,
+			Action: in.Action, Tag: in.Tag, Link: "/devices/" + in.Tag})
+		if len(out) >= 8 {
+			break
+		}
+	}
+	return out
 }
 
 func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {

@@ -88,6 +88,13 @@ func New(svc Services, sessions Sessions, write bool,
 	funcs := template.FuncMap{
 		"list":      func(items ...any) []any { return items },
 		"hasPrefix": strings.HasPrefix,
+		// short trims a git revision to a readable 12-char prefix.
+		"short": func(s string) string {
+			if len(s) > 12 {
+				return s[:12]
+			}
+			return s
+		},
 		// slug turns a setting key into a suggested secret-reference name, so a
 		// secret field can deep-link to the Secrets page prefilled.
 		"slug": slugify,

@@ -29,6 +29,11 @@
       <p class="text-label-md text-text-tertiary">{{.L.T "layout.tagline"}}</p>
     </div>
 
+    <!-- Primary action: enroll a device (the "start something new" CTA). -->
+    <div class="px-4 py-3">
+      <a href="/enroll" class="flex w-full items-center justify-center gap-2 rounded-full bg-ink px-4 py-2 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">add</span>{{.L.T "layout.enroll_device"}}</a>
+    </div>
+
     <div class="flex-1 overflow-y-auto py-2">
       {{$n := .Nav}}
       <p class="nav-section">{{.L.T "layout.section_fleet"}}</p>
@@ -57,6 +62,12 @@
       <ul class="space-y-1 px-2">
         <li><a href="/access" class="nav-link {{if eq $n "access"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">admin_panel_settings</span>{{.L.T "nav.access"}}</a></li>
       </ul>
+    </div>
+
+    <!-- Help resources, anchored at the bottom. External, open in a new tab. -->
+    <div class="border-t border-border-hairline p-2">
+      <a href="https://bb-open.com/en/contact" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">help</span>{{.L.T "footer.support"}}</a>
+      <a href="https://docs.sextant.bb-open.com" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">menu_book</span>{{.L.T "footer.docs"}}</a>
     </div>
 
   </nav>
