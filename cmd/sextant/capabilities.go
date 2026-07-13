@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/nix"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/oidc"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/postgres"
+	smtpadapter "code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/smtp"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/state"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
@@ -32,6 +35,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/capability"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/config"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/health"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/secretbox"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
@@ -55,6 +59,7 @@ type deps struct {
 	dir       ports.Directory
 	evidence  *app.EvidenceService
 	notify    *app.NotifyService
+	mail      *app.MailService
 	authz     api.Authz
 	cleanup   []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
@@ -139,6 +144,13 @@ func (d *deps) buildConfigPlane() error {
 		return err
 	}
 	clock := app.SystemClock{}
+	// Seal operator-entered secrets at rest (SMTP password). A malformed key
+	// fails startup here rather than at first use; an empty key disables the
+	// entered-secret path (references still work).
+	sealer, err := secretbox.New(cfg.SecretKey)
+	if err != nil {
+		return err
+	}
 	openWT := func(dir string) (ports.ConfigRepo, error) { return git.Open(dir, "") }
 	d.changes = app.NewChangeService(repo, st.Changes(), gate, builder, clock, openWT, svc)
 
@@ -168,6 +180,18 @@ func (d *deps) buildConfigPlane() error {
 		d.notify = app.NewNotifyService(pg, clock, app.DefaultTenant)
 		d.changes.WithNotifier(d.notify, cfg.OwnerGroups)
 		d.inv.WithNotifier(d.notify, cfg.OwnerGroups)
+		// Per-tenant SMTP: config lives in Postgres; the password resolves from a
+		// mounted secret reference (default) or is decrypted from the sealed
+		// value. A reference name maps to a file under SecretDir.
+		secretDir := cfg.SecretDir
+		readRef := func(name string) (string, error) {
+			b, err := os.ReadFile(filepath.Join(secretDir, filepath.Base(name)))
+			if err != nil {
+				return "", err
+			}
+			return strings.TrimSpace(string(b)), nil
+		}
+		d.mail = app.NewMailService(pg, smtpadapter.New(10*time.Second), sealer, readRef, app.DefaultTenant)
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
 			// Convergence is scoped to the wave's RELEASED devices: the whole
@@ -326,7 +350,7 @@ func (d *deps) consoleCapability() capability.Capability {
 					Inventory: d.inv, Tokens: d.tokens, Prefs: d.prefs,
 					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence,
 					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds,
-					Notify: d.notify},
+					Notify: d.notify, Mail: d.mail},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {

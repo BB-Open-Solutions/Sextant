@@ -34,7 +34,7 @@ func notifPresent(n notify.Notification) notifRow {
 	case notify.ApprovalNeeded:
 		icon, tone = "rate_review", "text-mint-deep"
 	case notify.ChangeMerged:
-		icon, tone = "merge", "text-status-success"
+		icon, tone = "merge", "text-mint-deep"
 	case notify.RolloutDone:
 		icon, tone = "rocket_launch", "text-mint-deep"
 	case notify.GateFailed:

@@ -62,5 +62,21 @@ the devices in that ring.
    every change passes the gate and commits to the overlay. Stage a rollout to
    land updates in waves.
 
+## Notification e-mail (SMTP)
+
+In-app notifications work with no extra setup. To also deliver them by mail,
+an owner configures SMTP per organisation under **E-mail (SMTP)** in the
+console (host, port, from, security). The password is set one of two ways:
+
+- **A secret reference** (recommended) - enter the *name* of a secret; the
+  value lives in agenix or a cluster Secret mounted at `SECRET_DIR` (default
+  `/run/secrets/<name>`). Sextant reads only the name, never storing the value.
+- **A typed password** - available only when `SEXTANT_SECRET_KEY` is set (a
+  base64 32-byte key). The password is then sealed (AES-256-GCM) and stored in
+  Postgres. Without the key this option is disabled and the console says so.
+
+Both can also be set at deploy time. `SEXTANT_SECRET_KEY` is an environment-only
+secret; add it to the same secret the chart mounts (`secretName`).
+
 Multi-tenant (model B): one overlay repo per organisation, isolated stores,
 one console instance per repo. See `docs/adr/` for the decisions behind this.

@@ -57,6 +57,16 @@ type Config struct {
 	// plane (check-in, status, rollout convergence).
 	PgDSN string
 
+	// SecretKey seals operator-entered secrets at rest (an SMTP password
+	// typed in the console). Environment-only (SEXTANT_SECRET_KEY,
+	// base64 32 bytes). Empty disables the entered-secret path; secret
+	// references still work.
+	SecretKey string
+	// SecretDir is where mounted secret references are read from (agenix, a
+	// cluster Secret projected to files). A reference name maps to a file
+	// here. Empty falls back to /run/secrets.
+	SecretDir string
+
 	// OIDC console SSO. Empty issuer disables session auth (token-only).
 	OIDCIssuer      string
 	OIDCClientID    string
@@ -113,6 +123,8 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		APIToken:         getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
 		CheckinToken:     getenv(EnvPrefix + "CHECKIN_TOKEN"), // env-only secret
 		PgDSN:            getenv(EnvPrefix + "PG_DSN"),        // env-only secret
+		SecretKey:        getenv(EnvPrefix + "SECRET_KEY"),    // env-only secret
+		SecretDir:        envOr(getenv, "SECRET_DIR", "/run/secrets"),
 		OIDCIssuer:       envOr(getenv, "OIDC_ISSUER", ""),
 		OIDCClientID:     envOr(getenv, "OIDC_CLIENT_ID", ""),
 		OIDCRedirectURL:  envOr(getenv, "OIDC_REDIRECT_URL", ""),

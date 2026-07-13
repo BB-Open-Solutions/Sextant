@@ -59,6 +59,7 @@
       <ul class="space-y-1 px-2">
         <li><a href="/access" class="nav-link {{if eq $n "access"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">admin_panel_settings</span>{{.L.T "nav.access"}}</a></li>
         {{if .CanOrgOwn}}<li><a href="/service-accounts" class="nav-link {{if eq $n "service-accounts"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">robot_2</span>Service accounts</a></li>{{end}}
+        {{if .CanOrgOwn}}<li><a href="/mail" class="nav-link {{if eq $n "mail"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">mail</span>E-mail (SMTP)</a></li>{{end}}
         {{if .CanOrgView}}
         <li><a href="/audit" class="nav-link {{if eq $n "audit"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">history_edu</span>{{.L.T "nav.audit"}}</a></li>
         {{end}}

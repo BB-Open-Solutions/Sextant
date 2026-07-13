@@ -47,6 +47,7 @@ type Services struct {
 	Imaging      *app.ImagingService
 	StationCreds *app.StationCredentials
 	Notify       *app.NotifyService
+	Mail         *app.MailService
 }
 
 // Server renders the console.
@@ -155,7 +156,7 @@ func New(svc Services, sessions Sessions, write bool,
 			return fmt.Sprintf("gd-%d", depth)
 		},
 	}
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "integrations", "overlays", "notifications", "error"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "integrations", "overlays", "notifications", "mail", "error"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -209,9 +210,13 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/service-accounts", s.serviceAccountsPage)
 	get("/profile", s.profilePage)
 	get("/notifications", s.notificationsPage)
+	get("/mail", s.mailPage)
 
 	post("/notifications/read-all", s.postNotificationsReadAll)
 	post("/notifications/{id}/read", s.postNotificationRead)
+	post("/mail", s.postMailSave)
+	post("/mail/test", s.postMailTest)
+	post("/mail/delete", s.postMailDelete)
 	post("/devices", s.postDeviceEnroll)
 	post("/devices/{tag}/settings", s.postDeviceSetting)
 	post("/devices/{tag}/posture", s.postDevicePosture)
