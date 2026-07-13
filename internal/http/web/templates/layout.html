@@ -93,10 +93,6 @@
           {{if .Unread}}<span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-error px-1 text-[10px] font-bold leading-none text-canvas">{{if gt .Unread 99}}99+{{else}}{{.Unread}}{{end}}</span>{{end}}
         </a>
         {{end}}
-        <a href="/enroll" class="btn !py-1.5" title="{{.L.T "layout.enroll_title"}}"><span class="material-symbols-outlined msz-18">cable</span><span class="hidden sm:inline">{{.L.T "layout.enroll_device"}}</span></a>
-        {{if .CanOrgView}}
-        <a href="/rollout" class="btn quiet !py-1.5" title="{{.L.T "layout.staged_rollout_title"}}"><span class="material-symbols-outlined msz-18">rocket_launch</span><span class="hidden sm:inline">{{.L.T "nav.rollout"}}</span></a>
-        {{end}}
         <!-- Account menu: profile, org settings and sign out. Native <details>
              disclosure so it needs no inline script (strict CSP); app.js only
              adds close-on-outside-click as progressive enhancement. -->

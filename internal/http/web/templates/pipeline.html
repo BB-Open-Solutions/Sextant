@@ -1,73 +1,114 @@
 {{define "content"}}
-<div class="mb-6">
-  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">conveyor_belt</span>{{.L.T "pipeline.title"}}</h1>
-  <p class="mb-0 max-w-3xl text-body-md text-text-tertiary">{{.L.T "pipeline.intro"}}</p>
+<div class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+  <div>
+    <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">conveyor_belt</span>{{.L.T "nav.delivery"}}</h1>
+    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "page.pipeline.subtitle"}}</p>
+  </div>
+  {{if .MainRev}}
+  <div class="shrink-0 rounded-lg border border-border-hairline bg-canvas px-4 py-2 shadow-sm">
+    <p class="mb-0 text-label-xs-caps uppercase text-text-tertiary">{{.L.T "page.pipeline.current_config"}}</p>
+    <p class="mb-0 font-mono text-code-inline text-ink">{{short .MainRev}}</p>
+  </div>
+  {{end}}
 </div>
 
-<div class="overflow-x-auto pb-4">
-  <div class="flex min-w-max items-stretch gap-4">
+{{with .Error}}<div class="mb-4 rounded-lg border border-error/30 bg-error-container px-4 py-3 text-body-md text-on-error-container">{{.}}</div>{{end}}
 
-    {{/* --- Change-request stages --- */}}
+<!-- Step 1: review proposed changes -->
+<section class="mb-8">
+  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-label-xs-caps font-bold text-canvas">1</span>{{.L.T "page.pipeline.to_review"}}</h2>
+  {{if or .Ready .Draft .Building}}
+  <div class="flex flex-col gap-3">
     {{$ := .}}
-    {{range $col := list (list ($.L.T "pipeline.stage_draft") .Draft "edit_note") (list ($.L.T "pipeline.stage_building") .Building "build") (list ($.L.T "pipeline.stage_ready") .Ready "task_alt")}}
-    <div class="flex w-72 shrink-0 flex-col rounded-lg border border-border-hairline bg-surface-container-low">
-      <div class="flex items-center justify-between border-b border-border-hairline px-4 py-3">
-        <span class="flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-text-tertiary">{{index $col 2}}</span>{{index $col 0}}</span>
-        <span class="rounded bg-surface-container px-2 py-0.5 text-label-xs-caps uppercase text-text-tertiary">{{len (index $col 1)}}</span>
+    {{range .Ready}}
+    <div class="flex flex-col gap-3 rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2"><span class="tag ok">{{$.L.T "page.pipeline.ready"}}</span><span class="truncate font-semibold text-ink">{{.Title}}</span></div>
+        <div class="mt-1 flex items-center gap-1 text-label-md text-text-tertiary"><span class="material-symbols-outlined msz-14">person</span>{{.Author}} · {{$.L.T "page.pipeline.gate_passed"}}</div>
       </div>
-      <div class="flex flex-1 flex-col gap-3 p-3">
-        {{range index $col 1}}
-        <a href="/changes" class="block rounded-md border border-border-soft bg-canvas p-3 shadow-sm hover:border-mint-vibrant transition-colors">
-          <div class="flex items-center justify-between"><span class="font-mono text-code-inline text-text-tertiary">{{.ID}}</span>
-            <span class="tag {{if eq (printf "%s" .Status) "ready"}}ok{{else if eq (printf "%s" .Status) "failed"}}bad{{else if eq (printf "%s" .Status) "building"}}lock{{end}}">{{.Status}}</span></div>
-          <div class="mt-1 text-body-md font-medium text-ink">{{.Title}}</div>
-          <div class="mt-1 flex items-center gap-1 text-label-md text-text-tertiary"><span class="material-symbols-outlined msz-14">person</span>{{.Author}} | {{$.L.Time .Updated}}</div>
-        </a>
-        {{else}}
-        <p class="muted px-1 py-6 text-center text-label-md">{{$.L.T "pipeline.nothing_here"}}</p>
-        {{end}}
+      <div class="flex shrink-0 items-center gap-2">
+        <a href="/changes/{{.ID}}/diff" class="btn quiet !py-1.5"><span class="material-symbols-outlined msz-18">difference</span>{{$.L.T "page.pipeline.view_diff"}}</a>
+        {{if $.CanOwn}}<form method="post" action="/changes/{{.ID}}/merge" class="!m-0"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">check</span>{{$.L.T "page.pipeline.approve"}}</button></form>{{end}}
+        {{if $.CanEdit}}<form method="post" action="/changes/{{.ID}}/abandon" class="!m-0" onsubmit="return confirm('{{$.L.T "page.pipeline.reject"}}?')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="btn quiet !py-1.5 !text-status-error">{{$.L.T "page.pipeline.reject"}}</button></form>{{end}}
       </div>
     </div>
     {{end}}
-
-    {{/* --- Divider into the rollout --- */}}
-    <div class="flex shrink-0 items-center px-1"><span class="material-symbols-outlined text-text-tertiary">chevron_right</span></div>
-
-    {{/* --- Rollout waves --- */}}
-    {{if .Waves}}
-    {{range .Waves}}
-    <div class="flex w-72 shrink-0 flex-col rounded-lg border {{if .Active}}border-mint-vibrant{{else}}border-border-hairline{{end}} bg-surface-container-low">
-      <div class="flex items-center justify-between border-b border-border-hairline px-4 py-3">
-        <span class="flex items-center gap-2 text-label-md font-bold text-ink"><span class="flex h-5 w-5 items-center justify-center rounded-full text-label-xs-caps {{if eq .Status "Complete"}}bg-ink text-canvas{{else if .Active}}bg-mint-vibrant text-ink{{else}}bg-surface-container-highest text-text-tertiary{{end}}">{{.Index}}</span>{{.Label}}</span>
-        {{if .Manual}}<span class="material-symbols-outlined msz-16 text-text-tertiary" title="{{$.L.T "pipeline.manual_gate_title"}}">how_to_reg</span>{{end}}
+    {{range .Building}}
+    <div class="flex items-center gap-3 rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
+      <span class="material-symbols-outlined animate-spin text-text-tertiary">autorenew</span>
+      <span class="font-semibold text-ink">{{.Title}}</span><span class="text-label-md text-text-tertiary">{{$.L.T "page.pipeline.building"}}</span>
+    </div>
+    {{end}}
+    {{range .Draft}}
+    <div class="flex flex-col gap-3 rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">{{if .Error}}<span class="tag bad">{{$.L.T "page.pipeline.failed"}}</span>{{else}}<span class="tag">{{$.L.T "page.pipeline.draft"}}</span>{{end}}<span class="truncate font-semibold text-ink">{{.Title}}</span></div>
+        {{if .Error}}<div class="mt-1 font-mono text-code-inline text-status-error">{{.Error}}</div>{{else}}<div class="mt-1 text-label-md text-text-tertiary">{{.Author}}</div>{{end}}
       </div>
-      <div class="flex flex-1 flex-col gap-3 p-4">
-        <div class="text-label-md text-text-tertiary">{{$.L.T "pipeline.group_label"}} <code class="text-text-secondary">{{.Group}}</code></div>
-        <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container-high"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
-        <div class="text-label-md text-text-tertiary"><span class="font-mono text-ink">{{.OnTarget}}</span> / <span class="font-mono">{{.Total}}</span> {{$.L.T "pipeline.on_target"}}</div>
-        <div class="mt-auto">
-          {{if .Await}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined msz-16">how_to_reg</span>{{$.L.T "rollout.awaiting_approval"}}</span>
-            {{if $.CanOwn}}<form method="post" action="/rollout/approve" class="mt-2 inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="w-full !bg-mint-vibrant !text-ink">{{$.L.T "rollout.approve_promote"}}</button></form>{{end}}
-          {{else if eq .Status "Complete"}}<span class="flex items-center gap-1 text-text-secondary"><span class="material-symbols-outlined msz-16">check_circle</span>{{$.L.T "rollout.complete_label"}}</span>
-          {{else if eq .Status "Deploying"}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined msz-16">sync</span>{{$.L.T "rollout.deploying_label"}}</span>
-          {{else if eq .Status "Soaking"}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined msz-16">schedule</span>{{$.L.T "rollout.soaking_label"}}</span>
-          {{else if eq .Status "Planned"}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined msz-16">pending</span>{{$.L.T "pipeline.planned_label"}}</span>
-          {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined msz-16">lock</span>{{$.L.T "rollout.queued_label"}}</span>{{end}}
-        </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <a href="/changes/{{.ID}}/diff" class="btn quiet !py-1.5">{{$.L.T "page.pipeline.view_diff"}}</a>
+        {{if $.CanEdit}}<form method="post" action="/changes/{{.ID}}/submit" class="!m-0"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">play_arrow</span>{{$.L.T "page.pipeline.submit"}}</button></form>{{end}}
+        {{if $.CanEdit}}<form method="post" action="/changes/{{.ID}}/abandon" class="!m-0" onsubmit="return confirm('{{$.L.T "page.pipeline.reject"}}?')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="btn quiet !py-1.5 !text-status-error">{{$.L.T "page.pipeline.reject"}}</button></form>{{end}}
       </div>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="rounded-lg border border-border-hairline bg-canvas p-6 text-center shadow-sm">
+    <p class="mb-1 text-body-md text-text-secondary">{{.L.T "page.pipeline.no_review"}}</p>
+    <p class="muted mb-0">{{.L.T "page.pipeline.make_change_hint"}}</p>
+  </div>
+  {{end}}
+</section>
+
+<!-- Step 2: roll the current revision out to the fleet, in waves -->
+<section>
+  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-label-xs-caps font-bold text-canvas">2</span>{{.L.T "page.pipeline.roll_out"}}</h2>
+  {{if not .HasPlan}}
+  <div class="rounded-lg border border-dashed border-border-soft bg-canvas p-6 text-center">
+    <p class="mb-1 text-body-md text-text-secondary">{{.L.T "page.pipeline.no_plan"}}</p>
+    <p class="muted mb-0">{{.L.T "page.pipeline.no_plan_hint"}}</p>
+  </div>
+  {{else}}
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+    {{if .Active}}
+    <div class="mb-4 flex items-center gap-2"><span class="material-symbols-outlined animate-spin text-mint-deep">autorenew</span><span class="font-semibold text-ink">{{.L.T "page.pipeline.active_rollout"}}</span>{{with .State}}<span class="font-mono text-code-inline text-text-tertiary">{{short .Target}}</span>{{end}}</div>
+    <div class="flex flex-col gap-2">
+      {{range .Waves}}
+      <div class="flex items-center gap-3 rounded-md border border-border-hairline p-3">
+        <span class="w-32 shrink-0 truncate text-label-md font-medium text-ink">{{.Label}}</span>
+        <div class="h-2 flex-1 overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
+        <span class="w-28 shrink-0 text-right text-label-md {{if .Active}}font-semibold text-mint-deep{{else}}text-text-tertiary{{end}}">{{.Status}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>
+      </div>
+      {{end}}
+    </div>
+    {{if .CanOwn}}
+    <div class="mt-4 flex items-center gap-2">
+      <form method="post" action="/rollout/approve" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">done_all</span>{{.L.T "page.pipeline.approve_wave"}}</button></form>
+      <form method="post" action="/rollout/cancel" class="!m-0" onsubmit="return confirm('{{.L.T "page.pipeline.cancel"}}?')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5 !text-status-error">{{.L.T "page.pipeline.cancel"}}</button></form>
     </div>
     {{end}}
     {{else}}
-    <div class="flex w-80 shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-hairline p-6 text-center">
-      <span class="material-symbols-outlined msz-22 text-text-tertiary">rocket_launch</span>
-      <p class="muted mb-0">{{.L.T "pipeline.no_waves_pre"}} <a href="/rollout" class="text-secondary">{{.L.T "nav.rollout"}}</a> {{.L.T "pipeline.no_waves_post"}}</p>
+    <p class="mb-4 text-body-md text-text-secondary">{{.L.T "page.pipeline.roll_out_hint"}}</p>
+    <div class="mb-4 flex flex-col gap-2">
+      {{$ := .}}
+      {{range .Waves}}
+      <div class="flex items-center gap-3 rounded-md border border-border-hairline p-3">
+        <span class="material-symbols-outlined msz-16 text-text-tertiary">group_work</span>
+        <span class="flex-1 text-label-md text-ink">{{.Label}}</span>
+        {{if .Manual}}<span class="tag">{{$.L.T "page.pipeline.manual_gate"}}</span>{{end}}
+      </div>
+      {{end}}
     </div>
+    {{if .CanOwn}}
+    <form method="post" action="/rollout" class="!m-0">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="target" value="{{.MainRev}}">
+      <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{short .MainRev}}</button>
+    </form>
     {{end}}
-
+    {{end}}
   </div>
-</div>
-
-{{if .State}}
-<p class="mt-2 text-body-md text-text-tertiary">{{.L.T "pipeline.rolling_out"}} <code class="rounded bg-surface-container px-2 py-0.5 text-ink">{{.State.Target}}</code> | {{.L.T "pipeline.status_word"}} {{.State.Status}}. {{.L.T "pipeline.manage_pre"}} <a href="/rollout" class="text-secondary">{{.L.T "nav.rollout"}}</a> {{.L.T "pipeline.manage_post"}}</p>
-{{end}}
+  {{end}}
+</section>
 {{end}}

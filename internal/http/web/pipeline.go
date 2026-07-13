@@ -96,12 +96,15 @@ func (s *Server) pipelinePage(w http.ResponseWriter, r *http.Request, v view) {
 		}
 	}
 
+	head := s.svc.Config.Head(r.Context())
 	data := map[string]any{
-		"Title": "Pipeline", "Nav": "pipeline",
+		"Title": "Delivery", "Nav": "pipeline",
 		"Draft": draft, "Building": building, "Ready": ready,
 		"Waves":   waves,
 		"State":   st,
 		"Active":  active,
+		"MainRev": head,
+		"HasPlan": f.Rollout != nil && len(f.Rollout.Rings) > 0,
 		"CanEdit": v.roleAt("org").Meets(identity.Editor),
 		"CanOwn":  v.roleAt("org").Meets(identity.Owner),
 	}

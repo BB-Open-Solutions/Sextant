@@ -66,6 +66,24 @@ func NewConfigService(repo ports.ConfigRepo, gate ports.Gate) (*ConfigService, e
 // and immutable; mutate only through Apply.
 func (s *ConfigService) Fleet() *fleet.Fleet { return s.snap.Load().fleet }
 
+// Head returns the current HEAD revision of the config repo - the revision a
+// rollout ships. Empty string when the repo cannot report it (Head lives on
+// the branch/ref side of the adapter, so type-assert rather than widen the
+// ConfigRepo port).
+func (s *ConfigService) Head(ctx context.Context) string {
+	h, ok := s.repo.(interface {
+		Head(context.Context) (string, error)
+	})
+	if !ok {
+		return ""
+	}
+	rev, err := h.Head(ctx)
+	if err != nil {
+		return ""
+	}
+	return rev
+}
+
 // Catalog returns the settings vocabulary snapshot (never nil).
 func (s *ConfigService) Catalog() *fleet.Catalog { return s.snap.Load().catalog }
 
