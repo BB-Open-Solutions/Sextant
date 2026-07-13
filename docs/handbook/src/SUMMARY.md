@@ -4,6 +4,7 @@
 
 # Operators
 
+- [Install and configure Sextant](./operators/deploy.md)
 - [Set up an imaging station (NUC)](./operators/station-nuc.md)
 - [Image a device from the console](./operators/image-devices.md)
 - [Update, retire and wipe](./operators/lifecycle.md)

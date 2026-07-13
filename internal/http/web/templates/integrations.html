@@ -44,8 +44,8 @@
             {{else if eq .Entry.Widget "select"}}
               <select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}} disabled>inherit</option>{{range .Entry.Options}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select>
             {{else if eq .Entry.Widget "secret"}}
-              {{if $.SecretRefs}}<select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}}>none</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select>
-              {{else}}<span class="text-body-sm text-text-tertiary">no secrets registered - <a href="/secrets" class="text-secondary">register one</a></span>{{end}}
+              {{if $.SecretRefs}}<select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}}>none</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{slug .Entry.Name}}" class="text-label-md text-secondary whitespace-nowrap" title="Register a new secret reference">+ new</a>
+              {{else}}<span class="text-body-sm text-text-tertiary">no secrets registered - <a href="/secrets?name={{slug .Entry.Name}}" class="text-secondary">register one</a></span>{{end}}
             {{else if eq .Entry.Widget "number"}}
               <input type="number" name="value" value="{{if .Set}}{{.Value}}{{end}}" placeholder="inherit" class="min-w-0 flex-1">
             {{else}}

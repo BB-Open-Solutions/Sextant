@@ -82,6 +82,9 @@ func New(svc Services, sessions Sessions, write bool,
 	funcs := template.FuncMap{
 		"list":      func(items ...any) []any { return items },
 		"hasPrefix": strings.HasPrefix,
+		// slug turns a setting key into a suggested secret-reference name, so a
+		// secret field can deep-link to the Secrets page prefilled.
+		"slug": slugify,
 		// initial is the uppercase first letter of a name, for the avatar
 		// fallback when no profile photo is available.
 		"initial": func(s string) string {

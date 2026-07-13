@@ -1,0 +1,9 @@
+# Language-stat overrides for the forge (go-enry / linguist).
+# Generated build output must not count toward the repository's language stats.
+
+# Tailwind build output (minified, regenerated from styles/).
+internal/http/web/static/app.css linguist-generated=true
+
+# Rust build artefacts are not tracked (agent/.gitignore), but guard against
+# any that slip in so they never register as a language.
+agent/target/** linguist-generated=true

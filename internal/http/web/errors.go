@@ -12,6 +12,34 @@ import (
 // errors.go: authorization checks and how a failed action is turned into a
 // safe, classified response.
 
+// slugify reduces s to a secret-reference name: lowercase, non-alphanumerics
+// become single hyphens, trimmed. Matches the secret name pattern the Secrets
+// page enforces ([a-z0-9][a-z0-9-]*).
+func slugify(s string) string {
+	var b []rune
+	prevHyphen := true // avoid a leading hyphen
+	for _, r := range s {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			b = append(b, r+('a'-'A'))
+			prevHyphen = false
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+			b = append(b, r)
+			prevHyphen = false
+		default:
+			if !prevHyphen {
+				b = append(b, '-')
+				prevHyphen = true
+			}
+		}
+	}
+	out := string(b)
+	for len(out) > 0 && out[len(out)-1] == '-' {
+		out = out[:len(out)-1]
+	}
+	return out
+}
+
 // webForbidden marks an authorization failure so the action wrapper can answer
 // 403 (not a generic 400) and show the reason as-is - it carries no internals.
 type webForbidden struct{ msg string }

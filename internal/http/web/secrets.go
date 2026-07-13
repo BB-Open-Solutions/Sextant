@@ -34,8 +34,11 @@ func (s *Server) secretsPage(w http.ResponseWriter, r *http.Request, v view) {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
 	s.render(w, "secrets", map[string]any{
 		"Title": "Secrets", "Nav": "secrets",
-		"Refs":   rows,
-		"CanOwn": v.roleAt("org").Meets(identity.Owner),
+		"Refs": rows,
+		// Prefill the create form when a secret field deep-links here with a
+		// suggested name (?name=), so registering a reference is one click.
+		"Prefill": slugify(r.URL.Query().Get("name")),
+		"CanOwn":  v.roleAt("org").Meets(identity.Owner),
 	}, v)
 }
 
