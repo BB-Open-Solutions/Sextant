@@ -67,7 +67,8 @@
   {{if not .HasPlan}}
   <div class="rounded-lg border border-dashed border-border-soft bg-canvas p-6 text-center">
     <p class="mb-1 text-body-md text-text-secondary">{{.L.T "page.pipeline.no_plan"}}</p>
-    <p class="muted mb-0">{{.L.T "page.pipeline.no_plan_hint"}}</p>
+    <p class="muted mb-3">{{.L.T "page.pipeline.no_plan_hint"}}</p>
+    {{if .CanOwn}}<a href="/rollout" class="btn"><span class="material-symbols-outlined msz-18">tune</span>{{.L.T "page.pipeline.set_procedure"}}</a>{{end}}
   </div>
   {{else}}
   <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">

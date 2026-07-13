@@ -293,7 +293,14 @@ func (d *deps) stationCapability() capability.Capability {
 		RoutesFn: func(mux *http.ServeMux) {
 			inner := http.NewServeMux()
 			api.NewStation(d.discovery, d.imaging, d.devCreds, d.staCreds, d.cfg.CheckinToken, d.log).Routes(inner)
+			// report is the high-frequency device beat: rate-limit it. The job
+			// endpoints (the station runner claims work and reports status) are
+			// low-frequency and must also be reachable - mount them too, or a
+			// dispatched image job can never be claimed (it 404s).
 			mux.Handle("POST /api/station/{tag}/report", mw.RateLimit(rate.Limit(5), 10)(inner))
+			mux.Handle("GET /api/station/{tag}/jobs", inner)
+			mux.Handle("POST /api/station/{tag}/jobs/claim", inner)
+			mux.Handle("POST /api/station/{tag}/jobs/{mac}/status", inner)
 		},
 	}
 }
