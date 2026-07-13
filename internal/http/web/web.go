@@ -51,6 +51,7 @@ type Services struct {
 	Notify       *app.NotifyService
 	Mail         *app.MailService
 	Users        ports.UserDirectory
+	Compliance   *app.ComplianceService
 }
 
 // Server renders the console.

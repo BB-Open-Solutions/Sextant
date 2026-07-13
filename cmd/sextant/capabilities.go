@@ -58,10 +58,11 @@ type deps struct {
 	prefs     ports.PrefsStore
 	dir       ports.Directory
 	evidence  *app.EvidenceService
-	notify    *app.NotifyService
-	mail      *app.MailService
-	users     ports.UserDirectory
-	authz     api.Authz
+	notify     *app.NotifyService
+	mail       *app.MailService
+	users      ports.UserDirectory
+	compliance *app.ComplianceService
+	authz      api.Authz
 	cleanup   []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
 	// can wait for them to observe cancellation - they end in git commits, and
@@ -193,6 +194,9 @@ func (d *deps) buildConfigPlane() error {
 			return strings.TrimSpace(string(b)), nil
 		}
 		d.mail = app.NewMailService(pg, smtpadapter.New(10*time.Second), sealer, readRef, app.DefaultTenant)
+		// Compliance/incidents read the observed plane, so they light up with
+		// Postgres alongside the inventory service.
+		d.compliance = app.NewComplianceService(d.svc, d.inv, clock)
 		// Deliver notifications by e-mail too: the seen-users directory (pg)
 		// resolves a recipient or audience to addresses; ConsoleURL makes the
 		// mail clickable. Delivery is best-effort and off the emitter's path.
@@ -356,7 +360,7 @@ func (d *deps) consoleCapability() capability.Capability {
 					Inventory: d.inv, Tokens: d.tokens, Prefs: d.prefs,
 					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence,
 					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds,
-					Notify: d.notify, Mail: d.mail, Users: d.users},
+					Notify: d.notify, Mail: d.mail, Users: d.users, Compliance: d.compliance},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {
