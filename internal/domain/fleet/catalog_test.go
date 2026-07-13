@@ -82,7 +82,7 @@ func TestCatalogWidgets(t *testing.T) {
 		{"signed integer", WidgetNumber},
 		{`one of "a", "b"`, WidgetSelect},
 		{"string", WidgetText},
-		{"list of string", WidgetText},
+		{"list of string", WidgetCode},
 	}
 	for _, tc := range cases {
 		if got := (CatalogEntry{Type: tc.typ}).Widget(); got != tc.want {

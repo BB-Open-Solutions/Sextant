@@ -23,6 +23,7 @@ type settingRow struct {
 	Entry    fleet.CatalogEntry
 	Set      bool   // a value exists at exactly this scope
 	Value    string // that value, rendered
+	Lines    string // list values, one item per line, for the code editor
 	Enforced bool
 	Resolved string // device scope only: effective value after the chain
 	Source   string // device scope only: which scope/policy won
@@ -67,6 +68,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 			row := settingRow{Entry: e, Enforced: locked[e.Name]}
 			if val, has := own[e.Name]; has {
 				row.Set, row.Value = true, renderValue(val)
+				row.Lines = valueLines(val)
 			}
 			if res, has := resolved[e.Name]; has {
 				row.Resolved, row.Source = renderValue(res.Value), res.Source.String()
@@ -205,6 +207,24 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
 	return nil
+}
+
+// valueLines renders a list-valued setting as one item per line, so the code
+// editor shows it the way it is edited. Non-list values yield "".
+func valueLines(v any) string {
+	items, ok := v.([]any)
+	if !ok {
+		return ""
+	}
+	parts := make([]string, 0, len(items))
+	for _, it := range items {
+		if s, ok := it.(string); ok {
+			parts = append(parts, s)
+		} else {
+			parts = append(parts, fmt.Sprintf("%v", it))
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 // renderValue displays a settings value compactly (JSON keeps strings

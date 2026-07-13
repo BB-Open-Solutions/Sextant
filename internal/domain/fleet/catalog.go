@@ -62,6 +62,7 @@ const (
 	WidgetSelect Widget = "select" // enums ("one of ...")
 	WidgetText   Widget = "text"   // everything else
 	WidgetSecret Widget = "secret" // secret-reference picker (never a value)
+	WidgetCode   Widget = "code"   // list-valued: a multi-line editor, one item per line
 )
 
 // Widget derives the control from the nix type description. A secret option
@@ -79,6 +80,10 @@ func (e CatalogEntry) Widget() Widget {
 		return WidgetNumber
 	case strings.HasPrefix(t, "one of"):
 		return WidgetSelect
+	case strings.HasPrefix(t, "list of"):
+		// A list needs a multi-line editor so it stores a real array, not a
+		// single string the gate would reject on type.
+		return WidgetCode
 	default:
 		return WidgetText
 	}
@@ -155,6 +160,20 @@ func (e CatalogEntry) ParseValue(s string) (any, error) {
 			}
 		}
 		return nil, fmt.Errorf("%s must be one of %v", e.Name, e.Options())
+	case WidgetCode:
+		// A list, one item per line (blank lines dropped). Stored as a real
+		// array so the generator emits a nix list; the gate still type-checks
+		// the elements.
+		out := []string{}
+		for _, line := range strings.Split(s, "\n") {
+			if v := strings.TrimSpace(line); v != "" {
+				out = append(out, v)
+			}
+		}
+		if len(out) == 0 {
+			return nil, fmt.Errorf("%s expects at least one item, one per line", e.Name)
+		}
+		return out, nil
 	default:
 		return s, nil
 	}

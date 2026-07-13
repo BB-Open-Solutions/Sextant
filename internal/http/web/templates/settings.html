@@ -82,6 +82,8 @@
           {{else}}<span class="muted">no secrets registered - <a href="/secrets" class="text-secondary">register one</a></span>{{end}}
         {{else if eq $row.Entry.Widget "number"}}
           <input type="number" name="value" form="{{$fid}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="inherit">
+        {{else if eq $row.Entry.Widget "code"}}
+          <textarea name="value" form="{{$fid}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md" placeholder="one item per line (inherit if empty)">{{if $row.Set}}{{$row.Lines}}{{end}}</textarea>
         {{else}}
           <input name="value" form="{{$fid}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="inherit">
         {{end}}
