@@ -1,0 +1,112 @@
+package app
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/notify"
+)
+
+// fakeNotifyStore is an in-memory ports.NotifyStore for service tests.
+type fakeNotifyStore struct {
+	added []notify.Notification
+	read  map[string]bool // notifID+subject -> read
+}
+
+func newFakeNotifyStore() *fakeNotifyStore {
+	return &fakeNotifyStore{read: map[string]bool{}}
+}
+
+func (f *fakeNotifyStore) Add(_ context.Context, n notify.Notification) error {
+	f.added = append(f.added, n)
+	return nil
+}
+
+func (f *fakeNotifyStore) ListFor(_ context.Context, tenant, subject string, memberships []string, limit int) ([]notify.Notification, error) {
+	var out []notify.Notification
+	for _, n := range f.added {
+		if n.Tenant == tenant && n.ForReader(subject, memberships) {
+			n.Read = f.read[n.ID+subject]
+			out = append(out, n)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeNotifyStore) UnreadCount(ctx context.Context, tenant, subject string, memberships []string) (int, error) {
+	items, _ := f.ListFor(ctx, tenant, subject, memberships, 0)
+	c := 0
+	for _, n := range items {
+		if !n.Read {
+			c++
+		}
+	}
+	return c, nil
+}
+
+func (f *fakeNotifyStore) MarkRead(_ context.Context, _, id, subject string) error {
+	f.read[id+subject] = true
+	return nil
+}
+
+func (f *fakeNotifyStore) MarkAllRead(ctx context.Context, tenant, subject string, memberships []string) error {
+	items, _ := f.ListFor(ctx, tenant, subject, memberships, 0)
+	for _, n := range items {
+		f.read[n.ID+subject] = true
+	}
+	return nil
+}
+
+func TestNotifyServiceEmitStampsAndValidates(t *testing.T) {
+	store := newFakeNotifyStore()
+	when := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
+	svc := NewNotifyService(store, clockAt{when}, "acme")
+
+	// A caller-built notification is stamped with id, tenant and time.
+	if err := svc.Emit(context.Background(), notify.Notification{
+		Recipient: "user-1", Kind: notify.ChangeMerged, Title: "Merged: x",
+	}); err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+	if len(store.added) != 1 {
+		t.Fatalf("want 1 stored, got %d", len(store.added))
+	}
+	got := store.added[0]
+	if got.ID == "" || got.Tenant != "acme" || !got.CreatedAt.Equal(when) {
+		t.Fatalf("emit did not stamp fields: %+v", got)
+	}
+
+	// A notification that fails domain validation is rejected, not stored.
+	if err := svc.Emit(context.Background(), notify.Notification{Kind: notify.ChangeMerged}); err == nil {
+		t.Fatal("want validation error for notification with no title/recipient")
+	}
+	if len(store.added) != 1 {
+		t.Fatalf("invalid notification was stored: %d", len(store.added))
+	}
+}
+
+func TestNotifyServiceReadFlow(t *testing.T) {
+	store := newFakeNotifyStore()
+	svc := NewNotifyService(store, clockAt{time.Unix(0, 0).UTC()}, "acme")
+	ctx := context.Background()
+
+	// One direct, one to a group the reader is in.
+	_ = svc.Emit(ctx, notify.Notification{Recipient: "u", Kind: notify.GateFailed, Title: "a"})
+	_ = svc.Emit(ctx, notify.Notification{Audience: "approvers", Kind: notify.ApprovalNeeded, Title: "b"})
+
+	if n, _ := svc.Unread(ctx, "u", []string{"approvers"}); n != 2 {
+		t.Fatalf("want 2 unread, got %d", n)
+	}
+	// A reader not in the audience only sees their direct one.
+	if n, _ := svc.Unread(ctx, "u", nil); n != 1 {
+		t.Fatalf("want 1 unread without membership, got %d", n)
+	}
+
+	if err := svc.MarkAllRead(ctx, "u", []string{"approvers"}); err != nil {
+		t.Fatalf("mark all: %v", err)
+	}
+	if n, _ := svc.Unread(ctx, "u", []string{"approvers"}); n != 0 {
+		t.Fatalf("want 0 unread after mark-all, got %d", n)
+	}
+}

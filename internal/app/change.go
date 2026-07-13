@@ -8,8 +8,16 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/notify"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
+
+// Notifier receives fleet events the change flow raises (a change is ready to
+// review, a build failed, a change merged). Delivery is best-effort: an emit
+// error never fails the change operation that triggered it.
+type Notifier interface {
+	Emit(ctx context.Context, n notify.Notification) error
+}
 
 // ChangeRepo is what the change flow needs from the git adapter: the plain
 // config-repo operations plus branches, worktrees and merges.
@@ -36,6 +44,12 @@ type ChangeService struct {
 	// cfg is refreshed after a merge so direct reads see the new config.
 	cfg *ConfigService
 
+	// notifier and approvers are optional: when set, the flow raises in-app
+	// notifications on ready/failed/merged. approvers are the groups whose
+	// members review changes (the ApprovalNeeded audience).
+	notifier  Notifier
+	approvers []string
+
 	mu sync.Mutex // serializes the whole change flow (branch/worktree ops)
 }
 
@@ -44,6 +58,24 @@ func NewChangeService(repo ChangeRepo, store ports.ChangeStore, gate ports.Gate,
 	builder ports.Builder, clock ports.Clock, open OpenWorktree, cfg *ConfigService) *ChangeService {
 	return &ChangeService{repo: repo, store: store, gate: gate,
 		builder: builder, clock: clock, open: open, cfg: cfg}
+}
+
+// WithNotifier attaches in-app notifications to the change flow. approvers are
+// the groups whose members are asked to review a ready change. Returns the
+// service for chaining at wiring time.
+func (s *ChangeService) WithNotifier(n Notifier, approvers []string) *ChangeService {
+	s.notifier = n
+	s.approvers = approvers
+	return s
+}
+
+// notify emits one best-effort notification; a nil notifier or an emit error
+// is silently ignored - a message must never fail the change operation.
+func (s *ChangeService) notify(ctx context.Context, n notify.Notification) {
+	if s.notifier == nil {
+		return
+	}
+	_ = s.notifier.Emit(ctx, n)
 }
 
 // worktreeDir is where a change's linked worktree lives: outside the main
@@ -145,10 +177,26 @@ func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error
 		if terr := cr.Transition(change.Failed, s.clock.Now()); terr != nil {
 			return change.CR{}, terr
 		}
+		if cr.AuthorSubject != "" {
+			s.notify(ctx, notify.Notification{
+				Recipient: cr.AuthorSubject, Kind: notify.GateFailed,
+				Title: fmt.Sprintf("Build failed: %s", cr.Title),
+				Body:  "The nix gate refused this change. Open it to see why and rework it.",
+				Link:  "/changes/" + cr.ID,
+			})
+		}
 	} else {
 		cr.Error = ""
 		if terr := cr.Transition(change.Ready, s.clock.Now()); terr != nil {
 			return change.CR{}, terr
+		}
+		for _, g := range s.approvers {
+			s.notify(ctx, notify.Notification{
+				Audience: g, Kind: notify.ApprovalNeeded,
+				Title: fmt.Sprintf("Review needed: %s", cr.Title),
+				Body:  fmt.Sprintf("%s submitted a change that passed the gate and awaits approval.", cr.Author),
+				Link:  "/changes/" + cr.ID,
+			})
 		}
 	}
 	return cr, s.store.Put(ctx, cr)
@@ -201,6 +249,16 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 		if err := s.repo.Push(ctx); err != nil {
 			return cr, fmt.Errorf("merged locally, push failed: %w", err)
 		}
+	}
+	// Tell the author their change landed. The approver merged it, so the
+	// author (who may differ under four-eyes) learns of it here.
+	if cr.AuthorSubject != "" {
+		s.notify(ctx, notify.Notification{
+			Recipient: cr.AuthorSubject, Kind: notify.ChangeMerged,
+			Title: fmt.Sprintf("Merged: %s", cr.Title),
+			Body:  fmt.Sprintf("%s approved and merged your change. It will roll out with the next release.", a.Name),
+			Link:  "/changes/" + cr.ID,
+		})
 	}
 	return cr, nil
 }

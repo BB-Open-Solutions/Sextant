@@ -46,6 +46,7 @@ type Services struct {
 	Discovery    *app.DiscoveryService
 	Imaging      *app.ImagingService
 	StationCreds *app.StationCredentials
+	Notify       *app.NotifyService
 }
 
 // Server renders the console.
@@ -154,7 +155,7 @@ func New(svc Services, sessions Sessions, write bool,
 			return fmt.Sprintf("gd-%d", depth)
 		},
 	}
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "integrations", "overlays", "error"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "integrations", "overlays", "notifications", "error"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -207,7 +208,10 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/secrets", s.secretsPage)
 	get("/service-accounts", s.serviceAccountsPage)
 	get("/profile", s.profilePage)
+	get("/notifications", s.notificationsPage)
 
+	post("/notifications/read-all", s.postNotificationsReadAll)
+	post("/notifications/{id}/read", s.postNotificationRead)
 	post("/devices", s.postDeviceEnroll)
 	post("/devices/{tag}/settings", s.postDeviceSetting)
 	post("/devices/{tag}/posture", s.postDevicePosture)
@@ -263,10 +267,11 @@ func (s *Server) Routes(mux *http.ServeMux) {
 
 // view is the per-request context every page gets.
 type view struct {
-	User identity.User
-	CSRF string
-	L    Localizer
-	rv   identity.Resolver
+	User   identity.User
+	CSRF   string
+	L      Localizer
+	Unread int // unread notifications, for the header bell badge
+	rv     identity.Resolver
 }
 
 func (v view) roleAt(ref string) identity.Role { return v.rv.RoleAt(v.User, ref) }
@@ -300,7 +305,15 @@ func (s *Server) authed(w http.ResponseWriter, r *http.Request) (view, bool) {
 		}
 	}
 	l := newLocalizer(prefs, s.defaultLocale, s.defaultTZ)
-	return view{User: u, CSRF: csrf, L: l, rv: rv}, true
+	v := view{User: u, CSRF: csrf, L: l, rv: rv}
+	// Bell badge: best-effort unread count. A store error leaves the badge at
+	// zero rather than blocking the page - notifications are never load-bearing.
+	if s.svc.Notify != nil {
+		if n, err := s.svc.Notify.Unread(r.Context(), u.Subject, u.Groups); err == nil {
+			v.Unread = n
+		}
+	}
+	return v, true
 }
 
 // page wraps a GET handler with session auth.
@@ -355,6 +368,8 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 	data["User"] = v.User
 	data["CSRF"] = v.CSRF
 	data["L"] = v.L
+	data["Unread"] = v.Unread
+	data["HasNotify"] = s.svc.Notify != nil
 	// Org-wide pages (changes, rollout) refuse scoped viewers; hide the
 	// links instead of offering a door that only opens with a 403.
 	data["CanOrgView"] = v.canView("org")

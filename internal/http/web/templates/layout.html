@@ -85,6 +85,12 @@
         <span class="font-semibold text-ink">{{.Title}}</span>
       </nav>
       <div class="flex items-center gap-2">
+        {{if .HasNotify}}
+        <a href="/notifications" class="relative flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-container hover:text-ink {{if eq .Nav "notifications"}}bg-surface-container text-ink{{end}}" title="Notifications" aria-label="Notifications{{if .Unread}} ({{.Unread}} unread){{end}}">
+          <span class="material-symbols-outlined msz-20">notifications</span>
+          {{if .Unread}}<span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-error px-1 text-[10px] font-bold leading-none text-canvas">{{if gt .Unread 99}}99+{{else}}{{.Unread}}{{end}}</span>{{end}}
+        </a>
+        {{end}}
         <a href="/enroll" class="btn quiet !py-1.5" title="Enroll a device"><span class="material-symbols-outlined msz-18">cable</span><span class="hidden sm:inline">Enroll device</span></a>
         {{if .CanOrgView}}
         <a href="/changes" class="btn quiet !py-1.5" title="Review pending changes"><span class="material-symbols-outlined msz-18">difference</span><span class="hidden sm:inline">Changes</span></a>

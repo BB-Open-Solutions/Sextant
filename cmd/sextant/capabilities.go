@@ -54,6 +54,7 @@ type deps struct {
 	prefs     ports.PrefsStore
 	dir       ports.Directory
 	evidence  *app.EvidenceService
+	notify    *app.NotifyService
 	authz     api.Authz
 	cleanup   []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
@@ -161,6 +162,11 @@ func (d *deps) buildConfigPlane() error {
 		d.imaging = app.NewImagingService(pg.ImageJobs(), clock, app.DefaultTenant)
 		d.staCreds = app.NewStationCredentials(pg.Tokens(), clock)
 		d.prefs = pg
+		// In-app notifications need durable storage, so they light up only with
+		// Postgres. The change flow then tells approvers a change is ready and
+		// authors when it merges or the gate rejects it.
+		d.notify = app.NewNotifyService(pg, clock, app.DefaultTenant)
+		d.changes.WithNotifier(d.notify, cfg.OwnerGroups)
 		d.authz.Tokens = d.tokens // scoped tokens (ADR 0008); break-glass token still works
 		conv = pg.NewConvergence(app.DefaultTenant, func(group string) []string {
 			// Convergence is scoped to the wave's RELEASED devices: the whole
@@ -312,7 +318,8 @@ func (d *deps) consoleCapability() capability.Capability {
 				web.Services{Config: d.svc, Changes: d.changes, Rollouts: d.rollouts,
 					Inventory: d.inv, Tokens: d.tokens, Prefs: d.prefs,
 					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence,
-					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds},
+					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds,
+					Notify: d.notify},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {

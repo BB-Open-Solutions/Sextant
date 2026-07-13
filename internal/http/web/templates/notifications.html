@@ -1,0 +1,51 @@
+{{define "content"}}
+<div class="mb-8 flex items-end justify-between gap-4">
+  <div>
+    <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">notifications</span>Notifications</h1>
+    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">Approvals waiting on you, changes you authored, and fleet events. Opening one marks it read.</p>
+  </div>
+  {{if .Items}}
+  <form method="post" action="/notifications/read-all">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="btn quiet !py-1.5"><span class="material-symbols-outlined msz-18">done_all</span>Mark all read</button>
+  </form>
+  {{end}}
+</div>
+
+{{if .Unavailable}}
+<div class="rounded-lg border border-dashed border-border-soft bg-canvas p-8 text-center text-body-md text-text-tertiary">
+  Notifications need the Postgres store, which is not configured on this instance.
+</div>
+{{else if not .Items}}
+<div class="rounded-lg border border-border-hairline bg-canvas p-10 text-center shadow-sm">
+  <span class="material-symbols-outlined mb-2 text-4xl text-text-tertiary/60">inbox</span>
+  <p class="mb-0 text-body-md text-text-tertiary">You're all caught up. Nothing to read.</p>
+</div>
+{{else}}
+<div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <ul class="divide-y divide-border-soft">
+    {{$ := .}}
+    {{range .Items}}
+    <li class="{{if not .Read}}bg-mint-vibrant/5{{end}}">
+      <form method="post" action="/notifications/{{.ID}}/read" class="!m-0">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="to" value="{{.Link}}">
+        <button type="submit" class="flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-bright">
+          <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-container-highest"><span class="material-symbols-outlined msz-18 {{.Tone}}">{{.Icon}}</span></span>
+          <span class="min-w-0 flex-1">
+            <span class="flex items-center gap-2">
+              <span class="truncate text-label-md font-semibold text-ink">{{.Title}}</span>
+              {{if not .Read}}<span class="h-2 w-2 shrink-0 rounded-full bg-mint-vibrant" title="Unread"></span>{{end}}
+            </span>
+            {{with .Body}}<span class="mt-0.5 block text-body-sm text-text-secondary">{{.}}</span>{{end}}
+            <span class="mt-1 block text-label-xs-caps uppercase text-text-tertiary">{{$.L.Time .When}}</span>
+          </span>
+          {{if .Link}}<span class="material-symbols-outlined msz-18 mt-1 shrink-0 text-text-tertiary">chevron_right</span>{{end}}
+        </button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+</div>
+{{end}}
+{{end}}
