@@ -28,6 +28,12 @@ pub const LOCK_FLAG: &str = "/var/lib/sextant-agent/locked";
 pub fn react(root: &Path, intent: &str) {
     match intent {
         "lock" => lock(root),
+        "reboot" => {
+            // Operator-triggered one-shot reboot (provisioning wizard: reach the
+            // BIOS for a Secure Boot / TPM2 firmware step). Non-destructive; the
+            // root executor performs the reboot, the agent only records the request.
+            spool(root, "reboot");
+        }
         "wipe" => {
             spool(root, "wipe");
             eprintln!(
@@ -117,6 +123,17 @@ mod tests {
         assert!(root
             .join(SPOOL.trim_start_matches('/'))
             .join("wipe.intent")
+            .exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn reboot_spools_for_the_executor() {
+        let root = tmp("reboot");
+        react(&root, "reboot");
+        assert!(root
+            .join(SPOOL.trim_start_matches('/'))
+            .join("reboot.intent")
             .exists());
         let _ = fs::remove_dir_all(&root);
     }

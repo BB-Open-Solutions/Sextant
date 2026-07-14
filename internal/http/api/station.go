@@ -6,11 +6,21 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/secret"
 )
+
+// secretSink seals a per-device secret. Optional on the station API: nil or a
+// disabled sink just skips sealing (and the key is not persisted, logged loudly).
+// Implemented by app.DeviceSecretsService.
+type secretSink interface {
+	Enabled() bool
+	Store(ctx context.Context, tag string, kind secret.Kind, plaintext, createdBy string) error
+}
 
 // StationAuthenticator verifies a per-station credential against a claimed
 // station tag (ADR 0008). Implemented by app.StationCredentials.
@@ -35,9 +45,18 @@ type StationAPI struct {
 	svc      *app.DiscoveryService
 	imaging  *app.ImagingService
 	devCreds deviceCredIssuer
+	secrets  secretSink // optional: seals a reported LUKS key at install
 	stations StationAuthenticator
 	shared   string // shared bridge token; "" disables it
 	log      *slog.Logger
+}
+
+// WithSecrets wires the per-device secret store so an installed device's LUKS
+// recovery key is sealed at rest instead of kept in the job message. Returns
+// the receiver for chaining at construction.
+func (s *StationAPI) WithSecrets(sink secretSink) *StationAPI {
+	s.secrets = sink
+	return s
 }
 
 // NewStation builds the station-report surface. At least one auth source must
@@ -180,26 +199,87 @@ func (s *StationAPI) handleJobStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	mac := r.PathValue("mac")
 	var in struct {
-		Status  string `json:"status"`
-		Message string `json:"message,omitempty"`
+		Status   string `json:"status,omitempty"`
+		Message  string `json:"message,omitempty"`
+		Progress *int   `json:"progress,omitempty"`
+		Step     string `json:"step,omitempty"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := dec.Decode(&in); err != nil {
 		http.Error(w, "bad status body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	status := imaging.Status(in.Status)
-	if !status.Valid() {
-		http.Error(w, "unknown status "+in.Status, http.StatusBadRequest)
+
+	// A status transition (guarded) and a progress tick (display-only) arrive on
+	// the same endpoint. An empty status is a progress-only tick; a status change
+	// resets the step, so apply progress after the transition.
+	if in.Status != "" {
+		status := imaging.Status(in.Status)
+		if !status.Valid() {
+			http.Error(w, "unknown status "+in.Status, http.StatusBadRequest)
+			return
+		}
+		msg := in.Message
+		// A LUKS recovery key reported at install is sealed into the secret store
+		// and stripped from the message, so plaintext never lands in the job
+		// record. With no secret store configured it is KEPT in the message so an
+		// operator can copy the one-shot value into a password manager - the app
+		// works standalone (no key manager) as well as with secretbox / OpenBao.
+		if status == imaging.Installed {
+			if key, found := strings.CutPrefix(msg, imaging.LUKSRecoveryPrefix); found {
+				if s.sealLUKS(r.Context(), station, mac, key) {
+					msg = ""
+				}
+			}
+		}
+		if err := s.imaging.Report(r.Context(), station, mac, status, msg); err != nil {
+			s.log.Warn("station job status rejected", "station", station, "mac", mac, "status", status, "err", err)
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		s.log.Info("station job status", "station", station, "mac", mac, "status", status)
+	}
+	if in.Progress != nil || in.Step != "" {
+		p := 0
+		if in.Progress != nil {
+			p = *in.Progress
+		}
+		if err := s.imaging.ReportProgress(r.Context(), station, mac, p, in.Step); err != nil {
+			s.log.Warn("station job progress rejected", "station", station, "mac", mac, "err", err)
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+	}
+	if in.Status == "" && in.Progress == nil && in.Step == "" {
+		http.Error(w, "status report needs a status or progress", http.StatusBadRequest)
 		return
 	}
-	if err := s.imaging.Report(r.Context(), station, mac, status, in.Message); err != nil {
-		s.log.Warn("station job status rejected", "station", station, "mac", mac, "status", status, "err", err)
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	s.log.Info("station job status", "station", station, "mac", mac, "status", status)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// sealLUKS resolves the job's asset tag and seals the reported LUKS recovery
+// key into the per-device secret store. A missing or disabled store is logged
+// loudly (the key is not persisted) rather than silently dropped, so an operator
+// notices that recovery material is not being kept.
+// sealLUKS reports whether it sealed the key (so the caller keeps or drops the
+// plaintext message accordingly). A missing/disabled store or an unresolvable
+// tag returns false and is logged - the key then stays in the one-shot message.
+func (s *StationAPI) sealLUKS(ctx context.Context, station, mac, key string) bool {
+	if s.secrets == nil || !s.secrets.Enabled() {
+		s.log.Warn("LUKS recovery key reported but no secret store is configured; kept in the job message for one-shot copy", "station", station, "mac", mac)
+		return false
+	}
+	job, ok, err := s.imaging.Get(ctx, station, mac)
+	if err != nil || !ok {
+		s.log.Warn("cannot resolve tag to seal LUKS recovery key", "station", station, "mac", mac, "err", err)
+		return false
+	}
+	if err := s.secrets.Store(ctx, job.Tag, secret.LUKS, key, "station:"+station); err != nil {
+		s.log.Error("failed to seal LUKS recovery key", "tag", job.Tag, "err", err)
+		return false
+	}
+	s.log.Info("sealed LUKS recovery key", "station", station, "tag", job.Tag)
+	return true
 }
 
 // authStation resolves and authorizes the station from the path + bearer,

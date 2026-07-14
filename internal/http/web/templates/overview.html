@@ -67,6 +67,30 @@
       </div>
     </div>
 
+    <!-- Fleet capacity donut with a CPU / RAM / Disk switch (CSS-only, CSP-safe) -->
+    {{$cap := .Capacity}}
+    <div class="rounded-lg border border-border-hairline bg-canvas p-5">
+      <div class="mb-4 flex items-center justify-between">
+        <h3 class="mt-0 mb-0 text-label-xs-caps font-semibold uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.fleet_capacity"}}</h3>
+        <a href="/devices" class="text-label-md text-mint-deep hover:underline">{{.L.T "page.overview.view_details"}}</a>
+      </div>
+      {{if not $cap.Devices}}
+      <p class="muted mb-0">{{.L.T "page.overview.cap_no_data"}}</p>
+      {{else}}
+      <div class="flex flex-wrap items-center gap-1">
+        <input type="radio" name="capmetric" id="cap-cpu" class="peer/cpu sr-only" checked>
+        <input type="radio" name="capmetric" id="cap-ram" class="peer/ram sr-only">
+        <input type="radio" name="capmetric" id="cap-disk" class="peer/disk sr-only">
+        <label for="cap-cpu" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/cpu:border-ink peer-checked/cpu:bg-ink peer-checked/cpu:text-canvas">{{.L.T "page.overview.cap_cpu"}}</label>
+        <label for="cap-ram" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/ram:border-ink peer-checked/ram:bg-ink peer-checked/ram:text-canvas">{{.L.T "page.overview.cap_ram"}}</label>
+        <label for="cap-disk" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/disk:border-ink peer-checked/disk:bg-ink peer-checked/disk:text-canvas">{{.L.T "page.overview.cap_disk"}}</label>
+        <div class="hidden w-full pt-4 peer-checked/cpu:block">{{template "capPanel" (list $cap.CoreSeg $cap.Cores (.L.T "page.overview.cap_cores"))}}</div>
+        <div class="hidden w-full pt-4 peer-checked/ram:block">{{template "capPanel" (list $cap.RAMSeg $cap.RAMGB "GB")}}</div>
+        <div class="hidden w-full pt-4 peer-checked/disk:block">{{template "capPanel" (list $cap.DiskSeg $cap.DiskGB "GB")}}</div>
+      </div>
+      {{end}}
+    </div>
+
     <!-- Recent device activity -->
     <div>
       <div class="mb-3 flex items-center justify-between border-b border-border-hairline pb-2">
@@ -125,6 +149,31 @@
         {{end}}
       </div>
     </div>
+  </div>
+</div>
+{{end}}
+
+{{/* capPanel: a capacity donut + total + legend. args: [segments, total, unit] */}}
+{{define "capPanel"}}
+{{$segs := index . 0}}{{$total := index . 1}}{{$unit := index . 2}}
+<div class="flex items-center gap-8">
+  <div class="relative h-28 w-28 shrink-0">
+    <svg class="h-full w-full -rotate-90" viewBox="0 0 36 36">
+      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#eeeeee" stroke-width="3"></circle>
+      {{range $segs}}<circle cx="18" cy="18" r="15.915" fill="transparent" stroke="{{.Color}}" stroke-dasharray="{{.Dash}} 100" stroke-dashoffset="{{.Offset}}" stroke-width="3"></circle>{{end}}
+    </svg>
+    <div class="absolute inset-0 flex flex-col items-center justify-center">
+      <span class="text-headline-sm leading-none text-ink">{{$total}}</span>
+      <span class="text-label-xs-caps uppercase text-text-tertiary">{{$unit}}</span>
+    </div>
+  </div>
+  <div class="min-w-0 flex-1 space-y-1.5">
+    {{range $segs}}
+    <div class="flex items-center justify-between gap-2 text-body-sm">
+      <span class="flex min-w-0 items-center gap-2 text-text-secondary"><svg width="8" height="8" class="shrink-0"><circle cx="4" cy="4" r="4" fill="{{.Color}}"></circle></svg><span class="truncate font-mono">{{.Label}}</span></span>
+      <span class="shrink-0 font-mono text-ink">{{.Value}}</span>
+    </div>
+    {{end}}
   </div>
 </div>
 {{end}}

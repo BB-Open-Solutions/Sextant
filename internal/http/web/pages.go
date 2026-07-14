@@ -85,7 +85,14 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 			warn++
 		}
 	}
-	total := len(f.Devices)
+	// Compliance is over the ACTIVE fleet: a retired device has no agent, so it
+	// is neither healthy nor an incident - counting it would drag the score.
+	total := 0
+	for _, d := range f.Devices {
+		if !d.Retired() {
+			total++
+		}
+	}
 	healthy := total - crit - warn
 	if healthy < 0 {
 		healthy = 0
@@ -113,6 +120,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 		},
 		"Compliance": map[string]int{"Healthy": healthy, "Warning": warn, "Critical": crit, "Total": total, "Score": hp},
 		"Donut":      donut,
+		"Capacity":   fleetCapacity(f),
 		"Incidents":  incidents,
 		"Attention":  attn,
 		"Approvals":  approvals,

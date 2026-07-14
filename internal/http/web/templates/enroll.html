@@ -23,25 +23,25 @@
 </div>
 
 {{if .Station}}
-<!-- Step 2: devices on the PXE network -->
+<!-- Step 2: batch-image the devices on the PXE network. Batch-only: select the
+     racks you want, give each a CMDB name, one audited pass. No single install. -->
 <div class="rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
     <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">2</span>{{.L.T "enroll.devices_on"}} {{.Station}}</h2>
-    <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Rows}} {{.L.T "enroll.on_pxe"}}</span>
+    <div class="flex items-center gap-2">
+      <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Rows}} {{.L.T "enroll.on_pxe"}}</span>
+      <a href="/enroll?station={{.Station}}" title="{{.L.T "enroll.refresh"}}" class="btn !border-0 !bg-transparent !p-1.5 text-text-tertiary hover:text-ink"><span class="material-symbols-outlined msz-18">refresh</span></a>
+    </div>
   </div>
 
   {{if not .Rows}}
   <p class="muted p-6">{{.L.T "enroll.pxe_empty"}}</p>
-  {{else}}
-
-  {{if .CanEnroll}}
-  <!-- Batch: one rack of identical machines in a single pass -->
-  <form method="post" action="/enroll/{{.Station}}/batch" class="border-b border-border-hairline bg-surface-container-low !flex-col !items-stretch gap-4 p-6">
+  {{else if .CanEnroll}}
+  <form method="post" action="/enroll/{{.Station}}/batch" class="!flex-col !items-stretch gap-4 p-6">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-mint-deep">library_add</span>{{.L.T "enroll.batch_title"}}</div>
-    <p class="mb-0 text-body-sm text-text-secondary">{{.L.T "enroll.batch_desc"}} <code>prefix-&lt;mac tail&gt;</code>.</p>
-    <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
-      <div class="flex flex-col gap-1"><label>{{.L.T "enroll.tag_prefix"}}</label><input name="prefix" placeholder="lab-nuc" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
+    <p class="mb-0 text-body-sm text-text-secondary">{{.L.T "enroll.batch_desc"}}</p>
+    <!-- Shared profile/class/group for this rack of identical machines. -->
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
       <div class="flex flex-col gap-1"><label>{{.L.T "common.hardware_profile"}}</label>
         {{if .Profiles}}<select name="hardware" required><option value="" disabled selected>{{.L.T "common.select"}}</option>{{range .Profiles}}<option value="{{.Name}}">{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}</select>
         {{else}}<input name="hardware" placeholder="{{.L.T "enroll.profile_name_placeholder"}}" required>{{end}}
@@ -49,70 +49,37 @@
       <div class="flex flex-col gap-1"><label>{{.L.T "common.class"}}</label><select name="class">{{range .Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
       <div class="flex flex-col gap-1"><label>{{.L.T "common.group"}}</label><select name="group"><option value="">{{.L.T "common.no_group"}}</option>{{range .Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
     </div>
+    <!-- Per-device: select + CMDB name. -->
     <div class="flex flex-col divide-y divide-border-hairline rounded-md border border-border-soft bg-canvas">
+      {{$ := .}}
       {{range .Rows}}
-      <label class="flex items-center gap-3 px-4 py-3 text-body-sm hover:bg-surface-bright">
-        <input type="checkbox" name="mac" value="{{.Dev.MAC}}" class="!w-auto">
-        <span class="font-mono text-code-inline text-ink">{{.Dev.MAC}}</span>
-        <span class="text-text-tertiary">{{with .Dev.Vendor}}{{.}}{{end}}{{with .Dev.Model}} {{.}}{{end}}</span>
-        {{with .Suggest}}<span class="tag ok ml-auto"><span class="material-symbols-outlined msz-14">auto_awesome</span>{{.}}</span>{{end}}
-      </label>
+      <div class="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:gap-4">
+        <label class="flex min-w-0 flex-1 items-center gap-3 text-body-sm">
+          <input type="checkbox" name="mac" value="{{.Dev.MAC}}" class="!w-auto">
+          <span class="font-mono text-code-inline text-ink">{{.Dev.MAC}}</span>
+          <span class="truncate text-text-tertiary">{{with .Dev.Vendor}}{{.}}{{end}}{{with .Dev.Model}} {{.}}{{end}}{{if .Dev.DiskGB}} · {{.Dev.DiskGB}} GB{{end}}</span>
+          {{with .Suggest}}<span class="tag ok"><span class="material-symbols-outlined msz-14">auto_awesome</span>{{.}}</span>{{end}}
+        </label>
+        <div class="flex items-center gap-2">
+          <label class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "enroll.cmdb_name"}}</label>
+          <input name="name-{{macKey .Dev.MAC}}" placeholder="{{$.L.T "common.eg"}} kiosk-04" pattern="[a-z0-9][a-z0-9-]*" class="font-mono md:w-56">
+          <button type="submit" formaction="/enroll/{{$.Station}}/discovered/{{.Dev.MAC}}/remove" formnovalidate onclick="return confirm('{{$.L.T "enroll.remove_confirm"}} {{.Dev.MAC}}?')" title="{{$.L.T "common.remove"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary transition hover:!text-status-error"><span class="material-symbols-outlined msz-18">delete</span></button>
+        </div>
+      </div>
       {{end}}
     </div>
-    <button type="submit" class="self-start"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>{{.L.T "enroll.dispatch_selected"}}</button>
+    <div class="flex items-center gap-3">
+      <button type="submit" class="self-start"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>{{.L.T "enroll.dispatch_selected"}}</button>
+      <span class="muted">{{.L.T "enroll.batch_hint"}}</span>
+    </div>
   </form>
-  {{end}}
-
-  <!-- Guided single-device imaging -->
+  {{else}}
+  <!-- Read-only for non-editors: the discovered set, no imaging controls. -->
   <div class="flex flex-col divide-y divide-border-hairline">
-    {{$ := .}}
     {{range .Rows}}
-    <div class="p-6">
-      <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2">
-            <span class="font-mono text-code-inline text-ink">{{.Dev.MAC}}</span>
-            {{with .Suggest}}<span class="tag ok"><span class="material-symbols-outlined msz-14">auto_awesome</span>{{$.L.T "enroll.suggested"}}: {{.}}</span>{{end}}
-          </div>
-          <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-md text-text-tertiary">
-            {{with .Dev.Vendor}}<span>{{.}}</span>{{end}}{{with .Dev.Model}}<span>{{.}}</span>{{end}}
-            {{with .Dev.CPU}}<span>{{.}}</span>{{end}}{{if .Dev.MemGB}}<span>{{.Dev.MemGB}} GB</span>{{end}}{{if .Dev.DiskGB}}<span>{{.Dev.DiskGB}} GB {{$.L.T "enroll.disk_suffix"}}</span>{{end}}
-            <span>{{$.L.T "enroll.seen_prefix"}} {{$.L.TimeSec .Dev.LastSeen}}</span>
-          </div>
-        </div>
-        {{if $.CanEnroll}}
-        <details class="shrink-0">
-          <summary class="btn cursor-pointer list-none"><span class="material-symbols-outlined msz-18">note_add</span>{{$.L.T "enroll.image_device"}}</summary>
-          <div class="mt-3 rounded-md border border-border-soft bg-surface-container-low p-4 md:w-96">
-            {{if .Steps}}
-            <p class="mb-2 text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "enroll.imaging_steps"}}</p>
-            <ol class="mb-4 flex flex-col gap-2">
-              {{range .Steps}}
-              <li class="flex items-start gap-2 text-body-sm text-text-secondary">
-                <span class="material-symbols-outlined msz-16 mt-0.5 text-mint-deep">check_circle</span>
-                <span><span class="font-medium text-ink">{{.Title}}</span>{{with .Key}} <kbd class="rounded border border-border-soft bg-canvas px-1.5 py-0.5 font-mono text-label-xs-caps text-ink">{{.}}</kbd>{{end}}{{with .Detail}}<span class="block text-text-tertiary">{{.}}</span>{{end}}</span>
-              </li>
-              {{end}}
-            </ol>
-            {{end}}
-            <form method="post" action="/enroll/{{$.Station}}/image" class="!flex-col !items-stretch gap-3">
-              <input type="hidden" name="csrf" value="{{$.CSRF}}">
-              <input type="hidden" name="mac" value="{{.Dev.MAC}}">
-              <div class="flex flex-col gap-1"><label>{{$.L.T "common.asset_tag"}}</label><input name="tag" placeholder="{{$.L.T "common.eg"}} zaanstad-t495s" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>
-              <div class="flex flex-col gap-1"><label>{{$.L.T "common.hardware_profile"}}</label>
-                {{if $.Profiles}}
-                {{$sug := .Suggest}}
-                <select name="hardware" required><option value="" disabled {{if not $sug}}selected{{end}}>{{$.L.T "common.select"}}</option>{{range $.Profiles}}<option value="{{.Name}}" {{if eq .Name $sug}}selected{{end}}>{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}</select>
-                {{else}}<input name="hardware" value="{{with .Dev.Vendor}}{{.}}{{end}}{{with .Dev.Model}} {{.}}{{end}}" required>{{end}}
-              </div>
-              <div class="flex flex-col gap-1"><label>{{$.L.T "common.class"}}</label><select name="class">{{range $.Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-              <div class="flex flex-col gap-1"><label>{{$.L.T "common.group"}}</label><select name="group"><option value="">{{$.L.T "common.no_group"}}</option>{{range $.Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-              <button type="submit" class="w-full !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>{{$.L.T "enroll.dispatch_single"}}</button>
-            </form>
-          </div>
-        </details>
-        {{end}}
-      </div>
+    <div class="flex items-center gap-3 px-6 py-3 text-body-sm">
+      <span class="font-mono text-code-inline text-ink">{{.Dev.MAC}}</span>
+      <span class="text-text-tertiary">{{with .Dev.Vendor}}{{.}}{{end}}{{with .Dev.Model}} {{.}}{{end}}</span>
     </div>
     {{end}}
   </div>
@@ -124,7 +91,10 @@
 <div class="mt-6 rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
     <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">3</span>{{.L.T "enroll.jobs_title"}}</h2>
-    <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Jobs}}</span>
+    <div class="flex items-center gap-2">
+      <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Jobs}}</span>
+      <a href="/enroll/{{.Station}}/wizard" class="btn !px-3 !py-1.5"><span class="material-symbols-outlined msz-18">precision_manufacturing</span>{{.L.T "wizard.open"}}</a>
+    </div>
   </div>
   <table>
     <tr><th class="!px-6">{{.L.T "enroll.device_tag"}}</th><th>MAC</th><th>{{.L.T "common.profile"}}</th><th>{{.L.T "common.status"}}</th><th class="text-right !px-6">{{.L.T "common.actions"}}</th></tr>
@@ -137,6 +107,10 @@
       <td>
         {{if eq (printf "%s" .Status) "installed"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "enroll.status_installed"}}</span>
         {{else if eq (printf "%s" .Status) "imaging"}}<span class="tag"><span class="material-symbols-outlined msz-14">sync</span>{{$.L.T "enroll.status_imaging"}}</span>
+          <div class="mt-1 flex items-center gap-2">
+            <div class="h-1.5 w-32 overflow-hidden rounded-full bg-surface-container"><div class="h-1.5 rounded-full bg-mint-vibrant transition-all" style="width: {{.Progress}}%"></div></div>
+            <span class="text-label-xs-caps text-text-tertiary">{{.Progress}}%{{with .Step}} · {{.}}{{end}}</span>
+          </div>
         {{else if eq (printf "%s" .Status) "failed"}}<span class="tag bad" title="{{.Message}}"><span class="material-symbols-outlined msz-14">error</span>{{$.L.T "enroll.status_failed"}}</span>
         {{else if eq (printf "%s" .Status) "canceled"}}<span class="tag"><span class="material-symbols-outlined msz-14">block</span>{{$.L.T "enroll.status_canceled"}}</span>
         {{else}}<span class="tag"><span class="material-symbols-outlined msz-14">schedule</span>{{$.L.T "enroll.status_pending"}}</span>{{end}}

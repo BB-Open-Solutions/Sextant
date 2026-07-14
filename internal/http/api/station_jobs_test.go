@@ -52,6 +52,12 @@ func (s *jobMemStore) UpdateStatus(_ context.Context, _, station, mac string, st
 	s.m[jk(station, mac)] = j
 	return nil
 }
+func (s *jobMemStore) UpdateProgress(_ context.Context, _, station, mac string, progress int, step string, _ time.Time) error {
+	j := s.m[jk(station, mac)]
+	j.Progress, j.Step = progress, step
+	s.m[jk(station, mac)] = j
+	return nil
+}
 func (s *jobMemStore) TransitionStatus(_ context.Context, _, station, mac string, from, to imaging.Status, msg string, _ time.Time) (bool, error) {
 	j, ok := s.m[jk(station, mac)]
 	if !ok || j.Status != from {

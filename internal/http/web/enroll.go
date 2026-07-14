@@ -100,11 +100,13 @@ func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request, v view) {
 	s.render(w, "enroll", data, v)
 }
 
-// postEnrollBatch images every selected discovered device onto one shared
-// hardware profile, group and class, deriving a unique tag per device from a
-// prefix + the MAC tail. This is the 1..100+ path: one rack of identical
-// machines enrolled in a single audited pass. Credentials are issued at the
-// image step, not here, so a bulk enroll does not mint secrets it cannot show.
+// postEnrollBatch images the selected discovered devices onto one shared
+// hardware profile, group and class - each with the CMDB name the operator
+// typed for it (no auto-generated tags). This is the only imaging path: even a
+// single device goes through it, named. A device is named via the form field
+// name-<macKey(mac)>; a selected device with a blank or duplicate name aborts
+// the whole batch before any dispatch, so a rack is enrolled in one audited
+// pass or not at all. Credentials are issued at the image step, not here.
 func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view) error {
 	if s.svc.Discovery == nil {
 		return fmt.Errorf("imaging stations need the observed store")
@@ -120,9 +122,13 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 	hardware := strings.TrimSpace(r.FormValue("hardware"))
 	class := strings.TrimSpace(r.FormValue("class"))
 	group := strings.TrimSpace(r.FormValue("group"))
-	prefix := strings.TrimSpace(r.FormValue("prefix"))
-	if !slugRE.MatchString(prefix) {
-		return fmt.Errorf("tag prefix %q must be a lowercase slug", prefix)
+
+	// The hardware profile is shared across the batch, so validate it once,
+	// up front: an unpublished profile fails the whole batch (all-or-nothing)
+	// rather than letting every per-device enroll fail best-effort.
+	profiles := s.svc.Config.HardwareProfiles()
+	if profiles.Len() > 0 && !profiles.Has(hardware) {
+		return fmt.Errorf("hardware profile %q is not one of the published profiles", hardware)
 	}
 
 	scope := "org"
@@ -135,9 +141,28 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 		return err
 	}
 
+	// Resolve + validate every device's CMDB name up front: blank or duplicate
+	// names abort before any dispatch, so the batch is all-or-nothing.
+	names := make(map[string]string, len(macs))
+	seen := make(map[string]string, len(macs))
+	for _, mac := range macs {
+		name := strings.TrimSpace(r.FormValue("name-" + macKey(mac)))
+		if name == "" {
+			return fmt.Errorf("device %s needs a name", mac)
+		}
+		if !slugRE.MatchString(name) {
+			return fmt.Errorf("name %q for %s must be a lowercase slug (a-z, 0-9, -)", name, mac)
+		}
+		if other, dup := seen[name]; dup {
+			return fmt.Errorf("name %q is used for both %s and %s - names must be unique", name, other, mac)
+		}
+		seen[name] = mac
+		names[mac] = name
+	}
+
 	var enrolled, failed int
 	for _, mac := range macs {
-		tag := prefix + "-" + macTail(mac)
+		tag := names[mac]
 		if err := s.imageOne(r.Context(), v, station, mac, tag, hardware, class, groups); err != nil {
 			s.log.Warn("batch image: one device failed", "station", station, "mac", mac, "tag", tag, "err", err)
 			failed++
@@ -170,22 +195,18 @@ func (s *Server) imageOne(ctx context.Context, v view, station, mac, tag, hardwa
 	})
 }
 
-// postEnrollImage dispatches an image job for one discovered device.
-func (s *Server) postEnrollImage(w http.ResponseWriter, r *http.Request, v view) error {
-	station := r.PathValue("station")
-	mac := r.FormValue("mac")
-	tag := strings.TrimSpace(r.FormValue("tag"))
-	group := strings.TrimSpace(r.FormValue("group"))
-	scope := "org"
-	var groups []string
-	if group != "" {
-		scope = "group:" + group
-		groups = []string{group}
+// postDiscoveredRemove drops a MAC from a station's discovered set: a device
+// that never enrolled, or a stale lease lingering after a machine powered off,
+// so the operator's discovered view stays clean without imaging it.
+func (s *Server) postDiscoveredRemove(w http.ResponseWriter, r *http.Request, v view) error {
+	if s.svc.Discovery == nil {
+		return fmt.Errorf("imaging stations need the observed store")
 	}
-	if err := s.requireWeb(v, scope, identity.Editor); err != nil {
+	if err := s.requireWeb(v, "org", identity.Editor); err != nil {
 		return err
 	}
-	if err := s.imageOne(r.Context(), v, station, mac, tag, r.FormValue("hardware"), r.FormValue("class"), groups); err != nil {
+	station := r.PathValue("station")
+	if err := s.svc.Discovery.Remove(r.Context(), station, r.PathValue("mac")); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/enroll?station="+url.QueryEscape(station), http.StatusSeeOther)
@@ -208,13 +229,9 @@ func (s *Server) postEnrollJobCancel(w http.ResponseWriter, r *http.Request, v v
 	return nil
 }
 
-// macTail returns the last three octets of a MAC as a stable, unique, path-
-// safe suffix (e.g. "aa:bb:cc:dd:ee:ff" -> "ddeeff"), so a batch of devices
-// gets distinct tags without the operator naming each one.
-func macTail(mac string) string {
-	h := strings.NewReplacer(":", "", "-", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(mac)))
-	if len(h) > 6 {
-		return h[len(h)-6:]
-	}
-	return h
+// macKey turns a MAC into a stable, form-field-safe key (no colons), so each
+// selected device's CMDB-name input can be addressed as name-<macKey> and
+// paired back to its MAC on submit (e.g. "aa:bb:cc:dd:ee:ff" -> "aabbccddeeff").
+func macKey(mac string) string {
+	return strings.NewReplacer(":", "", "-", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(mac)))
 }

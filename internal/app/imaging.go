@@ -76,7 +76,11 @@ func (s *ImagingService) Report(ctx context.Context, station, mac string, to ima
 	if !job.Status.CanTransition(to) {
 		return fmt.Errorf("image job %s cannot go from %s to %s", mac, job.Status, to)
 	}
-	if to != imaging.Failed {
+	// Keep the reported message on Failed (failure detail) and on Installed (the
+	// station reports the per-device LUKS recovery key there - it must survive, not
+	// be cleared, until a proper encrypted secret store / CMDB takes it over). Other
+	// transitions carry no message worth persisting.
+	if to != imaging.Failed && to != imaging.Installed {
 		message = ""
 	}
 	applied, err := s.store.TransitionStatus(ctx, s.tenant, station, mac, job.Status, to, message, s.clock.Now())
@@ -89,6 +93,14 @@ func (s *ImagingService) Report(ctx context.Context, station, mac string, to ima
 		return fmt.Errorf("image job %s: %w: status changed since read", mac, ports.ErrConflict)
 	}
 	return nil
+}
+
+// ReportProgress records the current step's percent-complete and label for a
+// job the station is actively working. It is display-only (no status change,
+// no transition guard), so a stream of progress ticks during one status never
+// contends with the guarded status transitions.
+func (s *ImagingService) ReportProgress(ctx context.Context, station, mac string, progress int, step string) error {
+	return s.store.UpdateProgress(ctx, s.tenant, station, imaging.NormalizeMAC(mac), progress, step, s.clock.Now())
 }
 
 // Cancel withdraws a job the operator no longer wants imaged.

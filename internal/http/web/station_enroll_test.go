@@ -126,15 +126,15 @@ func TestStationEnrollCapturesSpecsAndValidatesProfile(t *testing.T) {
 	if !strings.Contains(s, `<select name="hardware"`) {
 		t.Fatal("hardware profile is not a dropdown")
 	}
-	if !strings.Contains(s, `value="lenovo-t495s" selected`) {
-		t.Fatalf("lenovo profile not suggested from discovered model\n%s", s)
+	if !strings.Contains(s, `value="lenovo-t495s"`) {
+		t.Fatalf("lenovo profile not offered as a batch option\n%s", s)
 	}
 
 	// An unknown profile is rejected (cannot enroll onto a profile the
-	// generator can't build).
+	// generator can't build). Batch-only: the device carries a CMDB name.
 	bad := url.Values{"csrf": {"dev-csrf"}, "mac": {"aa:bb:cc:dd:ee:01"},
-		"tag": {"nuc-lab-1"}, "hardware": {"made-up"}, "class": {"laptop"}}
-	resp, _ = c.PostForm(ts.URL+"/enroll/nuc-1/image", bad)
+		"name-aabbccddee01": {"nuc-lab-1"}, "hardware": {"made-up"}, "class": {"laptop"}}
+	resp, _ = c.PostForm(ts.URL+"/enroll/nuc-1/batch", bad)
 	resp.Body.Close()
 	if resp.StatusCode == 303 {
 		t.Fatal("enroll accepted an unpublished hardware profile")
@@ -145,8 +145,8 @@ func TestStationEnrollCapturesSpecsAndValidatesProfile(t *testing.T) {
 
 	// A valid profile enrolls the device AND stores the captured specs.
 	good := url.Values{"csrf": {"dev-csrf"}, "mac": {"aa:bb:cc:dd:ee:01"},
-		"tag": {"nuc-lab-1"}, "hardware": {"lenovo-t495s"}, "class": {"laptop"}, "group": {"pilot"}}
-	resp, _ = c.PostForm(ts.URL+"/enroll/nuc-1/image", good)
+		"name-aabbccddee01": {"nuc-lab-1"}, "hardware": {"lenovo-t495s"}, "class": {"laptop"}, "group": {"pilot"}}
+	resp, _ = c.PostForm(ts.URL+"/enroll/nuc-1/batch", good)
 	resp.Body.Close()
 	if resp.StatusCode != 303 {
 		t.Fatalf("valid enroll = %d, want 303", resp.StatusCode)

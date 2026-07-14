@@ -51,9 +51,9 @@
   <!-- Device list -->
   <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
     <table>
-      <tr><th>{{.L.T "common.tag"}}</th><th>{{.L.T "common.groups"}}</th><th>{{.L.T "common.class"}}</th><th>{{.L.T "common.hardware"}}</th><th>{{.L.T "common.user"}}</th><th>{{.L.T "common.status"}}</th></tr>
+      <tr><th>{{.L.T "common.tag"}}</th><th>{{.L.T "common.groups"}}</th><th>{{.L.T "common.class"}}</th><th>{{.L.T "common.hardware"}}</th><th>{{.L.T "common.user"}}</th><th>{{.L.T "common.status"}}</th>{{if .CanEdit}}<th class="text-right !px-4">{{.L.T "common.actions"}}</th>{{end}}</tr>
       {{range .Devices}}
-      <tr class="hover:bg-surface-container-low transition-colors">
+      <tr class="group hover:bg-surface-container-low transition-colors">
         <td><a href="/devices/{{.Tag}}" class="font-mono font-medium">{{.Tag}}</a></td>
         <td>{{range .Groups}}<span class="tag">{{.}}</span> {{end}}</td>
         <td>{{.Class}}</td>
@@ -65,9 +65,10 @@
             <span class="font-mono text-text-tertiary">{{.Revision}}</span>
           {{else}}<span class="muted">{{$.L.T "common.never_seen"}}</span>{{end}}
         </td>
+        {{if $.CanEdit}}<td class="text-right !px-4"><form method="post" action="/devices/{{.Tag}}/remove" class="!m-0 inline" onsubmit="return confirm('{{$.L.T "devices.remove_confirm"}} {{.Tag}}?')"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" title="{{$.L.T "common.remove"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-18">delete</span></button></form></td>{{end}}
       </tr>
       {{else}}
-      <tr><td colspan="6" class="muted">{{$.L.T "devices.no_devices"}}</td></tr>
+      <tr><td colspan="7" class="muted">{{$.L.T "devices.no_devices"}}</td></tr>
       {{end}}
     </table>
   </div>

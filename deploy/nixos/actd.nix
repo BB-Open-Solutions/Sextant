@@ -58,6 +58,33 @@ let
         rm -f "$spool/lock.intent" || true
       fi
 
+      # reboot: one-shot restart so an operator can reach the BIOS during
+      # provisioning (Secure Boot / TPM2 firmware steps) without walking to the
+      # machine. Non-destructive. Loop guard via the kernel boot_id: a stamp
+      # written before the reboot carries the boot_id it happened in; after the
+      # machine comes back the boot_id differs, so we know the reboot completed,
+      # ack it, and do NOT reboot again even if the console intent (and thus the
+      # re-spooled marker) is still set until the console clears it.
+      rebootStamp="/var/lib/sextant-agent/reboot-boot-id"
+      if [ -e "$spool/reboot.intent" ]; then
+        bootid="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)"
+        if [ -e "$rebootStamp" ] && [ "$(cat "$rebootStamp" 2>/dev/null)" != "$bootid" ]; then
+          echo "sextant-actd: reboot completed (boot_id changed) - acking"
+          writeAck rebooted
+          rm -f "$rebootStamp" "$spool/reboot.intent" || true
+        elif [ ! -e "$rebootStamp" ]; then
+          echo "sextant-actd: reboot intent - restarting for BIOS access"
+          mkdir -p "$(dirname "$rebootStamp")"
+          printf '%s' "$bootid" > "$rebootStamp"
+          rm -f "$spool/reboot.intent" || true
+          systemctl reboot || true
+        else
+          # Stamp matches the current boot: we already initiated the reboot this
+          # boot; drop the re-spooled marker and wait for the machine to go down.
+          rm -f "$spool/reboot.intent" || true
+        fi
+      fi
+
       # wipe: destructive, heavily gated.
       if [ -e "$spool/wipe.intent" ]; then
       ${if !cfg.armWipe then ''

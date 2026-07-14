@@ -36,22 +36,24 @@ type Sessions interface {
 
 // Services are the app services the console renders.
 type Services struct {
-	Config       *app.ConfigService
-	Changes      *app.ChangeService
-	Rollouts     *app.RolloutService
-	Inventory    *app.InventoryService
-	Tokens       *app.TokenService
-	Prefs        ports.PrefsStore
-	DevCreds     *app.DeviceCredentials
-	Directory    ports.Directory
-	Evidence     *app.EvidenceService
-	Discovery    *app.DiscoveryService
-	Imaging      *app.ImagingService
-	StationCreds *app.StationCredentials
-	Notify       *app.NotifyService
-	Mail         *app.MailService
-	Users        ports.UserDirectory
-	Compliance   *app.ComplianceService
+	Config    *app.ConfigService
+	Changes   *app.ChangeService
+	Rollouts  *app.RolloutService
+	Inventory *app.InventoryService
+	Tokens    *app.TokenService
+	Prefs     ports.PrefsStore
+	DevCreds  *app.DeviceCredentials
+	Directory ports.Directory
+	Evidence  *app.EvidenceService
+	Discovery *app.DiscoveryService
+	Imaging   *app.ImagingService
+	// DeviceSecrets seals/reveals per-device secrets (LUKS, break-glass admin).
+	DeviceSecrets *app.DeviceSecretsService
+	StationCreds  *app.StationCredentials
+	Notify        *app.NotifyService
+	Mail          *app.MailService
+	Users         ports.UserDirectory
+	Compliance    *app.ComplianceService
 }
 
 // Server renders the console.
@@ -88,6 +90,9 @@ func New(svc Services, sessions Sessions, write bool,
 	funcs := template.FuncMap{
 		"list":      func(items ...any) []any { return items },
 		"hasPrefix": strings.HasPrefix,
+		// macKey turns a MAC into a form-field-safe key (no colons) so a batch's
+		// per-device CMDB-name input can be addressed as name-<macKey>.
+		"macKey": macKey,
 		// short trims a git revision to a readable 12-char prefix.
 		"short": func(s string) string {
 			if len(s) > 12 {
@@ -167,7 +172,7 @@ func New(svc Services, sessions Sessions, write bool,
 			return fmt.Sprintf("gd-%d", depth)
 		},
 	}
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "integrations", "overlays", "notifications", "mail", "org", "error"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -215,6 +220,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/downloads/sxctl.sha256", s.cliChecksum)
 	get("/station", s.stationPage)
 	get("/enroll", s.enrollPage)
+	get("/enroll/{station}/wizard", s.enrollWizard)
 	get("/integrations", s.integrationsPage)
 	get("/overlays", s.overlaysPage)
 	get("/secrets", s.secretsPage)
@@ -234,6 +240,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/devices/{tag}/posture", s.postDevicePosture)
 	post("/devices/{tag}/intent", s.postDeviceIntent)
 	post("/devices/{tag}/intent/clear", s.postDeviceIntentClear)
+	post("/devices/{tag}/secret/{kind}/reveal", s.postSecretReveal)
 	post("/devices/{tag}/retire", s.postDeviceRetire)
 	post("/devices/{tag}/reactivate", s.postDeviceReactivate)
 	post("/devices/{tag}/remove", s.postDeviceRemove)
@@ -267,7 +274,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/profile/tokens", s.postProfileTokenMint)
 	post("/profile/tokens/{id}/revoke", s.postProfileTokenRevoke)
 	post("/enroll/{station}/batch", s.postEnrollBatch)
-	post("/enroll/{station}/image", s.postEnrollImage)
+	post("/enroll/{station}/discovered/{mac}/remove", s.postDiscoveredRemove)
 	post("/enroll/{station}/jobs/{mac}/cancel", s.postEnrollJobCancel)
 	post("/stations", s.postStationRegister)
 	post("/station/{tag}/credential", s.postStationCredential)

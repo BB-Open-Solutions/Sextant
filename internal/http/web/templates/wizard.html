@@ -1,0 +1,151 @@
+{{define "content"}}
+<section class="flex flex-col gap-6">
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center gap-2 text-label-md text-text-tertiary">
+      <a href="/enroll?station={{.Station}}" class="hover:text-ink">{{.L.T "enroll.title"}}</a>
+      <span class="material-symbols-outlined msz-14">chevron_right</span>
+      <span class="text-ink">{{.L.T "wizard.title"}}</span>
+    </div>
+    <h1 class="mb-0 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">precision_manufacturing</span>{{.L.T "wizard.title"}}</h1>
+    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "wizard.subtitle"}} <span class="font-mono text-ink">{{.Station}}</span></p>
+  </div>
+
+  <!-- Phase stepper -->
+  <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+    <div class="flex flex-wrap items-center gap-3">
+      {{template "wizStep" (list "1" (.L.T "wizard.phase_install") .PhaseInstall)}}
+      <span class="material-symbols-outlined text-border-hairline">arrow_forward</span>
+      {{template "wizStep" (list "2" (.L.T "wizard.phase_sb") .PhaseSB)}}
+      <span class="material-symbols-outlined text-border-hairline">arrow_forward</span>
+      {{template "wizStep" (list "3" (.L.T "wizard.phase_tpm2") .PhaseTPM2)}}
+      <span class="material-symbols-outlined text-border-hairline">arrow_forward</span>
+      {{template "wizStep" (list "4" (.L.T "wizard.phase_done") false)}}
+    </div>
+  </div>
+
+  {{if .NeedFirmware}}
+  <!-- Manual firmware action: shown once while any device is in the Secure Boot phase -->
+  <div class="relative overflow-hidden rounded-lg border border-status-warn/40 bg-canvas p-6 shadow-sm">
+    <div class="absolute left-0 top-0 h-full w-1 bg-status-warn"></div>
+    <div class="mb-2 inline-flex items-center gap-1 rounded-full border border-status-warn/30 bg-surface px-2 py-0.5 text-label-xs-caps uppercase text-status-warn"><span class="material-symbols-outlined msz-14">person</span>{{.L.T "wizard.manual_action"}}</div>
+    <h2 class="mt-0 mb-3 text-headline-sm text-ink">{{.L.T "wizard.sb_firmware_title"}}</h2>
+    <p class="mb-3 max-w-2xl text-body-md text-text-secondary">{{.L.T "wizard.sb_firmware_desc"}}</p>
+    <p class="muted">{{.L.T "wizard.sb_firmware_hint"}} <span class="material-symbols-outlined msz-14 align-middle">restart_alt</span> {{.L.T "wizard.reboot_hint"}}</p>
+  </div>
+  {{end}}
+
+  <!-- Per-device batch execution -->
+  <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+    <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-6 py-4">
+      <h2 class="mt-0 mb-0 text-label-md font-bold uppercase tracking-wide text-ink">{{.L.T "wizard.batch_execution"}}</h2>
+      <div class="flex items-center gap-2">
+        <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Rows}}</span>
+        <a href="/enroll/{{.Station}}/wizard" title="{{.L.T "enroll.refresh"}}" class="btn !border-0 !bg-transparent !p-1.5 text-text-tertiary hover:text-ink"><span class="material-symbols-outlined msz-18">refresh</span></a>
+      </div>
+    </div>
+
+    {{if not .Rows}}
+    <p class="muted p-6">{{.L.T "wizard.no_jobs"}}</p>
+    {{else}}
+    <div class="flex flex-col divide-y divide-border-hairline">
+      {{$ := .}}
+      {{range .Rows}}
+      <div class="flex flex-col gap-3 p-6">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-mono font-medium text-ink">{{.Job.Tag}}</span>
+              <span class="font-mono text-code-inline text-text-tertiary">{{.Job.MAC}}</span>
+            </div>
+            <div class="mt-0.5 text-label-md text-text-tertiary">{{.Job.Hardware}}</div>
+          </div>
+          <div class="flex items-center gap-3">
+            {{template "wizStatus" (list $.L .Job.Status)}}
+            {{if and .Reboot $.CanEdit}}
+            <form method="post" action="/devices/{{.Job.Tag}}/intent" class="!m-0 inline" onsubmit="return confirm('{{$.L.T "wizard.reboot_confirm"}} {{.Job.Tag}}?')">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <input type="hidden" name="intent" value="reboot">
+              <button type="submit" title="{{$.L.T "wizard.reboot"}}" class="btn !border-border-hairline !bg-transparent !px-3 !py-1.5 text-text-secondary hover:text-ink"><span class="material-symbols-outlined msz-18">restart_alt</span>{{$.L.T "wizard.reboot"}}</button>
+            </form>
+            {{end}}
+          </div>
+        </div>
+
+        {{if or (eq (printf "%s" .Job.Status) "imaging") .Job.Progress}}
+        <div>
+          <div class="mb-1 flex justify-between text-label-xs-caps uppercase text-text-tertiary">
+            <span>{{with .Job.Step}}{{.}}{{else}}{{$.L.T "wizard.working"}}{{end}}</span>
+            <span>{{.Job.Progress}}%</span>
+          </div>
+          <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container">
+            <div class="h-2 rounded-full bg-mint-vibrant transition-all" style="width: {{.Job.Progress}}%"></div>
+          </div>
+        </div>
+        {{end}}
+
+        {{if .Bios.Title}}
+        <div class="rounded-md border border-border-soft bg-surface-container-low p-4">
+          <div class="mb-2 flex items-center gap-2 text-label-md font-medium text-ink"><span class="material-symbols-outlined msz-16 text-status-warn">lightbulb</span>{{.Bios.Title}}{{with .Bios.Key}} <kbd class="rounded border border-border-soft bg-canvas px-1.5 py-0.5 font-mono text-label-xs-caps text-ink">{{.}}</kbd>{{end}}</div>
+          <ol class="ml-4 flex list-decimal flex-col gap-1 text-body-sm text-text-secondary">
+            {{range .Bios.Steps}}<li>{{.}}</li>{{end}}
+          </ol>
+        </div>
+        {{end}}
+
+        {{if .HasSecret}}
+        <div class="flex items-center gap-2 rounded-md border border-border-soft bg-surface-container-low p-3">
+          <span class="material-symbols-outlined msz-16 text-mint-deep">lock</span>
+          <span class="text-body-sm text-text-secondary">{{$.L.T "wizard.luks_title"}}</span>
+          {{if $.CanReveal}}
+          <form method="post" action="/devices/{{.Job.Tag}}/secret/luks/reveal" class="!m-0 ml-auto inline">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <button type="submit" class="btn !border-status-warn/40 !bg-transparent !px-3 !py-1.5 text-status-warn hover:!bg-status-warn/5"><span class="material-symbols-outlined msz-18">vpn_key</span>{{$.L.T "wizard.reveal_luks"}}</button>
+          </form>
+          {{else}}<span class="muted ml-auto">{{$.L.T "wizard.reveal_owner_only"}}</span>{{end}}
+        </div>
+        {{else if .LUKS}}
+        <div class="rounded-md border-2 border-status-warn/40 bg-canvas p-4">
+          <div class="mb-1 flex items-center gap-2 text-label-md font-bold text-status-warn"><span class="material-symbols-outlined msz-16">warning</span>{{$.L.T "secret.title"}} · {{$.L.T "secret.oneshot"}}</div>
+          <p class="mb-2 text-body-sm text-text-tertiary">{{$.L.T "secret.oneshot_desc"}}</p>
+          <div class="flex items-center justify-between gap-2 rounded bg-surface-code px-3 py-2">
+            <code class="select-all break-all font-mono text-code-md text-canvas" data-copy>{{.LUKS}}</code>
+            <button type="button" data-copy-btn title="{{$.L.T "common.copy"}}" class="shrink-0 text-surface-dim hover:text-canvas"><span class="material-symbols-outlined msz-18">content_copy</span></button>
+          </div>
+        </div>
+        {{end}}
+
+        {{if eq (printf "%s" .Job.Status) "failed"}}
+        <div class="rounded-md border border-status-error/40 bg-canvas p-4 text-body-sm text-status-error">
+          <span class="font-medium">{{$.L.T "wizard.failed_title"}}</span> {{.Job.Message}}
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
+{{/* wizStep: one stepper node. args: [num, label, active] */}}
+{{define "wizStep"}}
+{{$num := index . 0}}{{$label := index . 1}}{{$active := index . 2}}
+<div class="flex items-center gap-2 {{if not $active}}opacity-50{{end}}">
+  <span class="flex h-8 w-8 items-center justify-center rounded-full text-label-md {{if $active}}bg-mint-vibrant text-ink{{else}}border border-border-hairline bg-surface text-text-tertiary{{end}}">{{$num}}</span>
+  <span class="text-label-md {{if $active}}text-ink font-medium{{else}}text-text-secondary{{end}}">{{$label}}</span>
+</div>
+{{end}}
+
+{{/* wizStatus: a status badge. args: [Localizer, imaging.Status] */}}
+{{define "wizStatus"}}
+{{$L := index . 0}}{{$s := printf "%s" (index . 1)}}
+{{if eq $s "done"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$L.T "wizard.st_done"}}</span>
+{{else if eq $s "installed"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check</span>{{$L.T "wizard.st_installed"}}</span>
+{{else if eq $s "imaging"}}<span class="tag"><span class="material-symbols-outlined msz-14">sync</span>{{$L.T "wizard.st_imaging"}}</span>
+{{else if eq $s "sb-pending"}}<span class="tag"><span class="material-symbols-outlined msz-14">security</span>{{$L.T "wizard.st_sb_pending"}}</span>
+{{else if eq $s "sb-enrolled"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">security</span>{{$L.T "wizard.st_sb_enrolled"}}</span>
+{{else if eq $s "tpm2-enrolled"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">lock</span>{{$L.T "wizard.st_tpm2"}}</span>
+{{else if eq $s "failed"}}<span class="tag bad"><span class="material-symbols-outlined msz-14">error</span>{{$L.T "wizard.st_failed"}}</span>
+{{else if eq $s "canceled"}}<span class="tag"><span class="material-symbols-outlined msz-14">block</span>{{$L.T "wizard.st_canceled"}}</span>
+{{else}}<span class="tag"><span class="material-symbols-outlined msz-14">schedule</span>{{$L.T "wizard.st_pending"}}</span>{{end}}
+{{end}}

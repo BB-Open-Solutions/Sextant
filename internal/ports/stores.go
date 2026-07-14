@@ -10,6 +10,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/secret"
 )
 
 // ChangeStore persists change requests durably: a restart loses nothing.
@@ -89,6 +90,10 @@ type ImageJobStore interface {
 	// instead, or two concurrent writers can both pass a check-then-act guard
 	// in application code and both write.
 	UpdateStatus(ctx context.Context, tenant, station, mac string, status imaging.Status, message string, now time.Time) error
+	// UpdateProgress records the current step's percent-complete (0..100) and
+	// label without changing status - the frequent, display-only tick the
+	// station emits while a single status (e.g. imaging) is in progress.
+	UpdateProgress(ctx context.Context, tenant, station, mac string, progress int, step string, now time.Time) error
 	// TransitionStatus atomically moves a job from `from` to `to`, applying
 	// the write only if the job's current status still equals `from` (a
 	// conditional UPDATE, compare-and-swap on status). Returns whether it
@@ -105,4 +110,21 @@ type ImageJobStore interface {
 type PrefsStore interface {
 	GetPrefs(ctx context.Context, tenant, subject string) (identity.Preferences, bool, error)
 	PutPrefs(ctx context.Context, tenant, subject string, p identity.Preferences, now time.Time) error
+}
+
+// DeviceSecretStore persists per-device secrets encrypted-at-rest, keyed
+// (tenant, tag, kind). The store never sees plaintext - it holds the sealed
+// ciphertext the application layer produces (AES-256-GCM) - and records who
+// created and who last revealed each secret so a reveal is auditable.
+type DeviceSecretStore interface {
+	// Put stores (or replaces) the sealed ciphertext for one device+kind, and
+	// resets the revealed marker (a new secret has not been read yet).
+	Put(ctx context.Context, tenant, tag string, kind secret.Kind, ciphertext []byte, createdBy string, now time.Time) error
+	// Get returns the sealed ciphertext and metadata for one device+kind, or
+	// ok=false. The caller unseals; the store returns the ciphertext as stored.
+	Get(ctx context.Context, tenant, tag string, kind secret.Kind) (ciphertext []byte, meta secret.Meta, ok bool, err error)
+	// List returns the metadata (never the ciphertext) of a device's secrets.
+	List(ctx context.Context, tenant, tag string) ([]secret.Meta, error)
+	// MarkRevealed stamps who read a secret and when, for the audit trail.
+	MarkRevealed(ctx context.Context, tenant, tag string, kind secret.Kind, revealedBy string, now time.Time) error
 }

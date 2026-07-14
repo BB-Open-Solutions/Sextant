@@ -62,6 +62,15 @@ func (s *memImageJobs) UpdateStatus(_ context.Context, tenant, station, mac stri
 	return nil
 }
 
+func (s *memImageJobs) UpdateProgress(_ context.Context, tenant, station, mac string, progress int, step string, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	j := s.m[key(tenant, station, mac)]
+	j.Progress, j.Step = progress, step
+	s.m[key(tenant, station, mac)] = j
+	return nil
+}
+
 // TransitionStatus mirrors the postgres compare-and-swap: the map write only
 // applies if the stored status still equals from, under the same lock as
 // every other access, so concurrent callers race honestly instead of just

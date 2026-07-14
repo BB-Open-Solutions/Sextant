@@ -147,6 +147,12 @@ const (
 	// IntentWipe: cryptographically erase the device (destroy LUKS keys).
 	// Irreversible; requires the device to be locked first (or force).
 	IntentWipe = "wipe"
+	// IntentReboot: reboot the device once. Used during the provisioning wizard
+	// so an operator can restart a laptop from the console to reach its BIOS for
+	// a Secure Boot / TPM2 firmware step, without walking to the machine to
+	// power-cycle it. Non-destructive; the agent reboots once and the intent
+	// clears (the next beat carries none).
+	IntentReboot = "reboot"
 )
 
 // Device is one managed machine, keyed by its asset tag.

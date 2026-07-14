@@ -46,24 +46,25 @@ type deps struct {
 	log    *slog.Logger
 	checks *health.Registry
 
-	svc       *app.ConfigService
-	changes   *app.ChangeService
-	rollouts  *app.RolloutService
-	inv       *app.InventoryService
-	tokens    *app.TokenService
-	devCreds  *app.DeviceCredentials
-	discovery *app.DiscoveryService
-	imaging   *app.ImagingService
-	staCreds  *app.StationCredentials
-	prefs     ports.PrefsStore
-	dir       ports.Directory
-	evidence  *app.EvidenceService
-	notify     *app.NotifyService
-	mail       *app.MailService
-	users      ports.UserDirectory
-	compliance *app.ComplianceService
-	authz      api.Authz
-	cleanup   []func()
+	svc           *app.ConfigService
+	changes       *app.ChangeService
+	rollouts      *app.RolloutService
+	inv           *app.InventoryService
+	tokens        *app.TokenService
+	devCreds      *app.DeviceCredentials
+	discovery     *app.DiscoveryService
+	imaging       *app.ImagingService
+	staCreds      *app.StationCredentials
+	deviceSecrets *app.DeviceSecretsService
+	prefs         ports.PrefsStore
+	dir           ports.Directory
+	evidence      *app.EvidenceService
+	notify        *app.NotifyService
+	mail          *app.MailService
+	users         ports.UserDirectory
+	compliance    *app.ComplianceService
+	authz         api.Authz
+	cleanup       []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
 	// can wait for them to observe cancellation - they end in git commits, and
 	// cutting one mid-write is never acceptable.
@@ -175,6 +176,7 @@ func (d *deps) buildConfigPlane() error {
 		d.discovery = app.NewDiscoveryService(pg.Discovered(), clock, app.DefaultTenant)
 		d.imaging = app.NewImagingService(pg.ImageJobs(), clock, app.DefaultTenant)
 		d.staCreds = app.NewStationCredentials(pg.Tokens(), clock)
+		d.deviceSecrets = app.NewDeviceSecretsService(pg.DeviceSecrets(), sealer, clock, app.DefaultTenant)
 		d.prefs = pg
 		// In-app notifications need durable storage, so they light up only with
 		// Postgres. The change flow then tells approvers a change is ready and
@@ -292,7 +294,8 @@ func (d *deps) stationCapability() capability.Capability {
 		EnabledFn: func() bool { return d.discovery != nil },
 		RoutesFn: func(mux *http.ServeMux) {
 			inner := http.NewServeMux()
-			api.NewStation(d.discovery, d.imaging, d.devCreds, d.staCreds, d.cfg.CheckinToken, d.log).Routes(inner)
+			api.NewStation(d.discovery, d.imaging, d.devCreds, d.staCreds, d.cfg.CheckinToken, d.log).
+				WithSecrets(d.deviceSecrets).Routes(inner)
 			// report is the high-frequency device beat: rate-limit it. The job
 			// endpoints (the station runner claims work and reports status) are
 			// low-frequency and must also be reachable - mount them too, or a
@@ -367,7 +370,8 @@ func (d *deps) consoleCapability() capability.Capability {
 					Inventory: d.inv, Tokens: d.tokens, Prefs: d.prefs,
 					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence,
 					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds,
-					Notify: d.notify, Mail: d.mail, Users: d.users, Compliance: d.compliance},
+					DeviceSecrets: d.deviceSecrets,
+					Notify:        d.notify, Mail: d.mail, Users: d.users, Compliance: d.compliance},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {

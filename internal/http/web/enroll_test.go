@@ -76,7 +76,7 @@ func newEnrollConsole(t *testing.T) (*httptest.Server, *app.ConfigService, *memD
 	return ts, cfg, disc
 }
 
-func TestEnrollGuidedPageShowsStepsAndSuggestion(t *testing.T) {
+func TestEnrollBatchPageShowsDevicesAndSuggestion(t *testing.T) {
 	ts, _, _ := newEnrollConsole(t)
 	c := client()
 
@@ -88,35 +88,61 @@ func TestEnrollGuidedPageShowsStepsAndSuggestion(t *testing.T) {
 		t.Fatalf("enroll landing = %d", resp.StatusCode)
 	}
 
-	// With a station chosen: discovered devices, the suggested profile, and
-	// the profile's brand-specific imaging steps (guidance).
+	// With a station chosen: the batch form lists each discovered device with a
+	// per-device CMDB-name input and the suggested profile chip.
 	resp, _ = c.Get(ts.URL + "/enroll?station=nuc-1")
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
 	s := string(body)
-	if !strings.Contains(s, "suggested: lenovo-t495s") {
-		t.Fatalf("no profile suggestion on the guided page\n%s", s)
+	if !strings.Contains(s, "lenovo-t495s") {
+		t.Fatalf("no profile suggestion on the batch page\n%s", s)
 	}
-	if !strings.Contains(s, "Enter firmware") {
-		t.Fatal("brand-specific imaging steps not rendered")
+	if !strings.Contains(s, `name-aabbccddee01`) {
+		t.Fatal("per-device CMDB name input not rendered")
+	}
+	if !strings.Contains(s, "/enroll/nuc-1/batch") {
+		t.Fatal("batch form action missing")
 	}
 }
 
-func TestEnrollBatchImagesManyDevices(t *testing.T) {
+func TestEnrollDiscoveredRemove(t *testing.T) {
+	ts, _, disc := newEnrollConsole(t)
+	c := client()
+
+	resp, _ := c.PostForm(ts.URL+"/enroll/nuc-1/discovered/aa:bb:cc:dd:ee:02/remove",
+		url.Values{"csrf": {"dev-csrf"}})
+	resp.Body.Close()
+	if resp.StatusCode != 303 {
+		t.Fatalf("discovered remove = %d, want 303", resp.StatusCode)
+	}
+	left, _ := disc.List(context.Background(), app.DefaultTenant, "nuc-1")
+	for _, d := range left {
+		if d.MAC == "aa:bb:cc:dd:ee:02" {
+			t.Fatal("removed MAC still in the discovered set")
+		}
+	}
+	if len(left) != 2 {
+		t.Fatalf("discovered set = %d, want 2 after removing one", len(left))
+	}
+}
+
+func TestEnrollBatchImagesNamedDevices(t *testing.T) {
 	ts, cfg, disc := newEnrollConsole(t)
 	c := client()
 
-	form := url.Values{"csrf": {"dev-csrf"}, "prefix": {"lab-nuc"},
+	// Batch-only: each selected device carries the CMDB name the operator typed.
+	form := url.Values{"csrf": {"dev-csrf"},
 		"hardware": {"lenovo-t495s"}, "class": {"laptop"}, "group": {"pilot"}}
 	form["mac"] = []string{"aa:bb:cc:dd:ee:01", "aa:bb:cc:dd:ee:03"}
+	form.Set("name-aabbccddee01", "kiosk-01")
+	form.Set("name-aabbccddee03", "kiosk-03")
 	resp, _ := c.PostForm(ts.URL+"/enroll/nuc-1/batch", form)
 	resp.Body.Close()
 	if resp.StatusCode != 303 {
 		t.Fatalf("batch enroll = %d, want 303", resp.StatusCode)
 	}
 	devs := cfg.Fleet().Devices
-	// Tags derived from the MAC tail; both selected devices enrolled.
-	for _, tag := range []string{"lab-nuc-ddee01", "lab-nuc-ddee03"} {
+	for _, tag := range []string{"kiosk-01", "kiosk-03"} {
 		d, ok := devs[tag]
 		if !ok {
 			t.Fatalf("device %s not enrolled", tag)
@@ -131,12 +157,23 @@ func TestEnrollBatchImagesManyDevices(t *testing.T) {
 		t.Fatalf("station set after batch = %v, want only ...02", left)
 	}
 
-	// A bad prefix is rejected (no partial enroll).
-	bad := url.Values{"csrf": {"dev-csrf"}, "prefix": {"Bad Prefix"},
-		"hardware": {"lenovo-t495s"}, "mac": {"aa:bb:cc:dd:ee:02"}}
-	resp, _ = c.PostForm(ts.URL+"/enroll/nuc-1/batch", bad)
+	// A selected device with a blank name is rejected (no partial enroll).
+	blank := url.Values{"csrf": {"dev-csrf"}, "hardware": {"lenovo-t495s"},
+		"mac": {"aa:bb:cc:dd:ee:02"}}
+	resp, _ = c.PostForm(ts.URL+"/enroll/nuc-1/batch", blank)
 	resp.Body.Close()
 	if resp.StatusCode == 303 {
-		t.Fatal("batch accepted an invalid tag prefix")
+		t.Fatal("batch accepted a selected device with no name")
+	}
+
+	// A duplicate name across two selected devices is rejected.
+	dup := url.Values{"csrf": {"dev-csrf"}, "hardware": {"lenovo-t495s"}}
+	dup["mac"] = []string{"aa:bb:cc:dd:ee:02", "aa:bb:cc:dd:ee:01"}
+	dup.Set("name-aabbccddee02", "same")
+	dup.Set("name-aabbccddee01", "same")
+	resp, _ = c.PostForm(ts.URL+"/enroll/nuc-1/batch", dup)
+	resp.Body.Close()
+	if resp.StatusCode == 303 {
+		t.Fatal("batch accepted duplicate names")
 	}
 }

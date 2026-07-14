@@ -25,12 +25,12 @@ func (j *ImageJobStore) Upsert(ctx context.Context, tenant string, job imaging.J
 		status = imaging.Pending
 	}
 	_, err := j.s.pool.Exec(ctx, `
-		INSERT INTO image_jobs (tenant, station, mac, tag, hardware, status, message, created, updated)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)
+		INSERT INTO image_jobs (tenant, station, mac, tag, hardware, status, message, progress, step, created, updated)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
 		ON CONFLICT (tenant, station, mac) DO UPDATE SET
 			tag=EXCLUDED.tag, hardware=EXCLUDED.hardware, status=EXCLUDED.status,
-			message=EXCLUDED.message, updated=EXCLUDED.updated`,
-		tenant, job.Station, job.MAC, job.Tag, job.Hardware, string(status), job.Message, now)
+			message=EXCLUDED.message, progress=EXCLUDED.progress, step=EXCLUDED.step, updated=EXCLUDED.updated`,
+		tenant, job.Station, job.MAC, job.Tag, job.Hardware, string(status), job.Message, job.Progress, job.Step, now)
 	if err != nil {
 		return fmt.Errorf("upsert image job %s: %w", job.MAC, err)
 	}
@@ -40,14 +40,14 @@ func (j *ImageJobStore) Upsert(ctx context.Context, tenant string, job imaging.J
 // ListByStation returns every job for a station, newest first.
 func (j *ImageJobStore) ListByStation(ctx context.Context, tenant, station string) ([]imaging.Job, error) {
 	return j.query(ctx, `
-		SELECT station, mac, tag, hardware, status, message
+		SELECT station, mac, tag, hardware, status, message, progress, step
 		FROM image_jobs WHERE tenant=$1 AND station=$2 ORDER BY updated DESC`, tenant, station)
 }
 
 // ListPending returns jobs a station still has work for: not yet terminal.
 func (j *ImageJobStore) ListPending(ctx context.Context, tenant, station string) ([]imaging.Job, error) {
 	return j.query(ctx, `
-		SELECT station, mac, tag, hardware, status, message
+		SELECT station, mac, tag, hardware, status, message, progress, step
 		FROM image_jobs WHERE tenant=$1 AND station=$2 AND status IN ('pending','imaging')
 		ORDER BY created`, tenant, station)
 }
@@ -62,7 +62,7 @@ func (j *ImageJobStore) query(ctx context.Context, sql, tenant, station string) 
 	for rows.Next() {
 		var job imaging.Job
 		var status string
-		if err := rows.Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message); err != nil {
+		if err := rows.Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step); err != nil {
 			return nil, err
 		}
 		job.Status = imaging.Status(status)
@@ -76,9 +76,9 @@ func (j *ImageJobStore) Get(ctx context.Context, tenant, station, mac string) (i
 	var job imaging.Job
 	var status string
 	err := j.s.pool.QueryRow(ctx, `
-		SELECT station, mac, tag, hardware, status, message
+		SELECT station, mac, tag, hardware, status, message, progress, step
 		FROM image_jobs WHERE tenant=$1 AND station=$2 AND mac=$3`, tenant, station, mac).
-		Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message)
+		Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return imaging.Job{}, false, nil
@@ -89,12 +89,29 @@ func (j *ImageJobStore) Get(ctx context.Context, tenant, station, mac string) (i
 	return job, true, nil
 }
 
-// UpdateStatus moves a job to a new status with an optional message.
+// UpdateStatus moves a job to a new status with an optional message. A status
+// change starts a new step, so progress/step reset.
 func (j *ImageJobStore) UpdateStatus(ctx context.Context, tenant, station, mac string, status imaging.Status, message string, now time.Time) error {
 	_, err := j.s.pool.Exec(ctx, `
-		UPDATE image_jobs SET status=$4, message=$5, updated=$6
+		UPDATE image_jobs SET status=$4, message=$5, progress=0, step='', updated=$6
 		WHERE tenant=$1 AND station=$2 AND mac=$3`,
 		tenant, station, mac, string(status), message, now)
+	return err
+}
+
+// UpdateProgress records how far the current step is (0..100) and its label,
+// without changing status. It is the frequent, unguarded display-only tick.
+func (j *ImageJobStore) UpdateProgress(ctx context.Context, tenant, station, mac string, progress int, step string, now time.Time) error {
+	if progress < 0 {
+		progress = 0
+	}
+	if progress > 100 {
+		progress = 100
+	}
+	_, err := j.s.pool.Exec(ctx, `
+		UPDATE image_jobs SET progress=$4, step=$5, updated=$6
+		WHERE tenant=$1 AND station=$2 AND mac=$3`,
+		tenant, station, mac, progress, step, now)
 	return err
 }
 
