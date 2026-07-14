@@ -77,7 +77,7 @@ func run(args []string, getenv config.Getenv) error {
 		mw.Recover(log),
 		m.Middleware,
 		mw.AccessLog(log),
-		mw.SecureHeaders(),
+		mw.SecureHeaders(cfg.SecureCookies),
 	)
 
 	srv := server.New(cfg.Addr, handler, log, server.Options{ShutdownGrace: cfg.ShutdownGrace})

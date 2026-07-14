@@ -95,6 +95,7 @@ spec:
             {{- end }}
             - --log-format={{ .Values.logFormat }}
             - --secure-cookies
+            - --trust-proxy
             {{- with .Values.oidc.issuer }}
             - --oidc-issuer={{ . }}
             {{- end }}

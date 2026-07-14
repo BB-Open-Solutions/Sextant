@@ -8,10 +8,34 @@ import (
 	"golang.org/x/time/rate"
 )
 
+func TestClientIP(t *testing.T) {
+	mk := func(remote, xff string) *http.Request {
+		r := httptest.NewRequest("POST", "/", nil)
+		r.RemoteAddr = remote
+		if xff != "" {
+			r.Header.Set("X-Forwarded-For", xff)
+		}
+		return r
+	}
+	// No proxy trust: XFF is ignored (client-controlled), key on RemoteAddr host.
+	if got := clientIP(mk("10.0.0.9:5555", "1.2.3.4"), false); got != "10.0.0.9" {
+		t.Errorf("untrusted = %q, want 10.0.0.9", got)
+	}
+	// Trusted proxy: key on the rightmost XFF entry (what the proxy observed),
+	// so a spoofed left-hand entry cannot dodge the limit.
+	if got := clientIP(mk("10.0.0.1:80", "9.9.9.9, 8.8.8.8, 1.2.3.4"), true); got != "1.2.3.4" {
+		t.Errorf("trusted = %q, want 1.2.3.4 (rightmost)", got)
+	}
+	// Trusted but no XFF: fall back to RemoteAddr.
+	if got := clientIP(mk("10.0.0.1:80", ""), true); got != "10.0.0.1" {
+		t.Errorf("trusted no-xff = %q, want 10.0.0.1", got)
+	}
+}
+
 func TestRateLimitPerClient(t *testing.T) {
 	h := Chain(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
-	}), RateLimit(rate.Limit(1), 3))
+	}), RateLimit(rate.Limit(1), 3, false))
 
 	do := func(addr string) int {
 		rec := httptest.NewRecorder()
@@ -45,7 +69,7 @@ func TestRateLimitSharedAcrossMuxRoutes(t *testing.T) {
 	inner := http.NewServeMux()
 	inner.HandleFunc("GET /a", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) })
 	inner.HandleFunc("GET /b", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) })
-	limited := RateLimit(rate.Limit(1), 2)(inner)
+	limited := RateLimit(rate.Limit(1), 2, false)(inner)
 
 	do := func(path, addr string) int {
 		rec := httptest.NewRecorder()

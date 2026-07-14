@@ -284,7 +284,7 @@ func (d *deps) observedCapability() capability.Capability {
 				WithIntent(func(tag string) string {
 					return d.svc.Fleet().Devices[tag].Intent
 				}).Routes(inner)
-			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40)(inner))
+			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner))
 		},
 	}
 }
@@ -300,14 +300,15 @@ func (d *deps) stationCapability() capability.Capability {
 			inner := http.NewServeMux()
 			api.NewStation(d.discovery, d.imaging, d.devCreds, d.staCreds, d.cfg.CheckinToken, d.log).
 				WithSecrets(d.deviceSecrets).Routes(inner)
-			// report is the high-frequency device beat: rate-limit it. The job
-			// endpoints (the station runner claims work and reports status) are
-			// low-frequency and must also be reachable - mount them too, or a
-			// dispatched image job can never be claimed (it 404s).
-			mux.Handle("POST /api/station/{tag}/report", mw.RateLimit(rate.Limit(5), 10)(inner))
-			mux.Handle("GET /api/station/{tag}/jobs", inner)
-			mux.Handle("POST /api/station/{tag}/jobs/claim", inner)
-			mux.Handle("POST /api/station/{tag}/jobs/{mac}/status", inner)
+			// Rate-limit every station route (report is high-frequency, the job
+			// claim/status calls are lower but still unauthenticated-reachable),
+			// sharing one limiter so a station cannot dodge the report bucket by
+			// spamming the job endpoints.
+			limited := mw.RateLimit(rate.Limit(5), 10, d.cfg.TrustProxy)(inner)
+			mux.Handle("POST /api/station/{tag}/report", limited)
+			mux.Handle("GET /api/station/{tag}/jobs", limited)
+			mux.Handle("POST /api/station/{tag}/jobs/claim", limited)
+			mux.Handle("POST /api/station/{tag}/jobs/{mac}/status", limited)
 		},
 	}
 }
@@ -349,7 +350,7 @@ func (d *deps) authCapability() capability.Capability {
 			}
 			inner := http.NewServeMux()
 			authn.Routes(inner)
-			limited := mw.RateLimit(rate.Limit(2), 10)(inner)
+			limited := mw.RateLimit(rate.Limit(2), 10, d.cfg.TrustProxy)(inner)
 			mux.Handle("GET /login/start", limited)
 			mux.Handle("GET /callback", limited)
 			mux.Handle("POST /logout", limited)
@@ -393,11 +394,15 @@ func (d *deps) apiCapability() capability.Capability {
 	return capability.Func{
 		CapName: "api",
 		RoutesFn: func(mux *http.ServeMux) {
+			inner := http.NewServeMux()
 			api.New(api.Services{Config: d.svc, Changes: d.changes,
 				Rollouts: d.rollouts, Inventory: d.inv, Tokens: d.tokens,
 				DevCreds: d.devCreds, Prefs: d.prefs, Directory: d.dir,
 				Evidence: d.evidence},
-				d.authz, d.cfg.APIToken, d.cfg.Write, d.log).Routes(mux)
+				d.authz, d.cfg.APIToken, d.cfg.Write, d.log).Routes(inner)
+			// Rate-limit the whole machine surface: a leaked token or a client
+			// bug must not be able to hammer the API unbounded.
+			mux.Handle("/api/v1/", mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner))
 		},
 	}
 }

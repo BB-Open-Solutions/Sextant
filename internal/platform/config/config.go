@@ -82,6 +82,11 @@ type Config struct {
 	// OIDCClientSecret and SessionKey are environment-only secrets.
 	OIDCClientSecret string
 	SessionKey       []byte
+	// TrustProxy tells the rate limiter to key clients on the rightmost
+	// X-Forwarded-For entry (the address the trusted ingress observed) instead
+	// of RemoteAddr, which behind a proxy is the proxy itself. Enable ONLY when
+	// the service actually sits behind a trusted reverse proxy.
+	TrustProxy bool
 	// SecureCookies marks cookies Secure (set behind TLS). Settable by
 	// --secure-cookies or SEXTANT_SECURE_COOKIES (flag wins).
 	SecureCookies bool
@@ -180,6 +185,13 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		}
 		cfg.SecureCookies = b
 	}
+	if v := getenv(EnvPrefix + "TRUST_PROXY"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("%sTRUST_PROXY: %w", EnvPrefix, err)
+		}
+		cfg.TrustProxy = b
+	}
 
 	fs := flag.NewFlagSet("sextant", flag.ContinueOnError)
 	fs.StringVar(&cfg.Addr, "addr", cfg.Addr, "HTTP listen address")
@@ -199,6 +211,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.StringVar(&cfg.OIDCGroupsClaim, "oidc-groups-claim", cfg.OIDCGroupsClaim, "ID-token claim carrying groups (default groups)")
 	scopes := fs.String("oidc-scopes", envOr(getenv, "OIDC_SCOPES", ""), "comma-separated OIDC scopes (default openid,profile,email)")
 	fs.BoolVar(&cfg.SecureCookies, "secure-cookies", cfg.SecureCookies, "mark cookies Secure (set behind TLS)")
+	fs.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "key rate limits on X-Forwarded-For (only behind a trusted proxy)")
 	fs.BoolVar(&cfg.DevAuth, "dev-auth", false, "synthetic owner session without an IdP (loopback only)")
 	viewers := fs.String("viewer-groups", "", "comma-separated IdP groups with org-wide viewer role")
 	editors := fs.String("editor-groups", "", "comma-separated IdP groups with org-wide editor role")

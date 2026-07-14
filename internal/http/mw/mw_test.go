@@ -69,7 +69,7 @@ func TestAccessLogSkipsProbes(t *testing.T) {
 }
 
 func TestSecureHeaders(t *testing.T) {
-	h := Chain(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), SecureHeaders())
+	h := Chain(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), SecureHeaders(true))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
 
@@ -83,7 +83,17 @@ func TestSecureHeaders(t *testing.T) {
 			t.Errorf("%s = %q, want contains %q", header, got, want)
 		}
 	}
-	if rec.Header().Get("Strict-Transport-Security") != "" {
-		t.Error("HSTS set on plain HTTP; must only be set on TLS")
+	// hsts=true (behind TLS) emits HSTS even though the request itself is plain
+	// HTTP - the ingress terminated TLS, so r.TLS is nil.
+	if rec.Header().Get("Strict-Transport-Security") == "" {
+		t.Error("HSTS not set when hsts=true")
+	}
+
+	// hsts=false (dev/loopback, no TLS) must not claim HSTS.
+	rec2 := httptest.NewRecorder()
+	Chain(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), SecureHeaders(false)).
+		ServeHTTP(rec2, httptest.NewRequest("GET", "/", nil))
+	if rec2.Header().Get("Strict-Transport-Security") != "" {
+		t.Error("HSTS set when hsts=false")
 	}
 }

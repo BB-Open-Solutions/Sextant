@@ -66,7 +66,12 @@ func AccessLog(log *slog.Logger) Middleware {
 
 // SecureHeaders sets the browser security baseline. The CSP allows only
 // same-origin content: all assets are embedded and served by this binary.
-func SecureHeaders() Middleware {
+// hsts emits Strict-Transport-Security: it must be driven by config, not by
+// r.TLS, because the deployment terminates TLS at the ingress so the request
+// this process sees is plain HTTP and r.TLS is always nil - gating on it would
+// mean HSTS is never sent in production. Callers pass true when the service is
+// reached over HTTPS (the same signal as Secure cookies).
+func SecureHeaders(hsts bool) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := w.Header()
@@ -76,7 +81,7 @@ func SecureHeaders() Middleware {
 			h.Set("X-Frame-Options", "DENY")
 			h.Set("Referrer-Policy", "no-referrer")
 			h.Set("Cross-Origin-Opener-Policy", "same-origin")
-			if r.TLS != nil {
+			if hsts {
 				h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 			}
 			next.ServeHTTP(w, r)
