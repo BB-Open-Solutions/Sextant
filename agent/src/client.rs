@@ -21,6 +21,8 @@ pub struct CheckIn<'a> {
     pub ack: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facts: Option<&'a serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<&'a crate::collect::Usage>,
 }
 
 /// Outcome of one beat, as far as the loop needs to know.
@@ -156,6 +158,7 @@ mod tests {
             tpm2: "",
             ack: "",
             facts: None,
+            usage: None,
         };
         assert_eq!(c.send(&body), Outcome::Ok);
         assert_eq!(c.send(&body), Outcome::Unauthorized);

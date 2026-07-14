@@ -55,6 +55,7 @@ fn main() -> ExitCode {
             pending_ack = outcome;
         }
         let ack = std::mem::take(&mut pending_ack);
+        let usage = collect::collect_usage();
         let beat = CheckIn {
             tag: &cfg.tag,
             revision: &revision,
@@ -64,6 +65,7 @@ fn main() -> ExitCode {
             tpm2: post.tpm2,
             ack: &ack,
             facts: facts.as_ref(),
+            usage: Some(&usage),
         };
         match client.send(&beat) {
             Outcome::Ok => {

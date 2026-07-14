@@ -50,6 +50,43 @@ type CheckIn struct {
 	// the -refused/-failed variants mean it was declined (unarmed host / lock
 	// interlock) or could not finish. Empty on an ordinary beat.
 	Ack string `json:"ack,omitempty"`
+	// Usage is the device's live resource utilisation at this beat (optional).
+	Usage Usage `json:"usage,omitempty"`
+}
+
+// Usage is a device's live resource utilisation at check-in: a snapshot, not a
+// series. All-zero means the agent did not report it (an older agent or a
+// failed probe), so the console shows it as unknown rather than 0%.
+type Usage struct {
+	CPUPct      int `json:"cpuPct,omitempty"` // 0..100 over the sample window
+	MemUsedMB   int `json:"memUsedMB,omitempty"`
+	MemTotalMB  int `json:"memTotalMB,omitempty"`
+	DiskUsedGB  int `json:"diskUsedGB,omitempty"`
+	DiskTotalGB int `json:"diskTotalGB,omitempty"`
+}
+
+// Reported is true once the device has sent any utilisation figure, so the
+// console can distinguish "0%" from "not reported".
+func (u Usage) Reported() bool {
+	return u.CPUPct > 0 || u.MemTotalMB > 0 || u.DiskTotalGB > 0
+}
+
+// validateUsage bounds the utilisation fields so a bad agent cannot store
+// nonsense (a negative or >100 CPU, used exceeding total).
+func validateUsage(u Usage) error {
+	if u.CPUPct < 0 || u.CPUPct > 100 {
+		return fmt.Errorf("cpu%% %d out of range 0..100", u.CPUPct)
+	}
+	if u.MemUsedMB < 0 || u.MemTotalMB < 0 || u.DiskUsedGB < 0 || u.DiskTotalGB < 0 {
+		return fmt.Errorf("usage fields must be non-negative")
+	}
+	if u.MemUsedMB > u.MemTotalMB && u.MemTotalMB > 0 {
+		return fmt.Errorf("memory used %d exceeds total %d", u.MemUsedMB, u.MemTotalMB)
+	}
+	if u.DiskUsedGB > u.DiskTotalGB && u.DiskTotalGB > 0 {
+		return fmt.Errorf("disk used %d exceeds total %d", u.DiskUsedGB, u.DiskTotalGB)
+	}
+	return nil
 }
 
 // Remote-action ack outcomes.
@@ -79,6 +116,9 @@ func (c CheckIn) Validate() error {
 	default:
 		return fmt.Errorf("unknown ack %q", c.Ack)
 	}
+	if err := validateUsage(c.Usage); err != nil {
+		return err
+	}
 	return validatePosture(c.SB, c.TPM2)
 }
 
@@ -93,6 +133,8 @@ type DeviceStatus struct {
 	TPM2     TPM2State `json:"tpm2,omitempty"`
 	// Ack is the last remote-action intent the device confirmed executing.
 	Ack string `json:"ack,omitempty"`
+	// Usage is the device's last-reported live resource utilisation.
+	Usage Usage `json:"usage,omitempty"`
 }
 
 // OnlineWindow is how recently a device must have checked in to count as

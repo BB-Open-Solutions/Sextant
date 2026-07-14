@@ -118,14 +118,15 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 			"Devices": len(f.Devices), "Online": online, "Groups": len(f.Groups),
 			"Policies": len(f.Policies), "OpenChanges": openChanges,
 		},
-		"Compliance": map[string]int{"Healthy": healthy, "Warning": warn, "Critical": crit, "Total": total, "Score": hp},
-		"Donut":      donut,
-		"Capacity":   fleetCapacity(f),
-		"Incidents":  incidents,
-		"Attention":  attn,
-		"Approvals":  approvals,
-		"Status":     status,
-		"CanEnroll":  v.roleAt("org").Meets(identity.Editor),
+		"Compliance":  map[string]int{"Healthy": healthy, "Warning": warn, "Critical": crit, "Total": total, "Score": hp},
+		"Donut":       donut,
+		"Capacity":    fleetCapacity(f),
+		"Utilization": fleetUtilization(status),
+		"Incidents":   incidents,
+		"Attention":   attn,
+		"Approvals":   approvals,
+		"Status":      status,
+		"CanEnroll":   v.roleAt("org").Meets(identity.Editor),
 	}, v)
 }
 

@@ -71,3 +71,27 @@ func TestHealthy(t *testing.T) {
 		t.Error("empty phase should be healthy")
 	}
 }
+
+func TestUsageValidationAndReported(t *testing.T) {
+	if (Usage{}).Reported() {
+		t.Error("zero usage must read as not reported")
+	}
+	if !(Usage{MemTotalMB: 8192}).Reported() {
+		t.Error("a usage with total memory must read as reported")
+	}
+	good := CheckIn{Tag: "lt-1", Usage: Usage{CPUPct: 40, MemUsedMB: 4096, MemTotalMB: 8192, DiskUsedGB: 100, DiskTotalGB: 512}}
+	if err := good.Validate(); err != nil {
+		t.Fatalf("valid usage rejected: %v", err)
+	}
+	for name, u := range map[string]Usage{
+		"cpu>100":         {CPUPct: 101},
+		"cpu<0":           {CPUPct: -1},
+		"neg mem":         {MemUsedMB: -1},
+		"mem used>total":  {MemUsedMB: 100, MemTotalMB: 50},
+		"disk used>total": {DiskUsedGB: 100, DiskTotalGB: 50},
+	} {
+		if err := (CheckIn{Tag: "lt-1", Usage: u}).Validate(); err == nil {
+			t.Errorf("%s: expected rejection", name)
+		}
+	}
+}
