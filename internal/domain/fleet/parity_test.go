@@ -170,3 +170,91 @@ func TestParity_TieBreaks(t *testing.T) {
 	)
 	assertParity(t, f, "lt-1")
 }
+
+// TestParity_FilterOperators: every filter operator this domain supports
+// (eq/ne/prefix/in), plus AttrGroup ancestry and a label: rule, gated on the
+// policyFleet fixture (lt-1/lt-2 in frontoffice, a subgroup of zaanstad;
+// srv-1 directly in zaanstad with a site label). Mirrors the Go-side cases in
+// filter_test.go so the nix twin is proven to agree on the same vocabulary,
+// not just OpEq (which TestParity_Policies alone exercised).
+func TestParity_FilterOperators(t *testing.T) {
+	cases := []struct {
+		name string
+		rule FilterRule
+	}{
+		{"class ne", FilterRule{Attr: AttrClass, Op: OpNe, Value: "server"}},
+		{"hardware prefix", FilterRule{Attr: AttrHardware, Op: OpPrefix, Value: "hp-"}},
+		{"hardware in", FilterRule{Attr: AttrHardware, Op: OpIn, Values: []string{"t495s", "msi"}}},
+		{"assignedUser ne", FilterRule{Attr: AttrAssignedUser, Op: OpNe, Value: "ada"}},
+		{"label eq", FilterRule{Attr: "label:site", Op: OpEq, Value: "inspoelstraat"}},
+		// AttrGroup ancestry: "zaanstad" matches all three devices (lt-1/lt-2
+		// via the frontoffice subgroup, srv-1 directly); "frontoffice" only
+		// matches lt-1/lt-2.
+		{"group ancestor via parent", FilterRule{Attr: AttrGroup, Op: OpEq, Value: "zaanstad"}},
+		{"group direct on subgroup", FilterRule{Attr: AttrGroup, Op: OpEq, Value: "frontoffice"}},
+		{"group ne", FilterRule{Attr: AttrGroup, Op: OpNe, Value: "frontoffice"}},
+		{"group prefix", FilterRule{Attr: AttrGroup, Op: OpPrefix, Value: "front"}},
+		{"group in", FilterRule{Attr: AttrGroup, Op: OpIn, Values: []string{"frontoffice", "ghost"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := policyFleet(t)
+			apply(t, f,
+				PutFilter("f", Filter{Rules: []FilterRule{tc.rule}}),
+				PutPolicy("tag", Policy{Settings: map[string]any{"tagged": true}}),
+				Assign(Assignment{Policy: "tag", Target: "org", Filter: "f"}),
+			)
+			for _, tag := range []string{"lt-1", "lt-2", "srv-1"} {
+				t.Run(tag, func(t *testing.T) { assertParity(t, f, tag) })
+			}
+		})
+	}
+}
+
+// TestParity_FilterMatchAny: a MatchAny filter (one rule suffices) selecting
+// a mix of devices by hardware OR class - unexercised by any other parity
+// case, which only use single-rule (implicit MatchAll) filters.
+func TestParity_FilterMatchAny(t *testing.T) {
+	f := policyFleet(t)
+	apply(t, f,
+		PutFilter("hw-or-server", Filter{
+			Match: MatchAny,
+			Rules: []FilterRule{
+				{Attr: AttrHardware, Op: OpEq, Value: "t495s"},
+				{Attr: AttrClass, Op: OpEq, Value: "server"},
+			},
+		}),
+		PutPolicy("tag", Policy{Settings: map[string]any{"tagged": true}}),
+		Assign(Assignment{Policy: "tag", Target: "org", Filter: "hw-or-server"}),
+	)
+	for _, tag := range []string{"lt-1", "lt-2", "srv-1"} {
+		t.Run(tag, func(t *testing.T) { assertParity(t, f, tag) })
+	}
+}
+
+// TestParity_CrossHierarchyGroupOrderDecidesTies mirrors
+// TestResolve_CrossHierarchyGroupOrderDecidesTies (resolve_test.go): a
+// device in two unrelated group hierarchies gets its specificity from the
+// ORDER groups appear in Device.Groups, not tree depth. chain.go flags this
+// as the subtle case; nix/resolve.nix's scopePositions claims to match it
+// exactly (see the comment there) - this proves it, for both the default
+// and enforced tie-break, in both group orders.
+func TestParity_CrossHierarchyGroupOrderDecidesTies(t *testing.T) {
+	const groups = `
+	  "a-root": {"settings": {"theme": "a", "lock": "a"}, "enforced": ["lock"]},
+	  "b-root": {},
+	  "b-leaf": {"parent": "b-root", "settings": {"theme": "b", "lock": "b"}, "enforced": ["lock"]}`
+
+	fleetWithOrder := func(t *testing.T, order string) *Fleet {
+		t.Helper()
+		j := `{"version":3,"groups":{` + groups + `},"devices":{"d":{"groups":` + order + `,"hardware":"hw"}}}`
+		f, err := Decode([]byte(j))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+
+	assertParity(t, fleetWithOrder(t, `["b-leaf","a-root"]`), "d")
+	assertParity(t, fleetWithOrder(t, `["a-root","b-leaf"]`), "d")
+}

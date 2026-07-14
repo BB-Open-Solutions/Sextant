@@ -42,46 +42,56 @@
 <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
   <!-- Left: compliance + activity -->
   <div class="flex flex-col gap-4 xl:col-span-2">
-    <!-- Fleet compliance donut -->
-    <div class="rounded-lg border border-border-hairline bg-canvas p-5">
-      <div class="mb-4 flex items-center justify-between">
-        <h3 class="mt-0 mb-0 text-label-xs-caps font-semibold uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.fleet_compliance"}}</h3>
-        <a href="/pipeline" class="text-label-md text-mint-deep hover:underline">{{.L.T "page.overview.view_details"}}</a>
-      </div>
-      <div class="flex items-center gap-8">
-        <div class="relative h-28 w-28 shrink-0">
-          <svg class="h-full w-full -rotate-90" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#eeeeee" stroke-width="3"></circle>
-            {{range .Donut}}<circle cx="18" cy="18" r="15.915" fill="transparent" stroke="{{.Color}}" stroke-dasharray="{{.Dash}} 100" stroke-dashoffset="{{.Offset}}" stroke-width="3"></circle>{{end}}
-          </svg>
-          <div class="absolute inset-0 flex flex-col items-center justify-center">
-            <span class="text-headline-sm leading-none text-ink">{{.Compliance.Score}}%</span>
-            <span class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "page.overview.healthy"}}</span>
+    <!-- Compliance + live resources, side by side -->
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <!-- Fleet compliance donut -->
+      <div class="rounded-lg border border-border-hairline bg-canvas p-5">
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="mt-0 mb-0 text-label-xs-caps font-semibold uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.fleet_compliance"}}</h3>
+          <a href="/pipeline" class="text-label-md text-mint-deep hover:underline">{{.L.T "page.overview.view_details"}}</a>
+        </div>
+        <div class="flex items-center gap-6">
+          <div class="relative h-28 w-28 shrink-0">
+            <svg class="h-full w-full -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#eeeeee" stroke-width="3"></circle>
+              {{range .Donut}}<circle cx="18" cy="18" r="15.915" fill="transparent" stroke="{{.Color}}" stroke-dasharray="{{.Dash}} 100" stroke-dashoffset="{{.Offset}}" stroke-width="3"></circle>{{end}}
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span class="text-headline-sm leading-none text-ink">{{.Compliance.Score}}%</span>
+              <span class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "page.overview.healthy"}}</span>
+            </div>
+          </div>
+          <div class="flex-1 space-y-2">
+            <div class="flex items-center justify-between text-body-sm"><span class="flex items-center gap-2 text-text-secondary"><span class="h-2 w-2 rounded-full bg-mint-vibrant"></span>{{.L.T "page.overview.to_spec"}}</span><span class="font-mono text-ink">{{.Compliance.Healthy}}</span></div>
+            <div class="flex items-center justify-between text-body-sm"><span class="flex items-center gap-2 text-text-secondary"><span class="h-2 w-2 rounded-full bg-status-warn"></span>{{.L.T "page.overview.warning"}}</span><span class="font-mono text-ink">{{.Compliance.Warning}}</span></div>
+            <div class="flex items-center justify-between text-body-sm"><span class="flex items-center gap-2 text-text-secondary"><span class="h-2 w-2 rounded-full bg-status-error"></span>{{.L.T "page.overview.critical"}}</span><span class="font-mono text-ink">{{.Compliance.Critical}}</span></div>
           </div>
         </div>
-        <div class="flex-1 space-y-2">
-          <div class="flex items-center justify-between text-body-sm"><span class="flex items-center gap-2 text-text-secondary"><span class="h-2 w-2 rounded-full bg-mint-vibrant"></span>{{.L.T "page.overview.to_spec"}}</span><span class="font-mono text-ink">{{.Compliance.Healthy}}</span></div>
-          <div class="flex items-center justify-between text-body-sm"><span class="flex items-center gap-2 text-text-secondary"><span class="h-2 w-2 rounded-full bg-status-warn"></span>{{.L.T "page.overview.warning"}}</span><span class="font-mono text-ink">{{.Compliance.Warning}}</span></div>
-          <div class="flex items-center justify-between text-body-sm"><span class="flex items-center gap-2 text-text-secondary"><span class="h-2 w-2 rounded-full bg-status-error"></span>{{.L.T "page.overview.critical"}}</span><span class="font-mono text-ink">{{.Compliance.Critical}}</span></div>
-        </div>
       </div>
-    </div>
 
-    <!-- Live fleet utilisation: CPU / RAM / Disk gauges from the last check-in -->
-    <div class="rounded-lg border border-border-hairline bg-canvas p-5">
-      <div class="mb-4 flex items-center justify-between">
-        <h3 class="mt-0 mb-0 text-label-xs-caps font-semibold uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.fleet_utilisation"}}</h3>
-        {{if .Utilization.Reporting}}<span class="text-label-md text-text-tertiary">{{.Utilization.Reporting}} {{.L.T "page.overview.util_reporting"}}</span>{{end}}
+      <!-- Live resources donut with a CPU / RAM / Disk switch (CSS-only, CSP-safe) -->
+      <div class="rounded-lg border border-border-hairline bg-canvas p-5">
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="mt-0 mb-0 text-label-xs-caps font-semibold uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.fleet_utilisation"}}</h3>
+          {{if .Utilization.Reporting}}<span class="text-label-md text-text-tertiary">{{.Utilization.Reporting}} {{.L.T "page.overview.util_reporting"}}</span>{{end}}
+        </div>
+        {{if .Utilization.Reporting}}
+        {{$u := .Utilization}}
+        <div class="flex flex-wrap items-center gap-1">
+          <input type="radio" name="resmetric" id="res-cpu" class="peer/rcpu sr-only" checked>
+          <input type="radio" name="resmetric" id="res-ram" class="peer/rram sr-only">
+          <input type="radio" name="resmetric" id="res-disk" class="peer/rdisk sr-only">
+          <label for="res-cpu" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/rcpu:border-ink peer-checked/rcpu:bg-ink peer-checked/rcpu:text-canvas">{{.L.T "page.overview.cap_cpu"}}</label>
+          <label for="res-ram" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/rram:border-ink peer-checked/rram:bg-ink peer-checked/rram:text-canvas">{{.L.T "page.overview.cap_ram"}}</label>
+          <label for="res-disk" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/rdisk:border-ink peer-checked/rdisk:bg-ink peer-checked/rdisk:text-canvas">{{.L.T "page.overview.cap_disk"}}</label>
+          <div class="hidden w-full pt-4 peer-checked/rcpu:block">{{template "resPanel" (list $u.CPU.UsedPct (.L.T "page.overview.cap_cpu") $u.CPU.Label $u.Reporting)}}</div>
+          <div class="hidden w-full pt-4 peer-checked/rram:block">{{template "resPanel" (list $u.RAM.UsedPct (.L.T "page.overview.cap_ram") $u.RAM.Label $u.Reporting)}}</div>
+          <div class="hidden w-full pt-4 peer-checked/rdisk:block">{{template "resPanel" (list $u.Disk.UsedPct (.L.T "page.overview.cap_disk") $u.Disk.Label $u.Reporting)}}</div>
+        </div>
+        {{else}}
+        <p class="muted mb-0">{{.L.T "page.overview.util_waiting"}}</p>
+        {{end}}
       </div>
-      {{if .Utilization.Reporting}}
-      <div class="flex flex-wrap items-start justify-around gap-4">
-        {{template "utilRing" (list .Utilization.CPU.UsedPct (.L.T "page.overview.cap_cpu") .Utilization.CPU.Label)}}
-        {{template "utilRing" (list .Utilization.RAM.UsedPct (.L.T "page.overview.cap_ram") .Utilization.RAM.Label)}}
-        {{template "utilRing" (list .Utilization.Disk.UsedPct (.L.T "page.overview.cap_disk") .Utilization.Disk.Label)}}
-      </div>
-      {{else}}
-      <p class="muted mb-0">{{.L.T "page.overview.util_waiting"}}</p>
-      {{end}}
     </div>
 
     <!-- Fleet capacity donut with a CPU / RAM / Disk switch (CSS-only, CSP-safe) -->
@@ -171,6 +181,26 @@
 {{end}}
 
 {{/* capPanel: a capacity donut + total + legend. args: [segments, total, unit] */}}
+{{/* resPanel: a live-utilisation donut + detail. args: [usedPct, metricLabel, detailLabel, ...] */}}
+{{define "resPanel"}}
+{{$pct := index . 0}}{{$metric := index . 1}}{{$detail := index . 2}}
+<div class="flex items-center gap-6">
+  <div class="relative h-28 w-28 shrink-0">
+    <svg class="h-full w-full -rotate-90" viewBox="0 0 36 36">
+      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#eeeeee" stroke-width="3"></circle>
+      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#14b8a6" stroke-dasharray="{{$pct}} 100" stroke-width="3" stroke-linecap="round"></circle>
+    </svg>
+    <div class="absolute inset-0 flex flex-col items-center justify-center">
+      <span class="text-headline-sm leading-none text-ink">{{$pct}}%</span>
+      <span class="text-label-xs-caps uppercase text-text-tertiary">{{$metric}}</span>
+    </div>
+  </div>
+  <div class="min-w-0 flex-1">
+    <div class="font-mono text-body-sm text-text-secondary">{{$detail}}</div>
+  </div>
+</div>
+{{end}}
+
 {{define "capPanel"}}
 {{$segs := index . 0}}{{$total := index . 1}}{{$unit := index . 2}}
 <div class="flex items-center gap-8">

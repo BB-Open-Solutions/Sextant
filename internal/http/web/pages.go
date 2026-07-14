@@ -182,14 +182,25 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 		Tag, Class, Hardware, AssignedUser, Revision string
 		Groups                                       []string
 		HasStatus, Online                            bool
+		// Reported is set when the device sent a live usage reading; CPU/RAM/Disk
+		// are its used-percentages for the compact per-device resource column.
+		Reported       bool
+		CPU, RAM, Disk int
 	}
 	rows := make([]row, 0, len(f.Devices))
 	for _, tag := range f.DeviceTags() {
 		d := f.Devices[tag]
 		st, has := statuses[tag]
-		rows = append(rows, row{Tag: tag, Class: d.Class, Hardware: d.Hardware,
+		rw := row{Tag: tag, Class: d.Class, Hardware: d.Hardware,
 			AssignedUser: d.AssignedUser, Groups: d.Groups,
-			HasStatus: has, Online: st.Online, Revision: st.Revision})
+			HasStatus: has, Online: st.Online, Revision: st.Revision}
+		if has && st.Usage.Reported() {
+			rw.Reported = true
+			rw.CPU = st.Usage.CPUPct
+			rw.RAM = pctOf(st.Usage.MemUsedMB, st.Usage.MemTotalMB)
+			rw.Disk = pctOf(st.Usage.DiskUsedGB, st.Usage.DiskTotalGB)
+		}
+		rows = append(rows, rw)
 	}
 	groups := make([]string, 0, len(f.Groups))
 	for g := range f.Groups {

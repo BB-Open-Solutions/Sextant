@@ -4,7 +4,7 @@
     <h1 class="mb-1">{{.L.T "groups.title"}}</h1>
     <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "groups.intro"}}</p>
   </div>
-  {{if .CanOrgOwn}}<a href="#create" class="btn shrink-0"><span class="material-symbols-outlined msz-18">create_new_folder</span>{{.L.T "groups.create"}}</a>{{end}}
+  {{if .CanOrgOwn}}<label for="gc-toggle" class="btn shrink-0 cursor-pointer"><span class="material-symbols-outlined msz-18">create_new_folder</span>{{.L.T "groups.create"}}</label>{{end}}
 </div>
 
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -12,10 +12,13 @@
   <div class="flex h-[600px] flex-col overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm xl:col-span-2">
     <div class="flex items-center justify-between border-b border-border-hairline bg-surface-bright px-6 py-4">
       <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="material-symbols-outlined msz-18 text-text-tertiary">account_tree</span>{{.L.T "groups.hierarchy_title"}}</h2>
-      <div class="hidden items-center gap-4 text-label-xs-caps uppercase text-text-tertiary sm:flex">
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">push_pin</span>{{.L.T "groups.legend_pinned"}}</span>
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">devices</span>{{.L.T "groups.legend_devices"}}</span>
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">vpn_key</span>{{.L.T "groups.legend_idp"}}</span>
+      <div class="flex items-center gap-4">
+        <div class="hidden items-center gap-4 text-label-xs-caps uppercase text-text-tertiary sm:flex">
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">push_pin</span>{{.L.T "groups.legend_pinned"}}</span>
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">devices</span>{{.L.T "groups.legend_devices"}}</span>
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">vpn_key</span>{{.L.T "groups.legend_idp"}}</span>
+        </div>
+        {{if .CanOrgOwn}}<label for="gc-toggle" title="{{.L.T "groups.create"}}" class="flex cursor-pointer items-center justify-center rounded-full border border-border-hairline p-1 text-text-tertiary transition-colors hover:border-ink hover:bg-canvas hover:text-ink"><span class="material-symbols-outlined msz-18">add</span></label>{{end}}
       </div>
     </div>
     <div class="flex-1 overflow-y-auto p-2">
@@ -69,12 +72,7 @@
             <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="setidp" value="1">
               <label>{{$.L.T "groups.map_idp"}}</label>
-              {{if $.DirGroups}}
-              {{$cur := .IdpGroup}}
-              <select name="idpGroup" class="w-full"><option value="">{{$.L.T "groups.unmapped_option"}}</option>{{range $.DirGroups}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
-              {{else}}
-              <input name="idpGroup" value="{{.IdpGroup}}" placeholder="{{$.L.T "groups.idp_group_placeholder"}}" class="w-full">
-              {{end}}
+              <input name="idpGroup" list="dirgroups" value="{{.IdpGroup}}" placeholder="{{$.L.T "groups.idp_group_placeholder"}}" class="w-full" autocomplete="off">
               <button type="submit" class="quiet mt-2 self-start">{{$.L.T "groups.map_button"}}</button>
             </form>
             <form method="post" action="/groups/{{.Name}}/remove" class="!block" onsubmit="return confirm('Remove group {{.Name}}?')">
@@ -94,18 +92,27 @@
 </div>
 
 {{if .CanOrgOwn}}
-<div id="create" class="mt-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">create_new_folder</span>{{.L.T "groups.create_heading"}}</h2>
-  <form method="post" action="/groups" class="!items-end">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="flex flex-col gap-1"><label>{{.L.T "common.name"}}</label><input name="name" placeholder="{{.L.T "groups.slug_placeholder"}}" required></div>
-    <div class="flex flex-col gap-1"><label>{{.L.T "groups.parent"}}</label><select name="parent"><option value="">{{.L.T "groups.root"}}</option>{{range .AllGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
-    <div class="flex flex-col gap-1"><label>{{.L.T "groups.idp_mapping"}}</label>
-      {{if .DirGroups}}<select name="idpGroup"><option value=""> {{.L.T "groups.none_option"}} </option>{{range .DirGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-      {{else}}<input name="idpGroup" placeholder="{{.L.T "common.optional"}}">{{end}}
+<!-- Create-group modal: a CSS-only overlay toggled by the checkbox (no JS, so
+     it stays within the strict CSP). The "+" in the hierarchy header and the
+     top-right button are labels bound to this checkbox; the backdrop and the X
+     close it. -->
+<input type="checkbox" id="gc-toggle" class="peer/gc hidden">
+<div class="fixed inset-0 z-50 hidden items-center justify-center bg-ink/40 p-4 peer-checked/gc:flex">
+  <label for="gc-toggle" class="absolute inset-0 cursor-default" aria-label="{{.L.T "common.cancel"}}"></label>
+  <div class="relative z-10 w-full max-w-lg rounded-lg border border-border-hairline bg-canvas p-6 shadow-lg">
+    <div class="mb-4 flex items-center justify-between">
+      <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">create_new_folder</span>{{.L.T "groups.create_heading"}}</h2>
+      <label for="gc-toggle" class="cursor-pointer rounded-full p-1 text-text-tertiary hover:bg-surface-bright hover:text-ink"><span class="material-symbols-outlined msz-20">close</span></label>
     </div>
-    <button type="submit">{{.L.T "common.create"}}</button>
-  </form>
+    <form method="post" action="/groups" class="!flex-col !items-stretch gap-3">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="flex flex-col gap-1"><label>{{.L.T "common.name"}}</label><input name="name" placeholder="{{.L.T "groups.slug_placeholder"}}" required></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "groups.parent"}}</label><select name="parent"><option value="">{{.L.T "groups.root"}}</option>{{range .AllGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "groups.idp_mapping"}}</label><input name="idpGroup" list="dirgroups" placeholder="{{.L.T "common.optional"}}" autocomplete="off"></div>
+      <button type="submit" class="mt-2 self-start">{{.L.T "common.create"}}</button>
+    </form>
+  </div>
 </div>
 {{end}}
+{{if .DirGroups}}<datalist id="dirgroups">{{range .DirGroups}}<option value="{{.}}"></option>{{end}}</datalist>{{end}}
 {{end}}

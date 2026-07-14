@@ -7,8 +7,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	ldapv3 "github.com/go-ldap/ldap/v3"
@@ -32,10 +34,17 @@ type Config struct {
 	NameAttr string
 	// InsecureSkipVerify disables TLS verification (labs only).
 	InsecureSkipVerify bool
+	// Logger receives operational warnings, notably the cleartext-bind
+	// warning below. Defaults to slog.Default() when nil.
+	Logger *slog.Logger
 }
 
 // Directory implements ports.Directory.
-type Directory struct{ cfg Config }
+type Directory struct {
+	cfg      Config
+	log      *slog.Logger
+	warnOnce sync.Once // guards the cleartext-bind warning: log it once, not per request
+}
 
 // New validates the config and returns the directory.
 func New(cfg Config) (*Directory, error) {
@@ -48,7 +57,11 @@ func New(cfg Config) (*Directory, error) {
 	if cfg.NameAttr == "" {
 		cfg.NameAttr = "cn"
 	}
-	return &Directory{cfg: cfg}, nil
+	log := cfg.Logger
+	if log == nil {
+		log = slog.Default()
+	}
+	return &Directory{cfg: cfg, log: log}, nil
 }
 
 // maxGroups bounds one directory answer; pickers page client-side.
@@ -106,8 +119,34 @@ func mapGroups(entries []*ldapv3.Entry, nameAttr string) []ports.DirectoryGroup 
 	return out
 }
 
+// bindIsCleartext reports whether a bind on this config would send
+// BindPassword unencrypted: a bind is actually attempted (BindDN and
+// BindPassword both set) and the URL is not ldaps://. Pure, so the warning
+// trigger is unit-tested without a live directory.
+func bindIsCleartext(url, bindDN, bindPassword string) bool {
+	return bindDN != "" && bindPassword != "" && !strings.HasPrefix(url, "ldaps://")
+}
+
+// warnCleartextBindOnce logs, at most once per Directory, that the bind
+// password is about to traverse this connection unencrypted. We cannot force
+// TLS here - some deployments only reach the directory over ldap:// on a
+// trusted in-cluster/mesh path - but that must not be a SILENT cleartext
+// credential exposure; it must show up in logs/alerting.
+func (d *Directory) warnCleartextBindOnce() {
+	if !bindIsCleartext(d.cfg.URL, d.cfg.BindDN, d.cfg.BindPassword) {
+		return
+	}
+	d.warnOnce.Do(func() {
+		d.log.Warn("ldap bind credentials sent in cleartext: BindPassword traverses "+
+			"this ldap:// connection unencrypted; use ldaps:// or route ldap:// only "+
+			"over a trusted mTLS/mesh path",
+			"url", d.cfg.URL)
+	})
+}
+
 // dial connects with a per-call deadline; ldaps URLs get TLS.
 func (d *Directory) dial(ctx context.Context) (*ldapv3.Conn, error) {
+	d.warnCleartextBindOnce()
 	var opts []ldapv3.DialOpt
 	if strings.HasPrefix(d.cfg.URL, "ldaps://") {
 		opts = append(opts, ldapv3.DialWithTLSConfig(&tls.Config{
