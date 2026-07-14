@@ -9,6 +9,7 @@ package web
 // English; a missing English key renders the key itself, which makes an
 // untranslated string visible instead of silently blank.
 var catalog = map[string]map[string]string{
+	// #nosec G101 - UI translation strings, not credentials; G101 matches on keys like "secret"/"token" in the i18n table.
 	"en": {
 		"access.active_bindings":               "Active role bindings",
 		"access.approval_desc":                 "How changes and updates must be reviewed before they take effect.",
@@ -693,6 +694,7 @@ var catalog = map[string]map[string]string{
 		"station.station_tag_label":            "Station tag",
 		"station.title":                        "Imaging stations",
 	},
+	// #nosec G101 - Dutch UI translation strings, not credentials.
 	"nl": {
 		"access.active_bindings":               "Actieve rolbindingen",
 		"access.approval_desc":                 "Hoe wijzigingen en updates beoordeeld moeten worden voordat ze van kracht worden.",

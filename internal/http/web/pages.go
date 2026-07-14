@@ -430,6 +430,7 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	// One-shot device credential from enroll/re-issue/reactivate.
 	if c, err := r.Cookie(devCredCookie); err == nil && c.Value != "" {
 		data["Credential"] = c.Value
+		// #nosec G124 - deletion of the one-shot credential cookie: empty value, MaxAge -1, HttpOnly+Secure set; nothing to protect.
 		http.SetCookie(w, &http.Cookie{Name: devCredCookie, Value: "",
 			Path: "/devices/" + tag, MaxAge: -1, HttpOnly: true, Secure: true})
 	}

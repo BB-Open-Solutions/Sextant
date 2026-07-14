@@ -91,6 +91,7 @@ func (c *secureCookie) set(w http.ResponseWriter, v any) error {
 	if err != nil {
 		return err
 	}
+	// #nosec G124 - HttpOnly+Lax+sealed value are set; Secure is c.secure so a loopback dev HTTP host can still authenticate, on in production.
 	http.SetCookie(w, &http.Cookie{
 		Name:     c.name,
 		Value:    val,
@@ -113,6 +114,7 @@ func (c *secureCookie) get(r *http.Request, out any) error {
 }
 
 func (c *secureCookie) clear(w http.ResponseWriter) {
+	// #nosec G124 - deletion cookie: empty value, MaxAge -1, HttpOnly set; it carries no data to protect.
 	http.SetCookie(w, &http.Cookie{
 		Name: c.name, Value: "", Path: "/", HttpOnly: true, Secure: c.secure, MaxAge: -1,
 	})

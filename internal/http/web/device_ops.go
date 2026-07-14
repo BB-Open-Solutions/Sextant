@@ -13,6 +13,7 @@ import (
 // device credentials travel like minted tokens: a one-shot HttpOnly
 // cookie over the redirect, rendered exactly once, never in a URL.
 
+// nosec G101 - this is a cookie NAME, not a credential value.
 const devCredCookie = "sextant_devcred"
 
 // setDevCredCookie stages a one-shot credential for the device page.
@@ -23,6 +24,14 @@ func setDevCredCookie(w http.ResponseWriter, tag, secret string) {
 	http.SetCookie(w, &http.Cookie{Name: devCredCookie, Value: secret,
 		Path: "/devices/" + tag, MaxAge: 60, HttpOnly: true, Secure: true,
 		SameSite: http.SameSiteStrictMode})
+}
+
+// redirectToDevice sends the operator back to a device's page after an
+// action. The target is always the fixed "/devices/" prefix plus the tag, so
+// it is a same-site relative path and never an open redirect.
+func redirectToDevice(w http.ResponseWriter, r *http.Request, tag string) {
+	// #nosec G710 - constant "/devices/" prefix keeps this same-host and relative; tag cannot introduce a scheme or host.
+	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
 }
 
 // requireDeviceEditor guards a lifecycle action on one device.
@@ -45,7 +54,7 @@ func (s *Server) postDeviceRetire(w http.ResponseWriter, r *http.Request, v view
 			s.log.Warn("device retired but credential revoke failed", "tag", tag, "err", err)
 		}
 	}
-	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
+	redirectToDevice(w, r, tag)
 	return nil
 }
 
@@ -66,7 +75,7 @@ func (s *Server) postDeviceReactivate(w http.ResponseWriter, r *http.Request, v 
 			setDevCredCookie(w, tag, secret)
 		}
 	}
-	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
+	redirectToDevice(w, r, tag)
 	return nil
 }
 
@@ -111,7 +120,7 @@ func (s *Server) postDeviceCredential(w http.ResponseWriter, r *http.Request, v 
 		return err
 	}
 	setDevCredCookie(w, tag, secret)
-	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
+	redirectToDevice(w, r, tag)
 	return nil
 }
 
@@ -149,6 +158,6 @@ func (s *Server) postDeviceUpdate(w http.ResponseWriter, r *http.Request, v view
 		"devices: update "+tag, webAuthor(v), tag); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
+	redirectToDevice(w, r, tag)
 	return nil
 }

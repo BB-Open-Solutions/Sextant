@@ -150,6 +150,7 @@ func (d *Directory) dial(ctx context.Context) (*ldapv3.Conn, error) {
 	var opts []ldapv3.DialOpt
 	if strings.HasPrefix(d.cfg.URL, "ldaps://") {
 		opts = append(opts, ldapv3.DialWithTLSConfig(&tls.Config{
+			// #nosec G402 - defaults to false (verified); the operator can opt into skip-verify only for a lab directory with a self-signed cert.
 			InsecureSkipVerify: d.cfg.InsecureSkipVerify, // labs only
 			MinVersion:         tls.VersionTLS12,
 		}))

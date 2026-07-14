@@ -322,6 +322,7 @@ func (s *Server) authed(w http.ResponseWriter, r *http.Request) (view, bool) {
 	// a directory write must never slow or fail a page load.
 	if s.svc.Users != nil {
 		go func(u identity.User) {
+			// #nosec G118 - deliberate detached context: this best-effort address-book write must outlive the request, so it must not be canceled when the page returns.
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			_ = s.svc.Users.RecordUser(ctx, app.DefaultTenant, u.Subject, u.Email, u.Name, u.Groups)

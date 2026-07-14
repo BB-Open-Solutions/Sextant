@@ -50,6 +50,7 @@ func (a *API) getChangeDiff(w http.ResponseWriter, r *http.Request) error {
 		return wrapChangeErr(err)
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	// #nosec G705 - served as text/plain to an authenticated viewer; the browser never interprets a diff body as HTML.
 	_, _ = w.Write([]byte(diff))
 	return nil
 }

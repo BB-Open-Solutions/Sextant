@@ -20,6 +20,7 @@ import (
 type runner func(ctx context.Context, name string, args ...string) ([]byte, error)
 
 func execRunner(ctx context.Context, name string, args ...string) ([]byte, error) {
+	// #nosec G204 - name/args are the gate's own fixed nix invocation (code-controlled), passed as an argv slice with no shell.
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 

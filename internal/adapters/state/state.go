@@ -38,6 +38,7 @@ func Open(dir string) (*Store, error) {
 }
 
 func (s *Store) readJSON(name string, v any) (bool, error) {
+	// #nosec G304 - name is a fixed literal or a change ID validated by change.ValidID before this call; it stays inside the private state dir.
 	b, err := os.ReadFile(filepath.Join(s.dir, name))
 	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil

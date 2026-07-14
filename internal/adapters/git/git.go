@@ -53,7 +53,7 @@ func (r *Repo) ReadFile(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	//nosec G304 - p is confined to the repo root by safePath (rejects absolute/.. and resolves symlinks before use).
+	// #nosec G304 - p is confined to the repo root by safePath (rejects absolute/.. and resolves symlinks before use).
 	return os.ReadFile(p)
 }
 
@@ -64,11 +64,11 @@ func (r *Repo) WriteFile(name string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	//nosec G301 - the config repo holds public fleet/overlay source under safePath confinement, not secrets; 0755 is fine.
+	// #nosec G301 - the config repo holds public fleet/overlay source under safePath confinement, not secrets; 0755 is fine.
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
-	//nosec G306 - fleet.json/overlays are non-secret config committed to git; world-readable is intended.
+	// #nosec G306 - fleet.json/overlays are non-secret config committed to git; world-readable is intended.
 	return os.WriteFile(p, data, 0o644)
 }
 
@@ -165,7 +165,7 @@ func nearestExisting(dir string) (string, error) {
 // the audit trail names a person, with a service fallback.
 func (r *Repo) Commit(ctx context.Context, msg string, a ports.Author, files ...string) error {
 	addArgs := append([]string{"-C", r.dir, "add", "--"}, files...)
-	//nosec G204 - fixed "git" binary, argv slice (no shell); "--" terminates options so file names cannot become flags.
+	// #nosec G204 - fixed "git" binary, argv slice (no shell); "--" terminates options so file names cannot become flags.
 	if out, err := exec.CommandContext(ctx, "git", addArgs...).CombinedOutput(); err != nil {
 		return fmt.Errorf("git add: %s", strings.TrimSpace(string(out)))
 	}
@@ -177,6 +177,7 @@ func (r *Repo) Commit(ctx context.Context, msg string, a ports.Author, files ...
 	if email == "" {
 		email = "sextant@localhost"
 	}
+	// #nosec G204 - fixed "git" binary with an argv slice (no shell); name/email/msg are passed as discrete args, not interpolated into a command line.
 	out, err := exec.CommandContext(ctx, "git", "-C", r.dir,
 		"-c", "user.name="+name, "-c", "user.email="+email,
 		"commit", "-m", msg).CombinedOutput()
@@ -188,6 +189,7 @@ func (r *Repo) Commit(ctx context.Context, msg string, a ports.Author, files ...
 
 // branch returns the current branch name ("main" when detached or unknown).
 func (r *Repo) branch(ctx context.Context) string {
+	// #nosec G204 - fixed "git" binary and a constant argv (no shell, no dynamic input).
 	out, err := exec.CommandContext(ctx, "git", "-C", r.dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
 	b := strings.TrimSpace(string(out))
 	if err != nil || b == "" || b == "HEAD" {
