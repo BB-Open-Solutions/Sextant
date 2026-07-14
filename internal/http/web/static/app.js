@@ -26,9 +26,19 @@ document.addEventListener("click", function (e) {
 // onsubmit="return confirm(...)" handlers, which the strict CSP (no
 // 'unsafe-inline') silently disabled - so destructive actions (retire, remove,
 // wipe, reboot, reject, cancel) prompt again.
+//
+// The SUBMITTER button is checked first, not just the form: a form with
+// several submit buttons that each set their own formaction (e.g. one
+// "remove" button per row in a batch form) needs a per-button message, which
+// a form-level data-confirm cannot express. e.submitter is the button/input
+// that triggered this particular submit (native, works even for a
+// Enter-key submit as long as a submit control has focus); it falls back to
+// the form itself for every existing single-purpose data-confirm form.
 document.addEventListener("submit", function (e) {
   var f = e.target;
-  if (f && f.matches("[data-confirm]") && !window.confirm(f.getAttribute("data-confirm"))) {
+  var el = (e.submitter && e.submitter.hasAttribute("data-confirm")) ? e.submitter
+    : (f && f.matches("[data-confirm]") ? f : null);
+  if (el && !window.confirm(el.getAttribute("data-confirm"))) {
     e.preventDefault();
   }
 });

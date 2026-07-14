@@ -17,8 +17,12 @@ type NotifyStore interface {
 	ListFor(ctx context.Context, tenant, subject string, memberships []string, limit int) ([]notify.Notification, error)
 	// UnreadCount is the number of unread notifications for a reader.
 	UnreadCount(ctx context.Context, tenant, subject string, memberships []string) (int, error)
-	// MarkRead marks one notification read for this reader.
-	MarkRead(ctx context.Context, tenant, id, subject string) error
+	// MarkRead marks one notification read for this reader. subject follows
+	// tenant, matching every other method on this interface (ListFor,
+	// UnreadCount, MarkAllRead) - all four string args are otherwise
+	// interchangeable to the compiler, so a caller or a new store mirroring
+	// the wrong shape would transpose id/subject with no build error.
+	MarkRead(ctx context.Context, tenant, subject, id string) error
 	// MarkAllRead marks every notification the reader can see as read.
 	MarkAllRead(ctx context.Context, tenant, subject string, memberships []string) error
 }

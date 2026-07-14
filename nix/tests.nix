@@ -30,6 +30,16 @@ let
         default = 1;
         # no description: must NOT appear in the catalog
       };
+      # Fixture for the defaultOmitted marker: a default nested deeper than
+      # the catalog export's plain-value depth bound (4). The option itself
+      # still has a real default - the export just cannot serialise it - so
+      # the entry must say so rather than looking identical to an option
+      # with no default at all.
+      deepDefault = lib.mkOption {
+        type = lib.types.attrs;
+        default = { a = { b = { c = { d = { e = { f = 1; }; }; }; }; }; };
+        description = "Fixture: default nested past the catalog's plain-value depth bound.";
+      };
     };
     # Swallow generator outputs a real NixOS would define elsewhere.
     options.environment.systemPackages = lib.mkOption {
@@ -135,6 +145,15 @@ in
     (lib.head (lib.filter (e: e.name == "apps.office") entries)).riskClass == "high";
   catalogOmitsRiskClassByDefault =
     !((lib.head (lib.filter (e: e.name == "secureboot") entries)) ? riskClass);
+  # A default too deep/non-plain to serialise is flagged (defaultOmitted),
+  # never silently indistinguishable from "this option has no default".
+  catalogFlagsDeepDefaultOmitted =
+    (lib.head (lib.filter (e: e.name == "deepDefault") entries)).defaultOmitted == true;
+  catalogDeepDefaultCarriesNoDefaultField =
+    !((lib.head (lib.filter (e: e.name == "deepDefault") entries)) ? default);
+  # A shallow, JSON-representable default is never flagged.
+  catalogShallowDefaultNotOmitted =
+    !((lib.head (lib.filter (e: e.name == "desktop") entries)) ? defaultOmitted);
   # Update funnel (ADR 0011): a device inside a ring subtree follows its
   # ring branch; the ring covers children via ancestry.
   cominBranchFollowsRing =

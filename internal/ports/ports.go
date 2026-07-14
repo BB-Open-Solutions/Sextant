@@ -41,7 +41,10 @@ func (e *ValidationError) Error() string { return "validation rejected: " + e.De
 type ConfigRepo interface {
 	// Dir returns the working tree path (the gate evaluates the flake there).
 	Dir() string
-	// ReadFile reads a repo-relative file.
+	// ReadFile reads a repo-relative file. A file that does not exist MUST
+	// return an error for which errors.Is(err, fs.ErrNotExist) is true -
+	// callers (e.g. config.go) rely on that to treat an optional file (like
+	// catalog.json) as simply absent rather than a load failure.
 	ReadFile(name string) ([]byte, error)
 	// WriteFile writes a repo-relative file (uncommitted).
 	WriteFile(name string, data []byte) error

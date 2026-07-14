@@ -108,6 +108,10 @@
             <input type="number" name="{{$vn}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full">
           {{else if eq $row.Entry.Widget "code"}}
             <textarea name="{{$vn}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $row.Set}}{{$row.Lines}}{{end}}</textarea>
+          {{else if $row.Suggestions}}
+            {{$listId := printf "sugg-%s" (slug $row.Entry.Name)}}
+            <input name="{{$vn}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full" list="{{$listId}}">
+            <datalist id="{{$listId}}">{{range $row.Suggestions}}<option value="{{.}}">{{end}}</datalist>
           {{else}}
             <input name="{{$vn}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full">
           {{end}}

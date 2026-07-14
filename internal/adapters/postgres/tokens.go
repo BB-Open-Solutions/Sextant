@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -46,7 +47,14 @@ func scanToken(row pgx.Row) (token.Token, error) {
 	}
 	tok.Kind = token.Kind(kind)
 	if len(groups) > 0 {
-		_ = json.Unmarshal(groups, &tok.Groups)
+		// Groups feed authorization decisions downstream; a malformed jsonb
+		// value (manual edit, partial write, schema drift) must not silently
+		// load as an empty group set - that changes effective membership
+		// with no signal that anything went wrong. Fails closed today (fewer
+		// groups), but a silent decode failure hides real data corruption.
+		if err := json.Unmarshal(groups, &tok.Groups); err != nil {
+			return token.Token{}, fmt.Errorf("decode token groups %s: %w", tok.ID, err)
+		}
 	}
 	return tok, nil
 }

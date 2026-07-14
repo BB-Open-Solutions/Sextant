@@ -69,7 +69,7 @@ func (s *Store) UnreadCount(ctx context.Context, tenant, subject string, members
 }
 
 // MarkRead records that this reader read one notification.
-func (s *Store) MarkRead(ctx context.Context, tenant, id, subject string) error {
+func (s *Store) MarkRead(ctx context.Context, tenant, subject, id string) error {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO notification_reads (tenant, notif_id, subject, read_at)
 		VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,

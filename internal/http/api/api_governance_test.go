@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
@@ -66,6 +67,11 @@ func TestAPIEnforcesGovernanceAndValidation(t *testing.T) {
 		map[string]any{"scope": "org", "key": "apps.office", "value": true}, testToken); code != 409 {
 		t.Errorf("direct edit under change-request = %d, want 409: %v", code, body)
 	}
+	// The clear path (DELETE) shares the same governance check as set.
+	if code, body := call(t, srv, "DELETE", "/api/v1/settings",
+		map[string]any{"scope": "org", "key": "desktop"}, testToken); code != 409 {
+		t.Errorf("direct clear under change-request = %d, want 409: %v", code, body)
+	}
 
 	// Governance off: the API still enforces catalog membership and secret-ref
 	// integrity that used to live only in the web handler.
@@ -83,5 +89,20 @@ func TestAPIEnforcesGovernanceAndValidation(t *testing.T) {
 	if code, _ := call(t, srv2, "POST", "/api/v1/settings",
 		map[string]any{"scope": "org", "key": "netbird.setupKey", "value": "ghost-ref"}, testToken); code != 400 {
 		t.Errorf("dangling secret ref = %d, want 400", code)
+	}
+
+	// A body that is not valid JSON is a 400 from decode(), on both the set
+	// and the clear path - never a 500 from an unhandled parse panic.
+	for _, m := range []string{"POST", "DELETE"} {
+		req, _ := http.NewRequest(m, srv2.URL+"/api/v1/settings", strings.NewReader("{not json"))
+		req.Header.Set("Authorization", "Bearer "+testToken)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 400 {
+			t.Errorf("%s malformed body = %d, want 400", m, resp.StatusCode)
+		}
 	}
 }

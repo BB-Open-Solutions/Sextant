@@ -20,13 +20,29 @@ import (
 
 // settingRow is one catalog entry joined with the scope's current state.
 type settingRow struct {
-	Entry    fleet.CatalogEntry
-	Set      bool   // a value exists at exactly this scope
-	Value    string // that value, rendered
-	Lines    string // list values, one item per line, for the code editor
-	Enforced bool
-	Resolved string // device scope only: effective value after the chain
-	Source   string // device scope only: which scope/policy won
+	Entry       fleet.CatalogEntry
+	Set         bool   // a value exists at exactly this scope
+	Value       string // that value, rendered
+	Lines       string // list values, one item per line, for the code editor
+	Enforced    bool
+	Resolved    string // device scope only: effective value after the chain
+	Source      string // device scope only: which scope/policy won
+	Suggestions []string
+}
+
+// textSuggestions seeds a <datalist> of known-good values for a handful of
+// free-text settings, so the operator gets a searchable dropdown without
+// giving up the ability to type a custom value. The catalog itself has no
+// notion of "known values" for a text-typed option (only "one of ..." enums
+// render as WidgetSelect, ADR 0005) - extending that would mean teaching the
+// overlay's nix option declarations about UI hints, which is out of scope
+// here. This map is a small, hand-maintained seed; add entries as more
+// commonly-copied URLs/paths come up. It intentionally stays tiny rather
+// than growing into a generic suggestion system.
+var textSuggestions = map[string][]string{
+	"autoUpdate.options.repoUrl": {
+		"https://code.overheid.nl/MinBZK/DAWO-NixOS.git",
+	},
 }
 
 // settingSection groups rows per catalog category.
@@ -65,7 +81,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	for _, name := range cat.Categories() {
 		sec := settingSection{Name: name}
 		for _, e := range cat.ByCategory(name) {
-			row := settingRow{Entry: e, Enforced: locked[e.Name]}
+			row := settingRow{Entry: e, Enforced: locked[e.Name], Suggestions: textSuggestions[e.Name]}
 			if val, has := own[e.Name]; has {
 				row.Set, row.Value = true, renderValue(val)
 				row.Lines = valueLines(val)

@@ -49,15 +49,28 @@ func (f *Fleet) VisibleTo(canView func(ref string) bool) *Fleet {
 		}
 	}
 	keepPolicy := map[string]bool{}
-	keepFilter := map[string]bool{}
+	// A filter referenced by an org-targeted assignment must stay
+	// enumerable (the assignment governs the caller's own devices too, so
+	// hiding it entirely would break rendering), but its Rules can name a
+	// scope the caller cannot see (a group, a user, a label) - keepFilterFull
+	// tracks filters reachable through a scope the caller CAN see (safe to
+	// expose whole); keepFilterOrgOnly tracks filters reachable only through
+	// an org-targeted assignment (Rules must be redacted below).
+	keepFilterFull := map[string]bool{}
+	keepFilterOrgOnly := map[string]bool{}
 	for _, a := range f.Assignments {
 		if a.Target != "org" && !canView(a.Target) {
 			continue
 		}
 		out.Assignments = append(out.Assignments, a)
 		keepPolicy[a.Policy] = true
-		if a.Filter != "" {
-			keepFilter[a.Filter] = true
+		if a.Filter == "" {
+			continue
+		}
+		if a.Target == "org" {
+			keepFilterOrgOnly[a.Filter] = true
+		} else {
+			keepFilterFull[a.Filter] = true
 		}
 	}
 	if len(keepPolicy) > 0 {
@@ -68,11 +81,18 @@ func (f *Fleet) VisibleTo(canView func(ref string) bool) *Fleet {
 			}
 		}
 	}
-	if len(keepFilter) > 0 {
+	if len(keepFilterFull) > 0 || len(keepFilterOrgOnly) > 0 {
 		out.Filters = map[string]Filter{}
 		for id, fl := range f.Filters {
-			if keepFilter[id] {
+			switch {
+			case keepFilterFull[id]:
 				out.Filters[id] = fl
+			case keepFilterOrgOnly[id]:
+				// Redact Rules: VisibleTo output is render-only, never an
+				// authorization decision, so a caller only ever learns that
+				// an org-scoped filter with this name/match kind exists -
+				// never which group/user/label it names.
+				out.Filters[id] = Filter{Name: fl.Name, Match: fl.Match}
 			}
 		}
 	}

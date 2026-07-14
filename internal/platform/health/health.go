@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"sort"
 	"sync"
@@ -23,11 +24,25 @@ type Registry struct {
 	mu      sync.RWMutex
 	checks  map[string]Check
 	timeout time.Duration
+	log     *slog.Logger
 }
 
 // New returns a Registry whose checks each get the given timeout per probe.
 func New(timeout time.Duration) *Registry {
-	return &Registry{checks: make(map[string]Check), timeout: timeout}
+	return &Registry{checks: make(map[string]Check), timeout: timeout, log: slog.Default()}
+}
+
+// SetLogger wires the real application logger (New defaults to
+// slog.Default()). Used to record the full detail of a failing dependency
+// check server-side, since /readyz and /status are unauthenticated and must
+// not echo that detail to the caller (see Snapshot).
+func (r *Registry) SetLogger(log *slog.Logger) {
+	if log == nil {
+		log = slog.Default()
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.log = log
 }
 
 // Register adds a named readiness check. Registering the same name twice
@@ -54,31 +69,61 @@ type CheckResult struct {
 	Info string `json:"info,omitempty"` // "ok" or the error text
 }
 
-// Snapshot runs every registered check once and returns the overall readiness
-// plus a per-check result, sorted by name so the output is stable.
+// Snapshot runs every registered check once, concurrently, and returns the
+// overall readiness plus a per-check result, sorted by name so the output is
+// stable. Checks run concurrently (each still bounded by its own per-check
+// timeout) so an N-dependency probe costs max(check latency), not
+// sum(check latency) - sequential checks could otherwise make /readyz take
+// N times the per-check timeout, itself exceeding an orchestrator's probe
+// timeout and causing readiness to flap.
+//
+// A failing check's Info is deliberately generic ("unavailable"), never
+// err.Error(): /readyz and /status are unauthenticated (an orchestrator and
+// operators must reach them even when login itself is down), and a
+// dependency error routinely embeds internals - a Postgres DSN's host/user,
+// a git remote URL, an OIDC issuer detail - that would hand an unauthenticated
+// caller free reconnaissance during an outage. The full error is logged
+// server-side instead.
 func (r *Registry) Snapshot(ctx context.Context) (bool, []CheckResult) {
 	r.mu.RLock()
 	checks := make(map[string]Check, len(r.checks))
 	for n, c := range r.checks {
 		checks[n] = c
 	}
-	timeout := r.timeout
+	timeout, log := r.timeout, r.log
 	r.mu.RUnlock()
 
+	names := make([]string, 0, len(checks))
+	for n := range checks {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	out := make([]CheckResult, len(names))
+	var wg sync.WaitGroup
+	for i, name := range names {
+		wg.Add(1)
+		go func(i int, name string, check Check) {
+			defer wg.Done()
+			cctx, cancel := context.WithTimeout(ctx, timeout)
+			err := check(cctx)
+			cancel()
+			res := CheckResult{Name: name, OK: err == nil, Info: "ok"}
+			if err != nil {
+				log.Warn("readiness check failed", "check", name, "err", err)
+				res.Info = "unavailable"
+			}
+			out[i] = res
+		}(i, name, checks[name])
+	}
+	wg.Wait()
+
 	ready := true
-	out := make([]CheckResult, 0, len(checks))
-	for name, check := range checks {
-		cctx, cancel := context.WithTimeout(ctx, timeout)
-		err := check(cctx)
-		cancel()
-		res := CheckResult{Name: name, OK: err == nil, Info: "ok"}
-		if err != nil {
-			res.Info = err.Error()
+	for _, res := range out {
+		if !res.OK {
 			ready = false
 		}
-		out = append(out, res)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return ready, out
 }
 

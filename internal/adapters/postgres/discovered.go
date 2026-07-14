@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 )
@@ -18,6 +20,13 @@ type DiscoveredStore struct{ s *Store }
 // Report replaces the station's whole discovered set in one transaction, so a
 // concurrent List never sees a half-applied report and vanished leases are
 // gone atomically.
+//
+// The DELETE and every INSERT are queued into one pgx.Batch and sent in a
+// single round-trip (SendBatch), rather than one tx.Exec per device. The
+// domain caps a report at up to discovery.MaxBatch (4096) devices; on a WAN
+// station (~50ms RTT) 4096 sequential round-trips would hold this
+// transaction open for minutes, bloating WAL and locks for no benefit - a
+// single flush is exactly as correct and orders of magnitude cheaper.
 func (d *DiscoveredStore) Report(ctx context.Context, tenant, station string, devices []discovery.Discovered, now time.Time) error {
 	tx, err := d.s.pool.Begin(ctx)
 	if err != nil {
@@ -25,24 +34,39 @@ func (d *DiscoveredStore) Report(ctx context.Context, tenant, station string, de
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // no-op after Commit
 
-	if _, err := tx.Exec(ctx,
-		`DELETE FROM discovered WHERE tenant=$1 AND station=$2`, tenant, station); err != nil {
-		return fmt.Errorf("clear station set: %w", err)
-	}
+	batch := &pgx.Batch{}
+	batch.Queue(`DELETE FROM discovered WHERE tenant=$1 AND station=$2`, tenant, station)
 	for _, dev := range devices {
 		lastSeen := dev.LastSeen
 		if lastSeen.IsZero() {
 			lastSeen = now // the station may omit it; stamp on receipt
 		}
-		if _, err := tx.Exec(ctx, `
+		batch.Queue(`
 			INSERT INTO discovered
 				(tenant, station, mac, serial, vendor, model, cpu, cores, mem_gb, disk_gb, firmware, facter, phase, last_seen)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 			tenant, station, dev.MAC, dev.Serial, dev.Vendor, dev.Model, dev.CPU,
 			dev.Cores, dev.MemGB, dev.DiskGB, dev.Firmware, facterArg(dev.Facter), string(dev.Phase), lastSeen,
-		); err != nil {
-			return fmt.Errorf("insert discovery %s: %w", dev.MAC, err)
+		)
+	}
+
+	br := tx.SendBatch(ctx, batch)
+	// Results must be consumed in queue order (DELETE first, then each
+	// INSERT) even though nothing is read back - Exec surfaces the first
+	// failing statement's error, and the batch must be fully drained before
+	// Close so the underlying connection can be reused cleanly.
+	if _, err := br.Exec(); err != nil {
+		_ = br.Close()
+		return fmt.Errorf("clear station set: %w", err)
+	}
+	for i, dev := range devices {
+		if _, err := br.Exec(); err != nil {
+			_ = br.Close()
+			return fmt.Errorf("insert discovery %s (%d/%d): %w", dev.MAC, i+1, len(devices), err)
 		}
+	}
+	if err := br.Close(); err != nil {
+		return fmt.Errorf("close discovery batch: %w", err)
 	}
 	return tx.Commit(ctx)
 }

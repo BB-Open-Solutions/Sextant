@@ -25,7 +25,22 @@
         sextant = pkgs.buildGoModule {
           pname = "sextant";
           version = "0.1.0";
-          src = self;
+          # Only the Go source tree feeds the build - filtered rather than
+          # `src = self` (the whole flake tree). Unfiltered, the source
+          # derivation's hash depended on every unrelated file in the repo
+          # (docs, chart, nix fixtures), so touching any of them busted the
+          # Go build cache with no Go source change, and any accidentally
+          # committed non-Go file would ride along into the store path.
+          src = pkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = pkgs.lib.fileset.unions [
+              ./go.mod
+              ./go.sum
+              ./vendor
+              ./cmd
+              ./internal
+            ];
+          };
           # Dependencies are vendored; no network during build.
           vendorHash = null;
           subPackages = [ "cmd/sextant" "cmd/sxctl" ];

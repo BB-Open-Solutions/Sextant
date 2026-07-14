@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 )
 
@@ -86,10 +87,28 @@ func (c *secureCookie) open(s string, out any) error {
 	return json.Unmarshal(plain, out)
 }
 
+// maxCookieBytes bounds the sealed cookie value. Browsers silently drop a
+// Set-Cookie once the header exceeds roughly 4KB, and http.SetCookie never
+// errors when that happens - the response looks like a successful login,
+// but the session cookie was never stored, so the very next request comes
+// back unauthenticated (an infinite login loop for the user, indistinguishable
+// from a config bug). This is smaller than the ~4096 byte browser ceiling to
+// leave room for the cookie name, attributes (Path/HttpOnly/Secure/SameSite/
+// Max-Age) and other cookies on the same origin.
+const maxCookieBytes = 3800
+
 func (c *secureCookie) set(w http.ResponseWriter, v any) error {
 	val, err := c.seal(v)
 	if err != nil {
 		return err
+	}
+	if len(val) > maxCookieBytes {
+		// Fail loudly instead of shipping a cookie the browser will drop.
+		// The caller (Callback) already turns this into a 500, which is far
+		// more debuggable than a silent redirect loop - the largest known
+		// cause is a session carrying too many IdP groups (Entra overage:
+		// both the group id and display name are stored per group).
+		return fmt.Errorf("cookie %q would be %d bytes, over the %d byte limit browsers honour", c.name, len(val), maxCookieBytes)
 	}
 	// #nosec G124 - HttpOnly+Lax+sealed value are set; Secure is c.secure so a loopback dev HTTP host can still authenticate, on in production.
 	http.SetCookie(w, &http.Cookie{

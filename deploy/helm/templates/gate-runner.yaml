@@ -32,7 +32,7 @@ spec:
         # Drop the overlay remote's netrc into HOME so git (and nix, for the
         # flake input) can authenticate before the runner clones on boot.
         - name: seed-netrc
-          image: "{{ .Values.gateRunner.image.repository }}:{{ .Values.gateRunner.image.tag }}"
+          image: "{{ .Values.gateRunner.image.repository }}:{{ .Values.gateRunner.image.tag | default .Chart.AppVersion }}"
           command: ["/bin/sh", "-c"]
           args:
             - install -m 0600 /netrc-secret/netrc /data/.netrc
@@ -45,7 +45,7 @@ spec:
       {{- end }}
       containers:
         - name: gate-runner
-          image: "{{ .Values.gateRunner.image.repository }}:{{ .Values.gateRunner.image.tag }}"
+          image: "{{ .Values.gateRunner.image.repository }}:{{ .Values.gateRunner.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.gateRunner.image.pullPolicy }}
           args:
             - --addr=0.0.0.0:8090

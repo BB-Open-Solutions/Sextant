@@ -124,7 +124,7 @@ func (s *NotifyService) Unread(ctx context.Context, subject string, memberships 
 
 // MarkRead marks one notification read for the reader.
 func (s *NotifyService) MarkRead(ctx context.Context, id, subject string) error {
-	return s.store.MarkRead(ctx, s.tenant, id, subject)
+	return s.store.MarkRead(ctx, s.tenant, subject, id)
 }
 
 // MarkAllRead marks every notification the reader can see as read.

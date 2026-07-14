@@ -26,9 +26,18 @@ let
         && lib.all (isPlain (depth - 1)) (lib.attrValues v))
     );
   plainDefault = opt:
-    let ok = builtins.tryEval ((opt ? default) && isPlain 4 opt.default);
-    in if ok.success && ok.value
+    let
+      hasDefault = opt ? default;
+      ok = builtins.tryEval (hasDefault && isPlain 4 opt.default);
+    in
+    if ok.success && ok.value
     then { default = opt.default; }
+    # The option DOES have a default - it is just too deep/non-plain to
+    # serialise (or evaluating it threw). Without this branch the console
+    # renders the field as if it had no default at all, which can diverge
+    # from what the gate actually applies; mark it explicitly instead so the
+    # console can say "has a default (not shown)" rather than "no default".
+    else if hasDefault then { defaultOmitted = true; }
     else { };
   riskClass = opt:
     if (opt.riskClass or "") != "" then { riskClass = opt.riskClass; } else { };

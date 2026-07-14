@@ -63,10 +63,11 @@ func newFakeObserved() *fakeObserved {
 
 func (f *fakeObserved) key(tenant, tag string) string { return tenant + "/" + tag }
 
-func (f *fakeObserved) Upsert(_ context.Context, tenant string, c observed.CheckIn, now time.Time) error {
+func (f *fakeObserved) Upsert(_ context.Context, tenant string, c observed.CheckIn, now time.Time) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	st := f.status[f.key(tenant, c.Tag)]
+	prevAck := st.Ack
 	st.Tag = c.Tag
 	if c.Revision != "" {
 		st.Revision = c.Revision
@@ -74,10 +75,13 @@ func (f *fakeObserved) Upsert(_ context.Context, tenant string, c observed.Check
 	if c.Phase != "" {
 		st.Phase = c.Phase
 	}
+	if c.Ack != "" {
+		st.Ack = c.Ack
+	}
 	st.Error = c.Error
 	st.LastSeen = now
 	f.status[f.key(tenant, c.Tag)] = st
-	return nil
+	return prevAck != st.Ack, nil
 }
 
 func (f *fakeObserved) Get(_ context.Context, tenant, tag string) (observed.DeviceStatus, bool, error) {

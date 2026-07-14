@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,7 +140,7 @@ func (d *deps) buildConfigPlane() error {
 	// commits made outside this console (engineers, other tools).
 	if repo.HasRemote() {
 		d.background(func() { svc.SyncLoop(d.ctx, 30*time.Second, log) })
-		log.Info("remote sync loop started", "remote", cfg.GitRemote)
+		log.Info("remote sync loop started", "remote", redactRemote(cfg.GitRemote))
 	}
 
 	stateDir := cfg.StateDir
@@ -150,6 +151,7 @@ func (d *deps) buildConfigPlane() error {
 	if err != nil {
 		return err
 	}
+	st.SetLogger(log)
 	clock := app.SystemClock{}
 	// Seal operator-entered secrets at rest (SMTP password). A malformed key
 	// fails startup here rather than at first use; an empty key disables the
@@ -270,8 +272,30 @@ func (d *deps) buildConfigPlane() error {
 	})
 
 	log.Info("config plane mounted", "repo", cfg.RepoDir, "write", cfg.Write,
-		"gate", cfg.GateMode, "remote", cfg.GitRemote, "state", stateDir)
+		"gate", cfg.GateMode, "remote", redactRemote(cfg.GitRemote), "state", stateDir)
 	return nil
+}
+
+// redactRemote masks userinfo embedded in a git remote URL (e.g.
+// https://user:token@host/repo) before it is logged. An HTTPS push remote
+// commonly carries a credential this way; the gate-runner deliberately keeps
+// such credentials off the process surface via netrc, and the console's own
+// logs must not be the leak. Malformed or userinfo-free input is returned
+// unchanged - logging is best-effort and must never fail the caller.
+func redactRemote(remote string) string {
+	if remote == "" {
+		return remote
+	}
+	u, err := url.Parse(remote)
+	if err != nil || u.User == nil {
+		return remote
+	}
+	// Rebuild the scheme/host/path around a literal "***" mask by hand:
+	// url.User("***").String() percent-encodes "*" (-> %2A%2A%2A), which is
+	// technically correct but unreadable in a log line - this stays a plain,
+	// obviously-redacted marker.
+	u.User = nil
+	return u.Scheme + "://***@" + u.Host + u.RequestURI()
 }
 
 // observedCapability serves the device-facing check-in (rate limited).

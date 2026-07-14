@@ -43,6 +43,13 @@ func Recover(log *slog.Logger) Middleware {
 
 // AccessLog writes one structured line per request. Health probes are skipped
 // to keep the log signal-dense.
+//
+// The log line is written from a deferred func so a handler panic (which
+// unwinds straight past a plain post-ServeHTTP log call, since mw.Recover
+// sits OUTSIDE this middleware) still produces one line - defaulting status
+// to 500, then re-panicking so Recover still catches it and writes the
+// response. Without this, the exact requests that become 500s were the ones
+// missing from the access log.
 func AccessLog(log *slog.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,14 +59,21 @@ func AccessLog(log *slog.Logger) Middleware {
 			}
 			start := time.Now()
 			sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+			panicked := true
+			defer func() {
+				if panicked {
+					sw.status = http.StatusInternalServerError
+				}
+				log.Info("request",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"status", sw.status,
+					"bytes", sw.bytes,
+					"dur", time.Since(start).String(),
+				)
+			}()
 			next.ServeHTTP(sw, r)
-			log.Info("request",
-				"method", r.Method,
-				"path", r.URL.Path,
-				"status", sw.status,
-				"bytes", sw.bytes,
-				"dur", time.Since(start).String(),
-			)
+			panicked = false
 		})
 	}
 }
@@ -105,3 +119,9 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 	w.bytes += n
 	return n, err
 }
+
+// Unwrap exposes the underlying ResponseWriter so http.ResponseController
+// can reach it through this wrapper (and through metrics.statusWriter, which
+// wraps every request too) - needed for Flush/Hijack/SetWriteDeadline on any
+// streaming or large-download handler further down the chain.
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

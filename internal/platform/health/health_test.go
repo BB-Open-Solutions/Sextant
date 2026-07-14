@@ -57,7 +57,9 @@ func TestReadinessFailingCheck(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.Ready || body.Checks["db"] != "connection refused" {
+	// The unauthenticated response carries a generic reason, never the raw
+	// error text (which can embed internals like a DSN host or remote URL).
+	if body.Ready || body.Checks["db"] != "unavailable" {
 		t.Errorf("body = %+v", body)
 	}
 }

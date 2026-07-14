@@ -49,6 +49,15 @@ func ValidateFilter(fl Filter) error {
 			if len(r.Values) == 0 {
 				return fmt.Errorf("rule %d: op in needs values", i)
 			}
+			// eq/ne/prefix already reject an empty Value; "in" must match:
+			// matchesRule's OpIn does a plain got == v comparison, so an
+			// empty entry silently matches every device whose attribute is
+			// UNSET, widening the rule far beyond what an operator wrote.
+			for _, v := range r.Values {
+				if v == "" {
+					return fmt.Errorf("rule %d: op in values must not be empty", i)
+				}
+			}
 		default:
 			return fmt.Errorf("rule %d: unknown op %q", i, r.Op)
 		}

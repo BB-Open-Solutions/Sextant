@@ -90,16 +90,6 @@ func (j *ImageJobStore) Get(ctx context.Context, tenant, station, mac string) (i
 	return job, true, nil
 }
 
-// UpdateStatus moves a job to a new status with an optional message. A status
-// change starts a new step, so progress/step reset.
-func (j *ImageJobStore) UpdateStatus(ctx context.Context, tenant, station, mac string, status imaging.Status, message string, now time.Time) error {
-	_, err := j.s.pool.Exec(ctx, `
-		UPDATE image_jobs SET status=$4, message=$5, progress=0, step='', updated=$6
-		WHERE tenant=$1 AND station=$2 AND mac=$3`,
-		tenant, station, mac, string(status), message, now)
-	return err
-}
-
 // UpdateProgress records how far the current step is (0..100) and its label,
 // without changing status. It is the frequent, unguarded display-only tick.
 func (j *ImageJobStore) UpdateProgress(ctx context.Context, tenant, station, mac string, progress int, step string, now time.Time) error {
@@ -121,10 +111,13 @@ func (j *ImageJobStore) UpdateProgress(ctx context.Context, tenant, station, mac
 // same job only the one that still finds `from` in the database matches a
 // row - the loser's UPDATE affects zero rows instead of clobbering the
 // winner's write. This closes the check-then-act race a separate Get +
-// CanTransition + UpdateStatus sequence has at the application layer. Like
-// UpdateStatus, a status change starts a new step, so progress/step reset -
-// otherwise a terminal record (installed/failed) would keep showing the
-// in-progress percentage/label from whatever step it was last ticking.
+// CanTransition + unconditional-write sequence would have at the application
+// layer (there used to be such an unconditional UpdateStatus on this store;
+// it was removed - every write to an existing job's status now goes through
+// this guarded, conditional path). A status change starts a new step, so
+// progress/step reset - otherwise a terminal record (installed/failed) would
+// keep showing the in-progress percentage/label from whatever step it was
+// last ticking.
 func (j *ImageJobStore) TransitionStatus(ctx context.Context, tenant, station, mac string, from, to imaging.Status, message string, now time.Time) (bool, error) {
 	tag, err := j.s.pool.Exec(ctx, `
 		UPDATE image_jobs SET status=$5, message=$6, progress=0, step='', updated=$7

@@ -43,7 +43,7 @@ jobs:
             grep -vE "internal/ports/|/cmd/|platform/logging|platform/capability" coverage.out > coverage-logic.out
             total=$(go tool cover -func=coverage-logic.out | tail -1 | awk "{print \$3}" | tr -d "%")
             echo "logic-layer coverage: ${total}%"
-            awk -v t="$total" "BEGIN { exit (t < 65) ? 1 : 0 }" || (echo "coverage below 65% floor" && exit 1)
+            awk -v t="$total" "BEGIN { exit (t < 70) ? 1 : 0 }" || (echo "coverage below 70% floor" && exit 1)
           '
 
       - name: Build
@@ -55,7 +55,9 @@ jobs:
       - name: Agent (fmt + clippy + test)
         run: |
           cd "$GITHUB_WORKSPACE/src/agent"
-          nix shell nixpkgs#cargo nixpkgs#rustc nixpkgs#clippy nixpkgs#rustfmt --command bash -c '
+          # gcc provides `cc`, which cargo needs to link crate build scripts
+          # (proc-macro2, ring); the pure NixOS runner has no system compiler.
+          nix shell nixpkgs#cargo nixpkgs#rustc nixpkgs#clippy nixpkgs#rustfmt nixpkgs#gcc --command bash -c '
             cargo fmt --check &&
             cargo clippy --all-targets -- -D warnings &&
             cargo test'

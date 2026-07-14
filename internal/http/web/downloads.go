@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
@@ -68,6 +69,14 @@ func (s *Server) downloadCLI(w http.ResponseWriter, r *http.Request, v view) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="sxctl"`)
 	w.Header().Set("Cache-Control", "no-cache")
+	// The server's global WriteTimeout (60s) bounds a normal request/response,
+	// but a multi-MB binary on a slow link can legitimately take longer to
+	// stream than that - clearing the deadline for this one response avoids
+	// truncating the download mid-stream into a corrupt binary with no clear
+	// error. Best-effort: some ResponseWriters (tests, non-TCP transports)
+	// don't support this, and the request still has ReadHeaderTimeout/
+	// ReadTimeout protecting it on the way in.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
 	http.ServeContent(w, r, "sxctl", info.ModTime(), f)
 }
 

@@ -32,8 +32,8 @@ func TestImageJobsUpsertGetListDelete(t *testing.T) {
 		t.Fatalf("pending = %+v %v", pend, err)
 	}
 
-	if err := s.UpdateStatus(ctx, "t1", "nuc-1", "aa:bb:cc:dd:ee:01", imaging.Installed, "", t0.Add(time.Minute)); err != nil {
-		t.Fatal(err)
+	if applied, err := s.TransitionStatus(ctx, "t1", "nuc-1", "aa:bb:cc:dd:ee:01", imaging.Pending, imaging.Installed, "", t0.Add(time.Minute)); err != nil || !applied {
+		t.Fatalf("applied=%v err=%v", applied, err)
 	}
 	if pend, _ = s.ListPending(ctx, "t1", "nuc-1"); len(pend) != 0 {
 		t.Fatalf("still pending after installed: %+v", pend)
@@ -73,8 +73,7 @@ func TestTransitionStatusAppliesOnlyFromExpectedStatus(t *testing.T) {
 		t.Fatalf("job moved despite mismatched from: %+v", got)
 	}
 
-	// The correct from applies and stamps the message/updated columns like
-	// UpdateStatus does.
+	// The correct from applies and stamps the message/updated columns.
 	applied, err = s.TransitionStatus(ctx, "t1", "nuc-1", "aa:bb:cc:dd:ee:02", imaging.Pending, imaging.Failed, "disk not found", t0.Add(2*time.Minute))
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +90,7 @@ func TestTransitionStatusAppliesOnlyFromExpectedStatus(t *testing.T) {
 // TestTransitionStatusResetsProgressAndStep guards against a terminal record
 // showing a stale in-progress percentage/label: a job ticking at progress=40
 // step="installing" that transitions to a terminal status must read as reset,
-// mirroring UpdateStatus's documented contract.
+// mirroring TransitionStatus's documented contract.
 func TestTransitionStatusResetsProgressAndStep(t *testing.T) {
 	s := openStore(t).ImageJobs()
 	ctx := context.Background()

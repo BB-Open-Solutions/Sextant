@@ -39,8 +39,13 @@ type ConvergenceSource interface {
 // the hot path (every device every minute); implementations batch and
 // index accordingly.
 type StatusStore interface {
-	// Upsert records a check-in observed at now.
-	Upsert(ctx context.Context, tenant string, c observed.CheckIn, now time.Time) error
+	// Upsert records a check-in observed at now. ackChanged reports whether
+	// the stored ack differs from what it was immediately before this write
+	// (computed atomically as part of the same write, not via a separate
+	// read beforehand) - the caller uses it to raise a wipe-outcome
+	// notification exactly once per transition instead of racing a
+	// read-then-write against concurrent check-ins for the same device.
+	Upsert(ctx context.Context, tenant string, c observed.CheckIn, now time.Time) (ackChanged bool, err error)
 	// Get returns one device's observed state.
 	Get(ctx context.Context, tenant, tag string) (observed.DeviceStatus, bool, error)
 	// List returns every device's observed state for a tenant, tag-sorted.
@@ -84,12 +89,6 @@ type ImageJobStore interface {
 	ListPending(ctx context.Context, tenant, station string) ([]imaging.Job, error)
 	// Get returns one job by MAC, or false.
 	Get(ctx context.Context, tenant, station, mac string) (imaging.Job, bool, error)
-	// UpdateStatus moves a job to a new status with an optional message.
-	// Unconditional: callers that need the from-state guard atomic (a report
-	// applying the domain's transition rule) must use TransitionStatus
-	// instead, or two concurrent writers can both pass a check-then-act guard
-	// in application code and both write.
-	UpdateStatus(ctx context.Context, tenant, station, mac string, status imaging.Status, message string, now time.Time) error
 	// UpdateProgress records the current step's percent-complete (0..100) and
 	// label without changing status - the frequent, display-only tick the
 	// station emits while a single status (e.g. imaging) is in progress.

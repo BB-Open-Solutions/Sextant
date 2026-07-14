@@ -185,6 +185,11 @@ func TestOverviewScopeGroupSubtreeAndDeviceFilter(t *testing.T) {
 	if code, _ := get("/?scope=device:does-not-exist"); code != 404 {
 		t.Errorf("unknown device scope = %d, want 404", code)
 	}
+	// A scope with neither the group: nor device: prefix (and not "org") is
+	// not a recognised ref at all: the default case, not a fallback to org.
+	if code, _ := get("/?scope=bogus"); code != 404 {
+		t.Errorf("malformed scope = %d, want 404", code)
+	}
 }
 
 // TestOverviewScopeReadConfidentiality checks requirement 1: a scope the

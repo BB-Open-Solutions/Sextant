@@ -1,15 +1,23 @@
 # DAWO handbook image: build the mdBook, serve it static via nginx.
 # Self-contained: mdBook bundles its own assets, no external CDN at runtime.
 
+# Base images are pinned by digest (immutable), not by floating tag - same
+# convention as Dockerfile/Dockerfile.gate-runner. ":latest" (and a bare
+# "alpine" tag) are fully floating: identical Dockerfile input, different
+# image over time, no provenance to anchor. Refresh with:
+#   skopeo inspect docker://docker.io/nixos/nix:2.24.9 | grep -i digest
+#   skopeo inspect docker://docker.io/nginxinc/nginx-unprivileged:alpine | grep -i digest
+
 # Build stage: render the handbook with mdBook from nixpkgs (reproducible-ish,
-# no US CDN - pulls from cache.nixos.org).
-FROM docker.io/nixos/nix:latest AS build
+# no US CDN - pulls from cache.nixos.org). Version matches Dockerfile.gate-runner's
+# nixos/nix pin.
+FROM docker.io/nixos/nix:2.24.9@sha256:fd7a5c67d396fe6bddeb9c10779d97541ab3a1b2a9d744df3754a99add4046f1 AS build
 WORKDIR /src
 COPY docs/handbook ./docs/handbook
 RUN nix --extra-experimental-features "nix-command flakes" \
       run nixpkgs#mdbook -- build docs/handbook
 
 # Runtime stage: nginx serving the static book, non-root.
-FROM docker.io/nginxinc/nginx-unprivileged:alpine
+FROM docker.io/nginxinc/nginx-unprivileged:alpine@sha256:6320020c7da8714feab524e02c08c5a1958675c4e68700e93a2fd8970b065786
 COPY --from=build /src/docs/handbook/book /usr/share/nginx/html
 EXPOSE 8080

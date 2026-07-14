@@ -89,7 +89,7 @@
             <span>{{.Job.Progress}}%</span>
           </div>
           <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container">
-            <div class="h-2 rounded-full bg-mint-vibrant transition-all" style="width: {{.Job.Progress}}%"></div>
+            <div class="h-2 rounded-full bg-mint-vibrant transition-all {{barW .Job.Progress}}"></div>
           </div>
         </div>
         {{end}}

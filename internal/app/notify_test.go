@@ -46,7 +46,7 @@ func (f *fakeNotifyStore) UnreadCount(ctx context.Context, tenant, subject strin
 	return c, nil
 }
 
-func (f *fakeNotifyStore) MarkRead(_ context.Context, _, id, subject string) error {
+func (f *fakeNotifyStore) MarkRead(_ context.Context, _, subject, id string) error {
 	f.read[id+subject] = true
 	return nil
 }

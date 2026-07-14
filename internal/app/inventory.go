@@ -69,18 +69,16 @@ func (s *InventoryService) CheckIn(ctx context.Context, c observed.CheckIn, fact
 	}
 	now := s.clock.Now()
 	// A device echoes its last ack on every beat, so only the transition INTO
-	// a wipe outcome is news. Read the prior ack solely for wipe-class acks
-	// (rare) to keep the hot check-in path a single write otherwise.
-	notifyWipe := false
-	if s.notifier != nil && isWipeAck(c.Ack) {
-		if prev, ok, err := s.status.Get(ctx, s.tenant, c.Tag); err == nil && (!ok || prev.Ack != c.Ack) {
-			notifyWipe = true
-		}
-	}
-	if err := s.status.Upsert(ctx, s.tenant, c, now); err != nil {
+	// a wipe outcome is news. Whether the ack actually changed is derived
+	// from the store's own atomic write (ackChanged), not a separate read
+	// beforehand - a read-then-write here would let two concurrent check-ins
+	// for the same tag both observe the same prior ack and both raise the
+	// notification, duplicating an alert for a security-relevant event.
+	ackChanged, err := s.status.Upsert(ctx, s.tenant, c, now)
+	if err != nil {
 		return err
 	}
-	if notifyWipe {
+	if s.notifier != nil && ackChanged && isWipeAck(c.Ack) {
 		s.emitWipe(ctx, c.Tag, c.Ack)
 	}
 	if len(facts) > 0 {

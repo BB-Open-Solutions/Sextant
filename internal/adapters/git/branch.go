@@ -97,9 +97,14 @@ func (r *Repo) MergeNoFF(ctx context.Context, branch, msg string, a ports.Author
 	if email == "" {
 		email = "sextant@localhost"
 	}
+	// "--" guards branch the same way CreateBranch/AddWorktree do: without
+	// it, a branch name starting with "-" could be read as a git flag
+	// instead of the merge target. Unreachable today (branch is always
+	// cr/<slug>), but keeps every caller-influenced positional in this
+	// package consistently guarded regardless of how callers evolve.
 	_, err := gitRun(ctx, r.dir,
 		"-c", "user.name="+name, "-c", "user.email="+email,
-		"merge", "--no-ff", "-m", msg, branch)
+		"merge", "--no-ff", "-m", msg, "--", branch)
 	if err == nil {
 		return nil
 	}

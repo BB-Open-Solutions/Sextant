@@ -184,15 +184,32 @@ in
       serviceConfig = {
         Type = "oneshot";
         ExecStart = lib.getExe actd;
-        # Root - it locks sessions and runs cryptsetup - but no more than that.
-        User = "root";
-        NoNewPrivileges = true;
+        # Root - it locks sessions and runs cryptsetup - but no more than
+        # that. The unprivileged agent and the console both go further
+        # (ProtectSystem, network denial, PrivateTmp); this unit lagged
+        # behind despite having the largest blast radius of the three (root,
+        # cryptsetup luksErase, systemctl reboot/poweroff). Bring it to the
+        # same floor, staying conservative on SystemCallFilter/DeviceAllow -
+        # this codebase has already been burned once by an untested
+        # over-restrictive sandbox silently breaking the wipe path (see the
+        # agent unit's RuntimeDirectory/StateDirectory history), and wipe
+        # correctness matters more here than a maximal lockdown that cannot
+        # be validated against real hardware in this change.
+        ProtectSystem = "strict";
+        ReadWritePaths = [ spoolDir "/var/lib/sextant-agent" ];
         ProtectHome = true;
         ProtectKernelTunables = true;
         ProtectKernelModules = true;
         ProtectControlGroups = true;
         RestrictSUIDSGID = true;
         LockPersonality = true;
+        PrivateTmp = true;
+        # This executor only talks to logind/systemd over the D-Bus unix
+        # socket and to local LUKS block devices; it never needs the
+        # network, so deny it outright.
+        RestrictAddressFamilies = [ "AF_UNIX" ];
+        IPAddressDeny = [ "any" ];
+        SystemCallArchitectures = "native";
       };
     };
   };

@@ -159,6 +159,24 @@ func New(svc Services, sessions Sessions, write bool,
 			}
 			return fmt.Sprintf("gd-%d", depth)
 		},
+		// barW buckets a 0..100 percentage to the nearest 5 and returns a
+		// static width class (bar-w-0..bar-w-100, defined in app.css),
+		// avoiding inline style="width:N%" which the CSP forbids - same
+		// pattern as indent above and pipeline.go's barBucket for the
+		// on-target convergence bars.
+		"barW": func(pct int) string {
+			if pct < 0 {
+				pct = 0
+			}
+			if pct > 100 {
+				pct = 100
+			}
+			bucket := ((pct + 2) / 5) * 5
+			if bucket > 100 {
+				bucket = 100
+			}
+			return fmt.Sprintf("bar-w-%d", bucket)
+		},
 	}
 	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)

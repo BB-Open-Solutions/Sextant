@@ -27,7 +27,7 @@ func TestUpsertGetList(t *testing.T) {
 	}
 
 	// First check-in.
-	err := s.Upsert(ctx, "default",
+	_, err := s.Upsert(ctx, "default",
 		observed.CheckIn{Tag: "lt-1", Revision: "v1", Phase: observed.Running}, t0)
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestUpsertGetList(t *testing.T) {
 	}
 
 	// A light heartbeat (no revision/phase) must not clobber stored values.
-	if err := s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1"}, t0.Add(time.Minute)); err != nil {
+	if _, err := s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1"}, t0.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	st, _, _ = s.Get(ctx, "default", "lt-1")
@@ -50,19 +50,19 @@ func TestUpsertGetList(t *testing.T) {
 	}
 
 	// An error report sets and a clean report clears the error.
-	_ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1", Error: "unit failed"}, t0.Add(2*time.Minute))
+	_, _ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1", Error: "unit failed"}, t0.Add(2*time.Minute))
 	st, _, _ = s.Get(ctx, "default", "lt-1")
 	if st.Error != "unit failed" {
 		t.Fatalf("error not stored: %+v", st)
 	}
-	_ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1"}, t0.Add(3*time.Minute))
+	_, _ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1"}, t0.Add(3*time.Minute))
 	st, _, _ = s.Get(ctx, "default", "lt-1")
 	if st.Error != "" {
 		t.Fatalf("error not cleared: %+v", st)
 	}
 
 	// List sorted by tag.
-	_ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "aa-1", Revision: "v1"}, t0)
+	_, _ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "aa-1", Revision: "v1"}, t0)
 	list, err := s.List(ctx, "default")
 	if err != nil || len(list) != 2 || list[0].Tag != "aa-1" {
 		t.Fatalf("list = %+v, %v", list, err)
@@ -80,7 +80,7 @@ func TestUpsertUtilisationPartialReadingKept(t *testing.T) {
 	full := observed.CheckIn{Tag: "lt-1", Usage: observed.Usage{
 		CPUPct: 10, MemUsedMB: 1000, MemTotalMB: 8000, DiskUsedGB: 20, DiskTotalGB: 100,
 	}}
-	if err := s.Upsert(ctx, "default", full, t0); err != nil {
+	if _, err := s.Upsert(ctx, "default", full, t0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -88,7 +88,7 @@ func TestUpsertUtilisationPartialReadingKept(t *testing.T) {
 	partial := observed.CheckIn{Tag: "lt-1", Usage: observed.Usage{
 		CPUPct: 55, MemUsedMB: 0, MemTotalMB: 0, DiskUsedGB: 30, DiskTotalGB: 100,
 	}}
-	if err := s.Upsert(ctx, "default", partial, t0.Add(time.Minute)); err != nil {
+	if _, err := s.Upsert(ctx, "default", partial, t0.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,8 +107,8 @@ func TestUpsertUtilisationPartialReadingKept(t *testing.T) {
 func TestTenantIsolation(t *testing.T) {
 	s := openStore(t)
 	ctx := context.Background()
-	_ = s.Upsert(ctx, "org-a", observed.CheckIn{Tag: "lt-1", Revision: "v1"}, t0)
-	_ = s.Upsert(ctx, "org-b", observed.CheckIn{Tag: "lt-1", Revision: "v9"}, t0)
+	_, _ = s.Upsert(ctx, "org-a", observed.CheckIn{Tag: "lt-1", Revision: "v1"}, t0)
+	_, _ = s.Upsert(ctx, "org-b", observed.CheckIn{Tag: "lt-1", Revision: "v9"}, t0)
 
 	a, _, _ := s.Get(ctx, "org-a", "lt-1")
 	b, _, _ := s.Get(ctx, "org-b", "lt-1")
@@ -159,7 +159,7 @@ func TestConvergenceAggregate(t *testing.T) {
 	// non-member row that must not count.
 	up := func(tag, rev, errmsg string, seen time.Time) {
 		t.Helper()
-		if err := s.Upsert(ctx, "default",
+		if _, err := s.Upsert(ctx, "default",
 			observed.CheckIn{Tag: tag, Revision: rev, Phase: observed.Running, Error: errmsg}, seen); err != nil {
 			t.Fatal(err)
 		}
@@ -169,7 +169,7 @@ func TestConvergenceAggregate(t *testing.T) {
 	up("r-3", "v2", "", now.Add(-time.Hour))       // on target, offline
 	up("r-4", "v1", "", now.Add(-time.Minute))     // behind
 	up("outsider", "v2", "", now.Add(-time.Minute))
-	_ = s.Upsert(ctx, "org-x", observed.CheckIn{Tag: "r-1", Revision: "v2"}, now)
+	_, _ = s.Upsert(ctx, "org-x", observed.CheckIn{Tag: "r-1", Revision: "v2"}, now)
 
 	conv := s.NewConvergence("default", func(group string) []string {
 		if group == "ring0" {

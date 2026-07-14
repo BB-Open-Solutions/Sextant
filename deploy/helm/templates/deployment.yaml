@@ -27,7 +27,7 @@ spec:
         # minimal v3 fleet document, so the console starts standalone. An
         # existing repo is left untouched.
         - name: seed-overlay
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           command: ["/bin/sh", "-c"]
           args:
             - |
@@ -77,7 +77,7 @@ spec:
             {{- end }}
       containers:
         - name: sextant
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --addr=0.0.0.0:8080

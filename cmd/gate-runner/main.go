@@ -103,6 +103,7 @@ func main() {
 	}
 
 	checks := health.New(5 * time.Second)
+	checks.SetLogger(log)
 	checks.Register("overlay-clone", srv.cloneUsable)
 
 	mux := http.NewServeMux()

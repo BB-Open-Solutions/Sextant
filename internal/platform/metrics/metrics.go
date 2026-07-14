@@ -58,6 +58,14 @@ func (m *Metrics) Handler() http.Handler {
 
 // Middleware instruments an http.Handler. Route label uses the mux pattern
 // (r.Pattern, Go 1.22+), not the raw URL, to keep label cardinality bounded.
+//
+// The count/duration observation runs from a deferred func, not just after a
+// normal return: mw.Recover sits OUTSIDE this middleware in the chain, so a
+// handler panic unwinds straight through here without the two lines after
+// next.ServeHTTP ever running - meaning the exact requests that become 500s
+// were invisible in sextant_http_requests_total and the duration histogram.
+// The defer observes on both the normal and the panicking path, then
+// re-panics so Recover still catches it and writes the response.
 func (m *Metrics) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -65,14 +73,20 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 		defer m.inflight.Dec()
 
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		panicked := true
+		defer func() {
+			if panicked {
+				sw.status = http.StatusInternalServerError
+			}
+			route := r.Pattern
+			if route == "" {
+				route = "unmatched"
+			}
+			m.requests.WithLabelValues(route, r.Method, strconv.Itoa(sw.status)).Inc()
+			m.duration.WithLabelValues(route, r.Method).Observe(time.Since(start).Seconds())
+		}()
 		next.ServeHTTP(sw, r)
-
-		route := r.Pattern
-		if route == "" {
-			route = "unmatched"
-		}
-		m.requests.WithLabelValues(route, r.Method, strconv.Itoa(sw.status)).Inc()
-		m.duration.WithLabelValues(route, r.Method).Observe(time.Since(start).Seconds())
+		panicked = false
 	})
 }
 
@@ -86,3 +100,10 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
+
+// Unwrap exposes the underlying ResponseWriter so http.ResponseController
+// (Flush/Hijack/SetWriteDeadline) can reach it through this wrapper - every
+// request is wrapped here AND by mw.AccessLog's statusWriter, and without an
+// Unwrap chain a streaming/long-poll handler further down the chain would
+// silently lose Flusher/Hijacker access.
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

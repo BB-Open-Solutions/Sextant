@@ -44,6 +44,7 @@ func run(args []string, getenv config.Getenv) error {
 
 	m := metrics.New()
 	checks := health.New(5 * time.Second)
+	checks.SetLogger(log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()

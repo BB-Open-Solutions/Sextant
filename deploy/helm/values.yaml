@@ -2,7 +2,14 @@
 # an existing Secret (secretName) with SEXTANT_* keys.
 image:
   repository: forgejo.bb-open.com/bb-open/sextant
-  tag: "0.25.1"
+  # Empty by default: the deployment template falls back to
+  # `.Chart.AppVersion` (`| default .Chart.AppVersion`), so a fresh install
+  # with no override tracks the chart it came from instead of whatever tag
+  # was last hand-pinned here. A running release may still be moved onto a
+  # specific tag out of band (e.g. a live `kubectl patch` on the Deployment's
+  # image field, ADR-documented) without that becoming the new checked-in
+  # default and going stale again.
+  tag: ""
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 
@@ -26,7 +33,9 @@ gateRunner:
   enabled: false
   image:
     repository: forgejo.bb-open.com/bb-open/sextant-gate
-    tag: "0.19.1"
+    # Empty by default: falls back to .Chart.AppVersion, same as image.tag
+    # above.
+    tag: ""
     pullPolicy: IfNotPresent
   hostVariants: "" # comma-separated suffixes the generator emits, e.g. ",-sb"
   # The nix store is baked into the image (chowned to the runtime uid); a

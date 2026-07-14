@@ -51,6 +51,15 @@ func New(cfg Config) (*Directory, error) {
 	if cfg.URL == "" || cfg.BaseDN == "" {
 		return nil, fmt.Errorf("ldap directory needs URL and base DN")
 	}
+	// A Simple bind with a non-empty DN and an EMPTY password is an
+	// "unauthenticated bind" (RFC 4513 5.1.2): many directories (AD,
+	// OpenLDAP) accept it as a SUCCESS without checking any credential, so a
+	// service account whose password went missing/blank in config would
+	// silently authenticate as anonymous instead of failing loudly. Refuse
+	// the misconfiguration at startup rather than let it degrade silently.
+	if cfg.BindDN != "" && cfg.BindPassword == "" {
+		return nil, fmt.Errorf("ldap directory: bind DN %q set with an empty bind password (unauthenticated bind); set BindPassword or clear BindDN", cfg.BindDN)
+	}
 	if cfg.GroupFilter == "" {
 		cfg.GroupFilter = "(objectClass=groupOfNames)"
 	}

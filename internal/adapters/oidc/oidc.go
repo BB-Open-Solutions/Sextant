@@ -234,8 +234,26 @@ func (a *Authenticator) Callback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, a.landing, http.StatusSeeOther)
 }
 
-// Logout clears the session.
+// Logout clears the session. It is state-changing, so - like every other
+// session mutation in the console - it requires the caller to echo the
+// session's own CSRF token; the layout template already sends it as a
+// hidden form field. POST /logout is mounted directly (not through the web
+// package's action wrapper), so without this check a cross-site
+// auto-submitting form could force a visitor's session to be cleared with no
+// consent. A request with no valid session simply logs out (nothing to
+// protect), so an already-expired/missing cookie is not itself an error.
 func (a *Authenticator) Logout(w http.ResponseWriter, r *http.Request) {
+	var sd sessionData
+	if err := a.sess.get(r, &sd); err == nil && time.Now().Unix() <= sd.Exp {
+		csrf := r.FormValue("csrf")
+		if csrf == "" {
+			csrf = r.Header.Get("X-CSRF-Token")
+		}
+		if subtle.ConstantTimeCompare([]byte(csrf), []byte(sd.CSRF)) != 1 {
+			http.Error(w, "missing or invalid csrf token", http.StatusForbidden)
+			return
+		}
+	}
 	a.sess.clear(w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

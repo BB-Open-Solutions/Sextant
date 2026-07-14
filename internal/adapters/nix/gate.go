@@ -125,5 +125,12 @@ func sanitize(out string) string {
 	if len(keep) > maxLines {
 		keep = keep[len(keep)-maxLines:]
 	}
+	if len(keep) == 0 {
+		// Every line was filtered out (blank / "at " / "warning:" noise): a
+		// rejection must never surface an empty Detail - that reads to the
+		// operator as the gate itself being broken, exactly when they most
+		// need a reason to act on.
+		return "gate rejected the change (no parsable reason in nix output)"
+	}
 	return strings.Join(keep, "\n")
 }

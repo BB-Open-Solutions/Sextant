@@ -63,7 +63,7 @@
         <div class="flex items-center gap-2">
           <label class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "enroll.cmdb_name"}}</label>
           <input name="name-{{macKey .Dev.MAC}}" placeholder="{{$.L.T "common.eg"}} kiosk-04" pattern="[a-z0-9][a-z0-9-]*" class="font-mono md:w-56">
-          <button type="submit" formaction="/enroll/{{$.Station}}/discovered/{{.Dev.MAC}}/remove" formnovalidate onclick="return confirm('{{$.L.T "enroll.remove_confirm"}} {{.Dev.MAC}}?')" title="{{$.L.T "common.remove"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary transition hover:!text-status-error"><span class="material-symbols-outlined msz-18">delete</span></button>
+          <button type="submit" formaction="/enroll/{{$.Station}}/discovered/{{.Dev.MAC}}/remove" formnovalidate data-confirm="{{$.L.T "enroll.remove_confirm"}} {{.Dev.MAC}}?" title="{{$.L.T "common.remove"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary transition hover:!text-status-error"><span class="material-symbols-outlined msz-18">delete</span></button>
         </div>
       </div>
       {{end}}
@@ -108,7 +108,7 @@
         {{if eq (printf "%s" .Status) "installed"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "enroll.status_installed"}}</span>
         {{else if eq (printf "%s" .Status) "imaging"}}<span class="tag"><span class="material-symbols-outlined msz-14">sync</span>{{$.L.T "enroll.status_imaging"}}</span>
           <div class="mt-1 flex items-center gap-2">
-            <div class="h-1.5 w-32 overflow-hidden rounded-full bg-surface-container"><div class="h-1.5 rounded-full bg-mint-vibrant transition-all" style="width: {{.Progress}}%"></div></div>
+            <div class="h-1.5 w-32 overflow-hidden rounded-full bg-surface-container"><div class="h-1.5 rounded-full bg-mint-vibrant transition-all {{barW .Progress}}"></div></div>
             <span class="text-label-xs-caps text-text-tertiary">{{.Progress}}%{{with .Step}} · {{.}}{{end}}</span>
           </div>
         {{else if eq (printf "%s" .Status) "failed"}}<span class="tag bad" title="{{.Message}}"><span class="material-symbols-outlined msz-14">error</span>{{$.L.T "enroll.status_failed"}}</span>

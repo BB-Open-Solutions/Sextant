@@ -41,9 +41,21 @@ func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
 // Upsert implements ports.StatusStore: one write per check-in, keyed
 // (tenant, tag). Empty phase/revision in a check-in keeps the stored value
 // (a light heartbeat never erases richer state).
-func (s *Store) Upsert(ctx context.Context, tenant string, c observed.CheckIn, now time.Time) error {
+//
+// ackChanged is computed inside the same statement (a CTE reading the
+// pre-write ack, compared against the post-write ack in RETURNING) rather
+// than via a separate SELECT beforehand: a read-then-write here would let
+// two concurrent check-ins for the same tag both observe the same prior ack
+// and both report a change, duplicating a wipe-outcome notification for a
+// security-relevant event. The CTE runs against the pre-statement snapshot
+// (standard Postgres semantics for data-modifying CTEs), so this is race-free.
+func (s *Store) Upsert(ctx context.Context, tenant string, c observed.CheckIn, now time.Time) (bool, error) {
 	u := c.Usage
-	_, err := s.pool.Exec(ctx, `
+	var ackChanged bool
+	err := s.pool.QueryRow(ctx, `
+		WITH prev AS (
+			SELECT ack FROM device_status WHERE tenant = $1 AND tag = $2
+		)
 		INSERT INTO device_status (tenant, tag, revision, phase, error, last_seen, sb_state, tpm2_state, ack,
 			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -64,10 +76,12 @@ func (s *Store) Upsert(ctx context.Context, tenant string, c observed.CheckIn, n
 			mem_used_mb   = CASE WHEN EXCLUDED.mem_total_mb = 0  THEN device_status.mem_used_mb   ELSE EXCLUDED.mem_used_mb   END,
 			mem_total_mb  = CASE WHEN EXCLUDED.mem_total_mb = 0  THEN device_status.mem_total_mb  ELSE EXCLUDED.mem_total_mb  END,
 			disk_used_gb  = CASE WHEN EXCLUDED.disk_total_gb = 0 THEN device_status.disk_used_gb  ELSE EXCLUDED.disk_used_gb  END,
-			disk_total_gb = CASE WHEN EXCLUDED.disk_total_gb = 0 THEN device_status.disk_total_gb  ELSE EXCLUDED.disk_total_gb END`,
+			disk_total_gb = CASE WHEN EXCLUDED.disk_total_gb = 0 THEN device_status.disk_total_gb  ELSE EXCLUDED.disk_total_gb END
+		RETURNING (SELECT ack FROM prev) IS DISTINCT FROM ack`,
 		tenant, c.Tag, c.Revision, string(c.Phase), c.Error, now, string(c.SB), string(c.TPM2), c.Ack,
-		u.CPUPct, u.MemUsedMB, u.MemTotalMB, u.DiskUsedGB, u.DiskTotalGB)
-	return err
+		u.CPUPct, u.MemUsedMB, u.MemTotalMB, u.DiskUsedGB, u.DiskTotalGB,
+	).Scan(&ackChanged)
+	return ackChanged, err
 }
 
 // Get implements ports.StatusStore.

@@ -15,6 +15,7 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/web"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -170,6 +171,149 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 	respCSRF.Body.Close()
 	if respCSRF.StatusCode != 403 {
 		t.Fatalf("bad csrf status = %d", respCSRF.StatusCode)
+	}
+}
+
+// deviceScopeSeed sets a device's own setting (overriding org), enforces it,
+// registers a secret reference and records a risk acceptance directly at the
+// device - enough to exercise settingsPage's device-only rendering branches
+// (Resolved/Source, SecretRefs, Acceptances) that the org-scope tests above
+// never touch.
+const deviceScopeSeed = `{
+  "version": 3,
+  "org": {"settings": {"desktop": "plasma"}},
+  "groups": {"pilot": {}, "other": {}},
+  "devices": {
+    "lt-1": {"groups": ["pilot"], "hardware": "hw",
+      "settings": {"desktop": "cosmic"}, "enforced": ["desktop"],
+      "accepted": {"apps.office": "approved by CISO"}},
+    "lt-2": {"groups": ["other"], "hardware": "hw"}
+  },
+  "secretRefs": {"vpn-key": {"description": "NetBird join key"}}
+}`
+
+// newConsoleWithFleet is newConsole with a caller-supplied fleet document, for
+// scenarios the shared seedFleet does not cover.
+func newConsoleWithFleet(t *testing.T, fleetDoc string) *httptest.Server {
+	t.Helper()
+	dir := t.TempDir()
+	run := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run("init", "-q", "-b", "main")
+	for name, body := range map[string]string{"fleet.json": fleetDoc, "catalog.json": seedCatalog} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run("add", ".")
+	run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
+
+	repo, err := git.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := ports.GateFunc(func(context.Context, string, []string) error { return nil })
+	cfg, err := app.NewConfigService(repo, gate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := web.New(web.Services{Config: cfg}, web.DevSessions{}, true,
+		nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	srv.Routes(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	return ts
+}
+
+// TestSettingsPageDeviceScopeRendersResolvedAndRegistry exercises the
+// device-scope-only rendering path settingsPage takes: the resolved-value
+// column (own setting beats the inherited org value), the enforced lock, the
+// secret-reference picker list and a risk acceptance recorded at the device.
+func TestSettingsPageDeviceScopeRendersResolvedAndRegistry(t *testing.T) {
+	ts := newConsoleWithFleet(t, deviceScopeSeed)
+	resp, err := client().Get(ts.URL + "/settings?scope=device:lt-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d\n%s", resp.StatusCode, body)
+	}
+	page := string(body)
+	for _, want := range []string{"cosmic", "vpn-key", "approved by CISO"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("device-scope page missing %q", want)
+		}
+	}
+}
+
+// TestSettingsPageGroupScopeFiltersDeviceDrilldown exercises settingsPage's
+// group-scope-only branches: the scope selector's group cascade, the
+// group-scoped app lists, and the device drill-down narrowed to direct group
+// members (a device in a sibling group must not appear).
+func TestSettingsPageGroupScopeFiltersDeviceDrilldown(t *testing.T) {
+	ts := newConsoleWithFleet(t, deviceScopeSeed)
+	resp, err := client().Get(ts.URL + "/settings?scope=group:pilot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d\n%s", resp.StatusCode, body)
+	}
+	page := string(body)
+	if !strings.Contains(page, "group pilot") {
+		t.Error("group-scope page missing the scope label")
+	}
+	if !strings.Contains(page, "lt-1") {
+		t.Error("group-scope page missing its own member lt-1")
+	}
+	if strings.Contains(page, "lt-2") {
+		t.Error("group-scope page leaked lt-2, a member of the sibling group")
+	}
+}
+
+// TestPostSettingRejectsMalformedScope: a scope string in neither the
+// org/group:/device: shape reaches ScopeSettings, which reports it as a bad
+// scope - a plain 400, not a panic or a silent no-op.
+func TestPostSettingRejectsMalformedScope(t *testing.T) {
+	ts, _ := newConsole(t)
+	resp, err := client().PostForm(ts.URL+"/settings", url.Values{
+		"csrf": {"dev-csrf"}, "scope": {"not-a-scope"}, "v:desktop": {"gnome"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("malformed scope status = %d, want 400\n%s", resp.StatusCode, body)
+	}
+}
+
+// TestPostSettingRequiresEditorRole: a viewer-only binding may read a scope
+// but not save to it - requireWeb must refuse with 403 before ApplySettings
+// ever runs.
+func TestPostSettingRequiresEditorRole(t *testing.T) {
+	ts := newScopedConsole(t, identity.User{Subject: "u", Groups: []string{"alpha-team"}})
+	resp, err := http.PostForm(ts.URL+"/settings", url.Values{
+		"csrf": {"csrf"}, "scope": {"group:alpha"}, "v:desktop": {"gnome"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("viewer post status = %d, want 403\n%s", resp.StatusCode, body)
 	}
 }
 

@@ -43,7 +43,7 @@ func TestNotifyStore(t *testing.T) {
 	}
 
 	// sub-1 reads the broadcast: unread drops to 1 for sub-1, stays 1 for sub-2.
-	if err := s.MarkRead(ctx, "t", "b1", "sub-1"); err != nil {
+	if err := s.MarkRead(ctx, "t", "sub-1", "b1"); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := s.UnreadCount(ctx, "t", "sub-1", []string{"owner"}); n != 1 {
