@@ -11,6 +11,7 @@
 //! loudly, so a wipe is never carried out by accident.
 
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 /// SPOOL is where the agent drops an intent for the root executor.
@@ -72,6 +73,10 @@ fn lock(root: &Path) {
     let flag = root.join(LOCK_FLAG.trim_start_matches('/'));
     if let Some(parent) = flag.parent() {
         let _ = fs::create_dir_all(parent);
+        // The lock flag feeds the root executor's wipe interlock; keep its
+        // directory owner-only so only this agent user (and root, which ignores
+        // the mode) can set it - no third-party can forge the interlock.
+        tighten(parent);
     }
     if let Err(e) = fs::write(&flag, b"locked\n") {
         eprintln!("sextant-agent: could not write lock flag: {e}");
@@ -87,9 +92,21 @@ fn spool(root: &Path, intent: &str) {
         eprintln!("sextant-agent: could not create spool dir: {e}");
         return;
     }
+    // Owner-only: the spool is the privilege boundary (the root executor acts on
+    // whatever appears here). Ownership already limits writers to this agent user
+    // and root; 0700 also stops any third-party from reading which action is
+    // pending, and removes the reliance on the process umask for that guarantee.
+    tighten(&dir);
     if let Err(e) = fs::write(dir.join(format!("{intent}.intent")), b"") {
         eprintln!("sextant-agent: could not spool {intent}: {e}");
     }
+}
+
+/// tighten best-effort restricts a directory to owner-only (0700). Failure is
+/// non-fatal - the directory ownership is the primary control; this only drops
+/// the read/traverse bits the default umask would otherwise grant.
+fn tighten(dir: &Path) {
+    let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
 }
 
 #[cfg(test)]
@@ -135,6 +152,16 @@ mod tests {
             .join(SPOOL.trim_start_matches('/'))
             .join("reboot.intent")
             .exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn spool_dir_is_owner_only() {
+        let root = tmp("perms");
+        react(&root, "lock");
+        let dir = root.join(SPOOL.trim_start_matches('/'));
+        let mode = fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700, "spool dir must be owner-only, got {mode:o}");
         let _ = fs::remove_dir_all(&root);
     }
 
