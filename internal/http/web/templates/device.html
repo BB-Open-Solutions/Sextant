@@ -257,12 +257,12 @@
         <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">autorenew</span>{{.L.T "device.reissue_credential"}}</button>
       </form>
       <form method="post" action="/devices/{{.Tag}}/retire" class="inline"
-            onsubmit="return confirm('Retire {{.Tag}}? Builds and check-ins stop; the record stays for audit.')">
+            data-confirm="Retire {{.Tag}}? Builds and check-ins stop; the record stays for audit.">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">{{.L.T "device.retire"}}</button>
       </form>
       {{end}}
       <form method="post" action="/devices/{{.Tag}}/remove" class="inline"
-            onsubmit="return confirm('Remove {{.Tag}} entirely? This unenrolls the device.')">
+            data-confirm="Remove {{.Tag}} entirely? This unenrolls the device.">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet">{{.L.T "common.remove"}}</button>
       </form>
     </div>
@@ -291,7 +291,7 @@
         <button type="submit"><span class="material-symbols-outlined msz-18">lock</span>{{.L.T "device.lock_device"}}</button>
       </form>
       <form method="post" action="/devices/{{.Tag}}/intent" class="inline"
-            onsubmit="return confirm('WIPE {{.Tag}}? This destroys the disk encryption keys - irreversible.')">
+            data-confirm="WIPE {{.Tag}}? This destroys the disk encryption keys - irreversible.">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="wipe"><input type="hidden" name="force" value="1">
         <span class="flex flex-col gap-1"><label>{{.L.T "device.confirm_wipe_label"}}</label>
           <input name="confirm" placeholder="{{.Tag}}" required></span>

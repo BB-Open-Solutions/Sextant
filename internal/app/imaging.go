@@ -76,10 +76,27 @@ func (s *ImagingService) Report(ctx context.Context, station, mac string, to ima
 	if !job.Status.CanTransition(to) {
 		return fmt.Errorf("image job %s cannot go from %s to %s", mac, job.Status, to)
 	}
-	// Keep the reported message on Failed (failure detail) and on Installed (the
-	// station reports the per-device LUKS recovery key there - it must survive, not
-	// be cleared, until a proper encrypted secret store / CMDB takes it over). Other
-	// transitions carry no message worth persisting.
+	// Keep the reported message on Failed (failure detail) and on Installed.
+	//
+	// SECURITY: when the per-device secret-store sealer is enabled, the API layer
+	// (station.go handleJobStatus/sealLUKS) already strips a reported LUKS
+	// recovery key out of the message before it ever reaches here, so nothing
+	// plaintext lands in image_jobs.message for that path.
+	//
+	// When the sealer is disabled (the one-shot password-manager workflow), the
+	// key is intentionally left in the message on Installed: the provisioning
+	// wizard reveals it from a later, separate GET (enroll_wizard.go), and there
+	// is no other channel available to hand the key over instead - it must
+	// persist to survive that round trip. This is accepted residual risk
+	// (plaintext break-glass material at rest for a bounded window), bounded by:
+	//   - the wizard only renders it to an org Owner (enroll_wizard.go canSeeKey);
+	//   - every transition below OVERWRITES the message column, so the very next
+	//     status report for the job (sb-pending/tpm2-enrolled/done, or a fresh
+	//     failure) wipes the plaintext key out of Postgres again. A job that
+	//     never advances past Installed keeps the key in the message until it
+	//     does; there is no separate proactive expiry. Enabling the sealer
+	//     removes this window entirely - see TestImagingInstalledMessageClearsOnNextTransition.
+	// Other transitions carry no message worth persisting.
 	if to != imaging.Failed && to != imaging.Installed {
 		message = ""
 	}

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -80,7 +81,7 @@ func (j *ImageJobStore) Get(ctx context.Context, tenant, station, mac string) (i
 		FROM image_jobs WHERE tenant=$1 AND station=$2 AND mac=$3`, tenant, station, mac).
 		Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return imaging.Job{}, false, nil
 		}
 		return imaging.Job{}, false, err

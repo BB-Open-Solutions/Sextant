@@ -75,7 +75,7 @@
               <input name="idpGroup" list="dirgroups" value="{{.IdpGroup}}" placeholder="{{$.L.T "groups.idp_group_placeholder"}}" class="w-full" autocomplete="off">
               <button type="submit" class="quiet mt-2 self-start">{{$.L.T "groups.map_button"}}</button>
             </form>
-            <form method="post" action="/groups/{{.Name}}/remove" class="!block" onsubmit="return confirm('Remove group {{.Name}}?')">
+            <form method="post" action="/groups/{{.Name}}/remove" class="!block" data-confirm="Remove group {{.Name}}?">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet w-full justify-center !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-16">delete</span>{{$.L.T "groups.remove_group"}}</button>
             </form>
           </div>

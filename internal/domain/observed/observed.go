@@ -13,13 +13,13 @@ import (
 type Phase string
 
 const (
-	// Discovered: seen by an imaging station, not yet installed.
+	// Discovered means seen by an imaging station, not yet installed.
 	Discovered Phase = "discovered"
-	// Installing: imaging in progress.
+	// Installing means imaging is in progress.
 	Installing Phase = "installing"
-	// Installed: image on disk, not yet converging config.
+	// Installed means the image is on disk, not yet converging config.
 	Installed Phase = "installed"
-	// Running: converging via comin; the steady state.
+	// Running means converging via comin; the steady state.
 	Running Phase = "running"
 )
 

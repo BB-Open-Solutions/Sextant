@@ -69,7 +69,7 @@ func run(args []string, getenv config.Getenv) error {
 	if !slices.Contains(mounted, "console") {
 		mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			fmt.Fprintln(w, "Sextant - declarative fleet control-plane for NixOS")
+			_, _ = fmt.Fprintln(w, "Sextant - declarative fleet control-plane for NixOS")
 		})
 	}
 

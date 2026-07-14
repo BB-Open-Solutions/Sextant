@@ -86,9 +86,10 @@ func (b Binding) Validate() error {
 	return nil
 }
 
-// ScopeChain lists the fleet-scope refs that govern a target scope ref,
-// most general first. Group ancestry comes from the caller (the fleet
-// document), keeping this package free of fleet imports.
+// Resolver computes a user's effective role from the access bindings and the
+// scope chain that governs a target scope ref, most general first. Group
+// ancestry comes from the caller (the fleet document), keeping this package
+// free of fleet imports.
 //
 //	org               -> [org]
 //	group:<g>         -> [org, group:root, ..., group:g]

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -55,7 +56,7 @@ func (t *TokenStore) Get(ctx context.Context, id string) (token.Token, bool, err
 	tok, err := scanToken(t.s.pool.QueryRow(ctx, `
 		SELECT id, name, kind, subject, groups, ceiling, hash, created, expires, last_used
 		FROM api_tokens WHERE id = $1`, id))
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return token.Token{}, false, nil
 	}
 	if err != nil {

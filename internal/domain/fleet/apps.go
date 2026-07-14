@@ -50,6 +50,7 @@ func dedup(in []string) []string {
 // AppKind names one of the three additive app lists.
 type AppKind string
 
+// The three additive app-list kinds a scope can carry.
 const (
 	AppPackages AppKind = "packages"
 	AppFlatpaks AppKind = "flatpaks"

@@ -48,7 +48,7 @@
           {{else}}<span class="text-body-sm text-text-tertiary">{{.L.T "overlays.new_overlay_label"}}</span>{{end}}
         </div>
         {{if .Selected}}
-        <form method="post" action="/overlays/{{.Selected}}/remove" class="inline shrink-0" onsubmit="return confirm('Delete overlay {{.Selected}}? Any scope selecting it will fail the gate.')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>{{.L.T "common.delete"}}</button></form>
+        <form method="post" action="/overlays/{{.Selected}}/remove" class="inline shrink-0" data-confirm="Delete overlay {{.Selected}}? Any scope selecting it will fail the gate."><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>{{.L.T "common.delete"}}</button></form>
         {{end}}
       </div>
       <form method="post" action="/overlays" class="!flex-col !items-stretch gap-3">

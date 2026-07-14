@@ -61,7 +61,7 @@
       {{end}}
     </div>
   </form>
-  {{if .Configured}}<form id="mail-delete" method="post" action="/mail/delete" class="hidden" onsubmit="return confirm('Remove the SMTP configuration? Notifications will stop being e-mailed.')"><input type="hidden" name="csrf" value="{{.CSRF}}"></form>{{end}}
+  {{if .Configured}}<form id="mail-delete" method="post" action="/mail/delete" class="hidden" data-confirm="Remove the SMTP configuration? Notifications will stop being e-mailed."><input type="hidden" name="csrf" value="{{.CSRF}}"></form>{{end}}
 </div>
 
 {{if .Configured}}

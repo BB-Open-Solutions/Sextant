@@ -118,10 +118,15 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 		resp.Body.Close()
 		return resp
 	}
+	// The batch handler diffs every catalog key's v:<key> against the
+	// scope's current settings in one Save: an omitted/empty row clears a
+	// key that is currently set. The seed fleet already sets org "desktop",
+	// so every org post below must echo v:desktop to keep it - exactly as
+	// the settings page always resubmits every row, touched or not.
 
-	// Set + enforce at org.
-	resp := post(url.Values{"scope": {"org"}, "key": {"apps.office"},
-		"action": {"set"}, "value": {"true"}, "enforce": {"on"}})
+	// Set + enforce apps.office at org.
+	resp := post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"},
+		"v:apps.office": {"true"}, "e:apps.office": {"on"}})
 	if resp.StatusCode != 303 {
 		t.Fatalf("set status = %d", resp.StatusCode)
 	}
@@ -130,49 +135,38 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 		t.Fatalf("after set: own=%v enforced=%v", own, enforced)
 	}
 
-	// Re-set without the checkbox unlocks.
-	post(url.Values{"scope": {"org"}, "key": {"apps.office"},
-		"action": {"set"}, "value": {"false"}})
+	// Re-post without the enforce checkbox unlocks.
+	post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"}, "v:apps.office": {"false"}})
 	own, enforced, _ = cfg.Fleet().ScopeSettings("org")
 	if own["apps.office"] != false || len(enforced) != 0 {
 		t.Fatalf("after unlock: own=%v enforced=%v", own, enforced)
 	}
 
-	// Clear removes the key.
-	post(url.Values{"scope": {"org"}, "key": {"apps.office"}, "action": {"clear"}})
+	// Omitting v:apps.office (empty submitted value on a currently-set key)
+	// clears it.
+	post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"}})
 	own, _, _ = cfg.Fleet().ScopeSettings("org")
 	if _, has := own["apps.office"]; has {
 		t.Fatalf("after clear: own=%v", own)
 	}
 
 	// Group and device scopes take writes too.
-	post(url.Values{"scope": {"group:pilot"}, "key": {"desktop"},
-		"action": {"set"}, "value": {"gnome"}})
+	post(url.Values{"scope": {"group:pilot"}, "v:desktop": {"gnome"}})
 	own, _, _ = cfg.Fleet().ScopeSettings("group:pilot")
 	if own["desktop"] != "gnome" {
 		t.Fatalf("group set: own=%v", own)
 	}
-	post(url.Values{"scope": {"device:lt-1"}, "key": {"desktop"},
-		"action": {"set"}, "value": {"cosmic"}})
+	post(url.Values{"scope": {"device:lt-1"}, "v:desktop": {"cosmic"}})
 	if res := cfg.Fleet().Resolve("lt-1"); res["desktop"].Value != "cosmic" {
 		t.Fatalf("device set not resolved: %+v", res["desktop"])
 	}
 
-	// Guard rails: unknown key, bad value, bad action, bad csrf.
-	for name, f := range map[string]url.Values{
-		"unknown key": {"scope": {"org"}, "key": {"nope"}, "action": {"set"}, "value": {"true"}},
-		"bad value":   {"scope": {"org"}, "key": {"apps.office"}, "action": {"set"}, "value": {"maybe"}},
-		"bad action":  {"scope": {"org"}, "key": {"apps.office"}, "action": {"zap"}},
-		// Untouched widget submits "": must never coerce to false or "".
-		"empty value bool": {"scope": {"org"}, "key": {"apps.office"}, "action": {"set"}, "value": {""}},
-		"empty value text": {"scope": {"org"}, "key": {"desktop"}, "action": {"set"}, "value": {""}},
-	} {
-		if resp := post(f); resp.StatusCode != 400 {
-			t.Errorf("%s: status = %d, want 400", name, resp.StatusCode)
-		}
+	// Guard rail: a value the catalog type rejects fails the whole batch.
+	if resp := post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"}, "v:apps.office": {"maybe"}}); resp.StatusCode != 400 {
+		t.Errorf("bad value: status = %d, want 400", resp.StatusCode)
 	}
 	respCSRF, _ := client().PostForm(ts.URL+"/settings", url.Values{
-		"scope": {"org"}, "key": {"apps.office"}, "action": {"clear"}, "csrf": {"wrong"}})
+		"scope": {"org"}, "v:desktop": {"plasma"}, "csrf": {"wrong"}})
 	respCSRF.Body.Close()
 	if respCSRF.StatusCode != 403 {
 		t.Fatalf("bad csrf status = %d", respCSRF.StatusCode)

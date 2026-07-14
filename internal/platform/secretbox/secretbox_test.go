@@ -3,6 +3,7 @@ package secretbox
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"testing"
 )
 
@@ -65,7 +66,7 @@ func TestDisabledSealer(t *testing.T) {
 	if s.Enabled() {
 		t.Fatal("empty key must yield a disabled sealer")
 	}
-	if _, err := s.Seal([]byte("x")); err != ErrDisabled {
+	if _, err := s.Seal([]byte("x")); !errors.Is(err, ErrDisabled) {
 		t.Fatalf("want ErrDisabled, got %v", err)
 	}
 }

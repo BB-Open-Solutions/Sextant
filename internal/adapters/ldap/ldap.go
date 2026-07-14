@@ -80,12 +80,12 @@ func searchFilter(groupFilter, nameAttr, query string) string {
 func (d *Directory) ListGroups(ctx context.Context, query string) ([]ports.DirectoryGroup, error) {
 	conn, err := d.dial(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("ldap dial: %w: %v", ports.ErrUnavailable, err)
+		return nil, fmt.Errorf("ldap dial: %w: %w", ports.ErrUnavailable, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if d.cfg.BindDN != "" {
 		if err := conn.Bind(d.cfg.BindDN, d.cfg.BindPassword); err != nil {
-			return nil, fmt.Errorf("ldap bind: %w: %v", ports.ErrUnavailable, err)
+			return nil, fmt.Errorf("ldap bind: %w: %w", ports.ErrUnavailable, err)
 		}
 	}
 	req := ldapv3.NewSearchRequest(

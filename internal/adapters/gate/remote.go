@@ -60,6 +60,7 @@ type validateResponse struct {
 // caller just wrote into repoDir and sends it to the runner; the runner's
 // own overlay clone supplies the generator and modules.
 func (g *RemoteGate) Validate(ctx context.Context, repoDir string, hosts []string) error {
+	//nosec G304 - repoDir is the service's own repo working dir (not request input) and the filename is a fixed literal.
 	fleet, err := os.ReadFile(filepath.Join(repoDir, "fleet.json"))
 	if err != nil {
 		return fmt.Errorf("gate: read candidate fleet.json: %w", err)
@@ -94,7 +95,7 @@ func (g *RemoteGate) Validate(ctx context.Context, repoDir string, hosts []strin
 		// Fail-closed: a gate we cannot reach must not wave writes through.
 		return fmt.Errorf("gate-runner unreachable, refusing to commit unvalidated: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 
 	switch resp.StatusCode {

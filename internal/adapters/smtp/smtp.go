@@ -46,7 +46,7 @@ func (m *Mailer) Send(ctx context.Context, cfg mail.Config, password string, msg
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	if cfg.Username != "" {
 		auth := smtp.PlainAuth("", cfg.Username, password, cfg.Host)

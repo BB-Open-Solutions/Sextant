@@ -14,6 +14,7 @@ import (
 // recipient can reason about what happened without reading the body.
 type Kind string
 
+// The notification kinds the app service emits.
 const (
 	ApprovalNeeded Kind = "approval-needed" // a change is ready and awaits review
 	ChangeMerged   Kind = "change-merged"   // a change the user authored merged

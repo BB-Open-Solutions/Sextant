@@ -82,3 +82,43 @@ func TestStationKeepsLUKSMessageWithoutStore(t *testing.T) {
 		t.Fatal("a disabled sink must not strip the one-shot key")
 	}
 }
+
+// TestStationSealsLUKSKeyReportedOnAnyStatus checks that the recovery-key
+// prefix is sealed and stripped no matter which status carries it, not only
+// Installed. A buggy or compromised station must not be able to leave
+// plaintext key material at rest in the job message by attaching the prefix
+// to, say, a Failed report instead of Installed.
+func TestStationSealsLUKSKeyReportedOnAnyStatus(t *testing.T) {
+	store := &jobMemStore{m: map[string]imaging.Job{}}
+	svc := app.NewImagingService(store, fixedClock{time.Unix(1000, 0)}, "")
+	ctx := context.Background()
+	if err := svc.Dispatch(ctx, imaging.Job{Station: "nuc-1", MAC: "aa:bb:cc:dd:ee:02", Tag: "lab-2", Hardware: "lenovo-t495s"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Report(ctx, "nuc-1", "aa:bb:cc:dd:ee:02", imaging.Imaging, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	sink := &fakeSink{enabled: true, stored: map[string]string{}}
+	stationAPI := NewStation(nil, svc, &fakeCreds{}, stationAuth{secret: "s3cr3t", station: "nuc-1"}, "", discardLog())
+	stationAPI.WithSecrets(sink)
+	mux := http.NewServeMux()
+	stationAPI.Routes(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	resp := req(t, http.MethodPost, ts.URL+"/api/station/nuc-1/jobs/aa:bb:cc:dd:ee:02/status",
+		"s3cr3t", `{"status":"failed","message":"`+imaging.LUKSRecoveryPrefix+`z7Xq-9pLm"}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status report = %d, want 204", resp.StatusCode)
+	}
+
+	if got := sink.stored["lab-2|luks"]; got != "z7Xq-9pLm" {
+		t.Fatalf("LUKS key reported on a non-installed status was not sealed: %q", got)
+	}
+	job, _, _ := svc.Get(ctx, "nuc-1", "aa:bb:cc:dd:ee:02")
+	if job.Message != "" {
+		t.Fatalf("plaintext LUKS key left in the job message: %q", job.Message)
+	}
+}

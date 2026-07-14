@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -22,7 +23,7 @@ func (s *Store) GetMailConfig(ctx context.Context, tenant string) (mail.Config, 
 		FROM smtp_config WHERE tenant = $1`, tenant).
 		Scan(&c.Host, &c.Port, &c.From, &c.Username, &c.PasswordRef, &c.PasswordEnc, &sec)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return mail.Config{}, false, nil
 		}
 		return mail.Config{}, false, err

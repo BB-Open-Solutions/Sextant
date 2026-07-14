@@ -181,13 +181,12 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 // a device that is already running. The caller authorizes.
 func (s *Server) imageOne(ctx context.Context, v view, station, mac, tag, hardware, class string, groups []string) error {
 	if s.svc.Imaging == nil {
-		_, err := s.enrollOne(ctx, station, mac, tag, hardware, class, groups, true, true, webAuthor(v))
-		return err
+		return s.enrollOne(ctx, station, mac, tag, hardware, class, groups, true, true, webAuthor(v))
 	}
 	// Create the device (capture specs + native facter), keep the MAC visible
 	// with its job, and do not issue a credential yet - the station receives a
 	// fresh one when it claims the job.
-	if _, err := s.enrollOne(ctx, station, mac, tag, hardware, class, groups, false, false, webAuthor(v)); err != nil {
+	if err := s.enrollOne(ctx, station, mac, tag, hardware, class, groups, false, false, webAuthor(v)); err != nil {
 		return err
 	}
 	return s.svc.Imaging.Dispatch(ctx, imaging.Job{

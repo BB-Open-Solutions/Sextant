@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -50,7 +51,7 @@ func (d *DeviceSecretStore) Get(ctx context.Context, tenant, tag string, kind se
 		FROM device_secrets WHERE tenant=$1 AND tag=$2 AND kind=$3`,
 		tenant, tag, string(kind)).Scan(&ciphertext, &created, &createdBy, &revealed, &revealedBy)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, secret.Meta{}, false, nil
 		}
 		return nil, secret.Meta{}, false, err

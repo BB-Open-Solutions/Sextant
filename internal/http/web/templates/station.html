@@ -30,11 +30,11 @@
   </div>
   {{if .CanOwn}}
   <div class="flex shrink-0 flex-wrap gap-2">
-    <form method="post" action="/station/{{.Station}}/credential" class="inline" onsubmit="return confirm('Mint a new report credential for {{.Station}}? Any previous one stops working.')">
+    <form method="post" action="/station/{{.Station}}/credential" class="inline" data-confirm="Mint a new report credential for {{.Station}}? Any previous one stops working.">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">key</span>{{$.L.T "station.mint_credential"}}</button>
     </form>
-    <form method="post" action="/station/{{.Station}}/remove" class="inline" onsubmit="return confirm('Remove station {{.Station}}? Its credential is revoked.')">
+    <form method="post" action="/station/{{.Station}}/remove" class="inline" data-confirm="Remove station {{.Station}}? Its credential is revoked.">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <button type="submit" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>{{$.L.T "common.remove"}}</button>
     </form>

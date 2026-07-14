@@ -223,16 +223,24 @@ func (s *StationAPI) handleJobStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		msg := in.Message
-		// A LUKS recovery key reported at install is sealed into the secret store
-		// and stripped from the message, so plaintext never lands in the job
-		// record. With no secret store configured it is KEPT in the message so an
-		// operator can copy the one-shot value into a password manager - the app
-		// works standalone (no key manager) as well as with secretbox / OpenBao.
-		if status == imaging.Installed {
-			if key, found := strings.CutPrefix(msg, imaging.LUKSRecoveryPrefix); found {
-				if s.sealLUKS(r.Context(), station, mac, key) {
-					msg = ""
-				}
+		// A reported LUKS recovery key is sealed into the secret store and
+		// stripped from the message, so plaintext never lands in the job record.
+		// The prefix is checked on every status (not just Installed, where the
+		// station is expected to send it): a buggy or compromised station must
+		// not be able to smuggle plaintext key material to rest by attaching the
+		// prefix to, say, a Failed message instead.
+		//
+		// With no secret store configured (or a seal attempt that fails) the key
+		// is KEPT in the message: the provisioning wizard's one-shot reveal reads
+		// it back from this same column on a later, separate GET
+		// (internal/http/web/enroll_wizard.go), so there is no other channel to
+		// hand it over - the app must work standalone (no key manager) as well as
+		// with secretbox / OpenBao. This is accepted residual risk (plaintext
+		// break-glass material at rest for a bounded window); see the matching
+		// comment on app.ImagingService.Report for how that window is bounded.
+		if key, found := strings.CutPrefix(msg, imaging.LUKSRecoveryPrefix); found {
+			if s.sealLUKS(r.Context(), station, mac, key) {
+				msg = ""
 			}
 		}
 		if err := s.imaging.Report(r.Context(), station, mac, status, msg); err != nil {

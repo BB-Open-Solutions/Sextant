@@ -53,10 +53,13 @@ func TestSecretSettingRequiresRegisteredReference(t *testing.T) {
 	ts, cfg := newConsole(t)
 	c := client()
 
+	// The batch handler diffs every catalog key's v:<key> in one Save; org
+	// already has "desktop" set from the seed fleet, so it must be echoed
+	// on every post below or it gets cleared as an untouched-but-set row.
 	set := func(value string) int {
 		resp, _ := c.PostForm(ts.URL+"/settings", url.Values{
-			"csrf": {"dev-csrf"}, "scope": {"org"}, "key": {"netbird.setupKey"},
-			"action": {"set"}, "value": {value}})
+			"csrf": {"dev-csrf"}, "scope": {"org"}, "v:desktop": {"plasma"},
+			"v:netbird.setupKey": {value}})
 		resp.Body.Close()
 		return resp.StatusCode
 	}

@@ -146,7 +146,7 @@ func (a *Authenticator) Routes(mux *http.ServeMux) {
 
 // Login starts the Authorization Code + PKCE flow.
 func (a *Authenticator) Login(w http.ResponseWriter, r *http.Request) {
-	state, nonce, verifier := randString(24), randString(24), oauth2.GenerateVerifier()
+	state, nonce, verifier := randString(), randString(), oauth2.GenerateVerifier()
 	fd := flowData{State: state, Nonce: nonce, Verifier: verifier,
 		Exp: time.Now().Add(10 * time.Minute).Unix()}
 	if err := a.flow.set(w, fd); err != nil {
@@ -226,7 +226,7 @@ func (a *Authenticator) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sd := sessionData{Subject: u.Subject, Name: u.Name, Email: u.Email,
-		Groups: u.Groups, CSRF: randString(24), Exp: time.Now().Add(a.ttl).Unix()}
+		Groups: u.Groups, CSRF: randString(), Exp: time.Now().Add(a.ttl).Unix()}
 	if err := a.sess.set(w, sd); err != nil {
 		http.Error(w, "session error", http.StatusInternalServerError)
 		return
@@ -251,15 +251,20 @@ func (a *Authenticator) SessionUser(r *http.Request) (identity.User, string, boo
 	return identity.User{Subject: sd.Subject, Name: sd.Name, Email: sd.Email, Groups: sd.Groups}, sd.CSRF, true
 }
 
-// randString returns n cryptographically random bytes, base64url-encoded.
-// It feeds the OAuth state and nonce and the session CSRF token - all
-// security-critical, so silently returning an all-zero (thus predictable)
-// value on RNG failure is unacceptable. crypto/rand.Read only errors when
-// the OS CSPRNG itself is broken, which is unrecoverable; panicking is
-// preferable to issuing a guessable token, and mw.Recover (wrapped around
-// every handler) turns it into a 500 rather than crashing the process.
-func randString(n int) string {
-	b := make([]byte, n)
+// randStringBytes is the byte length every randString call uses: enough
+// entropy for OAuth state/nonce and the session CSRF token.
+const randStringBytes = 24
+
+// randString returns randStringBytes cryptographically random bytes,
+// base64url-encoded. It feeds the OAuth state and nonce and the session CSRF
+// token - all security-critical, so silently returning an all-zero (thus
+// predictable) value on RNG failure is unacceptable. crypto/rand.Read only
+// errors when the OS CSPRNG itself is broken, which is unrecoverable;
+// panicking is preferable to issuing a guessable token, and mw.Recover
+// (wrapped around every handler) turns it into a 500 rather than crashing
+// the process.
+func randString() string {
+	b := make([]byte, randStringBytes)
 	if _, err := rand.Read(b); err != nil {
 		panic("oidc: crypto/rand failed: " + err.Error())
 	}

@@ -68,70 +68,70 @@
   </div>
 </div>
 
+{{if .CanEdit}}
+<!-- One form saves every editable setting at this scope in a single commit;
+     edit several rows, then Save (top or bottom). data-dirty-form drives the
+     unsaved-changes warning in app.js. -->
+<form method="post" action="/settings" id="settings-form" data-dirty-form>
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="scope" value="{{.Scope}}">
+  <div class="sticky top-0 z-10 mb-4 flex items-center justify-between gap-3 rounded-lg border border-border-hairline bg-canvas px-4 py-2.5 shadow-sm">
+    <span class="text-label-md text-text-tertiary" data-dirty-hint>{{.L.T "settings.save_hint"}}</span>
+    <button type="submit"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "settings.save_all"}}</button>
+  </div>
+{{end}}
+
 {{range $sec := .Sections}}
 <div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
   <div class="flex items-center justify-between border-b border-border-hairline bg-surface-bright px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold capitalize text-ink">{{$sec.Name}}</h2><span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len $sec.Rows}} {{$.L.T "settings.keys_suffix"}}</span></div>
-  <table>
-    <tr>
-      <th class="w-72">{{$.L.T "settings.col_setting"}}</th><th>{{$.L.T "settings.col_value"}}</th><th>{{$.L.T "common.enforce"}}</th>
-      {{if $.IsDevice}}<th>{{$.L.T "settings.col_effective"}}</th><th>{{$.L.T "settings.col_source"}}</th>{{end}}
-      <th></th>
-    </tr>
+  <div class="flex flex-col divide-y divide-border-hairline">
     {{range $i, $row := $sec.Rows}}
-    {{$fid := printf "f-%s-%d" $sec.Name $i}}
-    <tr class="hover:bg-surface-container-low transition-colors">
-      <td class="w-72">
-        <span class="break-all font-mono font-medium">{{$row.Entry.Name}}</span>
-        {{if $row.Entry.RiskClass}}<span class="tag bad ml-1">{{$row.Entry.RiskClass}} {{$.L.T "settings.risk_suffix"}}</span>{{end}}
-        <div class="muted">{{$row.Entry.Description}}</div>
-        {{with $row.Entry.DefaultString}}<div class="text-label-md text-text-tertiary">{{$.L.T "settings.default_label"}} <code>{{.}}</code></div>{{end}}
-      </td>
-      {{if $.CanEdit}}
-      <td>
-        {{if eq $row.Entry.Widget "toggle"}}
-          <select name="value" form="{{$fid}}" class="w-full"><option value="" {{if not $row.Set}}selected{{end}} disabled>{{$.L.T "common.inherit"}}</option><option value="true" {{if and $row.Set (eq $row.Value "true")}}selected{{end}}>{{$.L.T "common.true"}}</option><option value="false" {{if and $row.Set (eq $row.Value "false")}}selected{{end}}>{{$.L.T "common.false"}}</option></select>
-        {{else if eq $row.Entry.Widget "select"}}
-          <select name="value" form="{{$fid}}" class="w-full"><option value="" {{if not $row.Set}}selected{{end}} disabled>{{$.L.T "common.inherit"}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
-        {{else if eq $row.Entry.Widget "secret"}}
-          {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="value" form="{{$fid}}" class="w-full min-w-0 flex-1"><option value="" {{if not $row.Set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{slug $row.Entry.Name}}" class="text-label-md text-secondary whitespace-nowrap" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
-          {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{slug $row.Entry.Name}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
-        {{else if eq $row.Entry.Widget "number"}}
-          <input type="number" name="value" form="{{$fid}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full">
-        {{else if eq $row.Entry.Widget "code"}}
-          <textarea name="value" form="{{$fid}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $row.Set}}{{$row.Lines}}{{end}}</textarea>
+    <div class="px-6 py-4 transition-colors hover:bg-surface-container-low">
+      <!-- Top line: name grows, then a compact value control and enforce inline.
+           The description sits full-width below. -->
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div class="min-w-0 flex-1">
+          <span class="break-all font-mono font-medium text-ink">{{$row.Entry.Name}}</span>
+          {{if $row.Entry.RiskClass}}<span class="tag bad ml-1">{{$row.Entry.RiskClass}} {{$.L.T "settings.risk_suffix"}}</span>{{end}}
+        </div>
+        {{if $.CanEdit}}
+        {{$vn := printf "v:%s" $row.Entry.Name}}
+        <div class="w-full shrink-0 sm:w-72">
+          {{if eq $row.Entry.Widget "toggle"}}
+            <select name="{{$vn}}" class="w-full"><option value="" {{if not $row.Set}}selected{{end}}>{{$.L.T "common.inherit"}}</option><option value="true" {{if and $row.Set (eq $row.Value "true")}}selected{{end}}>{{$.L.T "common.true"}}</option><option value="false" {{if and $row.Set (eq $row.Value "false")}}selected{{end}}>{{$.L.T "common.false"}}</option></select>
+          {{else if eq $row.Entry.Widget "select"}}
+            <select name="{{$vn}}" class="w-full"><option value="" {{if not $row.Set}}selected{{end}}>{{$.L.T "common.inherit"}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+          {{else if eq $row.Entry.Widget "secret"}}
+            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="{{$vn}}" class="w-full min-w-0 flex-1"><option value="" {{if not $row.Set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{slug $row.Entry.Name}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
+            {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{slug $row.Entry.Name}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
+          {{else if eq $row.Entry.Widget "number"}}
+            <input type="number" name="{{$vn}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full">
+          {{else if eq $row.Entry.Widget "code"}}
+            <textarea name="{{$vn}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $row.Set}}{{$row.Lines}}{{end}}</textarea>
+          {{else}}
+            <input name="{{$vn}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full">
+          {{end}}
+        </div>
+        <label class="flex shrink-0 flex-col items-center gap-1 text-label-xs-caps uppercase text-text-tertiary" title="{{$.L.T "common.enforce"}}">{{$.L.T "common.enforce"}}<input type="checkbox" name="e:{{$row.Entry.Name}}" {{if $row.Enforced}}checked{{end}} class="!h-5 !w-5"></label>
+        {{if $.IsDevice}}<div class="shrink-0 text-label-md"><span class="text-text-tertiary">{{$.L.T "settings.col_effective"}}:</span> {{with $row.Resolved}}<code>{{.}}</code>{{else}}<span class="muted">-</span>{{end}} <span class="provenance">{{$row.Source}}</span></div>{{end}}
         {{else}}
-          <input name="value" form="{{$fid}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full">
+        <div class="shrink-0 text-label-md">{{if $row.Set}}<code>{{$row.Value}}</code>{{else}}<span class="muted">{{$.L.T "settings.inherits_label"}}{{with $row.Entry.DefaultString}} <code>{{.}}</code>{{end}}</span>{{end}}{{if $row.Enforced}} <span class="tag lock ml-1">{{$.L.T "common.locked"}}</span>{{end}}</div>
+        {{if $.IsDevice}}<div class="shrink-0 text-label-md"><span class="text-text-tertiary">{{$.L.T "settings.col_effective"}}:</span> {{with $row.Resolved}}<code>{{.}}</code>{{else}}<span class="muted">-</span>{{end}} <span class="provenance">{{$row.Source}}</span></div>{{end}}
         {{end}}
-      </td>
-      <td class="text-center"><input type="checkbox" name="enforce" form="{{$fid}}" {{if $row.Enforced}}checked{{end}} class="!w-auto"></td>
-      {{if $.IsDevice}}
-      <td>{{with $row.Resolved}}<code>{{.}}</code>{{else}}<span class="muted">-</span>{{end}}</td>
-      <td class="provenance">{{$row.Source}}</td>
-      {{end}}
-      <td class="whitespace-nowrap text-right">
-        <button type="submit" name="action" value="set" form="{{$fid}}">{{$.L.T "common.apply"}}</button>
-        {{if $row.Set}}<button type="submit" name="action" value="clear" form="{{$fid}}" class="quiet" formnovalidate>{{$.L.T "common.clear"}}</button>{{end}}
-      </td>
-      {{else}}
-      <td>{{if $row.Set}}<code>{{$row.Value}}</code>{{else}}<span class="muted">{{$.L.T "settings.inherits_label"}}{{with $row.Entry.DefaultString}} <code>{{.}}</code>{{end}}</span>{{end}}</td>
-      <td>{{if $row.Enforced}}<span class="tag lock">{{$.L.T "common.locked"}}</span>{{end}}</td>
-      {{if $.IsDevice}}
-      <td>{{with $row.Resolved}}<code>{{.}}</code>{{else}}<span class="muted">-</span>{{end}}</td>
-      <td class="provenance">{{$row.Source}}</td>
-      {{end}}
-      <td></td>
-      {{end}}
-    </tr>
+      </div>
+      <div class="mt-1.5 max-w-3xl text-body-sm text-text-tertiary">{{$row.Entry.Description}}{{with $row.Entry.DefaultString}} <span class="text-text-tertiary/80">· {{$.L.T "settings.default_label"}} <code>{{.}}</code></span>{{end}}</div>
+    </div>
     {{end}}
-  </table>
-  {{if $.CanEdit}}
-  {{range $i, $row := $sec.Rows}}
-  <form id="{{printf "f-%s-%d" $sec.Name $i}}" method="post" action="/settings">
-    <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{$.Scope}}"><input type="hidden" name="key" value="{{$row.Entry.Name}}">
-  </form>
-  {{end}}
-  {{end}}
+  </div>
 </div>
+{{end}}
+
+{{if .CanEdit}}
+  <div class="mb-8 flex items-center justify-end gap-3">
+    <span class="text-label-md text-text-tertiary" data-dirty-hint></span>
+    <button type="submit"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "settings.save_all"}}</button>
+  </div>
+</form>
 {{end}}
 
 <!-- Risk acceptances (comply-or-explain, ADR 0007) -->

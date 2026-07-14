@@ -55,7 +55,7 @@ func fetchGroupsFromGraph(ctx context.Context, client *http.Client, baseURL, acc
 			return nil, fmt.Errorf("graph request: %w", err)
 		}
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			return nil, err
 		}

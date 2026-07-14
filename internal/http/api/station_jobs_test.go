@@ -120,8 +120,10 @@ func TestStationJobLifecycle(t *testing.T) {
 	}
 
 	// Auth is required.
-	if resp := req(t, "GET", ts.URL+"/api/station/nuc-1/jobs", "", ""); resp.StatusCode != 401 {
-		t.Fatalf("no auth = %d, want 401", resp.StatusCode)
+	noAuthResp := req(t, "GET", ts.URL+"/api/station/nuc-1/jobs", "", "")
+	noAuthResp.Body.Close()
+	if noAuthResp.StatusCode != 401 {
+		t.Fatalf("no auth = %d, want 401", noAuthResp.StatusCode)
 	}
 
 	// Poll: the pending job appears, without a credential.

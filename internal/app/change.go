@@ -107,7 +107,7 @@ func (s *ChangeService) Open(ctx context.Context, id, title string, a ports.Auth
 		// CreateBranch (branch already exists), permanently wedging the id.
 		// Roll the branch back so the id is clean to retry or forget.
 		if derr := s.repo.DeleteBranch(ctx, cr.Branch); derr != nil {
-			return change.CR{}, fmt.Errorf("%w (and rollback of branch %q failed: %v)", err, cr.Branch, derr)
+			return change.CR{}, fmt.Errorf("%w (and rollback of branch %q failed: %w)", err, cr.Branch, derr)
 		}
 		return change.CR{}, err
 	}
@@ -254,7 +254,7 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 			return fmt.Errorf("merged, but recording the change status failed: %w", err)
 		}
 		s.cleanup(ctx, cr)
-		if _, err := s.cfg.reload(); err != nil {
+		if err := s.cfg.reload(); err != nil {
 			return fmt.Errorf("merged, but snapshot reload failed: %w", err)
 		}
 		return nil

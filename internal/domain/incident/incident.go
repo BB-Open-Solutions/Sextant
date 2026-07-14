@@ -14,6 +14,7 @@ import (
 // Kind classifies an incident so the console can icon and group it.
 type Kind string
 
+// The incident kinds the compliance engine emits.
 const (
 	Behind      Kind = "behind"       // running a different revision than its target
 	Offline     Kind = "offline"      // stopped checking in
@@ -26,6 +27,7 @@ const (
 // Severity orders incidents; higher is more urgent.
 type Severity int
 
+// The severity levels, low to high.
 const (
 	Info Severity = iota
 	Warning

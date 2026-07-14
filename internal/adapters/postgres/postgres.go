@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -79,7 +80,7 @@ func (s *Store) Get(ctx context.Context, tenant, tag string) (observed.DeviceSta
 		FROM device_status WHERE tenant = $1 AND tag = $2`, tenant, tag).
 		Scan(&st.Tag, &st.Revision, &phase, &st.Error, &st.LastSeen, &sb, &tpm2, &st.Ack,
 			&st.Usage.CPUPct, &st.Usage.MemUsedMB, &st.Usage.MemTotalMB, &st.Usage.DiskUsedGB, &st.Usage.DiskTotalGB)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return observed.DeviceStatus{}, false, nil
 	}
 	if err != nil {
@@ -133,7 +134,7 @@ func (s *Store) GetFacts(ctx context.Context, tenant, tag string) ([]byte, time.
 	err := s.pool.QueryRow(ctx,
 		"SELECT facts, updated_at FROM device_facts WHERE tenant = $1 AND tag = $2",
 		tenant, tag).Scan(&facts, &at)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, time.Time{}, false, nil
 	}
 	if err != nil {

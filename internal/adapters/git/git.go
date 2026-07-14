@@ -53,6 +53,7 @@ func (r *Repo) ReadFile(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	//nosec G304 - p is confined to the repo root by safePath (rejects absolute/.. and resolves symlinks before use).
 	return os.ReadFile(p)
 }
 
@@ -63,9 +64,11 @@ func (r *Repo) WriteFile(name string, data []byte) error {
 	if err != nil {
 		return err
 	}
+	//nosec G301 - the config repo holds public fleet/overlay source under safePath confinement, not secrets; 0755 is fine.
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
+	//nosec G306 - fleet.json/overlays are non-secret config committed to git; world-readable is intended.
 	return os.WriteFile(p, data, 0o644)
 }
 
@@ -162,6 +165,7 @@ func nearestExisting(dir string) (string, error) {
 // the audit trail names a person, with a service fallback.
 func (r *Repo) Commit(ctx context.Context, msg string, a ports.Author, files ...string) error {
 	addArgs := append([]string{"-C", r.dir, "add", "--"}, files...)
+	//nosec G204 - fixed "git" binary, argv slice (no shell); "--" terminates options so file names cannot become flags.
 	if out, err := exec.CommandContext(ctx, "git", addArgs...).CombinedOutput(); err != nil {
 		return fmt.Errorf("git add: %s", strings.TrimSpace(string(out)))
 	}

@@ -210,6 +210,7 @@ func (s *server) handleValidate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, validateResponse{Error: "overlay sync failed"})
 		return
 	}
+	//nosec G306 - candidate fleet.json is a throwaway eval input in a scratch workdir, not a secret; world-readable is fine.
 	if err := os.WriteFile(filepath.Join(s.workdir, "fleet.json"), []byte(req.Fleet), 0o644); err != nil {
 		writeJSON(w, http.StatusInternalServerError, validateResponse{Error: "write candidate failed"})
 		return
@@ -267,6 +268,7 @@ func (s *server) ensureClone(ctx context.Context) error {
 	if _, err := os.Stat(filepath.Join(s.workdir, ".git")); err == nil {
 		return s.sync(ctx)
 	}
+	//nosec G301 - parent of the overlay clone holds only public overlay source, not secrets; 0755 is fine.
 	if err := os.MkdirAll(filepath.Dir(s.workdir), 0o755); err != nil {
 		return err
 	}
@@ -292,6 +294,7 @@ func (s *server) cloneUsable(ctx context.Context) error {
 func (s *server) git(ctx context.Context, dir string, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
+	//nosec G204 - fixed "git" binary with an internal argv slice (no shell, no user-composed command); args are code-controlled subcommands.
 	cmd := exec.CommandContext(ctx, "git", args...)
 	if dir != "" {
 		cmd.Dir = dir

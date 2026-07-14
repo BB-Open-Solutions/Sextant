@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -18,7 +19,7 @@ func (s *Store) GetPrefs(ctx context.Context, tenant, subject string) (identity.
 		`SELECT timezone, locale FROM user_prefs WHERE tenant = $1 AND subject = $2`,
 		tenant, subject).Scan(&p.Timezone, &p.Locale)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return identity.Preferences{}, false, nil
 		}
 		return identity.Preferences{}, false, err

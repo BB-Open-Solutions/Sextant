@@ -34,11 +34,11 @@ func (a stationAuth) AuthenticateTag(_ context.Context, secret, claimedTag strin
 	return secret == a.secret && claimedTag == a.station
 }
 
-func newStationServer(t *testing.T, auth StationAuthenticator, shared string) (*httptest.Server, *stationMemStore) {
+func newStationServer(t *testing.T, auth StationAuthenticator) (*httptest.Server, *stationMemStore) {
 	t.Helper()
 	store := &stationMemStore{sets: map[string][]discovery.Discovered{}}
 	svc := app.NewDiscoveryService(store, fixedClock{time.Unix(1000, 0)}, "")
-	api := NewStation(svc, nil, nil, auth, shared, discardLog())
+	api := NewStation(svc, nil, nil, auth, "", discardLog())
 	mux := http.NewServeMux()
 	api.Routes(mux)
 	return httptest.NewServer(mux), store
@@ -60,16 +60,20 @@ func stationPost(t *testing.T, url, bearer, body string) *http.Response {
 const goodReport = `{"devices":[{"mac":"aa:bb:cc:dd:ee:01","phase":"discovered"}]}`
 
 func TestStationReportRequiresAuth(t *testing.T) {
-	ts, store := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"}, "")
+	ts, store := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"})
 	defer ts.Close()
 
 	// No credential -> 401.
-	if resp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "", goodReport); resp.StatusCode != 401 {
-		t.Fatalf("no auth = %d, want 401", resp.StatusCode)
+	noAuthResp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "", goodReport)
+	noAuthResp.Body.Close()
+	if noAuthResp.StatusCode != 401 {
+		t.Fatalf("no auth = %d, want 401", noAuthResp.StatusCode)
 	}
 	// A credential for a DIFFERENT station -> 401 (bound to its own tag).
-	if resp := stationPost(t, ts.URL+"/api/station/nuc-2/report", "s3cr3t", goodReport); resp.StatusCode != 401 {
-		t.Fatalf("cross-station = %d, want 401", resp.StatusCode)
+	crossResp := stationPost(t, ts.URL+"/api/station/nuc-2/report", "s3cr3t", goodReport)
+	crossResp.Body.Close()
+	if crossResp.StatusCode != 401 {
+		t.Fatalf("cross-station = %d, want 401", crossResp.StatusCode)
 	}
 	if len(store.sets) != 0 {
 		t.Fatal("an unauthorized report reached the store")
@@ -77,10 +81,11 @@ func TestStationReportRequiresAuth(t *testing.T) {
 }
 
 func TestStationReportAcceptsAndStores(t *testing.T) {
-	ts, store := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"}, "")
+	ts, store := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"})
 	defer ts.Close()
 
 	resp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "s3cr3t", goodReport)
+	resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("report = %d, want 204", resp.StatusCode)
 	}
@@ -90,13 +95,14 @@ func TestStationReportAcceptsAndStores(t *testing.T) {
 }
 
 func TestStationReportRejectsUnauthorizedBeforeParsingBody(t *testing.T) {
-	ts, store := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"}, "")
+	ts, store := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"})
 	defer ts.Close()
 
 	// No credential, and a body that is not even valid JSON: if the body
 	// were decoded before the auth check, this would come back 400 (bad
 	// report body) rather than 401 - 401 proves auth runs first.
 	resp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "", "not json at all")
+	resp.Body.Close()
 	if resp.StatusCode != 401 {
 		t.Fatalf("no auth with garbage body = %d, want 401", resp.StatusCode)
 	}
@@ -106,23 +112,29 @@ func TestStationReportRejectsUnauthorizedBeforeParsingBody(t *testing.T) {
 }
 
 func TestStationReportRejectsBadPayload(t *testing.T) {
-	ts, _ := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"}, "")
+	ts, _ := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"})
 	defer ts.Close()
 
 	// Malformed MAC -> 400 (domain validation), even with valid auth.
 	bad := `{"devices":[{"mac":"nope","phase":"discovered"}]}`
-	if resp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "s3cr3t", bad); resp.StatusCode != 400 {
-		t.Fatalf("bad MAC = %d, want 400", resp.StatusCode)
+	badMACResp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "s3cr3t", bad)
+	badMACResp.Body.Close()
+	if badMACResp.StatusCode != 400 {
+		t.Fatalf("bad MAC = %d, want 400", badMACResp.StatusCode)
 	}
-	if resp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "s3cr3t", "{"); resp.StatusCode != 400 {
-		t.Fatalf("bad json = %d, want 400", resp.StatusCode)
+	badJSONResp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "s3cr3t", "{")
+	badJSONResp.Body.Close()
+	if badJSONResp.StatusCode != 400 {
+		t.Fatalf("bad json = %d, want 400", badJSONResp.StatusCode)
 	}
 }
 
 func TestStationReportDisabledWithoutAuth(t *testing.T) {
-	ts, _ := newStationServer(t, nil, "")
+	ts, _ := newStationServer(t, nil)
 	defer ts.Close()
-	if resp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "x", goodReport); resp.StatusCode != 403 {
+	resp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "x", goodReport)
+	resp.Body.Close()
+	if resp.StatusCode != 403 {
 		t.Fatalf("disabled = %d, want 403", resp.StatusCode)
 	}
 }

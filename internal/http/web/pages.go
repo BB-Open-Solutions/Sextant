@@ -21,11 +21,75 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 	// Every page renders the visible slice of the document, never the
 	// whole fleet: per-scope read-confidentiality.
 	f := s.svc.Config.Fleet().VisibleTo(v.canView)
+
+	// Scope selector: the same dashboard, computed for org (default), one
+	// group (including its subtree), or one device. ?scope= is validated
+	// against the visible fleet and re-checked with the same per-scope read
+	// gate every other page uses, so a tampered value answers like a 404
+	// rather than leaking an invisible scope's data.
+	scope := r.URL.Query().Get("scope")
+	if scope == "" {
+		scope = "org"
+	}
+	switch {
+	case scope == "org":
+		// always visible
+	case strings.HasPrefix(scope, "group:"):
+		if _, ok := f.Groups[strings.TrimPrefix(scope, "group:")]; !ok || !v.canView(scope) {
+			http.NotFound(w, r)
+			return
+		}
+	case strings.HasPrefix(scope, "device:"):
+		if _, ok := f.Devices[strings.TrimPrefix(scope, "device:")]; !ok || !v.canView(scope) {
+			http.NotFound(w, r)
+			return
+		}
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	inScope := scopeFilter(f, scope)
+
+	// Scope selector's own drill-down state: which group is selected (own
+	// scope, or the group the selected device belongs to), and the device
+	// list narrowed to it - mirrors settingsPage's cascade exactly.
+	selGroup := ""
+	if g, ok := strings.CutPrefix(scope, "group:"); ok {
+		selGroup = g
+	} else if tag, ok := strings.CutPrefix(scope, "device:"); ok {
+		if d, ok := f.Devices[tag]; ok && len(d.Groups) > 0 {
+			selGroup = d.Groups[0]
+		}
+	}
+	groupNames := make([]string, 0, len(f.Groups))
+	for g := range f.Groups {
+		groupNames = append(groupNames, g)
+	}
+	sort.Strings(groupNames)
+	deviceTags := make([]string, 0, len(f.Devices))
+	for tag, d := range f.Devices {
+		if selGroup != "" && !deviceInGroup(d, selGroup) {
+			continue
+		}
+		deviceTags = append(deviceTags, tag)
+	}
+	sort.Strings(deviceTags)
+
+	// Devices in scope, filtered from what is already loaded (no extra store
+	// calls): drives the device-count stat, the capacity donut and the
+	// compliance total.
+	scopedDevices := make(map[string]fleet.Device, len(f.Devices))
+	for tag, d := range f.Devices {
+		if inScope(tag) {
+			scopedDevices[tag] = d
+		}
+	}
+
 	var status []app.StatusView
 	if s.svc.Inventory != nil {
 		all, _ := s.svc.Inventory.StatusAll(r.Context())
 		for _, st := range all {
-			if v.canView("device:" + st.Tag) {
+			if v.canView("device:"+st.Tag) && inScope(st.Tag) {
 				status = append(status, st)
 			}
 		}
@@ -58,15 +122,16 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 			if cr.Status == "failed" {
 				attn = append(attn, attention{"change failed", cr.ID + ": " + cr.Error})
 			}
-			if cr.Status == change.Ready && canApprove && !(fourEyes && cr.AuthorSubject == v.User.Subject) {
+			if cr.Status == change.Ready && canApprove && (!fourEyes || cr.AuthorSubject != v.User.Subject) {
 				approvals = append(approvals, approval{ID: cr.ID, Author: cr.Author})
 			}
 		}
 	}
 	// Compliance drives the attention queue and the health donut: incidents the
-	// viewer may see (scoped to their groups), plus a per-device worst-severity
-	// tally for the donut (healthy / warning / critical).
-	incidents := s.scopedIncidents(r, v)
+	// viewer may see (scoped to their groups) and further narrowed to the
+	// selected scope, plus a per-device worst-severity tally for the donut
+	// (healthy / warning / critical).
+	incidents := s.scopedIncidents(r, v, inScope)
 	crit, warn := 0, 0
 	worst := map[string]int{} // device tag -> worst severity seen (2 crit, 1 warn)
 	for _, in := range incidents {
@@ -87,8 +152,9 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	// Compliance is over the ACTIVE fleet: a retired device has no agent, so it
 	// is neither healthy nor an incident - counting it would drag the score.
+	// Scoped to the selected group/device via scopedDevices.
 	total := 0
-	for _, d := range f.Devices {
+	for _, d := range scopedDevices {
 		if !d.Retired() {
 			total++
 		}
@@ -115,19 +181,56 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 	s.render(w, "overview", map[string]any{
 		"Title": "Overview", "Nav": "overview",
 		"Stats": map[string]int{
-			"Devices": len(f.Devices), "Online": online, "Groups": len(f.Groups),
+			// Device count and online are scoped; groups/policies/open-changes
+			// are fleet-wide vocabulary (open changes are org-only by nature -
+			// see the guard above) and stay as-is at every scope.
+			"Devices": len(scopedDevices), "Online": online, "Groups": len(f.Groups),
 			"Policies": len(f.Policies), "OpenChanges": openChanges,
 		},
 		"Compliance":  map[string]int{"Healthy": healthy, "Warning": warn, "Critical": crit, "Total": total, "Score": hp},
 		"Donut":       donut,
-		"Capacity":    fleetCapacity(f),
+		"Capacity":    fleetCapacity(&fleet.Fleet{Devices: scopedDevices}),
 		"Utilization": fleetUtilization(status),
 		"Incidents":   incidents,
 		"Attention":   attn,
 		"Approvals":   approvals,
 		"Status":      status,
 		"CanEnroll":   v.roleAt("org").Meets(identity.Editor),
+		// Scope selector state (mirrors settingsPage's cascade: org -> group,
+		// including subtree -> device).
+		"Scope":    scope,
+		"SelGroup": selGroup,
+		"IsDevice": strings.HasPrefix(scope, "device:"),
+		"Groups":   groupNames,
+		"Devices":  deviceTags,
 	}, v)
+}
+
+// scopeFilter compiles a scope ref into a device-tag membership test: every
+// visible device for "org", a device scope's exact tag, or a group scope's
+// whole subtree (a device counts if the scope group is anywhere in the
+// ancestry of any group it belongs to) - the same subtree rule
+// app.AffectedHosts uses to compute a change's blast radius.
+func scopeFilter(f *fleet.Fleet, scope string) func(tag string) bool {
+	switch {
+	case strings.HasPrefix(scope, "device:"):
+		tag := strings.TrimPrefix(scope, "device:")
+		return func(t string) bool { return t == tag }
+	case strings.HasPrefix(scope, "group:"):
+		g := strings.TrimPrefix(scope, "group:")
+		members := map[string]bool{}
+		for tag, d := range f.Devices {
+			for _, dg := range d.Groups {
+				if slices.Contains(f.GroupAncestry(dg), g) {
+					members[tag] = true
+					break
+				}
+			}
+		}
+		return func(t string) bool { return members[t] }
+	default: // "org"
+		return func(string) bool { return true }
+	}
 }
 
 // incidentRow is one attention-queue item prepared for the overview.
@@ -141,10 +244,15 @@ type incidentRow struct {
 }
 
 // scopedIncidents returns the incidents the viewer may see, capped for the
-// overview queue. Empty when compliance (Postgres) is not configured.
-func (s *Server) scopedIncidents(r *http.Request, v view) []incidentRow {
+// overview queue. tagOK further narrows to one dashboard scope's devices; nil
+// means unrestricted (every visible incident, the device page's own use).
+// Empty when compliance (Postgres) is not configured.
+func (s *Server) scopedIncidents(r *http.Request, v view, tagOK func(tag string) bool) []incidentRow {
 	if s.svc.Compliance == nil {
 		return nil
+	}
+	if tagOK == nil {
+		tagOK = func(string) bool { return true }
 	}
 	all, err := s.svc.Compliance.Incidents(r.Context())
 	if err != nil {
@@ -153,7 +261,7 @@ func (s *Server) scopedIncidents(r *http.Request, v view) []incidentRow {
 	}
 	out := make([]incidentRow, 0, len(all))
 	for _, in := range all {
-		if !v.canView(in.Scope) {
+		if !v.canView(in.Scope) || !tagOK(in.Tag) {
 			continue
 		}
 		sev := "warning"
@@ -299,7 +407,7 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	// Attention: the incidents raised for this device (scoped to the viewer).
 	var devInc []incidentRow
-	for _, in := range s.scopedIncidents(r, v) {
+	for _, in := range s.scopedIncidents(r, v, nil) {
 		if in.Tag == tag {
 			devInc = append(devInc, in)
 		}
@@ -338,7 +446,7 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		EnforcedText    string
 		Assignments     []fleet.Assignment
 	}
-	var rows []prow
+	rows := make([]prow, 0, len(f.Policies))
 	for _, id := range sortedKeys(f.Policies) {
 		p := f.Policies[id]
 		var asn []fleet.Assignment
@@ -360,7 +468,7 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		ID, Match string
 		Rules     []fleet.FilterRule
 	}
-	var frows []frow
+	frows := make([]frow, 0, len(f.Filters))
 	for _, id := range sortedKeys(f.Filters) {
 		fl := f.Filters[id]
 		m := fl.Match

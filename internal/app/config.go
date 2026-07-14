@@ -62,7 +62,7 @@ type configSnapshot struct {
 // NewConfigService loads the initial snapshot and returns the service.
 func NewConfigService(repo ports.ConfigRepo, gate ports.Gate) (*ConfigService, error) {
 	s := &ConfigService{repo: repo, gate: gate}
-	if _, err := s.reload(); err != nil {
+	if err := s.reload(); err != nil {
 		return nil, fmt.Errorf("load %s: %w", FleetFile, err)
 	}
 	return s, nil
@@ -107,38 +107,39 @@ func (s *ConfigService) Snapshot() (*fleet.Fleet, *fleet.Catalog) {
 }
 
 // reload re-reads fleet.json and catalog.json from the working tree into
-// the snapshot.
-func (s *ConfigService) reload() (*fleet.Fleet, error) {
+// the snapshot. Callers that need the fresh fleet read it back via Fleet()
+// or Snapshot() - reload's job is only to publish the new snapshot.
+func (s *ConfigService) reload() error {
 	raw, err := s.repo.ReadFile(FleetFile)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	f, err := fleet.Decode(raw)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	// A missing catalog is a valid state (overlay predates the export); a
 	// malformed one is not - the UI would silently lose its vocabulary.
 	craw, err := s.repo.ReadFile(fleet.CatalogFile)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
+		return err
 	}
 	cat, err := fleet.ParseCatalog(craw)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	// hardware-profiles.json is optional the same way: a missing file is a
 	// valid overlay that predates the imaging surface; a malformed one is not.
 	hraw, err := s.repo.ReadFile(fleet.HardwareProfilesFile)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
+		return err
 	}
 	hw, err := fleet.ParseHardwareProfiles(hraw)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	s.snap.Store(&configSnapshot{fleet: f, catalog: cat, hardware: hw})
-	return f, nil
+	return nil
 }
 
 // Apply runs the safe write transaction: load -> mutate -> gate -> commit
@@ -161,7 +162,7 @@ func (s *ConfigService) Apply(ctx context.Context, mut fleet.Mutation, msg strin
 		if err := s.repo.Sync(ctx); err != nil {
 			return err // remote unreachable is not a conflict: fail fast
 		}
-		if _, err := s.reload(); err != nil {
+		if err := s.reload(); err != nil {
 			return err
 		}
 		if err := s.applyOnce(ctx, mut, msg, a, affectedHosts); err != nil {
@@ -250,6 +251,65 @@ func (s *ConfigService) ClearSetting(ctx context.Context, scope, key string, a p
 	return s.Apply(ctx, fleet.ClearScopeSetting(scope, key), msg, a, AffectedHosts(s.Fleet(), scope)...)
 }
 
+// SettingChange is one setting to set or clear in a batch save.
+type SettingChange struct {
+	Key      string
+	RawValue string // value as entered; ignored when Clear is true
+	Enforce  bool
+	Clear    bool
+}
+
+// ApplySettings applies a batch of setting changes at one scope in a SINGLE
+// gated commit - the console's save-all path. It owns the same invariants as
+// SetSetting (governance, catalog membership, typing, secret-reference
+// integrity) for every change, and validates them ALL before mutating, so one
+// bad value rejects the whole save instead of half-applying it.
+func (s *ConfigService) ApplySettings(ctx context.Context, scope string, changes []SettingChange, a ports.Author) error {
+	if err := s.requireDirectEditAllowed(); err != nil {
+		return err
+	}
+	if len(changes) == 0 {
+		return nil
+	}
+	muts := make([]fleet.Mutation, 0, len(changes))
+	for _, c := range changes {
+		if c.Clear {
+			muts = append(muts, fleet.ClearScopeSetting(scope, c.Key))
+			continue
+		}
+		entry, ok := s.Catalog().Lookup(c.Key)
+		if !ok {
+			return fmt.Errorf("unknown setting %q (not in catalog)", c.Key)
+		}
+		val, err := entry.ParseValue(strings.TrimSpace(c.RawValue))
+		if err != nil {
+			return err
+		}
+		if entry.Widget() == fleet.WidgetSecret {
+			if ref, _ := val.(string); ref != "" && !s.Fleet().HasSecretRef(ref) {
+				return fmt.Errorf("unknown secret reference %q; register it first", ref)
+			}
+		}
+		key, enforce := c.Key, c.Enforce
+		muts = append(muts, func(f *fleet.Fleet) error {
+			if err := fleet.SetScopeSetting(scope, key, val)(f); err != nil {
+				return err
+			}
+			return fleet.SetScopeEnforce(scope, key, enforce)(f)
+		})
+	}
+	combined := func(f *fleet.Fleet) error {
+		for _, m := range muts {
+			if err := m(f); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	msg := fmt.Sprintf("settings: update %d at %s", len(changes), scope)
+	return s.Apply(ctx, combined, msg, a, AffectedHosts(s.Fleet(), scope)...)
+}
+
 // requireDirectEditAllowed rejects a direct-to-main edit when the org mandates
 // that configuration changes flow through a reviewed change request. The change
 // flow itself edits on a branch (ChangeService), not through this path, so it
@@ -276,8 +336,7 @@ func (s *ConfigService) AuditLog(ctx context.Context, limit int) ([]ports.AuditE
 func (s *ConfigService) Reload() error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	_, err := s.reload()
-	return err
+	return s.reload()
 }
 
 // WithWriteLock runs fn while holding the single-writer lock. It lets another
@@ -311,7 +370,7 @@ func (s *ConfigService) SyncLoop(ctx context.Context, every time.Duration, log *
 			s.writeMu.Lock()
 			err := s.repo.Sync(ctx)
 			if err == nil {
-				_, err = s.reload()
+				err = s.reload()
 			}
 			s.writeMu.Unlock()
 			if err != nil && ctx.Err() == nil {

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
@@ -165,31 +166,50 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	}, v)
 }
 
-// postSetting applies one editor action: set (value + enforce state) or
-// clear. The key must exist in the catalog - this page only speaks the
-// documented vocabulary; free-form keys go through the API or device page.
+// postSetting saves a whole scope's editable settings in one gated commit: the
+// operator edits several rows, then Save submits them all. Each row carries a
+// value (v:<key>) and enforce flag (e:<key>); the handler diffs the submitted
+// state against the scope's own settings and applies only what changed, so an
+// unchanged Save is a no-op rather than an empty commit. All validation and
+// governance live in ConfigService.ApplySettings.
 func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := r.ParseForm(); err != nil {
+		return err
+	}
 	scope := r.FormValue("scope")
-	key := r.FormValue("key")
 	if err := s.requireWeb(v, scope, identity.Editor); err != nil {
 		return err
 	}
-	// All governance, catalog membership, typing and secret-reference checks
-	// live in the ConfigService now, so the API cannot bypass what this page
-	// enforces. The checkbox is authoritative: set-with-enforce locks, plain
-	// set unlocks a previously enforced key.
-	switch action := r.FormValue("action"); action {
-	case "clear":
-		if err := s.svc.Config.ClearSetting(r.Context(), scope, key, webAuthor(v)); err != nil {
+	f, cat := s.svc.Config.Snapshot()
+	own, enforced, err := f.ScopeSettings(scope)
+	if err != nil {
+		return err
+	}
+	locked := map[string]bool{}
+	for _, k := range enforced {
+		locked[k] = true
+	}
+
+	var changes []app.SettingChange
+	for _, e := range cat.Entries {
+		submitted := strings.TrimSpace(r.FormValue("v:" + e.Name))
+		enf := r.FormValue("e:"+e.Name) != ""
+		curVal, curSet := own[e.Name]
+		curStr := ""
+		if curSet {
+			curStr = renderValue(curVal)
+		}
+		switch {
+		case submitted == "" && curSet:
+			changes = append(changes, app.SettingChange{Key: e.Name, Clear: true})
+		case submitted != "" && (!curSet || submitted != curStr || enf != locked[e.Name]):
+			changes = append(changes, app.SettingChange{Key: e.Name, RawValue: submitted, Enforce: enf})
+		}
+	}
+	if len(changes) > 0 {
+		if err := s.svc.Config.ApplySettings(r.Context(), scope, changes, webAuthor(v)); err != nil {
 			return err
 		}
-	case "set":
-		enforce := r.FormValue("enforce") != ""
-		if err := s.svc.Config.SetSetting(r.Context(), scope, key, r.FormValue("value"), &enforce, webAuthor(v)); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unknown action %q", action)
 	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
 	return nil

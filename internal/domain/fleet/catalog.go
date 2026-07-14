@@ -56,6 +56,7 @@ func (e CatalogEntry) DefaultString() string {
 // Widget classifies the input control an entry needs.
 type Widget string
 
+// The catalog-entry widget kinds.
 const (
 	WidgetToggle Widget = "toggle" // booleans
 	WidgetNumber Widget = "number" // integers

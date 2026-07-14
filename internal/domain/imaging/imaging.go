@@ -33,28 +33,28 @@ const LUKSRecoveryPrefix = "luks-recovery-key: "
 type Status string
 
 const (
-	// Pending: dispatched by an operator, the station has not started yet.
+	// Pending means dispatched by an operator, the station has not started yet.
 	Pending Status = "pending"
-	// Imaging: the station is running the install (nixos-anywhere).
+	// Imaging means the station is running the install (nixos-anywhere).
 	Imaging Status = "imaging"
-	// Installed: the image is on disk; the device converges from here. If the
+	// Installed means the image is on disk; the device converges from here. If the
 	// group policy needs neither Secure Boot nor TPM2 this is the last active
 	// state before Done.
 	Installed Status = "installed"
-	// SBPending: installed, the Secure Boot ceremony is underway - keys are
+	// SBPending means installed, the Secure Boot ceremony is underway - keys are
 	// generated/signed automatically, and the operator is walked through the
 	// firmware toggles (SB -> setup/audit mode, then SB on) with reboots.
 	SBPending Status = "sb-pending"
-	// SBEnrolled: Secure Boot is active and enforcing on the device.
+	// SBEnrolled means Secure Boot is active and enforcing on the device.
 	SBEnrolled Status = "sb-enrolled"
-	// TPM2Enrolled: the LUKS volume is sealed to the TPM2 (PCR7); the device
+	// TPM2Enrolled means the LUKS volume is sealed to the TPM2 (PCR7); the device
 	// unlocks without a passphrase.
 	TPM2Enrolled Status = "tpm2-enrolled"
-	// Done: fully provisioned, steady state. Terminal.
+	// Done means fully provisioned, steady state. Terminal.
 	Done Status = "done"
-	// Failed: a step failed; Message carries the reason. Retryable.
+	// Failed means a step failed; Message carries the reason. Retryable.
 	Failed Status = "failed"
-	// Canceled: the operator withdrew the job before it completed. Terminal.
+	// Canceled means the operator withdrew the job before it completed. Terminal.
 	Canceled Status = "canceled"
 )
 

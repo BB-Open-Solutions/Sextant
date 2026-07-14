@@ -95,6 +95,7 @@ func (r Ring) FullyReleased(total, released int) bool { return released >= total
 // RunStatus is the lifecycle of one rollout run.
 type RunStatus string
 
+// The lifecycle states a rollout run passes through.
 const (
 	Active    RunStatus = "active"
 	Halted    RunStatus = "halted" // gate failed; needs a human decision

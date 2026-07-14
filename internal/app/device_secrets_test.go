@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"testing"
 	"time"
 
@@ -186,7 +187,7 @@ func TestDeviceSecretsDisabledWithoutKey(t *testing.T) {
 	if svc.Enabled() {
 		t.Fatal("service without a key must be disabled")
 	}
-	if err := svc.Store(context.Background(), "lt-1", secret.LUKS, "x", "svc"); err != ports.ErrSealerDisabled {
+	if err := svc.Store(context.Background(), "lt-1", secret.LUKS, "x", "svc"); !errors.Is(err, ports.ErrSealerDisabled) {
 		t.Fatalf("store without a key = %v, want ErrSealerDisabled", err)
 	}
 }

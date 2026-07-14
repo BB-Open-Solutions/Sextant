@@ -8,7 +8,7 @@
   {{if and .State .CanOwn}}
   <div class="flex shrink-0 gap-2">
     <form class="inline" method="post" action="/rollout/tick"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">{{.L.T "rollout.advance_now"}}</button></form>
-    <form class="inline" method="post" action="/rollout/cancel" onsubmit="return confirm('Halt this rollout run?')"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet !border-status-error/50 !text-status-error">{{.L.T "rollout.halt"}}</button></form>
+    <form class="inline" method="post" action="/rollout/cancel" data-confirm="Halt this rollout run?"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet !border-status-error/50 !text-status-error">{{.L.T "rollout.halt"}}</button></form>
   </div>
   {{end}}
 </div>

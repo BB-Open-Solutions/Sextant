@@ -153,7 +153,7 @@ func TestClaimsHelpers(t *testing.T) {
 // all-zero/predictable token - is exercised by inspection of randString's
 // implementation; see the comment there.
 func TestRandString(t *testing.T) {
-	a, b := randString(24), randString(24)
+	a, b := randString(), randString()
 	if a == "" || a == b {
 		t.Fatalf("randString not random: %q %q", a, b)
 	}

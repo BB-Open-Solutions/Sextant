@@ -11,14 +11,14 @@ import "fmt"
 type SBState string
 
 const (
-	// SBUnknown: not reported (old agent, or probe failed).
+	// SBUnknown means not reported (old agent, or probe failed).
 	SBUnknown SBState = ""
-	// SBOff: Secure Boot disabled in firmware.
+	// SBOff means Secure Boot disabled in firmware.
 	SBOff SBState = "off"
-	// SBAudit: keys created/enrolled (sbctl), firmware still permissive -
+	// SBAudit means keys created/enrolled (sbctl), firmware still permissive -
 	// the step between install and enforcing.
 	SBAudit SBState = "audit"
-	// SBEnforcing: Secure Boot on, only signed boot chain accepted.
+	// SBEnforcing means Secure Boot on, only signed boot chain accepted.
 	SBEnforcing SBState = "enforcing"
 )
 
@@ -26,13 +26,13 @@ const (
 type TPM2State string
 
 const (
-	// TPM2Unknown: not reported.
+	// TPM2Unknown means not reported.
 	TPM2Unknown TPM2State = ""
-	// TPM2Absent: no usable TPM2 device present.
+	// TPM2Absent means no usable TPM2 device present.
 	TPM2Absent TPM2State = "absent"
-	// TPM2Present: a TPM2 exists but LUKS is not bound to it yet.
+	// TPM2Present means a TPM2 exists but LUKS is not bound to it yet.
 	TPM2Present TPM2State = "present"
-	// TPM2Enrolled: LUKS auto-unlock is bound to the TPM2 (PCR7).
+	// TPM2Enrolled means LUKS auto-unlock is bound to the TPM2 (PCR7).
 	TPM2Enrolled TPM2State = "enrolled"
 )
 
@@ -72,16 +72,16 @@ func validatePosture(sb SBState, tpm2 TPM2State) error {
 type PostureStep string
 
 const (
-	// PostureComplete: observed posture already meets the target.
+	// PostureComplete means observed posture already meets the target.
 	PostureComplete PostureStep = "complete"
-	// StepEnableAudit: set dawo.secureboot.enable and deploy; the device
+	// StepEnableAudit means set dawo.secureboot.enable and deploy; the device
 	// creates and enrolls Secure Boot keys (audit mode).
 	StepEnableAudit PostureStep = "enable-audit"
-	// StepEnforceSB: reboot to firmware and switch Secure Boot on.
+	// StepEnforceSB means reboot to firmware and switch Secure Boot on.
 	StepEnforceSB PostureStep = "enforce-secureboot"
-	// StepEnrollTPM2: run systemd-cryptenroll to bind LUKS to PCR7.
+	// StepEnrollTPM2 means run systemd-cryptenroll to bind LUKS to PCR7.
 	StepEnrollTPM2 PostureStep = "enroll-tpm2"
-	// StepNoTPM2: the target wants TPM2 unlock but no TPM2 is present -
+	// StepNoTPM2 means the target wants TPM2 unlock but no TPM2 is present -
 	// a hardware/firmware issue, not a next action.
 	StepNoTPM2 PostureStep = "no-tpm2"
 )

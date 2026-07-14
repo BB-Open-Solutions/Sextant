@@ -163,3 +163,38 @@ func TestImagingFailAndRetry(t *testing.T) {
 		t.Fatalf("retry did not clear: %+v", got)
 	}
 }
+
+// TestImagingInstalledMessageClearsOnNextTransition locks in the safety net
+// documented in Report: with no secret-store sealer, a one-shot LUKS recovery
+// key reported on Installed is deliberately kept in the message so the
+// provisioning wizard can reveal it on a later GET (it has no other channel).
+// That plaintext must not linger past its usefulness - the very next status
+// report for the job, whatever it is, must overwrite the message column and
+// wipe the key back out of the store. If a future change to the keep-list
+// above widens which transitions preserve message, this test catches it.
+func TestImagingInstalledMessageClearsOnNextTransition(t *testing.T) {
+	s := newImaging()
+	ctx := context.Background()
+	_ = s.Dispatch(ctx, imaging.Job{Station: "s", MAC: "aa:bb:cc:dd:ee:03", Tag: "t", Hardware: "hw"})
+	_ = s.Report(ctx, "s", "aa:bb:cc:dd:ee:03", imaging.Imaging, "")
+
+	const luksMsg = imaging.LUKSRecoveryPrefix + "z7Xq-9pLm"
+	if err := s.Report(ctx, "s", "aa:bb:cc:dd:ee:03", imaging.Installed, luksMsg); err != nil {
+		t.Fatalf("->installed: %v", err)
+	}
+	got, _, _ := s.Get(ctx, "s", "aa:bb:cc:dd:ee:03")
+	if got.Message != luksMsg {
+		t.Fatalf("one-shot key not kept on installed: %+v", got)
+	}
+
+	// The next transition the station reports - here sb-pending, carrying no
+	// message of its own - must overwrite (not append to or skip) the message
+	// column, so the plaintext key does not survive past this point.
+	if err := s.Report(ctx, "s", "aa:bb:cc:dd:ee:03", imaging.SBPending, ""); err != nil {
+		t.Fatalf("->sb-pending: %v", err)
+	}
+	got, _, _ = s.Get(ctx, "s", "aa:bb:cc:dd:ee:03")
+	if got.Message != "" {
+		t.Fatalf("plaintext LUKS key survived the next transition: %+v", got)
+	}
+}

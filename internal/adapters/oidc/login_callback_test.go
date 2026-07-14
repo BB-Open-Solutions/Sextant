@@ -39,13 +39,13 @@ type fakeIDP struct {
 	claims map[string]any
 }
 
-func newFakeIDP(t *testing.T, clientID string) *fakeIDP {
+func newFakeIDP(t *testing.T) *fakeIDP {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("generate rsa key: %v", err)
 	}
-	idp := &fakeIDP{clientID: clientID, key: key, kid: "test-key-1"}
+	idp := &fakeIDP{clientID: "test-client", key: key, kid: "test-key-1"}
 
 	var srvURL string
 	mux := http.NewServeMux()
@@ -133,11 +133,11 @@ func (f *fakeIDP) setIDTokenClaims(overrides map[string]any) {
 	f.mu.Unlock()
 }
 
-func newTestAuthenticator(t *testing.T, idp *fakeIDP, clientID string) *Authenticator {
+func newTestAuthenticator(t *testing.T, idp *fakeIDP) *Authenticator {
 	t.Helper()
 	a, err := New(context.Background(), Config{
 		Issuer:       idp.URL,
-		ClientID:     clientID,
+		ClientID:     idp.clientID,
 		ClientSecret: "test-secret",
 		RedirectURL:  "http://console.example/callback",
 		SessionKey:   key32(),
@@ -175,8 +175,8 @@ func sessionCookie(cookies []*http.Cookie) *http.Cookie {
 }
 
 func TestLoginRedirectsWithStateAndNonce(t *testing.T) {
-	idp := newFakeIDP(t, "test-client")
-	a := newTestAuthenticator(t, idp, "test-client")
+	idp := newFakeIDP(t)
+	a := newTestAuthenticator(t, idp)
 
 	req := httptest.NewRequest(http.MethodGet, "/login/start", nil)
 	rec := httptest.NewRecorder()
@@ -220,8 +220,8 @@ func TestLoginRedirectsWithStateAndNonce(t *testing.T) {
 }
 
 func TestCallbackEstablishesSession(t *testing.T) {
-	idp := newFakeIDP(t, "test-client")
-	a := newTestAuthenticator(t, idp, "test-client")
+	idp := newFakeIDP(t)
+	a := newTestAuthenticator(t, idp)
 
 	rec, state, nonce := login(t, a)
 	idp.setIDTokenClaims(map[string]any{
@@ -262,8 +262,8 @@ func TestCallbackEstablishesSession(t *testing.T) {
 }
 
 func TestCallbackRejectsMismatchedState(t *testing.T) {
-	idp := newFakeIDP(t, "test-client")
-	a := newTestAuthenticator(t, idp, "test-client")
+	idp := newFakeIDP(t)
+	a := newTestAuthenticator(t, idp)
 
 	rec, _, nonce := login(t, a)
 	// A token would be mintable (valid nonce) but must never be reached:
@@ -295,8 +295,8 @@ func TestCallbackRejectsBadNonce(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			idp := newFakeIDP(t, "test-client")
-			a := newTestAuthenticator(t, idp, "test-client")
+			idp := newFakeIDP(t)
+			a := newTestAuthenticator(t, idp)
 
 			rec, state, _ := login(t, a)
 			idp.setIDTokenClaims(tc.override)

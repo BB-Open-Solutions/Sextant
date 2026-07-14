@@ -62,7 +62,7 @@
           <div class="flex items-center gap-3">
             {{template "wizStatus" (list $.L .Job.Status)}}
             {{if and .Reboot $.CanEdit}}
-            <form method="post" action="/devices/{{.Job.Tag}}/intent" class="!m-0 inline" onsubmit="return confirm('{{$.L.T "wizard.reboot_confirm"}} {{.Job.Tag}}?')">
+            <form method="post" action="/devices/{{.Job.Tag}}/intent" class="!m-0 inline" data-confirm="{{$.L.T "wizard.reboot_confirm"}} {{.Job.Tag}}?">
               <input type="hidden" name="csrf" value="{{$.CSRF}}">
               <input type="hidden" name="intent" value="reboot">
               <button type="submit" title="{{$.L.T "wizard.reboot"}}" class="btn !border-border-hairline !bg-transparent !px-3 !py-1.5 text-text-secondary hover:text-ink"><span class="material-symbols-outlined msz-18">restart_alt</span>{{$.L.T "wizard.reboot"}}</button>

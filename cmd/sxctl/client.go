@@ -47,6 +47,7 @@ func (c *client) do(method, path string, in, out any) error {
 		}
 		body = bytes.NewReader(b)
 	}
+	//nosec G704 - c.base is the operator's own console endpoint from their config/flag, and path is a fixed in-code API route, not attacker input.
 	req, err := http.NewRequest(method, c.base+path, body)
 	if err != nil {
 		return err
@@ -55,11 +56,12 @@ func (c *client) do(method, path string, in, out any) error {
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	//nosec G704 - req targets the operator's own configured console endpoint, not a request-derived URL.
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
 		return err

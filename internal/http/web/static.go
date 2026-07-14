@@ -17,11 +17,15 @@ func staticHandler() http.Handler {
 	etags := map[string]string{}
 	_ = fs.WalkDir(assets, "static", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
-			return nil
+			// Best-effort ETag build over embedded assets: skip the bad
+			// entry and keep walking rather than abort the whole handler
+			// setup over one file. A missing ETag just means that one file
+			// starts uncached, not a broken server.
+			return nil //nolint:nilerr
 		}
 		b, err := assets.ReadFile(p)
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr
 		}
 		sum := sha256.Sum256(b)
 		etags["/"+p] = `"` + hex.EncodeToString(sum[:16]) + `"`

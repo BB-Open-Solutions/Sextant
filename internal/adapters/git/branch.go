@@ -20,6 +20,7 @@ const gitTimeout = 60 * time.Second
 func gitRun(ctx context.Context, dir string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
 	defer cancel()
+	//nosec G204 - fixed "git" binary with a code-controlled argv slice (no shell); branch/ref args are validated before reaching here.
 	out, err := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(string(out)))

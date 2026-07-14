@@ -191,7 +191,10 @@ func (s *RolloutService) Status(ctx context.Context) (*rollout.State, []rollout.
 	}
 	rings, err := s.rings()
 	if err != nil {
-		return st, nil, nil // plan changed under the run; state still readable
+		//nolint:nilerr // deliberate degrade: the wave plan changed under a
+		// running rollout, so ring convergence cannot be computed, but the
+		// run's own state is still valid and must render rather than 500.
+		return st, nil, nil
 	}
 	statuses := make([]rollout.RingStatus, len(rings))
 	for i, r := range rings {

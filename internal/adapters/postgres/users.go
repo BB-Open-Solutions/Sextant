@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -35,7 +36,7 @@ func (s *Store) EmailForSubject(ctx context.Context, tenant, subject string) (st
 		`SELECT email FROM seen_users WHERE tenant = $1 AND subject = $2`,
 		tenant, subject).Scan(&email)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
 		}
 		return "", false, err
