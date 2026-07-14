@@ -71,6 +71,17 @@
           </div>
         </div>
 
+        {{/* Cable guidance: the device needs the network until every phase has
+             converged (posture confirmed over check-in), so only "done" is safe
+             to unplug. */}}
+        {{$st := printf "%s" .Job.Status}}
+        {{if eq $st "done"}}
+        <div class="flex items-center gap-2 rounded-md border border-mint-deep/40 bg-mint-vibrant/5 px-3 py-2 text-body-sm font-medium text-mint-deep"><span class="material-symbols-outlined msz-18">power_off</span>{{$.L.T "wizard.cable_safe"}}</div>
+        {{else if or (eq $st "failed") (eq $st "canceled")}}
+        {{else}}
+        <div class="flex items-center gap-2 rounded-md border border-status-warn/40 bg-status-warn/5 px-3 py-2 text-body-sm font-medium text-status-warn"><span class="material-symbols-outlined msz-18">cable</span>{{$.L.T "wizard.cable_keep"}}</div>
+        {{end}}
+
         {{if or (eq (printf "%s" .Job.Status) "imaging") .Job.Progress}}
         <div>
           <div class="mb-1 flex justify-between text-label-xs-caps uppercase text-text-tertiary">

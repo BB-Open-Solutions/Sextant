@@ -63,3 +63,46 @@ func (d *CachedDirectory) ListGroups(ctx context.Context, query string) ([]ports
 	d.mu.Unlock()
 	return groups, err
 }
+
+// refresh always dials the directory and rewrites the cache entry, ignoring the
+// current entry's freshness - the warmer uses it to keep the cache hot so page
+// requests never dial. A context error is not cached (it is the warmer's, not
+// the directory's).
+func (d *CachedDirectory) refresh(ctx context.Context, query string) {
+	groups, err := d.inner.ListGroups(ctx, query)
+	if err != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		return
+	}
+	d.mu.Lock()
+	d.cache[query] = dirEntry{groups: groups, err: err, at: d.clock.Now()}
+	d.mu.Unlock()
+}
+
+// WarmLoop keeps the common ListGroups("") query hot in the background so the
+// groups and access pages serve from cache instead of paying the LDAP dial on
+// the first load after each TTL. It refreshes once immediately, then every
+// ttl/2 until ctx is done; each fetch is bounded so a hung directory cannot
+// stall the loop. Run it in a goroutine at wiring time when a directory is
+// configured.
+func (d *CachedDirectory) WarmLoop(ctx context.Context) {
+	interval := d.ttl / 2
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	warm := func() {
+		fctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		d.refresh(fctx, "")
+	}
+	warm()
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			warm()
+		}
+	}
+}

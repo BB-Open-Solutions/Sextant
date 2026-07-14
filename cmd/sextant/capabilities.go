@@ -231,7 +231,12 @@ func (d *deps) buildConfigPlane() error {
 		// Cache group listings for a minute: the groups/access pages then do
 		// not dial LDAP on every load, and an unreachable directory stalls at
 		// most one request per minute instead of every one.
-		d.dir = app.NewCachedDirectory(dir, time.Minute, clock)
+		cached := app.NewCachedDirectory(dir, time.Minute, clock)
+		d.dir = cached
+		// Keep the cache hot in the background so the groups/access pages never
+		// pay the LDAP dial on the first load after a TTL - the warmer refreshes
+		// ahead of expiry instead of a page request eating the round-trip.
+		d.background(func() { cached.WarmLoop(d.ctx) })
 		log.Info("directory browse mounted", "ldap", cfg.LDAPURL, "base", cfg.LDAPBaseDN)
 	}
 
