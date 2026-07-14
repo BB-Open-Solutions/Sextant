@@ -24,10 +24,15 @@ func startPostgres(t *testing.T) string {
 	}
 	base := t.TempDir()
 	data := filepath.Join(base, "data")
-	sock := filepath.Join(base, "sock")
-	if err := os.MkdirAll(sock, 0o755); err != nil {
+	// The unix socket path must stay well under the ~107-char sun_path limit.
+	// t.TempDir() embeds the full (sometimes long) test name, so a socket under
+	// it can overflow that limit and make pg_ctl fail to bind ("could not start
+	// server"). Put the socket in a short top-level temp dir instead.
+	sock, err := os.MkdirTemp("", "sxt-pg")
+	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = os.RemoveAll(sock) })
 
 	run := func(name string, args ...string) {
 		t.Helper()
