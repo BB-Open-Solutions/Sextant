@@ -17,6 +17,12 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
+// netTimeout bounds a single remote git operation (fetch/push). Without it a
+// hung remote (dropped TCP, dead forge) inherits git's own long timeouts and,
+// because these run under the single-writer lock, would stall every config
+// write behind them. A caller ctx with a shorter deadline still wins.
+const netTimeout = 60 * time.Second
+
 // Repo is one git working tree acting as a config repo.
 type Repo struct {
 	dir string
@@ -149,6 +155,8 @@ func (r *Repo) Sync(ctx context.Context) error {
 	if r.remote == "" {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(ctx, netTimeout)
+	defer cancel()
 	if out, err := exec.CommandContext(ctx, "git", "-C", r.dir, "fetch", r.remote).CombinedOutput(); err != nil {
 		return fmt.Errorf("git fetch: %s", strings.TrimSpace(string(out)))
 	}
@@ -166,6 +174,8 @@ func (r *Repo) Push(ctx context.Context) error {
 	if r.remote == "" {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(ctx, netTimeout)
+	defer cancel()
 	out, err := exec.CommandContext(ctx, "git", "-C", r.dir,
 		"push", r.remote, "HEAD:"+r.branch(ctx)).CombinedOutput()
 	if err == nil {

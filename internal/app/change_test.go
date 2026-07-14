@@ -337,3 +337,59 @@ func TestFourEyesEnforced(t *testing.T) {
 		t.Fatalf("second-person merge failed: %v", err)
 	}
 }
+
+// TestFourEyesFailsClosedOnEmptySubject: an unidentifiable principal (empty
+// subject) can never satisfy segregation of duties; the merge must be refused,
+// not waved through because equality could not be established.
+func TestFourEyesFailsClosedOnEmptySubject(t *testing.T) {
+	const seed4 = `{
+	  "version": 3,
+	  "assurance": {"requireFourEyes": true},
+	  "org": {"settings": {"desktop": "plasma"}},
+	  "groups": {"pilot": {}},
+	  "devices": {"lt-1": {"groups": ["pilot"], "hardware": "hw"}}
+	}`
+	dir := t.TempDir()
+	shr := func(args ...string) {
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	shr("init", "-q", "-b", "main")
+	if err := os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(seed4), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	shr("add", "fleet.json")
+	shr("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
+	repo, err := git.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	allow := ports.GateFunc(func(context.Context, string, []string) error { return nil })
+	svc, err := NewConfigService(repo, allow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := state.Open(t.TempDir())
+	open := func(d string) (ports.ConfigRepo, error) { return git.Open(d, "") }
+	cs := NewChangeService(repo, st.Changes(), allow, &fakeBuilder{}, newFakeClock(testT0), open, svc)
+	ctx := context.Background()
+
+	// Author with NO subject opens and submits the change.
+	anon := ports.Author{Name: "Anon", Email: "anon@x"}
+	if _, err := cs.Open(ctx, "anon-cr", "anon", anon); err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.Edit(ctx, "anon-cr", fleet.SetScopeSetting("org", "x", 1), "e", anon); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.Submit(ctx, "anon-cr"); err != nil {
+		t.Fatal(err)
+	}
+	// An approver who is also unidentifiable must NOT be able to merge it.
+	if _, err := cs.Merge(ctx, "anon-cr", ports.Author{Name: "Ghost"}); err == nil ||
+		!strings.Contains(err.Error(), "four-eyes") {
+		t.Fatalf("empty-subject merge = %v, want four-eyes rejection", err)
+	}
+}

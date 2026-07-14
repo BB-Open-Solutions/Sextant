@@ -103,9 +103,12 @@ func (s *TokenService) Authenticate(ctx context.Context, secret string) (identit
 		token.DummyVerify(secret) // equalize timing with the hit path
 		return identity.User{}, identity.None, false
 	}
-	// Device credentials share the store but must never authenticate the
-	// operator API - they belong to the check-in path only (ADR 0008).
-	if tok.Kind == token.Device {
+	// Bound machine credentials share the store but must never authenticate the
+	// operator API. Device credentials belong to the check-in path (ADR 0008);
+	// station credentials may only submit discoveries. Reject both kinds here so
+	// a leaked device/station secret can never reach an operator endpoint - the
+	// group-based authz layer downstream is defence in depth, not the only wall.
+	if tok.Kind == token.Device || tok.Kind == token.Station {
 		token.DummyVerify(secret)
 		return identity.User{}, identity.None, false
 	}

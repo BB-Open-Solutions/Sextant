@@ -121,9 +121,13 @@ func (d *deps) buildConfigPlane() error {
 	case "remote":
 		log.Info("validation gate delegated to gate-runner", "url", cfg.GateURL)
 		gate = gateadapter.NewRemoteGate(cfg.GateURL)
-		// The heavy build gate (CR path) also needs nix; without it in-image
-		// the change-request build step is a no-op until a runner grows the
-		// build endpoint. Keep the local builder (used only where nix exists).
+		// The console image ships without nix (the reason the gate-runner
+		// exists), so the local nix builder cannot run here: calling it would
+		// fail every change submit with a misleading "nix build" error. The
+		// remote eval gate is the safety property; the heavy realisation build
+		// stays a CI concern. Make the in-console build step a no-op until a
+		// runner grows a build endpoint, so change requests submit and merge.
+		builder = builderFunc(func(context.Context, string, []string) error { return nil })
 	}
 	svc, err := app.NewConfigService(repo, gate)
 	if err != nil {

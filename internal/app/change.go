@@ -216,10 +216,16 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 		return change.CR{}, fmt.Errorf("change %q is %s; only ready changes merge", id, cr.Status)
 	}
 	// Segregation of duties (ADR 0007): when the organisation requires
-	// four-eyes, the author cannot approve their own change.
-	if asr := s.cfg.Fleet().Assurance; asr != nil && asr.RequireFourEyes &&
-		cr.AuthorSubject != "" && a.Subject != "" && cr.AuthorSubject == a.Subject {
-		return change.CR{}, fmt.Errorf("four-eyes required: change %q cannot be approved by its author", id)
+	// four-eyes, the author cannot approve their own change. Fail CLOSED - an
+	// unidentifiable principal (empty subject on either side) can never satisfy
+	// segregation of duties, so it must be rejected, not waved through.
+	if asr := s.cfg.Fleet().Assurance; asr != nil && asr.RequireFourEyes {
+		if cr.AuthorSubject == "" || a.Subject == "" {
+			return change.CR{}, fmt.Errorf("four-eyes required: change %q needs an identified author and a distinct approver to merge", id)
+		}
+		if cr.AuthorSubject == a.Subject {
+			return change.CR{}, fmt.Errorf("four-eyes required: change %q cannot be approved by its author", id)
+		}
 	}
 	// The merge mutates the same main-branch working tree the config service
 	// writes to, so it runs under that service's single-writer lock - a

@@ -28,7 +28,7 @@
           src = self;
           # Dependencies are vendored; no network during build.
           vendorHash = null;
-          subPackages = [ "cmd/sextant" "cmd/dfctl" ];
+          subPackages = [ "cmd/sextant" "cmd/sxctl" ];
           env.CGO_ENABLED = "0";
           ldflags = [ "-s" "-w" ];
           meta = {

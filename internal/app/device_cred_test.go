@@ -101,3 +101,21 @@ func TestDeviceCredentialNotAPersonalToken(t *testing.T) {
 		t.Error("device credential authenticated the operator API")
 	}
 }
+
+func TestStationCredentialNotAnOperatorToken(t *testing.T) {
+	// A station credential is a real token record (valid hash, long TTL); it
+	// may only submit discoveries and must never authenticate the operator API,
+	// even before the group-based authz layer would refuse it.
+	store := newMemTokenStore()
+	ts := NewTokenService(store, newFakeClock(testT0), time.Hour)
+	ctx := context.Background()
+
+	_, stationSecret, err := ts.Mint(ctx, MintRequest{
+		ID: "station-nuc-1", Name: "NUC 1", Kind: "station", Subject: "station-nuc-1"})
+	if err != nil {
+		t.Fatalf("mint station credential: %v", err)
+	}
+	if _, _, ok := ts.Authenticate(ctx, stationSecret); ok {
+		t.Error("station credential authenticated the operator API")
+	}
+}
