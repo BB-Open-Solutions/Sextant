@@ -58,14 +58,27 @@ func TestBuildHostVariantsExpand(t *testing.T) {
 	}
 }
 
-func TestBuildEmptyHostsBuildsWholeSet(t *testing.T) {
+// TestBuildEmptyHostsRejected proves an empty host list is refused rather
+// than falling back to the bare "repoDir#nixosConfigurations" flake ref: that
+// ref names an attrset, not a derivation, and "nix build" on it fails with
+// "not a derivation or path" - so building the whole set through this path
+// must error instead of shipping a target that can never succeed.
+func TestBuildEmptyHostsRejected(t *testing.T) {
 	b := &Builder{}
-	targets, err := b.targets("/repo", nil)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := b.targets("/repo", nil); err == nil {
+		t.Fatal("empty hosts accepted a build target")
 	}
-	if len(targets) != 1 || targets[0] != "/repo#nixosConfigurations" {
-		t.Fatalf("targets = %v, want the bare flake ref", targets)
+
+	called := false
+	b.run = func(context.Context, string, ...string) ([]byte, error) {
+		called = true
+		return []byte("ok"), nil
+	}
+	if err := b.Build(context.Background(), "/repo", nil); err == nil {
+		t.Fatal("Build with no hosts should have errored")
+	}
+	if called {
+		t.Fatal("runner invoked despite an empty host list")
 	}
 }
 
@@ -95,7 +108,7 @@ func TestBuildDefaultTimeout(t *testing.T) {
 		return []byte("ok"), nil
 	}}
 	before := time.Now()
-	if err := b.Build(context.Background(), "/repo", nil); err != nil {
+	if err := b.Build(context.Background(), "/repo", []string{"lt-1"}); err != nil {
 		t.Fatal(err)
 	}
 	if !hasDeadline {
@@ -118,7 +131,7 @@ func TestBuildCustomTimeout(t *testing.T) {
 		},
 	}
 	before := time.Now()
-	if err := b.Build(context.Background(), "/repo", nil); err != nil {
+	if err := b.Build(context.Background(), "/repo", []string{"lt-1"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := deadline.Sub(before); got < 4*time.Second || got > 6*time.Second {

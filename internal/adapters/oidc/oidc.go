@@ -11,6 +11,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -43,6 +44,10 @@ type Config struct {
 	// Authorize gates login completion: a user who cannot view anything is
 	// rejected at the door. Wired to identity.Resolver.CanViewAnything.
 	Authorize func(identity.User) bool
+	// Logger receives internal detail that must never reach the browser
+	// (e.g. the raw Microsoft Graph error body on the groups-overage
+	// fallback). Defaults to slog.Default() when nil.
+	Logger *slog.Logger
 }
 
 // Authenticator implements the OIDC login flow and session middleware.
@@ -56,6 +61,7 @@ type Authenticator struct {
 	landing     string
 	graphURL    string
 	authorize   func(identity.User) bool
+	log         *slog.Logger
 }
 
 type sessionData struct {
@@ -109,6 +115,10 @@ func New(ctx context.Context, c Config) (*Authenticator, error) {
 	if authorize == nil {
 		authorize = func(identity.User) bool { return true }
 	}
+	log := c.Logger
+	if log == nil {
+		log = slog.Default()
+	}
 	return &Authenticator{
 		verifier: prov.Verifier(&gooidc.Config{ClientID: c.ClientID}),
 		oauth: oauth2.Config{
@@ -122,6 +132,7 @@ func New(ctx context.Context, c Config) (*Authenticator, error) {
 		landing:     landing,
 		graphURL:    c.GraphURL,
 		authorize:   authorize,
+		log:         log,
 	}, nil
 }
 
@@ -194,8 +205,12 @@ func (a *Authenticator) Callback(w http.ResponseWriter, r *http.Request) {
 	if len(groups) == 0 && hasGroupsOverage(claims) {
 		fetched, err := fetchGroupsFromGraph(r.Context(), nil, a.graphURL, tok.AccessToken)
 		if err != nil {
-			http.Error(w, "group membership lookup failed (Entra overage): "+err.Error(),
-				http.StatusBadGateway)
+			// The Graph error can carry upstream response detail
+			// (endpoint, tenant/request identifiers); log it server-side
+			// only and return a generic message to the browser, which is
+			// IdP-authenticated but not yet authorized at this point.
+			a.log.Error("entra groups overage: graph membership lookup failed", "err", err)
+			http.Error(w, "group membership lookup failed", http.StatusBadGateway)
 			return
 		}
 		groups = fetched
@@ -236,8 +251,17 @@ func (a *Authenticator) SessionUser(r *http.Request) (identity.User, string, boo
 	return identity.User{Subject: sd.Subject, Name: sd.Name, Email: sd.Email, Groups: sd.Groups}, sd.CSRF, true
 }
 
+// randString returns n cryptographically random bytes, base64url-encoded.
+// It feeds the OAuth state and nonce and the session CSRF token - all
+// security-critical, so silently returning an all-zero (thus predictable)
+// value on RNG failure is unacceptable. crypto/rand.Read only errors when
+// the OS CSPRNG itself is broken, which is unrecoverable; panicking is
+// preferable to issuing a guessable token, and mw.Recover (wrapped around
+// every handler) turns it into a 500 rather than crashing the process.
 func randString(n int) string {
 	b := make([]byte, n)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("oidc: crypto/rand failed: " + err.Error())
+	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }

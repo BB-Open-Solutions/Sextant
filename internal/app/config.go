@@ -26,6 +26,12 @@ const FleetFile = "fleet.json"
 // writes are human-paced; a handful of retries absorbs genuine races.
 const maxPushRetries = 5
 
+// ErrChangeRequestRequired is returned when the organisation mandates that
+// configuration edits flow through a reviewed change request, so a direct
+// edit to main is refused. It is a sentinel so every transport (web, API)
+// enforces the same governance instead of each re-implementing the check.
+var ErrChangeRequestRequired = errors.New("change-request required: this organisation reviews configuration edits before they take effect - stage this change on the Changes page")
+
 // ConfigService owns the configuration plane of one organisation: reads
 // serve an immutable snapshot; writes run the safe transaction
 // (mutate -> gate -> commit -> push) strictly serialized.
@@ -184,6 +190,74 @@ func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg s
 	// along unchanged (they are separate overlay files).
 	prev := s.snap.Load()
 	s.snap.Store(&configSnapshot{fleet: f, catalog: prev.catalog, hardware: prev.hardware})
+	return nil
+}
+
+// SetSetting validates and applies one catalog setting at a scope directly on
+// main. It owns the invariants every transport must share, so neither the web
+// console nor the JSON API can bypass them: change-request governance, catalog
+// membership, typed parsing, secret-reference integrity, the affected-host set
+// (which bounds gate validation) and the commit-message convention. rawValue is
+// the value as entered - the catalog entry parses it to its typed form. enforce
+// nil leaves the enforce state unchanged; non-nil locks (true) or unlocks it.
+func (s *ConfigService) SetSetting(ctx context.Context, scope, key, rawValue string, enforce *bool, a ports.Author) error {
+	if err := s.requireDirectEditAllowed(); err != nil {
+		return err
+	}
+	entry, ok := s.Catalog().Lookup(key)
+	if !ok {
+		return fmt.Errorf("unknown setting %q (not in catalog)", key)
+	}
+	raw := strings.TrimSpace(rawValue)
+	if raw == "" {
+		return fmt.Errorf("no value chosen for %s; pick a value, or clear it to inherit", key)
+	}
+	val, err := entry.ParseValue(raw)
+	if err != nil {
+		return err
+	}
+	// A secret setting stores a REFERENCE; it must point at a secret the org has
+	// registered, so a setting never dangles at a name that resolves to nothing
+	// on the device.
+	if entry.Widget() == fleet.WidgetSecret {
+		if ref, _ := val.(string); ref != "" && !s.Fleet().HasSecretRef(ref) {
+			return fmt.Errorf("unknown secret reference %q; register it first", ref)
+		}
+	}
+	msg := fmt.Sprintf("settings: set %s at %s", key, scope)
+	if enforce != nil && *enforce {
+		msg += " (enforced)"
+	}
+	mut := func(f *fleet.Fleet) error {
+		if err := fleet.SetScopeSetting(scope, key, val)(f); err != nil {
+			return err
+		}
+		if enforce != nil {
+			return fleet.SetScopeEnforce(scope, key, *enforce)(f)
+		}
+		return nil
+	}
+	return s.Apply(ctx, mut, msg, a, AffectedHosts(s.Fleet(), scope)...)
+}
+
+// ClearSetting reverts one setting at a scope to inherited, under the same
+// change-request governance and affected-host scoping as SetSetting.
+func (s *ConfigService) ClearSetting(ctx context.Context, scope, key string, a ports.Author) error {
+	if err := s.requireDirectEditAllowed(); err != nil {
+		return err
+	}
+	msg := fmt.Sprintf("settings: clear %s at %s", key, scope)
+	return s.Apply(ctx, fleet.ClearScopeSetting(scope, key), msg, a, AffectedHosts(s.Fleet(), scope)...)
+}
+
+// requireDirectEditAllowed rejects a direct-to-main edit when the org mandates
+// that configuration changes flow through a reviewed change request. The change
+// flow itself edits on a branch (ChangeService), not through this path, so it
+// is never blocked.
+func (s *ConfigService) requireDirectEditAllowed() error {
+	if a := s.Fleet().Assurance; a != nil && a.RequireChangeRequest {
+		return ErrChangeRequestRequired
+	}
 	return nil
 }
 

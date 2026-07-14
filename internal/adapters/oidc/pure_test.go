@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func testKey() []byte {
@@ -69,6 +70,41 @@ func TestSecureCookieOpenRejectsTampered(t *testing.T) {
 	}
 }
 
+// TestSecureCookieAADBindsToName proves a ciphertext sealed by one
+// secureCookie (e.g. the flow cookie) cannot be opened by another sharing
+// the same key but a different name (e.g. the session cookie) - the fix for
+// cross-cookie substitution, since sextant_session and sextant_flow are
+// both sealed from the same SessionKey.
+func TestSecureCookieAADBindsToName(t *testing.T) {
+	key := testKey()
+	sess, _ := newSecureCookie("sextant_session", key, false, 3600)
+	flow, _ := newSecureCookie("sextant_flow", key, false, 600)
+
+	sealedFlow, err := flow.seal(flowData{
+		State: "s", Nonce: "n", Verifier: "v",
+		Exp: time.Now().Add(10 * time.Minute).Unix(),
+	})
+	if err != nil {
+		t.Fatalf("seal: %v", err)
+	}
+
+	// The flow ciphertext must not open under the session cookie's name,
+	// even with the identical key.
+	var sd sessionData
+	if err := sess.open(sealedFlow, &sd); err == nil {
+		t.Fatal("flow cookie opened as a session cookie")
+	}
+
+	// It still opens correctly under its own name.
+	var fd flowData
+	if err := flow.open(sealedFlow, &fd); err != nil {
+		t.Fatalf("flow cookie failed to open under its own name: %v", err)
+	}
+	if fd.State != "s" || fd.Nonce != "n" || fd.Verifier != "v" {
+		t.Fatalf("flow roundtrip mismatch: %+v", fd)
+	}
+}
+
 func TestSecureCookieSetGetClear(t *testing.T) {
 	c, _ := newSecureCookie("sess", testKey(), false, 3600)
 	rec := httptest.NewRecorder()
@@ -109,6 +145,13 @@ func TestClaimsHelpers(t *testing.T) {
 	}
 }
 
+// TestRandString covers the normal path only: crypto/rand.Read on a
+// healthy OS CSPRNG does not fail, and there is no supported way to force a
+// deterministic failure from it in a unit test without replacing the
+// package-level rand.Reader (which the standard library does not expose
+// for that purpose). The failure path - panic instead of returning an
+// all-zero/predictable token - is exercised by inspection of randString's
+// implementation; see the comment there.
 func TestRandString(t *testing.T) {
 	a, b := randString(24), randString(24)
 	if a == "" || a == b {

@@ -88,6 +88,39 @@ func TestTransitionStatusAppliesOnlyFromExpectedStatus(t *testing.T) {
 	}
 }
 
+// TestTransitionStatusResetsProgressAndStep guards against a terminal record
+// showing a stale in-progress percentage/label: a job ticking at progress=40
+// step="installing" that transitions to a terminal status must read as reset,
+// mirroring UpdateStatus's documented contract.
+func TestTransitionStatusResetsProgressAndStep(t *testing.T) {
+	s := openStore(t).ImageJobs()
+	ctx := context.Background()
+
+	job := imaging.Job{Station: "nuc-1", MAC: "aa:bb:cc:dd:ee:04", Tag: "lab-1", Hardware: "hw", Status: imaging.Imaging}
+	if err := s.Upsert(ctx, "t1", job, t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateProgress(ctx, "t1", "nuc-1", "aa:bb:cc:dd:ee:04", 40, "installing", t0.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	applied, err := s.TransitionStatus(ctx, "t1", "nuc-1", "aa:bb:cc:dd:ee:04",
+		imaging.Imaging, imaging.Installed, "", t0.Add(2*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !applied {
+		t.Fatal("transition did not apply")
+	}
+	got, _, err := s.Get(ctx, "t1", "nuc-1", "aa:bb:cc:dd:ee:04")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != imaging.Installed || got.Progress != 0 || got.Step != "" {
+		t.Fatalf("terminal job kept stale progress/step: %+v", got)
+	}
+}
+
 // TestTransitionStatusConcurrentReportsExactlyOneApplies is the atomicity
 // proof for the fix: two reports racing to move the SAME job off the SAME
 // from-status must not both win. Before this fix, Report's Get -> CanTransition

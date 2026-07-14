@@ -80,10 +80,12 @@ func seededService(t *testing.T, seedDoc string) (*app.ConfigService, string) {
 		}
 	}
 	run("init", "-q", "-b", "main")
-	if err := os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(seedDoc), 0o644); err != nil {
-		t.Fatal(err)
+	for name, body := range map[string]string{"fleet.json": seedDoc, "catalog.json": seedCatalog} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
-	run("add", "fleet.json")
+	run("add", ".")
 	run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
 	repo, err := git.Open(dir, "")
 	if err != nil {

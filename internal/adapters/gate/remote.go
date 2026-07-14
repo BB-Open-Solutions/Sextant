@@ -28,12 +28,22 @@ type RemoteGate struct {
 	// Timeout bounds one validation call. Zero means 130s (a little over the
 	// runner's own 120s eval budget).
 	Timeout time.Duration
-	client  *http.Client
+	// Token is the bearer secret a token-protected gate-runner requires; empty
+	// sends no Authorization header.
+	Token  string
+	client *http.Client
 }
 
 // NewRemoteGate returns a gate that delegates to the runner at url.
 func NewRemoteGate(url string) *RemoteGate {
 	return &RemoteGate{URL: url, client: &http.Client{}}
+}
+
+// WithToken sets the bearer secret presented to the gate-runner. Returns the
+// gate for chaining at wiring time.
+func (g *RemoteGate) WithToken(token string) *RemoteGate {
+	g.Token = token
+	return g
 }
 
 type validateRequest struct {
@@ -71,6 +81,9 @@ func (g *RemoteGate) Validate(ctx context.Context, repoDir string, hosts []strin
 		return fmt.Errorf("gate: build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if g.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+g.Token)
+	}
 
 	client := g.client
 	if client == nil {

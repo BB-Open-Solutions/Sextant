@@ -173,21 +173,13 @@ func (a *API) postSetting(w http.ResponseWriter, r *http.Request) error {
 	if err := a.require(r, in.Scope, identity.Editor); err != nil {
 		return err
 	}
-	mut := func(f *fleet.Fleet) error {
-		if err := fleet.SetScopeSetting(in.Scope, in.Key, in.Value)(f); err != nil {
-			return reject(err)
-		}
-		if in.Enforce != nil {
-			if err := fleet.SetScopeEnforce(in.Scope, in.Key, *in.Enforce)(f); err != nil {
-				return reject(err)
-			}
-		}
-		return nil
-	}
-	msg := fmt.Sprintf("settings: set %s at %s", in.Key, in.Scope)
-	if err := a.cfg.Apply(r.Context(), mut, msg, author(r),
-		app.AffectedHosts(a.cfg.Fleet(), in.Scope)...); err != nil {
-		return err
+	// Delegate to the same ConfigService entry point the console uses, so the
+	// API cannot bypass change-request governance, catalog membership, typing
+	// or secret-reference integrity. The value arrives already typed from JSON;
+	// render it to the string the catalog entry parses and validates.
+	if err := a.cfg.SetSetting(r.Context(), in.Scope, in.Key,
+		fmt.Sprint(in.Value), in.Enforce, author(r)); err != nil {
+		return settingErr(err)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "applied"})
 	return nil
@@ -204,10 +196,10 @@ func (a *API) deleteSetting(w http.ResponseWriter, r *http.Request) error {
 	if err := a.require(r, in.Scope, identity.Editor); err != nil {
 		return err
 	}
-	msg := fmt.Sprintf("settings: clear %s at %s", in.Key, in.Scope)
-	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.ClearScopeSetting(in.Scope, in.Key)), msg, author(r),
-		app.AffectedHosts(a.cfg.Fleet(), in.Scope)...); err != nil {
-		return err
+	// Same ConfigService entry point as the console, so a clear is subject to
+	// the same change-request governance and affected-host scoping as a set.
+	if err := a.cfg.ClearSetting(r.Context(), in.Scope, in.Key, author(r)); err != nil {
+		return settingErr(err)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "applied"})
 	return nil

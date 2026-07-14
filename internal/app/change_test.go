@@ -277,6 +277,63 @@ func TestChangeDiff(t *testing.T) {
 	}
 }
 
+// failPutStore wraps a real ChangeStore and fails the next Put call once,
+// so tests can exercise a transient persistence failure mid-Open.
+type failPutStore struct {
+	ports.ChangeStore
+	failNextPut bool
+}
+
+func (f *failPutStore) Put(ctx context.Context, cr change.CR) error {
+	if f.failNextPut {
+		f.failNextPut = false
+		return errors.New("store unavailable")
+	}
+	return f.ChangeStore.Put(ctx, cr)
+}
+
+// TestOpenRollsBackBranchOnStoreFailure (finding: Open() wedges a change id
+// when CreateBranch succeeds but store.Put fails): a transient store error
+// after the branch is created must not leave an orphaned branch behind - the
+// id must stay retryable.
+func TestOpenRollsBackBranchOnStoreFailure(t *testing.T) {
+	svc, dir := newService(t, nil)
+	repo, err := git.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := state.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &failPutStore{ChangeStore: st.Changes(), failNextPut: true}
+	open := func(d string) (ports.ConfigRepo, error) { return git.Open(d, "") }
+	cs := NewChangeService(repo, store,
+		ports.GateFunc(func(context.Context, string, []string) error { return nil }),
+		&fakeBuilder{}, newFakeClock(testT0), open, svc)
+	ctx := context.Background()
+
+	if _, err := cs.Open(ctx, "wedge", "First attempt", ports.Author{Name: "ada", Subject: "sub-ada"}); err == nil {
+		t.Fatal("want the store failure surfaced")
+	}
+	if out := sh(t, dir, "branch", "--list", "cr/wedge"); out != "" {
+		t.Fatalf("branch not rolled back after store.Put failure: %q", out)
+	}
+	if _, ok, err := store.Get(ctx, "wedge"); err != nil || ok {
+		t.Fatalf("no record should exist after rollback: ok=%v err=%v", ok, err)
+	}
+
+	// The id must not be permanently wedged: a retry with the store healthy
+	// again succeeds cleanly.
+	cr, err := cs.Open(ctx, "wedge", "Retry", ports.Author{Name: "ada", Subject: "sub-ada"})
+	if err != nil {
+		t.Fatalf("retry after rollback failed: %v", err)
+	}
+	if cr.Status != change.Draft {
+		t.Fatalf("status = %s", cr.Status)
+	}
+}
+
 // TestFourEyesEnforced (ADR 0007): with assurance.requireFourEyes, the
 // author of a change cannot merge it; a different owner can. Without the
 // flag, self-merge stays allowed (small orgs).

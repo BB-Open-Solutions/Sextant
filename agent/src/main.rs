@@ -54,6 +54,10 @@ fn main() -> ExitCode {
         if let Some(outcome) = action::executed_ack(&posture::default_root()) {
             pending_ack = outcome;
         }
+        // Take the pending ack for this beat, but do not treat it as
+        // delivered yet: it is only restored to pending_ack below if the
+        // send does not come back accepted, so a Transient/Unauthorized
+        // failure never drops an outcome the console has not yet seen.
         let ack = std::mem::take(&mut pending_ack);
         let usage = collect::collect_usage();
         let beat = CheckIn {
@@ -67,7 +71,11 @@ fn main() -> ExitCode {
             facts: facts.as_ref(),
             usage: Some(&usage),
         };
-        match client.send(&beat) {
+        let outcome = client.send(&beat);
+        if !beat_accepted(&outcome) {
+            pending_ack = ack;
+        }
+        match outcome {
             Outcome::Ok => {
                 if facts.is_some() {
                     last_facts = Some(Instant::now());
@@ -114,4 +122,28 @@ fn jitter(interval: Duration) -> Duration {
         .map(|d| u64::from(d.subsec_nanos()))
         .unwrap_or(0);
     Duration::from_millis(nanos % max_ms)
+}
+
+/// beat_accepted reports whether the server actually received and processed
+/// the beat that carried the ack. Only Ok and Intent mean the server saw it;
+/// Retired, Unauthorized and Transient all mean the ack this beat carried was
+/// never confirmed delivered, so the caller must retain it for a later beat
+/// rather than dropping it with std::mem::take.
+fn beat_accepted(outcome: &Outcome) -> bool {
+    matches!(outcome, Outcome::Ok | Outcome::Intent(_))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_ok_and_intent_count_as_accepted() {
+        assert!(beat_accepted(&Outcome::Ok));
+        assert!(beat_accepted(&Outcome::Intent("lock".to_string())));
+
+        assert!(!beat_accepted(&Outcome::Retired));
+        assert!(!beat_accepted(&Outcome::Unauthorized));
+        assert!(!beat_accepted(&Outcome::Transient("timeout".to_string())));
+    }
 }

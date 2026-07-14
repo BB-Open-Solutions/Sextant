@@ -1,0 +1,30 @@
+# Keep the build context small and free of locally-built artifacts that
+# must never be baked into an image by accident (see .gitignore).
+.git/
+.forgejo/
+
+# Binaries (built inside the image by each Dockerfile; never copied in)
+/sextant
+/sxctl
+/gate-runner
+/dfctl
+/dist/
+
+# Nix
+/result
+/result-*
+/.direnv/
+
+# Test and coverage artifacts
+*.test
+coverage.out
+coverage.html
+
+# Local environment / secrets
+.env
+.pg_password
+
+# Docs/design inputs not needed for any image build
+docs/design/
+docs/handbook/book/
+design/

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -48,6 +49,14 @@ func (d *CachedDirectory) ListGroups(ctx context.Context, query string) ([]ports
 	// Dial outside the lock so a slow directory does not serialize every
 	// request behind the mutex.
 	groups, err := d.inner.ListGroups(ctx, query)
+
+	// A cancelled or deadline-exceeded error belongs to this caller's context,
+	// not to the directory's health - caching it would poison every other
+	// caller's result for the rest of the TTL, even a fresh one with a healthy
+	// context. Let the next call redial.
+	if err != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		return groups, err
+	}
 
 	d.mu.Lock()
 	d.cache[query] = dirEntry{groups: groups, err: err, at: now}

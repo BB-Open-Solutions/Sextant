@@ -68,6 +68,46 @@ func TestCheckInNotifiesWipeOncePerTransition(t *testing.T) {
 	}
 }
 
+// TestCheckInRejectsBadFactsBeforeAnySideEffect (finding: CheckIn recorded
+// status and fired the wipe notification before validating facts): a
+// malformed facts payload must reject the whole check-in with no status
+// write and no notification, not a partially-applied call.
+func TestCheckInRejectsBadFactsBeforeAnySideEffect(t *testing.T) {
+	store := newMemStatus()
+	notifyStore := newFakeNotifyStore()
+	notifier := NewNotifyService(notifyStore, clockAt{time.Unix(1, 0)}, "default")
+	inv := NewInventoryService(store, nopFacts{}, clockAt{time.Unix(1, 0)}, "default").
+		WithNotifier(notifier, []string{"owners"})
+	ctx := context.Background()
+
+	// Invalid JSON alongside a wipe ack: the facts error must win, and it must
+	// win BEFORE the status upsert and the wipe notification happen.
+	err := inv.CheckIn(ctx, observed.CheckIn{Tag: "nuc-01", Ack: observed.AckWipe}, []byte("{not json"))
+	if err == nil {
+		t.Fatal("want an error for invalid facts JSON")
+	}
+	if _, ok, _ := store.Get(ctx, "default", "nuc-01"); ok {
+		t.Fatal("status must not be recorded when facts validation fails")
+	}
+	for _, n := range notifyStore.added {
+		if n.Kind == notify.WipeExecuted {
+			t.Fatal("wipe notification must not fire when facts validation fails")
+		}
+	}
+
+	// Oversized facts: same guarantee.
+	big := make([]byte, maxFactsBytes+1)
+	for i := range big {
+		big[i] = 'x'
+	}
+	if err := inv.CheckIn(ctx, observed.CheckIn{Tag: "nuc-02", Ack: observed.AckWipe}, big); err == nil {
+		t.Fatal("want an error for an oversized facts payload")
+	}
+	if _, ok, _ := store.Get(ctx, "default", "nuc-02"); ok {
+		t.Fatal("status must not be recorded for an oversized facts payload")
+	}
+}
+
 func TestCheckInNoNotifierIsInert(t *testing.T) {
 	// Without a notifier (no Postgres), a wipe ack still records fine.
 	inv := NewInventoryService(newMemStatus(), nopFacts{}, clockAt{time.Unix(1, 0)}, "default")

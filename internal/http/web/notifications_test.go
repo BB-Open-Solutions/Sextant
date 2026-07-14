@@ -13,6 +13,10 @@ func TestSafeLocalPath(t *testing.T) {
 		"//evil.example.com":  "/notifications", // protocol-relative open redirect
 		"https://evil.com":    "/notifications",
 		"javascript:alert(1)": "/notifications",
+		`/\evil.com`:          "/notifications", // backslash normalizes to // in browsers
+		`\\evil.com`:          "/notifications", // no leading '/' at all, and backslashes
+		`/\/evil.com`:         "/notifications",
+		"/":                   "/",
 	}
 	for in, want := range cases {
 		if got := safeLocalPath(in); got != want {

@@ -24,8 +24,8 @@ type Builder struct {
 // NewBuilder returns the production builder.
 func NewBuilder() *Builder { return &Builder{run: execRunner} }
 
-// Build implements ports.Builder. Empty hosts builds every host the flake
-// exposes (via the eval expression forcing all drvPaths, then realising).
+// Build implements ports.Builder. Hosts must be non-empty: see targets for
+// why a whole-set build has no valid flake target.
 func (b *Builder) Build(ctx context.Context, repoDir string, hosts []string) error {
 	timeout := b.Timeout
 	if timeout <= 0 {
@@ -50,13 +50,19 @@ func (b *Builder) Build(ctx context.Context, repoDir string, hosts []string) err
 	return nil
 }
 
-// targets expands hosts (with variants) into flake build attrs; empty hosts
-// builds the whole set via the flake's nixosConfigurations.
+// targets expands hosts (with variants) into flake build attrs. Unlike the
+// eval gate - which can force every drvPath in one go via mapAttrs over the
+// whole nixosConfigurations attrset - a real build needs concrete output
+// paths: "repoDir#nixosConfigurations" alone names an attrset, not a
+// derivation, so "nix build" on it fails with "not a derivation or path".
+// There is no flake-side "build everything" attribute to fall back to, so
+// an empty host list is a caller error here rather than a whole-set build;
+// the eval gate already validates the whole set on every apply, and in
+// practice the realisation build is always scoped to the hosts a change
+// affects.
 func (b *Builder) targets(repoDir string, hosts []string) ([]string, error) {
 	if len(hosts) == 0 {
-		// Realising every host: rely on the flake exposing a build-all
-		// check or fall back to the bare flake (its default outputs).
-		return []string{repoDir + "#nixosConfigurations"}, nil
+		return nil, fmt.Errorf("build target must name at least one host")
 	}
 	variants := b.HostVariants
 	if len(variants) == 0 {

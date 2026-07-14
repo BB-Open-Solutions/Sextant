@@ -13,6 +13,12 @@ import (
 // secureCookie is an authenticated-encrypted (AES-256-GCM) cookie, used for
 // the session and the short-lived login-flow state. Tamper-proof and
 // confidential; the key never leaves the server. Ported from the proven PoC.
+// The cookie name is additionally used as GCM additional authenticated data,
+// so a ciphertext sealed by one secureCookie (e.g. sextant_flow) cannot be
+// substituted for another (e.g. sextant_session) even though both currently
+// share the same SessionKey. Note: this AAD binding means any cookie sealed
+// before this change will fail to open afterwards - an acceptable one-time
+// forced re-login, not a security regression.
 type secureCookie struct {
 	name   string
 	key    []byte // 32 bytes (AES-256)
@@ -44,7 +50,13 @@ func (c *secureCookie) seal(v any) (string, error) {
 	if _, err := rand.Read(nonce); err != nil {
 		return "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(gcm.Seal(nonce, nonce, plain, nil)), nil
+	// Bind the ciphertext to its cookie name (AES-GCM additional data): the
+	// session and flow cookies share one SessionKey, so without this a
+	// validly-sealed flow cookie renamed to sextant_session would still
+	// decrypt (into a sessionData carrying flow-state garbage) - the
+	// authorize gate in Callback would never have run for it. Sealing and
+	// opening under a mismatched name now fails GCM authentication.
+	return base64.RawURLEncoding.EncodeToString(gcm.Seal(nonce, nonce, plain, []byte(c.name))), nil
 }
 
 func (c *secureCookie) open(s string, out any) error {
@@ -64,7 +76,10 @@ func (c *secureCookie) open(s string, out any) error {
 		return errors.New("cookie too short")
 	}
 	nonce, ct := data[:gcm.NonceSize()], data[gcm.NonceSize():]
-	plain, err := gcm.Open(nil, nonce, ct, nil)
+	// Same additional data as seal: a ciphertext sealed under a different
+	// cookie name fails authentication here rather than decrypting into the
+	// wrong struct shape.
+	plain, err := gcm.Open(nil, nonce, ct, []byte(c.name))
 	if err != nil {
 		return err
 	}

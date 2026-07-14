@@ -52,10 +52,7 @@ impl Config {
             return Err(err("SEXTANT_URL is required"));
         }
         let url = url.trim_end_matches('/').to_string();
-        if !url.starts_with("https://")
-            && !url.starts_with("http://localhost")
-            && !url.starts_with("http://127.0.0.1")
-        {
+        if !url.starts_with("https://") && !is_loopback_http(&url) {
             return Err(err("SEXTANT_URL must be https (or localhost for tests)"));
         }
 
@@ -92,6 +89,34 @@ impl Config {
     }
 }
 
+/// is_loopback_http allows plaintext http only for a genuine loopback host,
+/// so a prefix trick like "http://localhost.evil.com" cannot leak the bearer
+/// credential to a remote host in cleartext. The host is the substring after
+/// "http://" up to the next '/' or ':' (bracketed for IPv6), and must be
+/// exactly "localhost", "127.0.0.1" or "[::1]" - not merely start with one.
+fn is_loopback_http(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("http://") else {
+        return false;
+    };
+    let host = if let Some(after_bracket) = rest.strip_prefix('[') {
+        match after_bracket.find(']') {
+            Some(end) => {
+                let host = &rest[..end + 2]; // include the leading '[' and the ']'
+                // Reject "[::1].evil.example": whatever follows the closing
+                // bracket must start a port or path, not extend the host.
+                match rest[end + 2..].chars().next() {
+                    None | Some('/') | Some(':') => host,
+                    Some(_) => return false,
+                }
+            }
+            None => return false,
+        }
+    } else {
+        rest.split(['/', ':']).next().unwrap_or("")
+    };
+    host == "localhost" || host == "127.0.0.1" || host == "[::1]"
+}
+
 /// parse_seconds reads a positive integer seconds value, with a default.
 fn parse_seconds(s: &str, default: u64) -> Result<Duration, ConfigError> {
     if s.is_empty() {
@@ -114,5 +139,25 @@ mod tests {
         assert!(parse_seconds("0", 60).is_err());
         assert!(parse_seconds("-5", 60).is_err());
         assert!(parse_seconds("soon", 60).is_err());
+    }
+
+    #[test]
+    fn loopback_http_requires_an_exact_host_match() {
+        // Genuine loopback, with and without a port/path, is allowed.
+        assert!(is_loopback_http("http://localhost"));
+        assert!(is_loopback_http("http://localhost:8080"));
+        assert!(is_loopback_http("http://localhost/status"));
+        assert!(is_loopback_http("http://127.0.0.1"));
+        assert!(is_loopback_http("http://127.0.0.1:9000"));
+        assert!(is_loopback_http("http://[::1]"));
+        assert!(is_loopback_http("http://[::1]:9000"));
+
+        // A loopback-looking prefix on a different host must not sneak past
+        // as plaintext http - the whole point of the fix.
+        assert!(!is_loopback_http("http://localhost.evil.com"));
+        assert!(!is_loopback_http("http://127.0.0.1.evil.example"));
+        assert!(!is_loopback_http("http://[::1].evil.example"));
+        assert!(!is_loopback_http("https://localhost"));
+        assert!(!is_loopback_http("http://evil.com"));
     }
 }

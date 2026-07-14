@@ -69,6 +69,41 @@ func TestUpsertGetList(t *testing.T) {
 	}
 }
 
+// TestUpsertUtilisationPartialReadingKept guards the per-dimension guard: a
+// beat that reports cpu+disk but whose memory probe failed (mem_total_mb=0)
+// must still write the fresh cpu/disk figures, not fall back to the whole
+// row's stale values just because one dimension came back empty.
+func TestUpsertUtilisationPartialReadingKept(t *testing.T) {
+	s := openStore(t)
+	ctx := context.Background()
+
+	full := observed.CheckIn{Tag: "lt-1", Usage: observed.Usage{
+		CPUPct: 10, MemUsedMB: 1000, MemTotalMB: 8000, DiskUsedGB: 20, DiskTotalGB: 100,
+	}}
+	if err := s.Upsert(ctx, "default", full, t0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Partial beat: cpu and disk read fine, memory probe failed (all-zero).
+	partial := observed.CheckIn{Tag: "lt-1", Usage: observed.Usage{
+		CPUPct: 55, MemUsedMB: 0, MemTotalMB: 0, DiskUsedGB: 30, DiskTotalGB: 100,
+	}}
+	if err := s.Upsert(ctx, "default", partial, t0.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	st, ok, err := s.Get(ctx, "default", "lt-1")
+	if err != nil || !ok {
+		t.Fatalf("get = %v %v", ok, err)
+	}
+	if st.Usage.CPUPct != 55 || st.Usage.DiskUsedGB != 30 || st.Usage.DiskTotalGB != 100 {
+		t.Fatalf("fresh cpu/disk dropped: %+v", st.Usage)
+	}
+	if st.Usage.MemUsedMB != 1000 || st.Usage.MemTotalMB != 8000 {
+		t.Fatalf("stale memory not preserved across failed probe: %+v", st.Usage)
+	}
+}
+
 func TestTenantIsolation(t *testing.T) {
 	s := openStore(t)
 	ctx := context.Background()

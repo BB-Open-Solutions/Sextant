@@ -58,3 +58,32 @@ func TestCachedDirectoryCachesErrors(t *testing.T) {
 		t.Fatalf("dials = %d, want 1 (error cached)", inner.calls)
 	}
 }
+
+// TestCachedDirectoryDoesNotCacheContextCancellation: a caller's cancelled or
+// timed-out context must not poison the cache for a full TTL - the failure
+// belongs to that one call, not to the directory's health, so the next call
+// (with a healthy context) must redial rather than replay the stale error.
+func TestCachedDirectoryDoesNotCacheContextCancellation(t *testing.T) {
+	inner := &countingDir{err: context.DeadlineExceeded}
+	clk := &fakeClk{t: time.Unix(1000, 0)}
+	d := NewCachedDirectory(inner, time.Minute, clk)
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := d.ListGroups(cancelledCtx, ""); err == nil {
+		t.Fatal("expected the deadline-exceeded error to surface")
+	}
+	if inner.calls != 1 {
+		t.Fatalf("dials = %d, want 1", inner.calls)
+	}
+
+	// A fresh call with a healthy context, still within the TTL, must redial
+	// rather than serve the cancellation error from the cache.
+	inner.err = nil
+	if _, err := d.ListGroups(context.Background(), ""); err != nil {
+		t.Fatalf("want the cache to retry instead of replaying a cancellation, got %v", err)
+	}
+	if inner.calls != 2 {
+		t.Fatalf("dials = %d, want 2 (cancellation must not be cached)", inner.calls)
+	}
+}

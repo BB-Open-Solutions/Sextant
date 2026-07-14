@@ -85,17 +85,20 @@ func (s *StationAPI) handleReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var report discovery.Report
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20))
-	if err := dec.Decode(&report); err != nil {
-		http.Error(w, "bad report body: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
+	// Authenticate before reading/decoding the body: the station tag is
+	// already known from the path, so a bad credential is rejected without
+	// paying for a (bounded but still costly) JSON parse of the report.
 	secret := bearerToken(r)
 	if !s.authorized(r, secret, station) {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="sextant-station"`)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var report discovery.Report
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20))
+	if err := dec.Decode(&report); err != nil {
+		http.Error(w, "bad report body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 

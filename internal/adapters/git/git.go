@@ -102,16 +102,60 @@ func (r *Repo) RemoveFile(name string) error {
 	return os.Remove(p)
 }
 
-// safePath confines repo-relative names to the working tree.
+// safePath confines repo-relative names to the working tree. The lexical
+// check alone stops "../" traversal in the name itself but not a symlink
+// planted inside the tree - e.g. by a merged change branch - whose target
+// points outside the repo; WriteFile/RemoveFile would then follow the link
+// and touch the real filesystem there. So after the lexical check we also
+// resolve symlinks on the nearest existing ancestor of the target and
+// re-confirm it still resolves under the repo root. Walking up to the
+// nearest existing ancestor (rather than requiring the immediate parent to
+// exist) keeps WriteFile's "create a fresh nested file" case working, since
+// its parent directories may not exist yet.
 func (r *Repo) safePath(name string) (string, error) {
 	if name == "" || filepath.IsAbs(name) {
 		return "", fmt.Errorf("bad repo path %q", name)
 	}
 	p := filepath.Join(r.dir, name)
-	if rel, err := filepath.Rel(r.dir, p); err != nil || strings.HasPrefix(rel, "..") {
+	sep := string(filepath.Separator)
+	if rel, err := filepath.Rel(r.dir, p); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+sep) {
+		return "", fmt.Errorf("path %q escapes the repo", name)
+	}
+
+	realRoot, err := filepath.EvalSymlinks(r.dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve repo root: %w", err)
+	}
+	anchor, err := nearestExisting(filepath.Dir(p))
+	if err != nil {
+		return "", fmt.Errorf("resolve %q: %w", name, err)
+	}
+	realAnchor, err := filepath.EvalSymlinks(anchor)
+	if err != nil {
+		return "", fmt.Errorf("resolve %q: %w", name, err)
+	}
+	if rel, err := filepath.Rel(realRoot, realAnchor); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+sep) {
 		return "", fmt.Errorf("path %q escapes the repo", name)
 	}
 	return p, nil
+}
+
+// nearestExisting walks up from dir until it finds a path that exists,
+// returning that path (dir itself if it already exists). The repo root is
+// always a valid stopping point since Open requires it to exist.
+func nearestExisting(dir string) (string, error) {
+	for {
+		if _, err := os.Lstat(dir); err == nil {
+			return dir, nil
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return dir, nil
+		}
+		dir = parent
+	}
 }
 
 // Commit implements ports.ConfigRepo. The author comes from the session so

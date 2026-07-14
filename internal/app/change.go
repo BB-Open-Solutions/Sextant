@@ -101,7 +101,17 @@ func (s *ChangeService) Open(ctx context.Context, id, title string, a ports.Auth
 	if err := s.repo.CreateBranch(ctx, cr.Branch); err != nil {
 		return change.CR{}, err
 	}
-	return cr, s.store.Put(ctx, cr)
+	if err := s.store.Put(ctx, cr); err != nil {
+		// The branch now exists with no record behind it: retrying Open with
+		// the same id would pass the existence check above then fail
+		// CreateBranch (branch already exists), permanently wedging the id.
+		// Roll the branch back so the id is clean to retry or forget.
+		if derr := s.repo.DeleteBranch(ctx, cr.Branch); derr != nil {
+			return change.CR{}, fmt.Errorf("%w (and rollback of branch %q failed: %v)", err, cr.Branch, derr)
+		}
+		return change.CR{}, err
+	}
+	return cr, nil
 }
 
 // Get returns one change request.

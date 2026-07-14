@@ -158,6 +158,19 @@ func TestCheckinAuth(t *testing.T) {
 	}
 }
 
+func TestCheckinRejectsMissingBearerBeforeParsingBody(t *testing.T) {
+	srv, _ := newCheckinServer(t, "tok")
+	url := srv.URL + "/api/checkin"
+
+	// No Authorization header at all, and a body that is not valid JSON:
+	// if the body were decoded before the auth check, this would come back
+	// 400 (bad check-in body) rather than 401 - 401 proves the missing
+	// bearer is rejected before the body is read/parsed.
+	if got := post(t, url, "", "not json at all, and should never be parsed"); got != 401 {
+		t.Errorf("no bearer with garbage body = %d, want 401", got)
+	}
+}
+
 func TestCheckinDisabledWithoutToken(t *testing.T) {
 	srv, _ := newCheckinServer(t, "")
 	if got := post(t, srv.URL+"/api/checkin", "anything", `{"tag":"x"}`); got != 403 {

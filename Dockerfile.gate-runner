@@ -2,8 +2,12 @@
 # when it runs with --gate=remote. The console image stays tiny and nix-free;
 # this one carries nix + git so it can evaluate the overlay generator.
 
+# Base images are pinned by digest (immutable), not by floating tag. Refresh
+# with (also see Dockerfile for the golang base):
+#   skopeo inspect docker://nixos/nix:2.24.9 | grep -i digest
+
 # Build stage: offline, reproducible (vendored deps, trimmed paths).
-FROM golang:1.25-alpine AS build
+FROM golang:1.25-alpine@sha256:56961d79ea8129efddcc0b8643fd8a5416b4e6228cfd477e3fd61deb2672c587 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 COPY vendor/ vendor/
@@ -13,12 +17,35 @@ RUN CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" \
     -o /out/gate-runner ./cmd/gate-runner
 
 # Runtime stage: the official nix image, plus git for the overlay clone.
-FROM nixos/nix:2.24.9
+FROM nixos/nix:2.24.9@sha256:fd7a5c67d396fe6bddeb9c10779d97541ab3a1b2a9d744df3754a99add4046f1
 # Flakes on; single-user nix. The store is chowned to an unprivileged uid so
 # the pod satisfies the cluster's strict non-root PodSecurity (ADR-0029) - nix
 # runs rootless with a store it owns, no daemon, no capabilities.
+#
+# sandbox = true (re-enabled 2026-07-14; was "false" with a bare comment).
+# This pod evaluates operator/tenant-edited fleet.json/overlays and forces
+# per-host toplevel derivations, including any import-from-derivation the
+# overlay expression triggers - with the sandbox off, that build step ran
+# with the pod's full filesystem and network access, able to read the
+# mounted overlay-remote netrc and reach anything the CNP's world:443
+# egress allows. Nix's build sandbox uses an unprivileged user+mount
+# namespace, not root, so it does not need CAP_SYS_ADMIN or a setuid
+# helper. Verified empirically for this exact runtime shape - non-root
+# uid, ALL capabilities dropped, no-new-privileges, unprivileged user
+# namespaces (the kernel default on modern distros; no
+# kernel.unprivileged_userns_clone opt-in needed) - a real (non-substituted)
+# derivation build succeeds under `podman run --user 65532:65532
+# --cap-drop=ALL --security-opt no-new-privileges`. With the sandbox on,
+# a plain derivation's builder has no network access at all (only
+# fixed-output derivations, whose result is hash-verified, may reach the
+# network), which directly closes the netrc-exfiltration/arbitrary-fetch
+# path this finding raised. Residual risk: the CNP still allows egress to
+# world:443 for the fixed-output/substituter case, and there is no ingress
+# policy on this pod (see finding 18/cmd/gate-runner/main.go, owned by
+# another change) - tightening the CNP egress to a pinned cache/remote
+# allowlist is tracked separately since CNP manifests are not owned here.
 RUN mkdir -p /etc/nix /data \
- && printf 'experimental-features = nix-command flakes\nsandbox = false\n' >> /etc/nix/nix.conf \
+ && printf 'experimental-features = nix-command flakes\nsandbox = true\n' >> /etc/nix/nix.conf \
  && nix-env -iA nixpkgs.git \
  # nix resolves the user's home via getpwuid() on some paths, not just $HOME;
  # uid 65532 has no passwd entry, which fails with "cannot determine user's

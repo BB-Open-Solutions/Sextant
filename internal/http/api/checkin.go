@@ -70,6 +70,22 @@ func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "check-in disabled: no device auth configured", http.StatusForbidden)
 		return
 	}
+	// A request with no bearer at all cannot satisfy either auth mode
+	// (neither a per-device credential nor the shared token can match an
+	// empty secret), so refuse it before reading/decoding the body - the
+	// common anonymous-scanner case should not cost a JSON parse of a
+	// max-size payload. A request that DOES carry a bearer still needs the
+	// body decoded to learn the claimed tag before a per-device credential
+	// (bound to that tag) can be checked: unlike the station report, whose
+	// tag is a path parameter, this endpoint has no way to learn the tag
+	// except from the body.
+	secret := bearerToken(r)
+	if secret == "" {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="sextant-checkin"`)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var in checkinBody
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 320<<10))
 	if err := dec.Decode(&in); err != nil {
@@ -77,7 +93,6 @@ func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secret := bearerToken(r)
 	if !c.authorized(r, secret, in.Tag) {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="sextant-checkin"`)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)

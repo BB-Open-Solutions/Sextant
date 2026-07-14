@@ -10,10 +10,15 @@
 // bounded semaphore admits at most -max-concurrent requests to wait for that
 // single evaluation slot; anything beyond that fails fast (503) rather than
 // piling up blocked goroutines.
+//
+// /validate requires a shared bearer token (GATE_TOKEN, env-only) unless
+// -addr is loopback, so an arbitrary reachable caller cannot force an
+// expensive nix eval for free.
 package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -65,6 +70,23 @@ func main() {
 		os.Exit(2)
 	}
 
+	// The shared bearer token is env-only, never a flag: a flag default is
+	// echoed by -h, and flag values can leak via process listings, neither
+	// of which is acceptable for a credential. Fail-safe: a gate reachable
+	// over the network MUST have a token configured, or it stays an
+	// unauthenticated resource-exhaustion surface (any pod that can reach it
+	// can force a nix eval). A loopback-only listener may run without one
+	// (local dev / a sidecar reached only via localhost).
+	token := os.Getenv("GATE_TOKEN")
+	if token == "" {
+		if isLoopback(*addr) {
+			log.Warn("GATE_TOKEN not set; /validate accepts unauthenticated requests (allowed only because -addr is loopback)", "addr", *addr)
+		} else {
+			log.Error("GATE_TOKEN not set and -addr is not loopback; refusing to serve /validate unauthenticated over the network", "addr", *addr)
+			os.Exit(2)
+		}
+	}
+
 	srv := &server{
 		log:      log,
 		workdir:  *workdir,
@@ -73,6 +95,7 @@ func main() {
 		variants: splitVariants(*variants),
 		gate:     &nix.EvalGate{Timeout: time.Duration(*evalSecs) * time.Second},
 		sem:      make(chan struct{}, *maxConcurrent),
+		token:    token,
 	}
 	if err := srv.ensureClone(context.Background()); err != nil {
 		log.Error("initial overlay clone failed", "err", err)
@@ -120,6 +143,12 @@ type server struct {
 	variants []string
 	gate     *nix.EvalGate
 
+	// token is the shared bearer secret required on every /validate call.
+	// Empty means the gate was started without one (only permitted for a
+	// loopback -addr; see main), so every caller is accepted - that
+	// fail-safe decision is made once at boot, not re-litigated per request.
+	token string
+
 	mu sync.Mutex // one evaluation at a time; single overlay working tree
 
 	// sem is a buffered admission-control semaphore: it bounds how many
@@ -140,6 +169,14 @@ type validateResponse struct {
 }
 
 func (s *server) handleValidate(w http.ResponseWriter, r *http.Request) {
+	// Authenticate before doing any work: an unauthenticated caller must not
+	// be able to force body parsing or, worse, a nix evaluation.
+	if !s.authorized(r) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="gate-runner"`)
+		writeJSON(w, http.StatusUnauthorized, validateResponse{Error: "unauthorized"})
+		return
+	}
+
 	var req validateRequest
 	body, _ := io.ReadAll(io.LimitReader(r.Body, 4<<20))
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -185,6 +222,44 @@ func (s *server) handleValidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, validateResponse{OK: true})
+}
+
+// authorized reports whether r carries the configured bearer token. An
+// empty s.token means the gate was started without one, which main only
+// allows for a loopback -addr - so every caller is accepted here.
+func (s *server) authorized(r *http.Request) bool {
+	if s.token == "" {
+		return true
+	}
+	return subtle.ConstantTimeCompare([]byte(bearerToken(r)), []byte(s.token)) == 1
+}
+
+// bearerToken extracts the token from a "Bearer <token>" Authorization
+// header, or "" if the header is absent or a different scheme.
+func bearerToken(r *http.Request) string {
+	const prefix = "Bearer "
+	h := r.Header.Get("Authorization")
+	if len(h) > len(prefix) && h[:len(prefix)] == prefix {
+		return h[len(prefix):]
+	}
+	return ""
+}
+
+// isLoopback reports whether addr's host part is a loopback address. A
+// bare ":8090" (empty host) is net.Listen's all-interfaces form and is
+// deliberately NOT loopback. Kept as a small local copy rather than
+// importing internal/platform/config, a separate concern (console flags)
+// this binary should not depend on.
+func isLoopback(addr string) bool {
+	host := addr
+	if i := strings.LastIndex(host, ":"); i >= 0 {
+		host = host[:i]
+	}
+	switch host {
+	case "127.0.0.1", "localhost", "::1", "[::1]":
+		return true
+	}
+	return false
 }
 
 // ensureClone clones the overlay if the workdir is not yet a repo.

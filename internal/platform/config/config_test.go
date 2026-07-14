@@ -68,6 +68,74 @@ func TestInvalid(t *testing.T) {
 		{"bad grace flag", []string{"--shutdown-grace", "-1s"}, nil, "shutdown-grace"},
 		{"bad grace env", nil, map[string]string{"SEXTANT_SHUTDOWN_GRACE": "soon"}, "SHUTDOWN_GRACE"},
 		{"unknown flag", []string{"--bogus"}, nil, "bogus"},
+		{
+			"session auth on non-loopback without secure cookies",
+			[]string{
+				"--addr", "0.0.0.0:8080",
+				"--oidc-issuer", "https://idp.example.com",
+				"--oidc-client-id", "sextant",
+				"--oidc-redirect-url", "https://console.example.com/callback",
+			},
+			map[string]string{
+				"SEXTANT_OIDC_CLIENT_SECRET": "secret",
+				"SEXTANT_SESSION_KEY":        validSessionKey,
+			},
+			"requires --secure-cookies",
+		},
+		{
+			"dev-auth on non-loopback",
+			[]string{"--dev-auth", "--addr", "0.0.0.0:8080"},
+			nil,
+			"--dev-auth requires a loopback",
+		},
+		{
+			"dev-auth and oidc mutually exclusive",
+			[]string{
+				"--dev-auth",
+				"--oidc-issuer", "https://idp.example.com",
+				"--oidc-client-id", "sextant",
+				"--oidc-redirect-url", "https://console.example.com/callback",
+			},
+			map[string]string{
+				"SEXTANT_OIDC_CLIENT_SECRET": "secret",
+				"SEXTANT_SESSION_KEY":        validSessionKey,
+			},
+			"mutually exclusive",
+		},
+		{
+			"oidc missing session key",
+			[]string{
+				"--addr", "127.0.0.1:8080",
+				"--oidc-issuer", "https://idp.example.com",
+				"--oidc-client-id", "sextant",
+				"--oidc-redirect-url", "https://console.example.com/callback",
+			},
+			map[string]string{"SEXTANT_OIDC_CLIENT_SECRET": "secret"},
+			"SEXTANT_SESSION_KEY",
+		},
+		{
+			"oidc missing client secret",
+			[]string{
+				"--addr", "127.0.0.1:8080",
+				"--oidc-issuer", "https://idp.example.com",
+				"--oidc-client-id", "sextant",
+				"--oidc-redirect-url", "https://console.example.com/callback",
+			},
+			map[string]string{"SEXTANT_SESSION_KEY": validSessionKey},
+			"oidc needs",
+		},
+		{
+			"gate remote without gate-url",
+			[]string{"--gate", "remote"},
+			nil,
+			"gate remote requires --gate-url",
+		},
+		{
+			"bad secure-cookies env",
+			nil,
+			map[string]string{"SEXTANT_SECURE_COOKIES": "maybe"},
+			"SECURE_COOKIES",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -79,5 +147,84 @@ func TestInvalid(t *testing.T) {
 				t.Errorf("error %q does not mention %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// validSessionKey is base64 of exactly 32 bytes, satisfying SEXTANT_SESSION_KEY's
+// format check so tests can focus on the guard under exercise.
+const validSessionKey = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE="
+
+// TestValid exercises the happy paths adjacent to the security-critical
+// guards in TestInvalid, so a regression that makes them reject valid
+// configuration is caught alongside the negative cases.
+func TestValid(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		env  map[string]string
+	}{
+		{
+			"oidc on non-loopback with --secure-cookies",
+			[]string{
+				"--addr", "0.0.0.0:8080",
+				"--secure-cookies",
+				"--oidc-issuer", "https://idp.example.com",
+				"--oidc-client-id", "sextant",
+				"--oidc-redirect-url", "https://console.example.com/callback",
+			},
+			map[string]string{
+				"SEXTANT_OIDC_CLIENT_SECRET": "secret",
+				"SEXTANT_SESSION_KEY":        validSessionKey,
+			},
+		},
+		{
+			"oidc on non-loopback with SEXTANT_SECURE_COOKIES=true",
+			[]string{
+				"--addr", "0.0.0.0:8080",
+				"--oidc-issuer", "https://idp.example.com",
+				"--oidc-client-id", "sextant",
+				"--oidc-redirect-url", "https://console.example.com/callback",
+			},
+			map[string]string{
+				"SEXTANT_OIDC_CLIENT_SECRET": "secret",
+				"SEXTANT_SESSION_KEY":        validSessionKey,
+				"SEXTANT_SECURE_COOKIES":     "true",
+			},
+		},
+		{
+			"dev-auth on loopback",
+			[]string{"--dev-auth", "--addr", "127.0.0.1:8080"},
+			nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := Load(tc.args, env(tc.env)); err != nil {
+				t.Fatalf("want no error, got %v", err)
+			}
+		})
+	}
+}
+
+// TestIsLoopback pins the host-matching semantics validate() relies on to
+// gate --dev-auth and the secure-cookies guard, including the bracketed
+// IPv6 and bare-port forms.
+func TestIsLoopback(t *testing.T) {
+	cases := []struct {
+		addr string
+		want bool
+	}{
+		{"127.0.0.1:8080", true},
+		{"[::1]:8080", true},
+		{"localhost:8080", true},
+		{"localhost", true},
+		{"0.0.0.0:8080", false},
+		{":8080", false},
+		{"example.com:8080", false},
+	}
+	for _, tc := range cases {
+		if got := isLoopback(tc.addr); got != tc.want {
+			t.Errorf("isLoopback(%q) = %v, want %v", tc.addr, got, tc.want)
+		}
 	}
 }

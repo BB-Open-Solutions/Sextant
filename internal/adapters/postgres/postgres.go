@@ -54,13 +54,16 @@ func (s *Store) Upsert(ctx context.Context, tenant string, c observed.CheckIn, n
 			sb_state   = CASE WHEN EXCLUDED.sb_state = ''    THEN device_status.sb_state   ELSE EXCLUDED.sb_state   END,
 			tpm2_state = CASE WHEN EXCLUDED.tpm2_state = ''  THEN device_status.tpm2_state ELSE EXCLUDED.tpm2_state END,
 			ack        = CASE WHEN EXCLUDED.ack = ''         THEN device_status.ack        ELSE EXCLUDED.ack        END,
-			-- Only overwrite utilisation when the beat carried a reading
-			-- (mem_total_mb > 0), so an old agent's empty beat keeps the last figures.
-			cpu_pct       = CASE WHEN EXCLUDED.mem_total_mb = 0 THEN device_status.cpu_pct       ELSE EXCLUDED.cpu_pct       END,
-			mem_used_mb   = CASE WHEN EXCLUDED.mem_total_mb = 0 THEN device_status.mem_used_mb   ELSE EXCLUDED.mem_used_mb   END,
-			mem_total_mb  = CASE WHEN EXCLUDED.mem_total_mb = 0 THEN device_status.mem_total_mb  ELSE EXCLUDED.mem_total_mb  END,
-			disk_used_gb  = CASE WHEN EXCLUDED.mem_total_mb = 0 THEN device_status.disk_used_gb  ELSE EXCLUDED.disk_used_gb  END,
-			disk_total_gb = CASE WHEN EXCLUDED.mem_total_mb = 0 THEN device_status.disk_total_gb ELSE EXCLUDED.disk_total_gb END`,
+			-- Only overwrite utilisation when the beat carried a reading for
+			-- that dimension, so an old agent's empty beat (or a partial one,
+			-- e.g. a failed memory probe alongside a good cpu/disk read)
+			-- keeps the last good figure per-dimension instead of dropping
+			-- the whole row to the stale values on any single zero field.
+			cpu_pct       = CASE WHEN EXCLUDED.cpu_pct = 0       THEN device_status.cpu_pct       ELSE EXCLUDED.cpu_pct       END,
+			mem_used_mb   = CASE WHEN EXCLUDED.mem_total_mb = 0  THEN device_status.mem_used_mb   ELSE EXCLUDED.mem_used_mb   END,
+			mem_total_mb  = CASE WHEN EXCLUDED.mem_total_mb = 0  THEN device_status.mem_total_mb  ELSE EXCLUDED.mem_total_mb  END,
+			disk_used_gb  = CASE WHEN EXCLUDED.disk_total_gb = 0 THEN device_status.disk_used_gb  ELSE EXCLUDED.disk_used_gb  END,
+			disk_total_gb = CASE WHEN EXCLUDED.disk_total_gb = 0 THEN device_status.disk_total_gb  ELSE EXCLUDED.disk_total_gb END`,
 		tenant, c.Tag, c.Revision, string(c.Phase), c.Error, now, string(c.SB), string(c.TPM2), c.Ack,
 		u.CPUPct, u.MemUsedMB, u.MemTotalMB, u.DiskUsedGB, u.DiskTotalGB)
 	return err

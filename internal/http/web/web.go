@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
@@ -145,20 +146,7 @@ func New(svc Services, sessions Sessions, write bool,
 		},
 		// initials renders up to two uppercase initials from a display
 		// name for the audit avatar (a display transform, not new data).
-		"initials": func(name string) string {
-			parts := strings.Fields(name)
-			var b strings.Builder
-			for _, p := range parts {
-				if b.Len() >= 2 {
-					break
-				}
-				b.WriteString(strings.ToUpper(p[:1]))
-			}
-			if b.Len() == 0 {
-				return "?"
-			}
-			return b.String()
-		},
+		"initials": initials,
 		// indent maps a group-tree depth to a static padding class
 		// (gd-0..gd-6, clamped). A class avoids inline style=, which
 		// the CSP forbids.
@@ -433,6 +421,32 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = s.tmpl["login"].ExecuteTemplate(w, "login", map[string]any{"SSO": s.sessions != nil})
+}
+
+// initials renders up to two uppercase initials from a display name, for
+// the audit avatar fallback when no profile photo is available. Each
+// initial is the part's first RUNE, not its first byte: byte-slicing a
+// multibyte name (e.g. a leading O-umlaut) would cut a lead byte off a
+// rune and render invalid UTF-8/mojibake instead of the intended letter.
+func initials(name string) string {
+	parts := strings.Fields(name)
+	var b strings.Builder
+	count := 0
+	for _, p := range parts {
+		if count >= 2 {
+			break
+		}
+		r, size := utf8.DecodeRuneInString(p)
+		if size == 0 {
+			continue
+		}
+		b.WriteString(strings.ToUpper(string(r)))
+		count++
+	}
+	if b.Len() == 0 {
+		return "?"
+	}
+	return b.String()
 }
 
 // DevSessions is a loopback-only development stand-in for the oidc adapter:

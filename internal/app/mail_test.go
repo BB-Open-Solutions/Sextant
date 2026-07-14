@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"testing"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/mail"
@@ -117,6 +118,52 @@ func TestMailEnteredPasswordNeedsKey(t *testing.T) {
 	}
 	if err := svc.Save(context.Background(), baseCfg(), "typed"); err == nil {
 		t.Fatal("entered password without a key must be rejected")
+	}
+}
+
+// erroringMailStore wraps a memMailStore and fails the next GetMailConfig
+// call once, to test the prior-config read error path.
+type erroringMailStore struct {
+	memMailStore
+	failNextGet bool
+}
+
+func (m *erroringMailStore) GetMailConfig(ctx context.Context, tenant string) (mail.Config, bool, error) {
+	if m.failNextGet {
+		m.failNextGet = false
+		return mail.Config{}, false, errors.New("store unavailable")
+	}
+	return m.memMailStore.GetMailConfig(ctx, tenant)
+}
+
+// TestMailSaveFailsClosedOnPriorConfigReadError (finding: Save() silently
+// dropped the stored SMTP password when the prior-config read errors): a
+// transient read failure on the blank-password/no-reference edit path must
+// surface as an error, not silently persist the config with the password
+// wiped.
+func TestMailSaveFailsClosedOnPriorConfigReadError(t *testing.T) {
+	store := &erroringMailStore{}
+	svc := NewMailService(store, &capturingMailer{}, testSealer(t), nil, "default")
+	ctx := context.Background()
+
+	if err := svc.Save(ctx, baseCfg(), "orig"); err != nil {
+		t.Fatalf("seed save: %v", err)
+	}
+	sealed := append([]byte(nil), store.cfg.PasswordEnc...)
+
+	// Edit with a blank password and no reference, but the prior-config read
+	// errors: Save must fail, and must NOT have overwritten the stored config.
+	store.failNextGet = true
+	edit := baseCfg()
+	edit.Host = "smtp2.example.com"
+	if err := svc.Save(ctx, edit, ""); err == nil {
+		t.Fatal("want the prior-config read error surfaced, not swallowed")
+	}
+	if string(store.cfg.PasswordEnc) != string(sealed) {
+		t.Fatal("a failed save must not drop the previously stored password")
+	}
+	if store.cfg.Host == "smtp2.example.com" {
+		t.Fatal("a failed save must not apply the edit either")
 	}
 }
 

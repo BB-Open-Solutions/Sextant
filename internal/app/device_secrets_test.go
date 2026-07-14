@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -89,6 +90,83 @@ func TestDeviceSecretsStoreAndReveal(t *testing.T) {
 	metas, err := svc.List(ctx, "lt-1")
 	if err != nil || len(metas) != 1 || metas[0].Kind != secret.LUKS {
 		t.Fatalf("list = %v (err %v)", metas, err)
+	}
+}
+
+// otherSealer returns a Sealer built from a different key than testSealer, so
+// tests can exercise the wrong-key reveal path.
+func otherSealer(t *testing.T) secretbox.Sealer {
+	t.Helper()
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(255 - i)
+	}
+	s, err := secretbox.New(base64.StdEncoding.EncodeToString(key))
+	if err != nil {
+		t.Fatalf("sealer: %v", err)
+	}
+	return s
+}
+
+// TestDeviceSecretsRevealWrongKeyErrors (finding: Secret Reveal tamper/wrong-
+// key path is untested): a secret sealed under one key must never open under
+// another, and the failed reveal must not stamp MarkRevealed - a read that
+// produced nothing must not appear in the audit trail as a successful reveal.
+func TestDeviceSecretsRevealWrongKeyErrors(t *testing.T) {
+	store := newMemSecretStore()
+	sealed := NewDeviceSecretsService(store, testSealer(t), newFakeClock(testT0), "")
+	ctx := context.Background()
+
+	const pass = "z7Xq-9pLm-R2wK-v4N8"
+	if err := sealed.Store(ctx, "lt-1", secret.LUKS, pass, "svc:station-1"); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+
+	// Reveal with a service wired to a DIFFERENT key: must error, return no
+	// plaintext, and not mark the secret revealed.
+	wrongKey := NewDeviceSecretsService(store, otherSealer(t), newFakeClock(testT0), "")
+	got, ok, err := wrongKey.Reveal(ctx, "lt-1", secret.LUKS, "mallory@example.com")
+	if err == nil {
+		t.Fatal("reveal with the wrong key must error")
+	}
+	if got != "" {
+		t.Fatalf("reveal with the wrong key returned plaintext: %q", got)
+	}
+	if !ok {
+		t.Fatal("ok should report the secret exists, even though it could not be opened")
+	}
+	if m := store.meta[skey("lt-1", secret.LUKS)]; m.RevealedBy != "" || m.Revealed != "" {
+		t.Fatalf("a failed reveal must not be audited as successful: %+v", m)
+	}
+}
+
+// TestDeviceSecretsRevealTamperedCiphertextErrors: corrupting the stored
+// ciphertext (bit flip) must fail authentication on Open, never return
+// partial/garbage plaintext, and must not mark the secret revealed.
+func TestDeviceSecretsRevealTamperedCiphertextErrors(t *testing.T) {
+	store := newMemSecretStore()
+	svc := NewDeviceSecretsService(store, testSealer(t), newFakeClock(testT0), "")
+	ctx := context.Background()
+
+	if err := svc.Store(ctx, "lt-1", secret.Admin, "s3cr3t-recovery", "svc:station-1"); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	// Flip a bit in the stored ciphertext, simulating corruption.
+	ct := store.ciph[skey("lt-1", secret.Admin)]
+	ct[len(ct)-1] ^= 0xff
+
+	got, ok, err := svc.Reveal(ctx, "lt-1", secret.Admin, "mallory@example.com")
+	if err == nil {
+		t.Fatal("reveal of a tampered ciphertext must error")
+	}
+	if got != "" {
+		t.Fatalf("reveal of a tampered ciphertext returned plaintext: %q", got)
+	}
+	if !ok {
+		t.Fatal("ok should report the secret exists, even though it could not be opened")
+	}
+	if m := store.meta[skey("lt-1", secret.Admin)]; m.RevealedBy != "" || m.Revealed != "" {
+		t.Fatalf("a failed reveal must not be audited as successful: %+v", m)
 	}
 }
 

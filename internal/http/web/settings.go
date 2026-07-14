@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
@@ -175,62 +174,22 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 	if err := s.requireWeb(v, scope, identity.Editor); err != nil {
 		return err
 	}
-	// Governance: when the org requires a change-request, a setting is not
-	// committed straight to main - stage it on a change and let it be reviewed.
-	if a := s.svc.Config.Fleet().Assurance; a != nil && a.RequireChangeRequest {
-		return fmt.Errorf("change-request required: open a change on the Changes page and stage this setting there (this organisation reviews configuration edits before they take effect)")
-	}
-	entry, ok := s.svc.Config.Catalog().Lookup(key)
-	if !ok {
-		return fmt.Errorf("unknown setting %q (not in catalog)", key)
-	}
-
-	var mut fleet.Mutation
-	var msg string
+	// All governance, catalog membership, typing and secret-reference checks
+	// live in the ConfigService now, so the API cannot bypass what this page
+	// enforces. The checkbox is authoritative: set-with-enforce locks, plain
+	// set unlocks a previously enforced key.
 	switch action := r.FormValue("action"); action {
 	case "clear":
-		mut = fleet.ClearScopeSetting(scope, key)
-		msg = fmt.Sprintf("settings: clear %s at %s", key, scope)
-	case "set":
-		raw := strings.TrimSpace(r.FormValue("value"))
-		// An untouched widget submits "" (the inherit placeholder). Never
-		// coerce that into a real value - a bare Apply (e.g. to flip the
-		// enforce checkbox) must not silently pin false or "".
-		if raw == "" {
-			return fmt.Errorf("no value chosen for %s; pick a value, or use Clear to inherit", key)
-		}
-		val, err := entry.ParseValue(raw)
-		if err != nil {
+		if err := s.svc.Config.ClearSetting(r.Context(), scope, key, webAuthor(v)); err != nil {
 			return err
 		}
-		// A secret setting stores a reference name; it must point at a secret
-		// the org has registered, so a setting never dangles at a name that
-		// resolves to nothing on the device.
-		if entry.Widget() == fleet.WidgetSecret {
-			if ref, _ := val.(string); ref != "" && !s.svc.Config.Fleet().HasSecretRef(ref) {
-				return fmt.Errorf("unknown secret reference %q; register it first", ref)
-			}
-		}
-		// The checkbox is authoritative: set-with-enforce locks, plain set
-		// unlocks a previously enforced key.
+	case "set":
 		enforce := r.FormValue("enforce") != ""
-		mut = func(f *fleet.Fleet) error {
-			if err := fleet.SetScopeSetting(scope, key, val)(f); err != nil {
-				return err
-			}
-			return fleet.SetScopeEnforce(scope, key, enforce)(f)
-		}
-		msg = fmt.Sprintf("settings: set %s at %s", key, scope)
-		if enforce {
-			msg += " (enforced)"
+		if err := s.svc.Config.SetSetting(r.Context(), scope, key, r.FormValue("value"), &enforce, webAuthor(v)); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("unknown action %q", action)
-	}
-
-	if err := s.svc.Config.Apply(r.Context(), mut, msg, webAuthor(v),
-		app.AffectedHosts(s.svc.Config.Fleet(), scope)...); err != nil {
-		return err
 	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
 	return nil

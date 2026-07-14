@@ -282,6 +282,35 @@ func newCohortStack(t *testing.T) (*RolloutService, *ConfigService, *fakeConverg
 	return rs, svc, conv, clock
 }
 
+// TestRolloutStatusReportsCohortAccounting (finding: Status() omits cohort
+// accounting that Tick() sets): a count-capped wave's Status() must report
+// Released/GroupTotal scoped to the whole active group, matching what Tick
+// computes internally - otherwise an operator reading Status sees e.g. "1/1
+// on target" with GroupTotal=0 for a wave that released only 1 of 3 devices.
+func TestRolloutStatusReportsCohortAccounting(t *testing.T) {
+	rs, _, conv, _ := newCohortStack(t)
+	ctx := context.Background()
+	if _, err := rs.Start(ctx, "rev-9", ports.Author{}); err != nil {
+		t.Fatal(err)
+	}
+	// Promote: releases the first cohort (1 of 3 devices).
+	if k := tick(t, rs); k != rollout.Promote {
+		t.Fatalf("tick1 = %s, want promote", k)
+	}
+	conv.set("wave", rollout.RingStatus{Total: 1, OnTarget: 1, Healthy: 1})
+
+	_, statuses, err := rs.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(statuses) != 1 {
+		t.Fatalf("statuses = %v", statuses)
+	}
+	if statuses[0].Released != 1 || statuses[0].GroupTotal != 3 {
+		t.Fatalf("status cohort accounting = %+v, want Released=1 GroupTotal=3", statuses[0])
+	}
+}
+
 func TestRolloutCappedCohort(t *testing.T) {
 	rs, svc, conv, clock := newCohortStack(t)
 	ctx := context.Background()

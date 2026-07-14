@@ -55,6 +55,18 @@ func (s *InventoryService) CheckIn(ctx context.Context, c observed.CheckIn, fact
 	if err := c.Validate(); err != nil {
 		return err
 	}
+	// Validate the facts payload BEFORE any side effect: a malformed or
+	// oversized facts blob must reject the whole check-in with nothing
+	// recorded and no notification fired, not a partially-applied call driven
+	// by agent-controlled bytes.
+	if len(facts) > 0 {
+		if len(facts) > maxFactsBytes {
+			return fmt.Errorf("facts report exceeds %d bytes", maxFactsBytes)
+		}
+		if !json.Valid(facts) {
+			return fmt.Errorf("facts report is not valid JSON")
+		}
+	}
 	now := s.clock.Now()
 	// A device echoes its last ack on every beat, so only the transition INTO
 	// a wipe outcome is news. Read the prior ack solely for wipe-class acks
@@ -72,12 +84,6 @@ func (s *InventoryService) CheckIn(ctx context.Context, c observed.CheckIn, fact
 		s.emitWipe(ctx, c.Tag, c.Ack)
 	}
 	if len(facts) > 0 {
-		if len(facts) > maxFactsBytes {
-			return fmt.Errorf("facts report exceeds %d bytes", maxFactsBytes)
-		}
-		if !json.Valid(facts) {
-			return fmt.Errorf("facts report is not valid JSON")
-		}
 		return s.facts.PutFacts(ctx, s.tenant, c.Tag, facts, now)
 	}
 	return nil

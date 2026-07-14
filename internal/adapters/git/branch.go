@@ -40,15 +40,16 @@ func (r *Repo) DeleteBranch(ctx context.Context, name string) error {
 	return err
 }
 
-// AddWorktree implements ports.BranchRepo.
+// AddWorktree implements ports.BranchRepo. Same "--" guard as CreateBranch:
+// it stops a dir/branch starting with "-" from being misread as a flag.
 func (r *Repo) AddWorktree(ctx context.Context, dir, branch string) error {
-	_, err := gitRun(ctx, r.dir, "worktree", "add", dir, branch)
+	_, err := gitRun(ctx, r.dir, "worktree", "add", "--", dir, branch)
 	return err
 }
 
-// RemoveWorktree implements ports.BranchRepo.
+// RemoveWorktree implements ports.BranchRepo. Same "--" guard as CreateBranch.
 func (r *Repo) RemoveWorktree(ctx context.Context, dir string) error {
-	_, err := gitRun(ctx, r.dir, "worktree", "remove", "--force", dir)
+	_, err := gitRun(ctx, r.dir, "worktree", "remove", "--force", "--", dir)
 	return err
 }
 
@@ -57,9 +58,13 @@ func (r *Repo) RemoveWorktree(ctx context.Context, dir string) error {
 const maxDiffBytes = 512 << 10
 
 // Diff implements ports.BranchRepo: the changes the branch introduces
-// relative to the merge base (three-dot), unified format.
+// relative to the merge base (three-dot), unified format. The trailing "--"
+// guards against a future caller passing branch as a separate positional
+// arg (today it is folded into the "HEAD...<branch>" range spec, which
+// itself cannot start with "-", but the guard keeps the call site aligned
+// with every other git invocation here regardless of how it evolves).
 func (r *Repo) Diff(ctx context.Context, branch string) (string, error) {
-	out, err := gitRun(ctx, r.dir, "diff", "HEAD..."+branch)
+	out, err := gitRun(ctx, r.dir, "diff", "HEAD..."+branch, "--")
 	if err != nil {
 		return "", err
 	}

@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,47 @@ func TestReadWriteConfinedToRepo(t *testing.T) {
 		if err := r.WriteFile(bad, nil); err == nil {
 			t.Errorf("write %q accepted", bad)
 		}
+	}
+}
+
+func TestSafePathAllowsDotDotPrefixedName(t *testing.T) {
+	r, err := Open(initRepo(t), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// "..foo" starts with ".." but does not escape the repo; the guard
+	// must reject only rel==".." or a ".."+separator prefix, not any name
+	// that merely starts with two dots.
+	if err := r.WriteFile("..foo", []byte("x")); err != nil {
+		t.Fatalf("legitimate dotdot-prefixed name rejected: %v", err)
+	}
+	if b, err := r.ReadFile("..foo"); err != nil || string(b) != "x" {
+		t.Fatalf("read back = %q, %v", b, err)
+	}
+}
+
+func TestSafePathRejectsSymlinkEscape(t *testing.T) {
+	dir := initRepo(t)
+	r, err := Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A symlinked directory inside the tree (as could arrive via a merged
+	// change branch) must not let a lexically-confined name escape through
+	// it to the real filesystem location it points at.
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(dir, "escape")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.WriteFile("escape/pwned.txt", []byte("x")); err == nil {
+		t.Fatal("write through a symlinked directory escaped the repo")
+	}
+	if _, err := r.ReadFile("escape/pwned.txt"); err == nil {
+		t.Fatal("read through a symlinked directory escaped the repo")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "pwned.txt")); !os.IsNotExist(err) {
+		t.Fatal("file was written outside the repo despite the symlink guard")
 	}
 }
 

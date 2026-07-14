@@ -199,9 +199,24 @@ func (s *RolloutService) Status(ctx context.Context) (*rollout.State, []rollout.
 		if err != nil {
 			return st, nil, err
 		}
+		if _, promoted := st.PromotedAt[i]; promoted {
+			rs = s.cohortFixup(rs, r.Group)
+		}
 		statuses[i] = rs
 	}
 	return st, statuses, nil
+}
+
+// cohortFixup applies the same cohort accounting Tick uses (ADR 0013):
+// conv.RingStatus scopes Total to the RELEASED cohort only (the convergence
+// source lists released devices), so Released is that cohort's size and
+// GroupTotal is the whole active group - otherwise a count-capped wave that
+// released only part of its group reads as "N/N on target" with no group
+// total, looking complete when it is not.
+func (s *RolloutService) cohortFixup(rs rollout.RingStatus, group string) rollout.RingStatus {
+	rs.Released = rs.Total
+	rs.GroupTotal = len(s.cfg.Fleet().ActiveGroupDevices(group))
+	return rs
 }
 
 // Cancel stops the active run. Pins already committed stay (config is
@@ -264,12 +279,9 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 		if rs, err = s.conv.RingStatus(ctx, rings[st.Ring].Group, st.Target); err != nil {
 			return nil, st, err
 		}
-		// Cohort accounting (ADR 0013): RingStatus was scoped to the RELEASED
-		// cohort (the convergence source lists released devices). Released is
-		// that cohort's size; GroupTotal is the whole active group, so Decide
-		// knows whether a capped wave still has devices to widen into.
-		rs.Released = rs.Total
-		rs.GroupTotal = len(s.cfg.Fleet().ActiveGroupDevices(rings[st.Ring].Group))
+		// Cohort accounting (ADR 0013), so Decide knows whether a capped wave
+		// still has devices to widen into.
+		rs = s.cohortFixup(rs, rings[st.Ring].Group)
 	}
 
 	act := rollout.Decide(rings, st, rs, now)

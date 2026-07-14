@@ -89,6 +89,22 @@ func TestStationReportAcceptsAndStores(t *testing.T) {
 	}
 }
 
+func TestStationReportRejectsUnauthorizedBeforeParsingBody(t *testing.T) {
+	ts, store := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"}, "")
+	defer ts.Close()
+
+	// No credential, and a body that is not even valid JSON: if the body
+	// were decoded before the auth check, this would come back 400 (bad
+	// report body) rather than 401 - 401 proves auth runs first.
+	resp := stationPost(t, ts.URL+"/api/station/nuc-1/report", "", "not json at all")
+	if resp.StatusCode != 401 {
+		t.Fatalf("no auth with garbage body = %d, want 401", resp.StatusCode)
+	}
+	if len(store.sets) != 0 {
+		t.Fatal("an unauthorized report reached the store")
+	}
+}
+
 func TestStationReportRejectsBadPayload(t *testing.T) {
 	ts, _ := newStationServer(t, stationAuth{secret: "s3cr3t", station: "nuc-1"}, "")
 	defer ts.Close()

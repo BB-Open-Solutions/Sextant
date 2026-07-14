@@ -68,8 +68,15 @@ func (s *MailService) Save(ctx context.Context, cfg mail.Config, enteredPassword
 		cfg.PasswordRef = ""
 	case cfg.PasswordRef == "":
 		// No new password and no reference: keep any previously stored secret so
-		// an edit of the host/port does not silently drop the password.
-		if prev, ok, err := s.store.GetMailConfig(ctx, s.tenant); err == nil && ok {
+		// an edit of the host/port does not silently drop the password. If the
+		// prior-config read itself errors, fail closed rather than saving with
+		// the password wiped - a transient read failure must not look like an
+		// intentional password removal.
+		prev, ok, err := s.store.GetMailConfig(ctx, s.tenant)
+		if err != nil {
+			return fmt.Errorf("reading the stored SMTP config: %w", err)
+		}
+		if ok {
 			cfg.PasswordEnc = prev.PasswordEnc
 		}
 	}

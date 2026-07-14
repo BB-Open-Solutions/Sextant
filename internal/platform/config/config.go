@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -39,6 +40,10 @@ type Config struct {
 	GateMode string
 	// GateURL is the gate-runner base URL when GateMode is "remote".
 	GateURL string
+	// GateToken is the bearer secret the console presents to a gate-runner
+	// that requires authentication (GATE_TOKEN on the runner). Empty sends no
+	// Authorization header, for a runner that allows unauthenticated calls.
+	GateToken string
 	// GitRemote names the push remote for the HA write path ("" = local
 	// commits only).
 	GitRemote string
@@ -77,7 +82,8 @@ type Config struct {
 	// OIDCClientSecret and SessionKey are environment-only secrets.
 	OIDCClientSecret string
 	SessionKey       []byte
-	// SecureCookies marks cookies Secure (set behind TLS).
+	// SecureCookies marks cookies Secure (set behind TLS). Settable by
+	// --secure-cookies or SEXTANT_SECURE_COOKIES (flag wins).
 	SecureCookies bool
 	// DevAuth substitutes a synthetic owner session (no IdP). Loopback
 	// only; the server refuses to start with dev auth on a public address.
@@ -123,6 +129,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		RepoDir:          envOr(getenv, "REPO", ""),
 		GateMode:         envOr(getenv, "GATE", "eval"),
 		GateURL:          envOr(getenv, "GATE_URL", ""),
+		GateToken:        envOr(getenv, "GATE_TOKEN", ""),
 		GitRemote:        envOr(getenv, "GIT_REMOTE", ""),
 		APIToken:         getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
 		CheckinToken:     getenv(EnvPrefix + "CHECKIN_TOKEN"), // env-only secret
@@ -162,6 +169,17 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		}
 		cfg.SessionKey = key
 	}
+	// Secure cookies: environment-only bool, parsed strictly so a typo
+	// doesn't silently leave cookies insecure. Seeded before flag
+	// registration so --secure-cookies (which defaults to cfg.SecureCookies)
+	// still wins per the package's flags > environment > defaults precedence.
+	if v := getenv(EnvPrefix + "SECURE_COOKIES"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("%sSECURE_COOKIES: %w", EnvPrefix, err)
+		}
+		cfg.SecureCookies = b
+	}
 
 	fs := flag.NewFlagSet("sextant", flag.ContinueOnError)
 	fs.StringVar(&cfg.Addr, "addr", cfg.Addr, "HTTP listen address")
@@ -172,6 +190,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.BoolVar(&cfg.Write, "write", cfg.Write, "enable the write path (mutations, commits)")
 	fs.StringVar(&cfg.GateMode, "gate", cfg.GateMode, "validation gate: eval|remote|none")
 	fs.StringVar(&cfg.GateURL, "gate-url", cfg.GateURL, "gate-runner base URL (when --gate=remote)")
+	fs.StringVar(&cfg.GateToken, "gate-token", cfg.GateToken, "bearer token for the gate-runner (when --gate=remote)")
 	fs.StringVar(&cfg.GitRemote, "git-remote", cfg.GitRemote, "push remote for the HA write path")
 	fs.StringVar(&cfg.StateDir, "state-dir", cfg.StateDir, "durable control-plane state dir (default <repo>/.sextant-state)")
 	fs.StringVar(&cfg.OIDCIssuer, "oidc-issuer", cfg.OIDCIssuer, "OIDC issuer URL (empty disables session auth)")

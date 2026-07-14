@@ -120,7 +120,7 @@ func (d *deps) buildConfigPlane() error {
 		builder = builderFunc(func(context.Context, string, []string) error { return nil })
 	case "remote":
 		log.Info("validation gate delegated to gate-runner", "url", cfg.GateURL)
-		gate = gateadapter.NewRemoteGate(cfg.GateURL)
+		gate = gateadapter.NewRemoteGate(cfg.GateURL).WithToken(cfg.GateToken)
 		// The console image ships without nix (the reason the gate-runner
 		// exists), so the local nix builder cannot run here: calling it would
 		// fail every change submit with a misleading "nix build" error. The

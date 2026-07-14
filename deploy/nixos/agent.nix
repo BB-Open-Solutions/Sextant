@@ -72,6 +72,17 @@ in
         # Exit 3 = retired: permanent, a restart loop would hammer the
         # console with 410s forever.
         RestartPreventExitStatus = 3;
+        # Writable paths the agent needs under ProtectSystem=strict: the intent
+        # spool it drops remote-action markers into (/run/sextant-intent) and the
+        # state dir holding the persistent lock flag (/var/lib/sextant-agent).
+        # Without these the whole lock/wipe/reboot path silently no-ops (every
+        # write hits a read-only filesystem). 0700 keeps them owner-only,
+        # matching the mode the agent sets itself; the root executor (actd) reads
+        # them regardless of mode.
+        RuntimeDirectory = "sextant-intent";
+        RuntimeDirectoryMode = "0700";
+        StateDirectory = "sextant-agent";
+        StateDirectoryMode = "0700";
         # Hardening: the agent only reads /run/current-system, runs
         # facter and talks HTTPS.
         NoNewPrivileges = true;

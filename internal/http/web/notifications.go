@@ -2,7 +2,6 @@ package web
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/notify"
@@ -96,9 +95,18 @@ func (s *Server) postNotificationsReadAll(w http.ResponseWriter, r *http.Request
 // safeLocalPath returns to only if it is an in-app absolute path, guarding the
 // redirect against an open-redirect to an external host. Anything else falls
 // back to the inbox.
+//
+// A single leading '/' is required, and the second character (if any) must
+// be neither '/' nor '\\': browsers normalize a leading "//" or "/\" (and
+// "\\") into a protocol-relative URL, treating what follows as a host - so
+// "/\evil.com" and "\\evil.com" are exactly as much an open redirect as
+// "//evil.com" even though they do not start with "//".
 func safeLocalPath(to string) string {
-	if strings.HasPrefix(to, "/") && !strings.HasPrefix(to, "//") {
-		return to
+	if to == "" || to[0] != '/' {
+		return "/notifications"
 	}
-	return "/notifications"
+	if len(to) > 1 && (to[1] == '/' || to[1] == '\\') {
+		return "/notifications"
+	}
+	return to
 }

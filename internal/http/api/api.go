@@ -204,7 +204,7 @@ func (a *API) fail(w http.ResponseWriter, r *http.Request, err error) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 	case errors.As(err, &verr):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": verr.Detail})
-	case errors.Is(err, ports.ErrConflict):
+	case errors.Is(err, ports.ErrConflict), errors.Is(err, app.ErrChangeRequestRequired):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, ports.ErrUnavailable):
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
@@ -223,6 +223,21 @@ func (e *badRequest) Error() string { return e.err.Error() }
 func (e *badRequest) Unwrap() error { return e.err }
 
 func reject(err error) error { return &badRequest{err} }
+
+// settingErr classifies a ConfigService.SetSetting/ClearSetting failure for the
+// API. A gate rejection stays a 422 (ValidationError) and a missing-governance
+// refusal stays a 409 (ErrChangeRequestRequired); every other reason is
+// caller-fixable input - an unknown key, a wrong-typed value, or a dangling
+// secret reference - so it maps to 400 rather than a 500.
+func settingErr(err error) error {
+	var verr *ports.ValidationError
+	switch {
+	case errors.As(err, &verr), errors.Is(err, app.ErrChangeRequestRequired):
+		return err
+	default:
+		return reject(err)
+	}
+}
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")

@@ -60,6 +60,23 @@ func TestGroupsFromClaims(t *testing.T) {
 			"groups",
 			[]string{"ok"},
 		},
+		{
+			"arbitrary claim ending in roles is NOT harvested",
+			map[string]any{
+				"groups":               []any{"a"},
+				"custom_special_roles": []any{"owner"}, // not "roles" and not the Zitadel URN
+			},
+			"groups",
+			[]string{"a"},
+		},
+		{
+			"zitadel per-project roles URN still recognised",
+			map[string]any{"urn:zitadel:iam:org:project:42:roles": map[string]any{
+				"fleet-admin": map[string]any{},
+			}},
+			"groups", // configured claim absent; the fixed Zitadel URN still matches
+			[]string{"fleet-admin"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -45,6 +45,27 @@ func TestHostVariantsExpand(t *testing.T) {
 	}
 }
 
+// TestApplyExprRejectsInjectionHost proves the hostRe firewall guards
+// EvalGate.applyExpr - the surface that runs on every Apply, i.e. the write
+// path, not just the heavier CI-only Builder gate that
+// TestBuildInvalidHostRejectedBeforeRunning already covers. Both share the
+// same hostRe var, but until now only the Builder side had a test.
+func TestApplyExprRejectsInjectionHost(t *testing.T) {
+	g := &EvalGate{}
+	for _, bad := range []string{
+		`lt-1"; builtins.trace "pwned" null`,
+		`lt-1${builtins.readFile "/etc/passwd"}`,
+		"../etc/passwd",
+		`lt-1"`,
+		"UPPER-not-a-slug",
+		"",
+	} {
+		if _, err := g.applyExpr([]string{bad}); err == nil {
+			t.Errorf("applyExpr accepted injection-y host %q", bad)
+		}
+	}
+}
+
 func TestEmptyHostsForcesWholeSet(t *testing.T) {
 	g := &EvalGate{}
 	expr, err := g.applyExpr(nil)

@@ -120,10 +120,13 @@ func (j *ImageJobStore) UpdateProgress(ctx context.Context, tenant, station, mac
 // same job only the one that still finds `from` in the database matches a
 // row - the loser's UPDATE affects zero rows instead of clobbering the
 // winner's write. This closes the check-then-act race a separate Get +
-// CanTransition + UpdateStatus sequence has at the application layer.
+// CanTransition + UpdateStatus sequence has at the application layer. Like
+// UpdateStatus, a status change starts a new step, so progress/step reset -
+// otherwise a terminal record (installed/failed) would keep showing the
+// in-progress percentage/label from whatever step it was last ticking.
 func (j *ImageJobStore) TransitionStatus(ctx context.Context, tenant, station, mac string, from, to imaging.Status, message string, now time.Time) (bool, error) {
 	tag, err := j.s.pool.Exec(ctx, `
-		UPDATE image_jobs SET status=$5, message=$6, updated=$7
+		UPDATE image_jobs SET status=$5, message=$6, progress=0, step='', updated=$7
 		WHERE tenant=$1 AND station=$2 AND mac=$3 AND status=$4`,
 		tenant, station, mac, string(from), string(to), message, now)
 	if err != nil {

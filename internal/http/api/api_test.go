@@ -28,6 +28,26 @@ const seed = `{
 
 const testToken = "test-token-123"
 
+// seedCatalog is the settings vocabulary the API tests write, so ConfigService
+// (which now validates every setting against the catalog on both transports)
+// accepts the keys these tests exercise.
+const seedCatalog = `[
+  {"name":"apps.office","type":"boolean","description":"Office suite","default":false,"riskClass":"high"},
+  {"name":"apps.bogus","type":"boolean","description":"Test option","default":false},
+  {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true},
+  {"name":"x","type":"number","description":"Test number","default":0}
+]`
+
+// writeSeed writes fleet.json + catalog.json into a repo dir for the API tests.
+func writeSeed(t *testing.T, dir string) {
+	t.Helper()
+	for name, body := range map[string]string{"fleet.json": seed, "catalog.json": seedCatalog} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // newTestAPI serves the API over a seeded temp repo with an allow-all gate.
 func newTestAPI(t *testing.T, write bool) *httptest.Server {
 	t.Helper()
@@ -39,10 +59,8 @@ func newTestAPI(t *testing.T, write bool) *httptest.Server {
 		}
 	}
 	run("init", "-q", "-b", "main")
-	if err := os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(seed), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	run("add", "fleet.json")
+	writeSeed(t, dir)
+	run("add", ".")
 	run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
 
 	repo, err := git.Open(dir, "")
@@ -211,8 +229,8 @@ func TestGateRejectionIs422(t *testing.T) {
 		}
 	}
 	run("init", "-q", "-b", "main")
-	os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(seed), 0o644)
-	run("add", "fleet.json")
+	writeSeed(t, dir)
+	run("add", ".")
 	run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
 	repo, _ := git.Open(dir, "")
 	svc, err := app.NewConfigService(repo, ports.GateFunc(func(context.Context, string, []string) error {
@@ -245,8 +263,8 @@ func TestDisabledAPIWithoutToken(t *testing.T) {
 		}
 	}
 	run("init", "-q", "-b", "main")
-	os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(seed), 0o644)
-	run("add", "fleet.json")
+	writeSeed(t, dir)
+	run("add", ".")
 	run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
 	repo, _ := git.Open(dir, "")
 	svc, _ := app.NewConfigService(repo, ports.GateFunc(func(context.Context, string, []string) error { return nil }))

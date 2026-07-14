@@ -69,10 +69,20 @@ func biosFor(j imaging.Job) biosStep {
 
 // enrollWizard renders the batch provisioning wizard for a station.
 func (s *Server) enrollWizard(w http.ResponseWriter, r *http.Request, v view) {
+	// Provisioning is an org-Editor action; without this gate any authenticated
+	// low-privilege user could read another station's imaging state.
+	if err := s.requireWeb(v, "org", identity.Editor); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	if s.svc.Imaging == nil {
 		http.Error(w, "imaging execution needs the database (postgres not configured)", http.StatusServiceUnavailable)
 		return
 	}
+	// A one-shot LUKS recovery key is break-glass material: only an org Owner may
+	// see it (mirroring the sealed-store reveal gate). Lower roles provision but
+	// never read the key.
+	canSeeKey := v.roleAt("org").Meets(identity.Owner)
 	station := r.PathValue("station")
 	jobs, err := s.svc.Imaging.List(r.Context(), station)
 	if err != nil {
@@ -98,7 +108,7 @@ func (s *Server) enrollWizard(w http.ResponseWriter, r *http.Request, v view) {
 			if metas, err := s.svc.DeviceSecrets.List(r.Context(), j.Tag); err == nil && len(metas) > 0 {
 				row.HasSecret = true
 			}
-		} else if key, found := strings.CutPrefix(j.Message, imaging.LUKSRecoveryPrefix); found {
+		} else if key, found := strings.CutPrefix(j.Message, imaging.LUKSRecoveryPrefix); found && canSeeKey {
 			row.LUKS = key
 		}
 		if st == imaging.SBPending {
