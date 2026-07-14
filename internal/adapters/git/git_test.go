@@ -150,6 +150,35 @@ func TestPushConflictClassified(t *testing.T) {
 	}
 }
 
+func TestSetRefResolvesAndRejectsOptionLikeRev(t *testing.T) {
+	dir := initRepo(t)
+	r, _ := Open(dir, "")
+	head := run(t, dir, "rev-parse", "HEAD")
+
+	// A real revision moves the ring ref and reports it changed.
+	changed, err := r.SetRef(context.Background(), "rings/pilot", head)
+	if err != nil || !changed {
+		t.Fatalf("SetRef(real) = %v, %v", changed, err)
+	}
+	if got := run(t, dir, "rev-parse", "refs/heads/rings/pilot"); got != head {
+		t.Fatalf("ring ref = %q, want %q", got, head)
+	}
+	// Idempotent: pointing at the same rev again reports no change.
+	if changed, err := r.SetRef(context.Background(), "rings/pilot", head); err != nil || changed {
+		t.Fatalf("SetRef(same) = %v, %v", changed, err)
+	}
+	// An option-like rev must be treated as a (bogus) revision, not a git
+	// flag: it errors cleanly and never writes the ref.
+	for _, bad := range []string{"--output=/tmp/x", "-n1", "--git-dir=/etc"} {
+		if _, err := r.SetRef(context.Background(), "rings/evil", bad); err == nil {
+			t.Errorf("SetRef(%q) accepted an option-like rev", bad)
+		}
+		if out, _ := exec.Command("git", "-C", dir, "rev-parse", "--verify", "-q", "refs/heads/rings/evil").Output(); strings.TrimSpace(string(out)) != "" {
+			t.Errorf("SetRef(%q) wrote a ref it should not have", bad)
+		}
+	}
+}
+
 func TestNoRemoteNoops(t *testing.T) {
 	r, _ := Open(initRepo(t), "")
 	if err := r.Sync(context.Background()); err != nil {

@@ -221,7 +221,10 @@ func (r *Repo) SetRef(ctx context.Context, name, rev string) (bool, error) {
 	ref := "refs/heads/" + name
 	cur, _ := exec.CommandContext(ctx, "git", "-C", r.dir, "rev-parse", "--verify", "-q", ref).Output()
 	// Resolve rev to a full hash so short revisions compare correctly.
-	full, err := exec.CommandContext(ctx, "git", "-C", r.dir, "rev-parse", "--verify", rev+"^{commit}").Output()
+	// "--end-of-options" stops a caller-influenced rev (the rollout target) from
+	// being misread as a git option, mirroring the "--" guards elsewhere here.
+	full, err := exec.CommandContext(ctx, "git", "-C", r.dir,
+		"rev-parse", "--verify", "--end-of-options", rev+"^{commit}").Output()
 	if err != nil {
 		return false, fmt.Errorf("git rev-parse %s: unknown revision", rev)
 	}
