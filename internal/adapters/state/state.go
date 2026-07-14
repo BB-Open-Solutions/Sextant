@@ -29,7 +29,9 @@ type Store struct {
 
 // Open ensures the state directory exists and returns the store.
 func Open(dir string) (*Store, error) {
-	if err := os.MkdirAll(filepath.Join(dir, "changes"), 0o755); err != nil {
+	// Owner-only: this is server-private control-plane state (change requests,
+	// rollout runs), not world-readable content.
+	if err := os.MkdirAll(filepath.Join(dir, "changes"), 0o700); err != nil {
 		return nil, fmt.Errorf("state dir: %w", err)
 	}
 	return &Store{dir: dir}, nil
@@ -55,7 +57,7 @@ func (s *Store) writeJSON(name string, v any) error {
 	}
 	path := filepath.Join(s.dir, name)
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

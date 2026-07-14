@@ -88,7 +88,10 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request, v view) {
 		// One-shot station credential (just minted): show once, then clear.
 		if c, err := r.Cookie(stationCredCookie); err == nil && c.Value != "" {
 			data["MintedSecret"] = c.Value
-			http.SetCookie(w, &http.Cookie{Name: stationCredCookie, Value: "", Path: "/station", MaxAge: -1})
+			// Clear with the same attributes it was set with (HttpOnly/Secure/
+			// Path) so the deletion reliably overwrites the one-shot cookie.
+			http.SetCookie(w, &http.Cookie{Name: stationCredCookie, Value: "",
+				Path: "/station", MaxAge: -1, HttpOnly: true, Secure: true})
 		}
 	}
 	s.render(w, "station", data, v)
