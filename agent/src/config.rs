@@ -102,8 +102,8 @@ fn is_loopback_http(url: &str) -> bool {
         match after_bracket.find(']') {
             Some(end) => {
                 let host = &rest[..end + 2]; // include the leading '[' and the ']'
-                // Reject "[::1].evil.example": whatever follows the closing
-                // bracket must start a port or path, not extend the host.
+                                             // Reject "[::1].evil.example": whatever follows the closing
+                                             // bracket must start a port or path, not extend the host.
                 match rest[end + 2..].chars().next() {
                     None | Some('/') | Some(':') => host,
                     Some(_) => return false,

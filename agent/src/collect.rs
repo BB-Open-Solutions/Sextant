@@ -30,7 +30,10 @@ pub struct Usage {
 /// and the root filesystem (df). Best-effort: a failed probe leaves zeros.
 pub fn collect_usage() -> Usage {
     let mut u = Usage::default();
-    if let Some((used, total)) = fs::read_to_string("/proc/meminfo").ok().and_then(|s| parse_meminfo(&s)) {
+    if let Some((used, total)) = fs::read_to_string("/proc/meminfo")
+        .ok()
+        .and_then(|s| parse_meminfo(&s))
+    {
         u.mem_used_mb = used;
         u.mem_total_mb = total;
     }
