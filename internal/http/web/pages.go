@@ -277,10 +277,36 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 		if st, has, _ := s.svc.Inventory.Status(r.Context(), tag); has {
 			data["HasStatus"], data["Status"] = true, st
 			data["Posture"] = s.postureView(f, tag, st)
+			// Live usage gauges: reuse the fleet aggregation for this one device.
+			if st.Usage.Reported() {
+				data["Util"] = fleetUtilization([]app.StatusView{st})
+			}
 		}
 		if facts, at, has, _ := s.svc.Inventory.Facts(r.Context(), tag); has {
 			data["Facts"], data["FactsAt"] = string(facts), at
 		}
+	}
+	// Attention: the incidents raised for this device (scoped to the viewer).
+	var devInc []incidentRow
+	for _, in := range s.scopedIncidents(r, v) {
+		if in.Tag == tag {
+			devInc = append(devInc, in)
+		}
+	}
+	data["Incidents"] = devInc
+	// Recent activity: the configuration changes that touched this device,
+	// newest first (git commits whose subject names the tag).
+	if entries, err := s.svc.Config.AuditLog(r.Context(), 200); err == nil {
+		acts := make([]ports.AuditEntry, 0, 8)
+		for _, e := range entries {
+			if strings.Contains(e.Subject, tag) {
+				acts = append(acts, e)
+				if len(acts) >= 8 {
+					break
+				}
+			}
+		}
+		data["Activity"] = acts
 	}
 	// One-shot device credential from enroll/re-issue/reactivate.
 	if c, err := r.Cookie(devCredCookie); err == nil && c.Value != "" {

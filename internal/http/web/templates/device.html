@@ -41,6 +41,33 @@
 <div class="grid grid-cols-12 gap-6">
   <!-- Left column: configuration + apps -->
   <div class="col-span-12 flex flex-col gap-6 md:col-span-8">
+    {{if .Util}}
+    <!-- Live resource usage -->
+    <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
+      <h2 class="mt-0 mb-4 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-mint-deep">monitor_heart</span>{{.L.T "page.overview.fleet_utilisation"}}</h2>
+      <div class="flex flex-wrap items-start justify-around gap-4">
+        {{template "utilRing" (list .Util.CPU.UsedPct (.L.T "page.overview.cap_cpu") .Util.CPU.Label)}}
+        {{template "utilRing" (list .Util.RAM.UsedPct (.L.T "page.overview.cap_ram") .Util.RAM.Label)}}
+        {{template "utilRing" (list .Util.Disk.UsedPct (.L.T "page.overview.cap_disk") .Util.Disk.Label)}}
+      </div>
+    </section>
+    {{end}}
+
+    {{if .Incidents}}
+    <!-- Attention: this device's incidents -->
+    <section class="rounded-lg border border-status-warn/30 bg-canvas p-4 shadow-sm">
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-status-warn">priority_high</span>{{.L.T "device.attention"}}</h2>
+      <div class="flex flex-col gap-2">
+        {{range .Incidents}}
+        <div class="rounded-lg border p-3 {{if eq .Severity "critical"}}border-status-error/40 bg-error-container/20{{else}}border-border-hairline bg-surface-container-low{{end}}">
+          <div class="flex items-center gap-2"><span class="material-symbols-outlined msz-16 {{if eq .Severity "critical"}}text-status-error{{else}}text-status-warn{{end}}">{{if eq .Severity "critical"}}error{{else}}warning{{end}}</span><span class="font-medium text-ink">{{.Title}}</span></div>
+          <div class="mt-1 text-body-sm text-text-tertiary">{{.Detail}}</div>
+        </div>
+        {{end}}
+      </div>
+    </section>
+    {{end}}
+
     <!-- Effective configuration -->
     <section class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
       <div class="flex items-center justify-between border-b border-border-hairline bg-surface px-4 py-3">
@@ -89,6 +116,21 @@
         {{if and (not .Packages) (not .Flatpaks) (not .Overlays)}}<p class="muted">{{.L.T "device.no_apps"}}</p>{{end}}
       </div>
     </section>
+
+    {{if .Activity}}
+    <!-- Recent activity: config changes that touched this device -->
+    <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">history</span>{{.L.T "device.recent_activity"}}</h2>
+      <ul class="flex flex-col">
+        {{range .Activity}}
+        <li class="flex flex-col gap-0.5 border-b border-border-hairline py-2 last:border-0 md:flex-row md:items-center md:justify-between">
+          <span class="text-body-sm text-ink">{{.Subject}}</span>
+          <span class="shrink-0 text-label-md text-text-tertiary">{{$.L.TimeSec .When}} · {{.Author}}</span>
+        </li>
+        {{end}}
+      </ul>
+    </section>
+    {{end}}
   </div>
 
   <!-- Right column: posture + hardware -->

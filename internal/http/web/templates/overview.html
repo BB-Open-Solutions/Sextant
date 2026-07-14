@@ -195,18 +195,3 @@
 </div>
 {{end}}
 
-{{/* utilRing: a live usage gauge. args: [usedPct, title, label] */}}
-{{define "utilRing"}}
-{{$pct := index . 0}}{{$title := index . 1}}{{$label := index . 2}}
-<div class="flex flex-col items-center gap-1">
-  <div class="relative h-24 w-24">
-    <svg class="h-full w-full -rotate-90" viewBox="0 0 36 36">
-      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#eeeeee" stroke-width="3"></circle>
-      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#00d4a4" stroke-dasharray="{{$pct}} 100" stroke-width="3"></circle>
-    </svg>
-    <div class="absolute inset-0 flex items-center justify-center"><span class="text-headline-sm text-ink">{{$pct}}%</span></div>
-  </div>
-  <span class="text-label-md font-medium text-ink">{{$title}}</span>
-  <span class="text-label-xs-caps text-text-tertiary">{{$label}}</span>
-</div>
-{{end}}
