@@ -20,28 +20,18 @@
   </div>
   {{end}}
 
-  <!-- Search + facets: all GET params, filtered/sorted server-side (holds at
-       fleet scale), shareable as a URL, no JS. -->
-  <form method="get" action="/devices" class="!m-0 flex flex-wrap items-end gap-3">
-    <div class="flex flex-col gap-1">
-      <label class="text-label-xs-caps text-text-tertiary">{{.L.T "common.search"}}</label>
-      <input type="search" name="q" value="{{.Q}}" placeholder="{{.L.T "devices.search_ph"}}" class="w-64">
-    </div>
-    <div class="flex flex-col gap-1">
-      <label class="text-label-xs-caps text-text-tertiary">{{.L.T "common.class"}}</label>
-      <select name="class"><option value="">{{.L.T "devices.all_classes"}}</option>{{range .Classes}}<option value="{{.}}" {{if eq $.FClass .}}selected{{end}}>{{.}}</option>{{end}}</select>
-    </div>
-    <div class="flex flex-col gap-1">
-      <label class="text-label-xs-caps text-text-tertiary">{{.L.T "common.group"}}</label>
-      <select name="group"><option value="">{{.L.T "settings.all_groups"}}</option>{{range .Groups}}<option value="{{.}}" {{if eq $.FGroup .}}selected{{end}}>{{.}}</option>{{end}}</select>
-    </div>
-    <div class="flex flex-col gap-1">
-      <label class="text-label-xs-caps text-text-tertiary">{{.L.T "common.status"}}</label>
-      <select name="status"><option value="">{{.L.T "devices.all_statuses"}}</option><option value="online" {{if eq .FStatus "online"}}selected{{end}}>{{.L.T "common.online"}}</option><option value="offline" {{if eq .FStatus "offline"}}selected{{end}}>{{.L.T "common.offline"}}</option><option value="never" {{if eq .FStatus "never"}}selected{{end}}>{{.L.T "common.never_seen"}}</option></select>
-    </div>
+  <!-- Search + facets in one tight bar: every control shares the same height and
+       styling (Wazuh-style). All GET params, filtered/sorted server-side, the
+       view is shareable as a URL, no JS. -->
+  {{$ctl := "h-9 rounded-lg border border-border-hairline bg-canvas px-3 text-label-md text-ink focus:border-mint-vibrant focus:outline-none focus:ring-2 focus:ring-mint-vibrant/20"}}
+  <form method="get" action="/devices" class="!m-0 flex flex-wrap items-center gap-2">
+    <input type="search" name="q" value="{{.Q}}" placeholder="{{.L.T "devices.search_ph"}}" class="{{$ctl}} w-64">
+    <select name="class" class="{{$ctl}}"><option value="">{{.L.T "devices.all_classes"}}</option>{{range .Classes}}<option value="{{.}}" {{if eq $.FClass .}}selected{{end}}>{{.}}</option>{{end}}</select>
+    <select name="group" class="{{$ctl}}"><option value="">{{.L.T "settings.all_groups"}}</option>{{range .Groups}}<option value="{{.}}" {{if eq $.FGroup .}}selected{{end}}>{{.}}</option>{{end}}</select>
+    <select name="status" class="{{$ctl}}"><option value="">{{.L.T "devices.all_statuses"}}</option><option value="online" {{if eq .FStatus "online"}}selected{{end}}>{{.L.T "common.online"}}</option><option value="offline" {{if eq .FStatus "offline"}}selected{{end}}>{{.L.T "common.offline"}}</option><option value="never" {{if eq .FStatus "never"}}selected{{end}}>{{.L.T "common.never_seen"}}</option></select>
     {{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}">{{end}}{{if .Dir}}<input type="hidden" name="dir" value="{{.Dir}}">{{end}}
-    <button type="submit"><span class="material-symbols-outlined msz-18">filter_list</span>{{.L.T "common.filter"}}</button>
-    {{if or .Q .FClass .FGroup .FStatus}}<a href="/devices" class="quiet self-center">{{.L.T "common.clear"}}</a>{{end}}
+    <button type="submit" class="!m-0 inline-flex h-9 items-center gap-1 rounded-lg bg-ink px-4 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">filter_list</span>{{.L.T "common.filter"}}</button>
+    {{if or .Q .FClass .FGroup .FStatus}}<a href="/devices" class="inline-flex h-9 items-center rounded-lg border border-border-hairline px-3 text-label-md text-text-secondary hover:bg-surface-container-low">{{.L.T "common.clear"}}</a>{{end}}
   </form>
 
   <!-- Device list -->
