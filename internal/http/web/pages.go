@@ -285,20 +285,12 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 			statuses[st.Tag] = st
 		}
 	}
-	type row struct {
-		Tag, Class, Hardware, AssignedUser, Revision string
-		Groups                                       []string
-		HasStatus, Online                            bool
-		// Reported is set when the device sent a live usage reading; CPU/RAM/Disk
-		// are its used-percentages for the compact per-device resource column.
-		Reported       bool
-		CPU, RAM, Disk int
-	}
-	rows := make([]row, 0, len(f.Devices))
+	classSet := map[string]bool{}
+	rows := make([]deviceRow, 0, len(f.Devices))
 	for _, tag := range f.DeviceTags() {
 		d := f.Devices[tag]
 		st, has := statuses[tag]
-		rw := row{Tag: tag, Class: d.Class, Hardware: d.Hardware,
+		rw := deviceRow{Tag: tag, Class: d.Class, Hardware: d.Hardware,
 			AssignedUser: d.AssignedUser, Groups: d.Groups,
 			HasStatus: has, Online: st.Online, Revision: st.Revision}
 		if has && st.Usage.Reported() {
@@ -307,16 +299,118 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 			rw.RAM = pctOf(st.Usage.MemUsedMB, st.Usage.MemTotalMB)
 			rw.Disk = pctOf(st.Usage.DiskUsedGB, st.Usage.DiskTotalGB)
 		}
+		if d.Class != "" {
+			classSet[d.Class] = true
+		}
 		rows = append(rows, rw)
 	}
+
+	// Search, filter and sort happen server-side so they hold at fleet scale
+	// (the list is never shipped whole to the client to sort). Every control is
+	// a GET param, so the view is shareable/bookmarkable and needs no JS.
+	qy := r.URL.Query()
+	q := strings.ToLower(strings.TrimSpace(qy.Get("q")))
+	fClass, fGroup, fStatus := qy.Get("class"), qy.Get("group"), qy.Get("status")
+	rows = filterDeviceRows(rows, q, fClass, fGroup, fStatus)
+	sortKey, dir := qy.Get("sort"), qy.Get("dir")
+	sortDeviceRows(rows, sortKey, dir)
+
 	groups := make([]string, 0, len(f.Groups))
 	for g := range f.Groups {
 		groups = append(groups, g)
 	}
 	sort.Strings(groups)
+	classes := make([]string, 0, len(classSet))
+	for c := range classSet {
+		classes = append(classes, c)
+	}
+	sort.Strings(classes)
 	s.render(w, "devices", map[string]any{"Title": "Devices", "Nav": "devices",
-		"Devices": rows, "Groups": groups,
+		"Devices": rows, "Groups": groups, "Classes": classes,
+		"Q": qy.Get("q"), "FClass": fClass, "FGroup": fGroup, "FStatus": fStatus,
+		"Sort": sortKey, "Dir": dir,
 		"CanEdit": v.roleAt("org").Meets(identity.Editor)}, v)
+}
+
+// deviceRow is one row of the device fleet table.
+type deviceRow struct {
+	Tag, Class, Hardware, AssignedUser, Revision string
+	Groups                                       []string
+	HasStatus, Online                            bool
+	// Reported is set when the device sent a live usage reading; CPU/RAM/Disk
+	// are its used-percentages for the compact per-device resource column.
+	Reported       bool
+	CPU, RAM, Disk int
+}
+
+// filterDeviceRows keeps rows matching a case-insensitive search over
+// tag/user/hardware plus the class/group/status facets. Empty facets match all.
+// It filters in place (reusing the backing array), so the caller reassigns.
+func filterDeviceRows(rows []deviceRow, q, class, group, status string) []deviceRow {
+	out := rows[:0]
+	for _, rw := range rows {
+		if q != "" && !strings.Contains(strings.ToLower(rw.Tag), q) &&
+			!strings.Contains(strings.ToLower(rw.AssignedUser), q) &&
+			!strings.Contains(strings.ToLower(rw.Hardware), q) {
+			continue
+		}
+		if class != "" && rw.Class != class {
+			continue
+		}
+		if group != "" && !slices.Contains(rw.Groups, group) {
+			continue
+		}
+		switch status {
+		case "online":
+			if !rw.Online {
+				continue
+			}
+		case "offline":
+			if !rw.HasStatus || rw.Online {
+				continue
+			}
+		case "never":
+			if rw.HasStatus {
+				continue
+			}
+		}
+		out = append(out, rw)
+	}
+	return out
+}
+
+// sortDeviceRows orders rows by one column, ascending unless dir=="desc"; the
+// default and fallback is by tag.
+func sortDeviceRows(rows []deviceRow, key, dir string) {
+	less := func(a, b deviceRow) bool { return a.Tag < b.Tag }
+	switch key {
+	case "status":
+		less = func(a, b deviceRow) bool { return deviceStatusRank(a) < deviceStatusRank(b) }
+	case "hardware":
+		less = func(a, b deviceRow) bool { return a.Hardware < b.Hardware }
+	case "class":
+		less = func(a, b deviceRow) bool { return a.Class < b.Class }
+	case "user":
+		less = func(a, b deviceRow) bool { return a.AssignedUser < b.AssignedUser }
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if dir == "desc" {
+			return less(rows[j], rows[i])
+		}
+		return less(rows[i], rows[j])
+	})
+}
+
+// deviceStatusRank orders online before offline before never-seen.
+func deviceStatusRank(r deviceRow) int {
+	switch {
+	case r.Online:
+		return 0
+	case r.HasStatus:
+		return 1
+	default:
+		return 2
+	}
 }
 
 // postDeviceEnroll enrolls a device from the console form.
