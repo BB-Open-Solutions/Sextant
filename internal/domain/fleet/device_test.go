@@ -1,6 +1,9 @@
 package fleet
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestAddRemoveDevice(t *testing.T) {
 	f := policyFleet(t)
@@ -63,6 +66,39 @@ func TestAddGroup(t *testing.T) {
 	}
 	if err := AddGroup("Bad Name", Group{})(f); err == nil {
 		t.Error("bad slug accepted")
+	}
+}
+
+func TestCreateGroupWithDevices(t *testing.T) {
+	f := policyFleet(t)
+	if err := CreateGroupWithDevices("pilot", Group{Parent: "zaanstad"}, []string{"lt-1", "lt-2"})(f); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.Groups["pilot"]; !ok {
+		t.Fatal("group not created")
+	}
+	for _, tag := range []string{"lt-1", "lt-2"} {
+		if !slices.Contains(f.Devices[tag].Groups, "pilot") {
+			t.Errorf("%s not moved into pilot: %v", tag, f.Devices[tag].Groups)
+		}
+	}
+	// A device already in the group is not duplicated.
+	if err := CreateGroupWithDevices("pilot2", Group{}, []string{"lt-1", "lt-1"})(f); err != nil {
+		t.Fatal(err)
+	}
+	if n := slices.Contains(f.Devices["lt-1"].Groups, "pilot2"); !n {
+		t.Error("lt-1 not in pilot2")
+	}
+	if got := f.Devices["lt-1"].Groups; len(got) != 3 { // frontoffice, pilot, pilot2
+		t.Errorf("lt-1 groups = %v, want 3 unique", got)
+	}
+	// An unknown device fails the whole mutation.
+	if err := CreateGroupWithDevices("nope", Group{}, []string{"ghost"})(f); err == nil {
+		t.Error("unknown device accepted")
+	}
+	// A duplicate group name fails (reuses AddGroup's guard).
+	if err := CreateGroupWithDevices("pilot", Group{}, []string{"lt-1"})(f); err == nil {
+		t.Error("duplicate group accepted")
 	}
 }
 

@@ -109,16 +109,20 @@
         </div>
         {{if .Utilization.Reporting}}
         {{$u := .Utilization}}
-        <div class="flex flex-wrap items-center gap-1">
+        <!-- Donut first, metric switch below it: inputs stay ahead of both the
+             panels and the labels so the CSS peer selectors keep working; the
+             w-full panel forces a wrap and gap-y puts the pills on their own
+             centred row underneath. -->
+        <div class="flex flex-wrap items-center justify-center gap-x-1 gap-y-4">
           <input type="radio" name="resmetric" id="res-cpu" class="peer/rcpu sr-only" checked>
           <input type="radio" name="resmetric" id="res-ram" class="peer/rram sr-only">
           <input type="radio" name="resmetric" id="res-disk" class="peer/rdisk sr-only">
+          <div class="hidden w-full peer-checked/rcpu:block">{{template "resPanel" (list $u.CPU.UsedPct (.L.T "page.overview.cap_cpu") $u.CPU.Label $u.Reporting)}}</div>
+          <div class="hidden w-full peer-checked/rram:block">{{template "resPanel" (list $u.RAM.UsedPct (.L.T "page.overview.cap_ram") $u.RAM.Label $u.Reporting)}}</div>
+          <div class="hidden w-full peer-checked/rdisk:block">{{template "resPanel" (list $u.Disk.UsedPct (.L.T "page.overview.cap_disk") $u.Disk.Label $u.Reporting)}}</div>
           <label for="res-cpu" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/rcpu:border-ink peer-checked/rcpu:bg-ink peer-checked/rcpu:text-canvas">{{.L.T "page.overview.cap_cpu"}}</label>
           <label for="res-ram" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/rram:border-ink peer-checked/rram:bg-ink peer-checked/rram:text-canvas">{{.L.T "page.overview.cap_ram"}}</label>
           <label for="res-disk" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/rdisk:border-ink peer-checked/rdisk:bg-ink peer-checked/rdisk:text-canvas">{{.L.T "page.overview.cap_disk"}}</label>
-          <div class="hidden w-full pt-4 peer-checked/rcpu:block">{{template "resPanel" (list $u.CPU.UsedPct (.L.T "page.overview.cap_cpu") $u.CPU.Label $u.Reporting)}}</div>
-          <div class="hidden w-full pt-4 peer-checked/rram:block">{{template "resPanel" (list $u.RAM.UsedPct (.L.T "page.overview.cap_ram") $u.RAM.Label $u.Reporting)}}</div>
-          <div class="hidden w-full pt-4 peer-checked/rdisk:block">{{template "resPanel" (list $u.Disk.UsedPct (.L.T "page.overview.cap_disk") $u.Disk.Label $u.Reporting)}}</div>
         </div>
         {{else}}
         <p class="muted mb-0">{{.L.T "page.overview.util_waiting"}}</p>
@@ -136,16 +140,17 @@
       {{if not $cap.Devices}}
       <p class="muted mb-0">{{.L.T "page.overview.cap_no_data"}}</p>
       {{else}}
-      <div class="flex flex-wrap items-center gap-1">
+      <!-- Donut first, metric switch below it (see the utilisation card above). -->
+      <div class="flex flex-wrap items-center justify-center gap-x-1 gap-y-4">
         <input type="radio" name="capmetric" id="cap-cpu" class="peer/cpu sr-only" checked>
         <input type="radio" name="capmetric" id="cap-ram" class="peer/ram sr-only">
         <input type="radio" name="capmetric" id="cap-disk" class="peer/disk sr-only">
+        <div class="hidden w-full peer-checked/cpu:block">{{template "capPanel" (list $cap.CoreSeg $cap.Cores (.L.T "page.overview.cap_cores"))}}</div>
+        <div class="hidden w-full peer-checked/ram:block">{{template "capPanel" (list $cap.RAMSeg $cap.RAMGB "GB")}}</div>
+        <div class="hidden w-full peer-checked/disk:block">{{template "capPanel" (list $cap.DiskSeg $cap.DiskGB "GB")}}</div>
         <label for="cap-cpu" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/cpu:border-ink peer-checked/cpu:bg-ink peer-checked/cpu:text-canvas">{{.L.T "page.overview.cap_cpu"}}</label>
         <label for="cap-ram" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/ram:border-ink peer-checked/ram:bg-ink peer-checked/ram:text-canvas">{{.L.T "page.overview.cap_ram"}}</label>
         <label for="cap-disk" class="cursor-pointer rounded-full border border-border-hairline px-3 py-1 text-label-md text-text-secondary peer-checked/disk:border-ink peer-checked/disk:bg-ink peer-checked/disk:text-canvas">{{.L.T "page.overview.cap_disk"}}</label>
-        <div class="hidden w-full pt-4 peer-checked/cpu:block">{{template "capPanel" (list $cap.CoreSeg $cap.Cores (.L.T "page.overview.cap_cores"))}}</div>
-        <div class="hidden w-full pt-4 peer-checked/ram:block">{{template "capPanel" (list $cap.RAMSeg $cap.RAMGB "GB")}}</div>
-        <div class="hidden w-full pt-4 peer-checked/disk:block">{{template "capPanel" (list $cap.DiskSeg $cap.DiskGB "GB")}}</div>
       </div>
       {{end}}
     </div>

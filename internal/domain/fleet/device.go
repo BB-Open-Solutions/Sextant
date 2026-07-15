@@ -156,6 +156,37 @@ func AddGroup(name string, g Group) Mutation {
 	}
 }
 
+// CreateGroupWithDevices creates a group and moves the given devices into it in
+// a single mutation (one commit) - the console's "make a group from a
+// selection". It reuses AddGroup's validation, then appends the new group to
+// each device's membership. An unknown device or an invalid group name fails
+// the whole mutation, so nothing is half-applied.
+func CreateGroupWithDevices(name string, g Group, tags []string) Mutation {
+	return func(f *Fleet) error {
+		if err := AddGroup(name, g)(f); err != nil {
+			return err
+		}
+		for _, tag := range tags {
+			d, ok := f.Devices[tag]
+			if !ok {
+				return fmt.Errorf("unknown device %q", tag)
+			}
+			already := false
+			for _, gr := range d.Groups {
+				if gr == name {
+					already = true
+					break
+				}
+			}
+			if !already {
+				d.Groups = append(d.Groups, name)
+				f.Devices[tag] = d
+			}
+		}
+		return nil
+	}
+}
+
 // UpdateGroup changes a group's parent and/or IdP mapping. Re-parenting
 // reuses SetGroupParent's cycle guard.
 func UpdateGroup(name string, parent, idpGroup *string) Mutation {

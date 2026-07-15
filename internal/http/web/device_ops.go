@@ -98,6 +98,43 @@ func (s *Server) postDeviceRemove(w http.ResponseWriter, r *http.Request, v view
 	return nil
 }
 
+// postDevicesGroupCreate makes a group from a multi-selection on the device
+// list and moves the selected devices into it in one commit. Creating the group
+// needs Owner on the target scope (as postGroupAdd does); moving each selected
+// device needs editor on it, so a selection cannot pull a device out of a scope
+// the operator does not control.
+func (s *Server) postDevicesGroupCreate(w http.ResponseWriter, r *http.Request, v view) error {
+	name := strings.TrimSpace(r.FormValue("name"))
+	parent := strings.TrimSpace(r.FormValue("parent"))
+	tags := r.Form["tags"]
+	if name == "" {
+		return fmt.Errorf("group name required")
+	}
+	if len(tags) == 0 {
+		return fmt.Errorf("select at least one device")
+	}
+	scope := "org"
+	if parent != "" {
+		scope = "group:" + parent
+	}
+	if err := s.requireWeb(v, scope, identity.Owner); err != nil {
+		return err
+	}
+	for _, tag := range tags {
+		if err := s.requireDeviceEditor(v, tag); err != nil {
+			return err
+		}
+	}
+	g := fleet.Group{Parent: parent}
+	msg := fmt.Sprintf("groups: create %s from %d device(s)", name, len(tags))
+	if err := s.svc.Config.Apply(r.Context(), fleet.CreateGroupWithDevices(name, g, tags),
+		msg, webAuthor(v), tags...); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/groups", http.StatusSeeOther)
+	return nil
+}
+
 // postDeviceCredential re-issues the device credential (lost secret,
 // re-image); refused for retired devices by policy.
 func (s *Server) postDeviceCredential(w http.ResponseWriter, r *http.Request, v view) error {

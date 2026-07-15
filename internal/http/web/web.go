@@ -252,6 +252,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/devices/{tag}/remove", s.postDeviceRemove)
 	post("/devices/{tag}/credential", s.postDeviceCredential)
 	post("/devices/{tag}/update", s.postDeviceUpdate)
+	post("/devices/group", s.postDevicesGroupCreate)
 	post("/settings", s.postSetting)
 	post("/policies", s.postPolicyPut)
 	post("/policies/{id}/delete", s.postPolicyDelete)

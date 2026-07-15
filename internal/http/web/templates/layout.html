@@ -141,6 +141,18 @@
   </main>
 
 </div>
+
+<!-- In-page confirmation dialog: app.js reveals this for any data-confirm form
+     instead of the native window.confirm(). Hidden (and inert) until then. -->
+<div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-ink/50 p-4">
+  <div class="w-full max-w-sm rounded-lg border border-border-hairline bg-canvas p-6 shadow-lg">
+    <p id="confirm-msg" class="mt-0 mb-5 text-ink"></p>
+    <div class="flex justify-end gap-2">
+      <button type="button" id="confirm-cancel" class="quiet">{{.L.T "common.cancel"}}</button>
+      <button type="button" id="confirm-ok" class="cursor-pointer rounded-full bg-ink px-4 py-2 text-label-md text-canvas transition-opacity hover:opacity-90">{{.L.T "common.confirm"}}</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>{{end}}
 {{/* utilRing: a live usage gauge. args: [usedPct, title, label] */}}

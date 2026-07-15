@@ -34,14 +34,62 @@ document.addEventListener("click", function (e) {
 // that triggered this particular submit (native, works even for a
 // Enter-key submit as long as a submit control has focus); it falls back to
 // the form itself for every existing single-purpose data-confirm form.
-document.addEventListener("submit", function (e) {
-  var f = e.target;
-  var el = (e.submitter && e.submitter.hasAttribute("data-confirm")) ? e.submitter
-    : (f && f.matches("[data-confirm]") ? f : null);
-  if (el && !window.confirm(el.getAttribute("data-confirm"))) {
-    e.preventDefault();
+// Drives the styled #confirm-modal in layout.html instead of the native
+// window.confirm(), which looked out of place. Falls back to window.confirm if
+// the markup is missing so a destructive action is never silently unguarded.
+(function () {
+  var pendingForm = null, pendingSubmitter = null;
+  var modal = null, msgEl = null;
+
+  function ready() {
+    if (!modal) { modal = document.getElementById("confirm-modal"); msgEl = document.getElementById("confirm-msg"); }
+    return modal && msgEl;
   }
-});
+  function open(msg, form, submitter) {
+    if (!ready()) { if (window.confirm(msg)) form.submit(); return; }
+    pendingForm = form; pendingSubmitter = submitter;
+    msgEl.textContent = msg;
+    modal.classList.remove("hidden"); modal.classList.add("flex");
+    var ok = document.getElementById("confirm-ok"); if (ok) ok.focus();
+  }
+  function close() {
+    if (modal) { modal.classList.add("hidden"); modal.classList.remove("flex"); }
+    pendingForm = null; pendingSubmitter = null;
+  }
+
+  document.addEventListener("submit", function (e) {
+    var f = e.target;
+    var el = (e.submitter && e.submitter.hasAttribute("data-confirm")) ? e.submitter
+      : (f && f.matches("[data-confirm]") ? f : null);
+    if (!el) return;
+    e.preventDefault();
+    open(el.getAttribute("data-confirm"), f, e.submitter);
+  });
+
+  document.addEventListener("click", function (e) {
+    if (e.target.closest("#confirm-cancel")) { close(); return; }
+    if (e.target.closest("#confirm-ok")) {
+      var form = pendingForm, sub = pendingSubmitter;
+      close();
+      if (form) {
+        // form.submit() bypasses the submit event (and this guard). Re-attach the
+        // triggering button's name/value so multi-button forms still post it.
+        if (sub && sub.name) {
+          var h = document.createElement("input");
+          h.type = "hidden"; h.name = sub.name; h.value = sub.value;
+          form.appendChild(h);
+        }
+        form.submit();
+      }
+      return;
+    }
+    if (modal && e.target === modal) close(); // backdrop click cancels
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && modal && !modal.classList.contains("hidden")) close();
+  });
+})();
 
 // Configuration editor: guard against losing unsaved edits when switching
 // scope. A setting value is "dirty" once its input changes and before its row
@@ -108,6 +156,52 @@ document.addEventListener("submit", function (e) {
     if (e.key !== "Escape") return;
     document.querySelectorAll("details[data-menu][open]").forEach(function (d) {
       d.removeAttribute("open");
+    });
+  });
+})();
+
+// Device-list multi-select: tick rows to reveal the selection bar (#sel-bar),
+// then "create group from selection" posts the ticked tags with a new group
+// name. Delegated, so it survives any re-render of the table.
+(function () {
+  function selected() {
+    return Array.prototype.slice.call(document.querySelectorAll(".dev-select:checked"));
+  }
+  function sync() {
+    var bar = document.getElementById("sel-bar");
+    if (!bar) return;
+    var boxes = document.querySelectorAll(".dev-select");
+    var n = selected().length;
+    var count = document.getElementById("sel-count");
+    if (count) count.textContent = String(n);
+    if (n > 0) { bar.classList.remove("hidden"); bar.classList.add("flex"); }
+    else { bar.classList.add("hidden"); bar.classList.remove("flex"); }
+    var all = document.getElementById("sel-all");
+    if (all) {
+      all.checked = boxes.length > 0 && n === boxes.length;
+      all.indeterminate = n > 0 && n < boxes.length;
+    }
+  }
+  document.addEventListener("change", function (e) {
+    if (e.target.id === "sel-all") {
+      var on = e.target.checked;
+      document.querySelectorAll(".dev-select").forEach(function (b) { b.checked = on; });
+      sync();
+    } else if (e.target.classList && e.target.classList.contains("dev-select")) {
+      sync();
+    }
+  });
+  document.addEventListener("submit", function (e) {
+    if (e.target.id !== "sel-group-form") return;
+    var form = e.target;
+    form.querySelectorAll("input[data-sel-tag]").forEach(function (n) { n.remove(); });
+    var tags = selected();
+    if (tags.length === 0) { e.preventDefault(); return; }
+    tags.forEach(function (b) {
+      var h = document.createElement("input");
+      h.type = "hidden"; h.name = "tags"; h.value = b.value;
+      h.setAttribute("data-sel-tag", "1");
+      form.appendChild(h);
     });
   });
 })();
