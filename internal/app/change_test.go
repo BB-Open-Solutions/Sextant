@@ -67,6 +67,104 @@ func newChangeStack(t *testing.T, builder ports.Builder) (*ChangeService, *Confi
 	return cs, svc, dir
 }
 
+// switchGate rejects everything while broken is true - so a test can let
+// edits pass and then prove Submit/Merge re-validate for themselves.
+type switchGate struct{ broken bool }
+
+func (g *switchGate) Validate(context.Context, string, []string) error {
+	if g.broken {
+		return &ports.ValidationError{Detail: "generator refused"}
+	}
+	return nil
+}
+
+// newChangeStackWithGate is newChangeStack with a caller-owned gate.
+func newChangeStackWithGate(t *testing.T, gate ports.Gate) (*ChangeService, *ConfigService, string) {
+	t.Helper()
+	svc, dir := newService(t, gate)
+	repo, err := git.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := state.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	open := func(d string) (ports.ConfigRepo, error) { return git.Open(d, "") }
+	cs := NewChangeService(repo, st.Changes(), gate, &fakeBuilder{},
+		newFakeClock(testT0), open, svc)
+	return cs, svc, dir
+}
+
+// Submit must re-prove the WHOLE branch through the eval gate, not ride on
+// the per-edit verdicts: a branch whose edits passed earlier can still be
+// invalid by submit time (out-of-band commits, a moved base).
+func TestSubmitRevalidatesViaGate(t *testing.T) {
+	gate := &switchGate{}
+	cs, _, _ := newChangeStackWithGate(t, gate)
+	ctx := context.Background()
+
+	if _, err := cs.Open(ctx, "cr-1", "t", ports.Author{Name: "ada", Subject: "s"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.Edit(ctx, "cr-1", fleet.SetScopeSetting("device:lt-1", "apps.office", true),
+		"edit", ports.Author{}, "lt-1"); err != nil {
+		t.Fatal(err)
+	}
+	gate.broken = true // the world changed between edit and submit
+	cr, err := cs.Submit(ctx, "cr-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cr.Status != change.Failed || !strings.Contains(cr.Error, "generator refused") {
+		t.Fatalf("submit rode on stale edit verdicts: %+v", cr)
+	}
+}
+
+// A merged RESULT the gate refuses is rolled back: submit proved the branch,
+// but main may have moved since - two individually valid changes can compose
+// into an invalid whole without a git conflict.
+func TestMergeRevalidatesAndRollsBack(t *testing.T) {
+	gate := &switchGate{}
+	cs, svc, dir := newChangeStackWithGate(t, gate)
+	ctx := context.Background()
+
+	if _, err := cs.Open(ctx, "cr-2", "t", ports.Author{Name: "ada", Subject: "s"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.Edit(ctx, "cr-2", fleet.SetScopeSetting("device:lt-1", "apps.office", true),
+		"edit", ports.Author{}, "lt-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.Submit(ctx, "cr-2"); err != nil {
+		t.Fatal(err)
+	}
+
+	pre := sh(t, dir, "rev-parse", "HEAD")
+	gate.broken = true // the merged whole no longer evaluates
+	if _, err := cs.Merge(ctx, "cr-2", ports.Author{Name: "bob", Subject: "s2"}); err == nil {
+		t.Fatal("gate-refused merge landed")
+	}
+	if got := sh(t, dir, "rev-parse", "HEAD"); got != pre {
+		t.Fatalf("merge not rolled back: HEAD %s, want %s", got, pre)
+	}
+	// Clean tree apart from .cr/ (the linked-worktree home, untracked by
+	// design - a rollback must not vaporise other changes' worktrees).
+	if got := sh(t, dir, "status", "--porcelain"); got != "" && got != "?? .cr/" {
+		t.Fatalf("tree dirty after rollback: %q", got)
+	}
+	// The change survives as ready: the operator can retry once the
+	// conflict with main's new state is resolved.
+	cr, _, _ := cs.Get(ctx, "cr-2")
+	if cr.Status != change.Ready {
+		t.Fatalf("cr after rolled-back merge = %s, want ready", cr.Status)
+	}
+	// And the refused content never reached the live snapshot.
+	if _, has := svc.Fleet().Resolve("lt-1")["apps.office"]; has {
+		t.Fatal("rolled-back merge leaked into the snapshot")
+	}
+}
+
 func TestChangeLifecycleHappyPath(t *testing.T) {
 	cs, svc, dir := newChangeStack(t, nil)
 	ctx := context.Background()
@@ -125,6 +223,12 @@ func TestChangeBuildFailure(t *testing.T) {
 	ctx := context.Background()
 
 	if _, err := cs.Open(ctx, "bad", "Broken change", ports.Author{Name: "ada", Subject: "sub-ada"}); err != nil {
+		t.Fatal(err)
+	}
+	// The realisation build needs a concrete blast radius (there is no
+	// whole-set flake target), so give the change one edited host.
+	if err := cs.Edit(ctx, "bad", fleet.SetScopeSetting("device:lt-1", "apps.office", true),
+		"edit", ports.Author{}, "lt-1"); err != nil {
 		t.Fatal(err)
 	}
 	cr, err := cs.Submit(ctx, "bad")

@@ -515,7 +515,40 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		"Title": "Policies", "Nav": "policies", "Policies": rows, "Filters": frows,
 		"Groups": groups, "PolicyIDs": sortedKeys(f.Policies), "FilterIDs": sortedKeys(f.Filters),
 		"RuleRows": []int{0, 1, 2},
-		"CanOwn":   v.roleAt("org").Meets(identity.Owner)}, v)
+		// The filter editor's suggestion lists: the closed attribute
+		// vocabulary and the fleet's actual values, so rules are picked from
+		// what exists instead of typed from memory.
+		"FilterAttrs":  []string{fleet.AttrTag, fleet.AttrClass, fleet.AttrHardware, fleet.AttrAssignedUser, fleet.AttrGroup},
+		"FilterValues": filterValueSuggestions(f),
+		"CanOwn":       v.roleAt("org").Meets(identity.Owner)}, v)
+}
+
+// filterValueSuggestions collects the fleet's existing attribute values
+// (tags, classes, hardware profiles, assigned users, groups) as one sorted
+// suggestion list for the filter editor's value field.
+func filterValueSuggestions(f *fleet.Fleet) []string {
+	set := map[string]bool{}
+	for tag, d := range f.Devices {
+		set[tag] = true
+		if d.Class != "" {
+			set[d.Class] = true
+		}
+		if d.Hardware != "" {
+			set[d.Hardware] = true
+		}
+		if d.AssignedUser != "" {
+			set[d.AssignedUser] = true
+		}
+	}
+	for g := range f.Groups {
+		set[g] = true
+	}
+	out := make([]string, 0, len(set))
+	for v := range set {
+		out = append(out, v)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (s *Server) changesPage(w http.ResponseWriter, r *http.Request, v view) {

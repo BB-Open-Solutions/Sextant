@@ -120,12 +120,18 @@
         <div class="flex flex-col gap-1"><label>{{.L.T "policies.col_match"}}</label><select name="match"><option value="all">{{.L.T "policies.match_all"}}</option><option value="any">{{.L.T "policies.match_any"}}</option></select></div>
       </div>
       <label class="mb-1 block">{{.L.T "policies.col_rules"}}</label>
+      <!-- Searchable pickers (CSP-safe datalist): the closed attribute
+           vocabulary and the fleet's actual values, so rules are chosen from
+           what exists rather than typed from memory. label:<key> stays
+           typeable - its key is free-form by design. -->
+      <datalist id="filter-attrs">{{range .FilterAttrs}}<option value="{{.}}"></option>{{end}}<option value="label:"></option></datalist>
+      <datalist id="filter-values">{{range .FilterValues}}<option value="{{.}}"></option>{{end}}</datalist>
       <div class="flex flex-col gap-2">
       {{range $i := .RuleRows}}
       <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_10rem_1fr]">
-        <input name="attr{{$i}}" placeholder="attribute (tag, class, hardware, assignedUser, group, label:key)">
+        <input name="attr{{$i}}" list="filter-attrs" placeholder="{{$.L.T "policies.attr_placeholder"}}">
         <select name="op{{$i}}"><option value="eq">{{$.L.T "policies.op_equals"}}</option><option value="ne">{{$.L.T "policies.op_not_equals"}}</option><option value="prefix">{{$.L.T "policies.op_starts_with"}}</option><option value="in">{{$.L.T "policies.op_in_comma_list"}}</option></select>
-        <input name="value{{$i}}" placeholder="{{$.L.T "common.value"}}">
+        <input name="value{{$i}}" list="filter-values" placeholder="{{$.L.T "common.value"}}">
       </div>
       {{end}}
       </div>

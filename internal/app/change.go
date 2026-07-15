@@ -24,6 +24,9 @@ type Notifier interface {
 type ChangeRepo interface {
 	ports.ConfigRepo
 	ports.BranchRepo
+	// Head is the current branch tip - captured before a merge so a merged
+	// result the gate refuses can be rolled back to it.
+	Head(ctx context.Context) (string, error)
 }
 
 // OpenWorktree opens a ConfigRepo view on a linked worktree directory; the
@@ -146,6 +149,9 @@ func (s *ChangeService) Edit(ctx context.Context, id string, mut fleet.Mutation,
 	if _, err := applyTx(ctx, wt, s.gate, mut, msg, a, hosts); err != nil {
 		return err
 	}
+	// Track the change's blast radius so Submit gates the whole branch
+	// against exactly the devices it can affect.
+	cr.RecordHosts(hosts)
 	// A reworked failed change moves back to draft.
 	if cr.Status == change.Failed {
 		if err := cr.Transition(change.Draft, s.clock.Now()); err != nil {
@@ -182,7 +188,19 @@ func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error
 		return change.CR{}, err
 	}
 
-	if err := s.builder.Build(ctx, wt.Dir(), nil); err != nil {
+	// The eval gate is the safety property and runs on every submit,
+	// scoped to the change's recorded blast radius: it re-proves the WHOLE
+	// branch state (edits validate incrementally, but a branch behind main
+	// or an out-of-band commit must not slip through on old verdicts). The
+	// realisation build after it is the heavier tier; it needs concrete
+	// hosts (there is no whole-set flake target), so an unbounded change
+	// relies on the eval gate alone. In remote gate mode the local builder
+	// is a no-op until the runner's /build is wired here.
+	gateErr := s.gate.Validate(ctx, wt.Dir(), cr.GateHosts())
+	if gateErr == nil && len(cr.GateHosts()) > 0 {
+		gateErr = s.builder.Build(ctx, wt.Dir(), cr.GateHosts())
+	}
+	if err := gateErr; err != nil {
 		cr.Error = err.Error()
 		if terr := cr.Transition(change.Failed, s.clock.Now()); terr != nil {
 			return change.CR{}, terr
@@ -244,8 +262,22 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 	// persisted immediately (before the snapshot reload / remote push), keeping
 	// the store in step with git even if a later step fails.
 	if err := s.cfg.WithWriteLock(func() error {
+		// Capture the pre-merge tip: a merged RESULT the gate refuses is
+		// rolled back to it. Submit proved the branch, but main may have
+		// moved since - two individually valid changes can merge into an
+		// invalid whole without a single git conflict.
+		pre, err := s.repo.Head(ctx)
+		if err != nil {
+			return fmt.Errorf("read pre-merge head: %w", err)
+		}
 		if err := s.repo.MergeNoFF(ctx, cr.Branch, fmt.Sprintf("merge change %s: %s", cr.ID, cr.Title), a); err != nil {
 			return err
+		}
+		if err := s.gate.Validate(ctx, s.repo.Dir(), cr.GateHosts()); err != nil {
+			if rerr := s.repo.ResetHard(ctx, pre); rerr != nil {
+				return fmt.Errorf("merged result failed the gate (%w) AND rollback failed: %w", err, rerr)
+			}
+			return fmt.Errorf("merged result failed the gate, merge rolled back: %w", err)
 		}
 		if err := cr.Transition(change.Merged, s.clock.Now()); err != nil {
 			return err

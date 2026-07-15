@@ -82,6 +82,10 @@ type BranchRepo interface {
 	// (audit trail). On conflict it aborts, leaves the tree clean and
 	// returns an error wrapping ErrConflict.
 	MergeNoFF(ctx context.Context, branch, msg string, a Author) error
+	// ResetHard moves the current branch back to rev, discarding anything
+	// after it (the merge-revalidation rollback: a merged result the gate
+	// refuses must not survive).
+	ResetHard(ctx context.Context, rev string) error
 	// Diff returns the unified diff a branch would apply to the current
 	// branch (merge-base three-dot semantics): what an approver reviews.
 	Diff(ctx context.Context, branch string) (string, error)

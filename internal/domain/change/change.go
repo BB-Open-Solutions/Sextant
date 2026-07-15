@@ -69,6 +69,42 @@ type CR struct {
 	Error         string    `json:"error,omitempty"` // gate/build rejection detail
 	Created       time.Time `json:"created"`
 	Updated       time.Time `json:"updated"`
+
+	// Hosts is the union of every edit's blast radius, so Submit can gate the
+	// branch against exactly the devices the change can affect. WholeFleet is
+	// set once any edit had an unbounded radius (org-wide); from then on the
+	// gate validates everything regardless of Hosts.
+	Hosts      []string `json:"hosts,omitempty"`
+	WholeFleet bool     `json:"wholeFleet,omitempty"`
+}
+
+// RecordHosts widens the CR's blast radius with one edit's affected hosts.
+// An empty list means the edit was unbounded (org-wide): the whole fleet
+// must be validated at submit, whatever earlier edits touched.
+func (c *CR) RecordHosts(hosts []string) {
+	if len(hosts) == 0 {
+		c.WholeFleet = true
+		return
+	}
+	seen := make(map[string]bool, len(c.Hosts))
+	for _, h := range c.Hosts {
+		seen[h] = true
+	}
+	for _, h := range hosts {
+		if !seen[h] {
+			c.Hosts = append(c.Hosts, h)
+			seen[h] = true
+		}
+	}
+}
+
+// GateHosts is the host scope Submit validates: nil (everything) when any
+// edit was unbounded or the radius is unknown, else the recorded union.
+func (c CR) GateHosts() []string {
+	if c.WholeFleet || len(c.Hosts) == 0 {
+		return nil
+	}
+	return c.Hosts
 }
 
 // Open reports whether the CR is still in progress.

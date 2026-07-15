@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -90,6 +91,22 @@ func truncateDiff(out string) string {
 	}
 	return cut + "\n... (diff truncated)"
 }
+
+// ResetHard implements ports.BranchRepo: move the current branch back to rev,
+// discarding everything after it. The merge-revalidation rollback. rev is
+// re-checked against injection even though callers pass a Head() they took
+// themselves - this package does not trust its callers with argv.
+func (r *Repo) ResetHard(ctx context.Context, rev string) error {
+	if !revHashRe.MatchString(rev) {
+		return fmt.Errorf("invalid revision %q", rev)
+	}
+	_, err := gitRun(ctx, r.dir, "reset", "--hard", "--quiet", rev)
+	return err
+}
+
+// revHashRe: a git commit hash (ResetHard's only accepted target - never a
+// ref expression, which could smuggle flags or refspec tricks).
+var revHashRe = regexp.MustCompile(`^[0-9a-f]{6,40}$`)
 
 // MergeNoFF implements ports.BranchRepo: merge with a merge commit for the
 // audit trail. A conflict aborts the merge (leaving the tree clean) and
