@@ -36,20 +36,21 @@ func TestValidateInvocation(t *testing.T) {
 
 func TestHostVariantsExpand(t *testing.T) {
 	g := &EvalGate{HostVariants: []string{"", "-sb"}}
-	expr, err := g.applyExpr([]string{"lt-1"})
+	names, err := g.expandVariants([]string{"lt-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(expr, `"lt-1"`) || !strings.Contains(expr, `"lt-1-sb"`) {
-		t.Fatalf("variants not expanded: %s", expr)
+	if len(names) != 2 || names[0] != "lt-1" || names[1] != "lt-1-sb" {
+		t.Fatalf("variants not expanded: %v", names)
 	}
 }
 
-// TestApplyExprRejectsInjectionHost proves the hostRe firewall guards
-// EvalGate.applyExpr - the surface that runs on every Apply, i.e. the write
-// path, not just the heavier CI-only Builder gate that
-// TestBuildInvalidHostRejectedBeforeRunning already covers. Both share the
-// same hostRe var, but until now only the Builder side had a test.
+// TestApplyExprRejectsInjectionHost proves the hostRe firewall guards the two
+// surfaces that interpolate a host name into a nix expression on the write path
+// (every Apply): expandVariants, which builds the name, and applyExprExact,
+// which splices it. Neither may trust that an upstream caller validated the
+// slug. This is the write-path counterpart to the CI-only Builder gate covered
+// by TestBuildInvalidHostRejectedBeforeRunning.
 func TestApplyExprRejectsInjectionHost(t *testing.T) {
 	g := &EvalGate{}
 	for _, bad := range []string{
@@ -60,20 +61,98 @@ func TestApplyExprRejectsInjectionHost(t *testing.T) {
 		"UPPER-not-a-slug",
 		"",
 	} {
-		if _, err := g.applyExpr([]string{bad}); err == nil {
-			t.Errorf("applyExpr accepted injection-y host %q", bad)
+		if _, err := g.expandVariants([]string{bad}); err == nil {
+			t.Errorf("expandVariants accepted injection-y host %q", bad)
+		}
+		if _, err := applyExprExact([]string{bad}); err == nil {
+			t.Errorf("applyExprExact accepted injection-y host %q", bad)
 		}
 	}
 }
 
-func TestEmptyHostsForcesWholeSet(t *testing.T) {
-	g := &EvalGate{}
-	expr, err := g.applyExpr(nil)
-	if err != nil {
+// An empty host list means the whole fleet: the gate discovers the host set
+// from nix (cheap attrNames, no config force) and then forces each discovered
+// host's toplevel derivation.
+func TestEmptyHostsDiscoversAndForcesWholeSet(t *testing.T) {
+	var calls [][]string
+	g := &EvalGate{run: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		calls = append(calls, args)
+		joined := strings.Join(args, " ")
+		if strings.Contains(joined, "attrNames") {
+			return []byte(`["host-a","host-b"]`), nil
+		}
+		return []byte("ok"), nil
+	}}
+	if err := g.Validate(context.Background(), "/repo", nil); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(expr, "mapAttrs") {
-		t.Fatalf("whole-set expr wrong: %s", expr)
+	if len(calls) != 2 {
+		t.Fatalf("want attrNames + one eval batch, got %d calls", len(calls))
+	}
+	if !strings.Contains(strings.Join(calls[0], " "), "attrNames") {
+		t.Errorf("first call must discover names via attrNames: %v", calls[0])
+	}
+	batch := strings.Join(calls[1], " ")
+	if !strings.Contains(batch, `"host-a"`) || !strings.Contains(batch, `"host-b"`) ||
+		!strings.Contains(batch, "toplevel.drvPath") {
+		t.Errorf("eval batch must force the discovered hosts' drvPath: %s", batch)
+	}
+}
+
+// A large host set is evaluated in memory-bounded batches, each in its own nix
+// process, so peak memory does not grow with fleet size.
+func TestValidateChunksLargeHostSet(t *testing.T) {
+	var batches int
+	g := &EvalGate{ChunkSize: 3, run: func(context.Context, string, ...string) ([]byte, error) {
+		batches++
+		return []byte("ok"), nil
+	}}
+	hosts := []string{"h1", "h2", "h3", "h4", "h5", "h6", "h7"}
+	if err := g.Validate(context.Background(), "/repo", hosts); err != nil {
+		t.Fatal(err)
+	}
+	if batches != 3 { // ceil(7/3)
+		t.Fatalf("want 3 batches for 7 hosts at size 3, got %d", batches)
+	}
+}
+
+// A rejection in any batch fails the whole change and stops evaluating the
+// rest: later batches must not run once one host is proven invalid.
+func TestValidateStopsAtFirstBadBatch(t *testing.T) {
+	var batches int
+	g := &EvalGate{ChunkSize: 2, run: func(context.Context, string, ...string) ([]byte, error) {
+		batches++
+		if batches == 1 {
+			return []byte("error: bad option 'x'"), errors.New("exit 1")
+		}
+		return []byte("ok"), nil
+	}}
+	err := g.Validate(context.Background(), "/repo", []string{"h1", "h2", "h3", "h4"})
+	var verr *ports.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatalf("want ValidationError, got %T %v", err, err)
+	}
+	if batches != 1 {
+		t.Fatalf("evaluation did not stop at the first bad batch: ran %d", batches)
+	}
+}
+
+// A scope that resolves to no building hosts (empty fleet) is vacuously valid
+// and must not shell nix at all.
+func TestValidateEmptyFleetIsVacuouslyValid(t *testing.T) {
+	var called bool
+	g := &EvalGate{run: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		called = true
+		if strings.Contains(strings.Join(args, " "), "attrNames") {
+			return []byte(`[]`), nil
+		}
+		return []byte("ok"), nil
+	}}
+	if err := g.Validate(context.Background(), "/repo", nil); err != nil {
+		t.Fatalf("empty fleet should pass: %v", err)
+	}
+	if !called {
+		t.Fatal("expected the attrNames discovery call")
 	}
 }
 

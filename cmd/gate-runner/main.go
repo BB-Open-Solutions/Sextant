@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -47,6 +48,7 @@ func main() {
 		branch        = flag.String("branch", envOr("GATE_OVERLAY_BRANCH", "main"), "overlay branch to track")
 		variants      = flag.String("host-variants", os.Getenv("GATE_HOST_VARIANTS"), "comma-separated host suffixes, e.g. ,-sb")
 		evalSecs      = flag.Int("eval-timeout", 120, "per-evaluation timeout, seconds")
+		chunkSize     = flag.Int("chunk-size", envOrInt("GATE_CHUNK_SIZE", 50), "max host toplevels forced per nix process (bounds peak memory)")
 		logFormat     = flag.String("log-format", envOr("GATE_LOG_FORMAT", "text"), "log format: text|json")
 		logLevel      = flag.String("log-level", envOr("GATE_LOG_LEVEL", "info"), "log level: debug|info|warn|error")
 		maxConcurrent = flag.Int("max-concurrent", 4, "max /validate requests admitted to wait for the evaluation slot at once")
@@ -67,6 +69,10 @@ func main() {
 	}
 	if *maxConcurrent <= 0 {
 		log.Error("max-concurrent must be positive", "value", *maxConcurrent)
+		os.Exit(2)
+	}
+	if *chunkSize <= 0 {
+		log.Error("chunk-size must be positive", "value", *chunkSize)
 		os.Exit(2)
 	}
 
@@ -93,7 +99,7 @@ func main() {
 		remote:   *remote,
 		branch:   *branch,
 		variants: splitVariants(*variants),
-		gate:     &nix.EvalGate{Timeout: time.Duration(*evalSecs) * time.Second},
+		gate:     &nix.EvalGate{Timeout: time.Duration(*evalSecs) * time.Second, ChunkSize: *chunkSize},
 		sem:      make(chan struct{}, *maxConcurrent),
 		token:    token,
 	}
@@ -327,6 +333,17 @@ func splitVariants(s string) []string {
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+// envOrInt reads an int env var, falling back to def when unset or unparseable.
+// A bad value is validated at startup by the caller (it must be positive).
+func envOrInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
 	}
 	return def
 }
