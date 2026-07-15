@@ -72,7 +72,9 @@ func TestSecureHeaders(t *testing.T) {
 		"Content-Security-Policy": "default-src 'self'",
 		"X-Content-Type-Options":  "nosniff",
 		"X-Frame-Options":         "DENY",
-		"Referrer-Policy":         "no-referrer",
+		// same-origin: never leaks to other sites, but the console's own
+		// error page can send the operator back to the submitting form.
+		"Referrer-Policy": "same-origin",
 	} {
 		if got := rec.Header().Get(header); !strings.Contains(got, want) {
 			t.Errorf("%s = %q, want contains %q", header, got, want)

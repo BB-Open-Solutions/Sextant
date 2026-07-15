@@ -30,7 +30,7 @@
       <form method="post" action="/notifications/{{.ID}}/read" class="!m-0">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <input type="hidden" name="to" value="{{.Link}}">
-        <button type="submit" class="flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-bright">
+        <button type="submit" class="bare flex w-full items-start gap-3 !px-5 !py-4 text-left transition-colors hover:bg-surface-bright">
           <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-container-highest"><span class="material-symbols-outlined msz-18 {{.Tone}}">{{.Icon}}</span></span>
           <span class="min-w-0 flex-1">
             <span class="flex items-center gap-2">

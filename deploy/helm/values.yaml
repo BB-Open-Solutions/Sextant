@@ -74,6 +74,7 @@ ownerGroups: ""
 viewerGroups: ""
 
 # Organisation presentation defaults; per-user preferences override.
+orgName: "" # the organisation's display name (the scope tree's root); empty = "Organisation"
 defaultLocale: "" # en|nl; empty = en
 defaultTimezone: "" # IANA name; empty = UTC
 

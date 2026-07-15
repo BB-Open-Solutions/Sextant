@@ -11,6 +11,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -69,6 +70,10 @@ type Server struct {
 
 	// Organisation presentation defaults; user preferences override.
 	defaultLocale, defaultTZ string
+	// orgName is the organisation's display name: the scope tree's root is
+	// the organisation, and showing its actual name (instead of a generic
+	// "root") keeps that legible everywhere scopes appear.
+	orgName string
 }
 
 // SetDefaults configures the organisation's presentation defaults
@@ -79,6 +84,13 @@ func (s *Server) SetDefaults(locale, tz string) {
 	}
 	if tz != "" {
 		s.defaultTZ = tz
+	}
+}
+
+// SetOrgName sets the organisation's display name (see Server.orgName).
+func (s *Server) SetOrgName(name string) {
+	if name != "" {
+		s.orgName = name
 	}
 }
 
@@ -194,7 +206,7 @@ func New(svc Services, sessions Sessions, write bool,
 	tmpl["login"] = login
 	return &Server{svc: svc, sessions: sessions, tmpl: tmpl, log: log, write: write,
 		baseViewer: baseViewer, baseEditor: baseEditor, baseOwner: baseOwner,
-		defaultLocale: "en", defaultTZ: "UTC"}, nil
+		defaultLocale: "en", defaultTZ: "UTC", orgName: "Organisation"}, nil
 }
 
 // Routes registers the console.
@@ -216,6 +228,11 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/settings", s.settingsPage)
 	get("/policies", s.policies)
 	get("/changes", s.changesPage)
+	// A change's home is the Updates board; old notification links and
+	// bookmarks to /changes/<id> land there instead of a 404.
+	get("/changes/{id}", func(w http.ResponseWriter, r *http.Request, _ view) {
+		http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	})
 	get("/changes/{id}/diff", s.diffPage)
 	get("/pipeline", s.pipelinePage)
 	get("/rollout", s.rolloutPage)
@@ -391,18 +408,30 @@ func (s *Server) action(h func(http.ResponseWriter, *http.Request, view) error) 
 		}
 		if err := h(w, r, v); err != nil {
 			s.log.Warn("console action failed", "path", r.URL.Path, "err", err)
-			back := r.Referer()
-			if back == "" {
-				back = "/"
-			}
 			status, msg, detail := classifyActionError(err)
 			s.render(w, "error", map[string]any{
-				"Title": "Error", "Message": msg, "Detail": detail, "Back": back,
+				"Title": "Error", "Message": msg, "Detail": detail,
+				"Back":     backLink(r),
 				"__status": status,
 			}, v)
 			return
 		}
 	})
+}
+
+// backLink is where the error page's "go back" returns to: the page the
+// failed action was submitted from. Only a same-host referer's own path is
+// echoed (never a foreign or absolute URL - no open redirect); without one,
+// the dashboard.
+func backLink(r *http.Request) string {
+	ref, err := url.Parse(r.Referer())
+	if err != nil || ref.Host != r.Host || !strings.HasPrefix(ref.Path, "/") {
+		return "/"
+	}
+	if ref.RawQuery != "" {
+		return ref.Path + "?" + ref.RawQuery
+	}
+	return ref.Path
 }
 
 // render draws a page template.
@@ -412,6 +441,9 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 	data["L"] = v.L
 	data["Unread"] = v.Unread
 	data["HasNotify"] = s.svc.Notify != nil
+	// The organisation IS the scope tree's root; templates show its name
+	// wherever a generic "root"/"organisation" would otherwise appear.
+	data["OrgName"] = s.orgName
 	// Org-wide pages (changes, rollout) refuse scoped viewers; hide the
 	// links instead of offering a door that only opens with a 403.
 	data["CanOrgView"] = v.canView("org")

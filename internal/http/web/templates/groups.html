@@ -22,9 +22,16 @@
       </div>
     </div>
     <div class="flex-1 overflow-y-auto p-2">
+      <!-- The organisation is the tree's root: every top-level group hangs
+           under it. Shown by name so "root" is never an abstract word. -->
+      <div class="flex items-center gap-2 rounded-md border-b border-border-soft py-2 pr-3 pl-1">
+        <span class="material-symbols-outlined msz-20 text-mint-deep">domain</span>
+        <span class="min-w-0 flex-1 text-label-md font-semibold text-ink">{{.OrgName}}</span>
+        <span class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "groups.root"}}</span>
+      </div>
       {{range .Rows}}
       <a href="#g-{{.Name}}" class="flex items-center gap-2 rounded-md py-2 pr-3 {{indent .Depth}} hover:bg-surface-bright transition-colors">
-        <span class="material-symbols-outlined msz-20 text-text-tertiary">{{if eq .Depth 0}}domain{{else}}folder{{end}}</span>
+        <span class="material-symbols-outlined msz-20 text-text-tertiary">{{if eq .Depth 0}}subdirectory_arrow_right{{else}}folder{{end}}</span>
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-1 text-label-md font-medium text-ink">{{.Name}}{{if .Pin}}<span class="material-symbols-outlined msz-14 text-text-tertiary" title="{{$.L.T "groups.pinned_to"}} {{.Pin}}">push_pin</span>{{end}}</span>
           {{with .IdpGroup}}<span class="block font-mono text-label-xs-caps text-text-tertiary">idP: {{.}}</span>{{end}}
@@ -52,7 +59,7 @@
           {{if .Pin}}<span class="tag lock"><span class="material-symbols-outlined msz-14">push_pin</span>{{$.L.T "groups.pinned_badge"}}</span>{{end}}
         </div>
         <dl class="mt-5 flex flex-col divide-y divide-border-soft text-body-sm">
-          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">{{$.L.T "groups.parent"}}</dt><dd>{{if .Parent}}{{.Parent}}{{else}}<span class="muted">{{$.L.T "groups.root"}}</span>{{end}}</dd></div>
+          <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">{{$.L.T "groups.parent"}}</dt><dd>{{if .Parent}}{{.Parent}}{{else}}<span class="muted">{{$.OrgName}} {{$.L.T "groups.root"}}</span>{{end}}</dd></div>
           <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">{{$.L.T "groups.device_count"}}</dt><dd class="font-mono text-code-inline text-ink">{{.Devices}}</dd></div>
           <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">{{$.L.T "groups.idp_mapping"}}</dt><dd>{{if .IdpGroup}}<code class="text-text-secondary">{{.IdpGroup}}</code>{{else}}<span class="flex items-center gap-1 text-status-warn">{{$.L.T "groups.unmapped"}}<span class="material-symbols-outlined msz-14">warning</span></span>{{end}}</dd></div>
           <div class="flex items-center justify-between py-3"><dt class="text-text-tertiary">{{$.L.T "groups.pin_field"}}</dt><dd>{{with .Pin}}<code class="text-text-secondary">{{.}}</code>{{else}}<span class="muted">{{$.L.T "groups.follows_head"}}</span>{{end}}</dd></div>
@@ -66,7 +73,7 @@
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="reparent" value="1">
               <label>{{$.L.T "groups.reparent"}}</label>
               {{$row := .}}
-              <select name="parent" class="w-full"><option value="" {{if not .Parent}}selected{{end}}>{{$.L.T "groups.root"}}</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
+              <select name="parent" class="w-full"><option value="" {{if not .Parent}}selected{{end}}>{{$.OrgName}} {{$.L.T "groups.root"}}</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
               <button type="submit" class="quiet mt-2 self-start">{{$.L.T "groups.move"}}</button>
             </form>
             <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
@@ -107,7 +114,7 @@
     <form method="post" action="/groups" class="!flex-col !items-stretch gap-3">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <div class="flex flex-col gap-1"><label>{{.L.T "common.name"}}</label><input name="name" placeholder="{{.L.T "groups.slug_placeholder"}}" required></div>
-      <div class="flex flex-col gap-1"><label>{{.L.T "groups.parent"}}</label><select name="parent"><option value="">{{.L.T "groups.root"}}</option>{{range .AllGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
+      <div class="flex flex-col gap-1"><label>{{.L.T "groups.parent"}}</label><select name="parent"><option value="">{{.OrgName}} {{.L.T "groups.root"}}</option>{{range .AllGroups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
       <div class="flex flex-col gap-1"><label>{{.L.T "groups.idp_mapping"}}</label><input name="idpGroup" list="dirgroups" placeholder="{{.L.T "common.optional"}}" autocomplete="off"></div>
       <button type="submit" class="mt-2 self-start">{{.L.T "common.create"}}</button>
     </form>

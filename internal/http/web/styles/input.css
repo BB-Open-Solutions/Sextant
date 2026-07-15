@@ -104,6 +104,12 @@
   button.quiet, .btn.quiet {
     @apply bg-transparent text-text-secondary border border-outline-variant hover:bg-surface-container hover:text-primary;
   }
+  /* A full-row action (e.g. a notification row): a button semantically, but
+     rendered as plain list content - the primary-button base (dark pill,
+     inverted text) would make the row unreadable. */
+  button.bare, .btn.bare {
+    @apply rounded-none bg-transparent px-0 py-0 text-inherit font-normal;
+  }
   form.inline, .inline { @apply inline-flex items-center gap-2; }
 
   /* Forms lay out with breathing room. Align to the bottom edge so a button

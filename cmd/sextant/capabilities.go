@@ -422,6 +422,7 @@ func (d *deps) consoleCapability() capability.Capability {
 				return
 			}
 			console.SetDefaults(d.cfg.DefaultLocale, d.cfg.DefaultTimezone)
+			console.SetOrgName(d.cfg.OrgName)
 			console.Routes(mux)
 		},
 	}

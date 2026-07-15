@@ -192,7 +192,7 @@ func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error
 				Recipient: cr.AuthorSubject, Kind: notify.GateFailed,
 				Title: fmt.Sprintf("Build failed: %s", cr.Title),
 				Body:  "The nix gate refused this change. Open it to see why and rework it.",
-				Link:  "/changes/" + cr.ID,
+				Link:  "/pipeline",
 			})
 		}
 	} else {
@@ -205,7 +205,7 @@ func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error
 				Audience: g, Kind: notify.ApprovalNeeded,
 				Title: fmt.Sprintf("Review needed: %s", cr.Title),
 				Body:  fmt.Sprintf("%s submitted a change that passed the gate and awaits approval.", cr.Author),
-				Link:  "/changes/" + cr.ID,
+				Link:  "/pipeline",
 			})
 		}
 	}
@@ -273,7 +273,7 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 			Recipient: cr.AuthorSubject, Kind: notify.ChangeMerged,
 			Title: fmt.Sprintf("Merged: %s", cr.Title),
 			Body:  fmt.Sprintf("%s approved and merged your change. It will roll out with the next release.", a.Name),
-			Link:  "/changes/" + cr.ID,
+			Link:  "/pipeline",
 		})
 	}
 	return cr, nil

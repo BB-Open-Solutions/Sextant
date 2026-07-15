@@ -16,24 +16,24 @@
 <!-- Stat cards -->
 <div class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
   {{$stat := .Stats}}
-  <div class="rounded-lg border border-border-hairline bg-canvas p-4 transition-colors hover:bg-surface-container-low">
+  <a href="/devices" class="rounded-lg border border-border-hairline bg-canvas p-4 transition-colors hover:bg-surface-container-low">
     <div class="mb-3 flex items-center justify-between"><span class="text-label-xs-caps uppercase tracking-wider text-text-tertiary">{{.L.T "nav.devices"}}</span><span class="material-symbols-outlined text-text-tertiary">router</span></div>
     <div class="text-headline-md text-ink">{{$stat.Devices}}</div>
     <div class="mt-1 text-label-md text-mint-deep">{{$stat.Online}} {{.L.T "common.online"}}</div>
-  </div>
-  <div class="rounded-lg border border-border-hairline bg-canvas p-4 transition-colors hover:bg-surface-container-low">
+  </a>
+  <a href="/devices?status=online" class="rounded-lg border border-border-hairline bg-canvas p-4 transition-colors hover:bg-surface-container-low">
     <div class="mb-3 flex items-center justify-between"><span class="text-label-xs-caps uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.stat_online"}}</span><span class="material-symbols-outlined text-mint-vibrant">wifi</span></div>
     <div class="text-headline-md text-ink">{{$stat.Online}}</div>
     <div class="mt-1 text-label-md text-text-secondary">{{.L.T "common.of"}} {{$stat.Devices}}</div>
-  </div>
-  <div class="rounded-lg border border-border-hairline bg-canvas p-4 transition-colors hover:bg-surface-container-low">
+  </a>
+  <a href="/groups" class="rounded-lg border border-border-hairline bg-canvas p-4 transition-colors hover:bg-surface-container-low">
     <div class="mb-3 flex items-center justify-between"><span class="text-label-xs-caps uppercase tracking-wider text-text-tertiary">{{.L.T "nav.groups"}}</span><span class="material-symbols-outlined text-text-tertiary">folder_managed</span></div>
     <div class="text-headline-md text-ink">{{$stat.Groups}}</div>
-  </div>
-  <div class="rounded-lg border border-border-hairline bg-canvas p-4 transition-colors hover:bg-surface-container-low">
+  </a>
+  <a href="/policies" class="rounded-lg border border-border-hairline bg-canvas p-4 transition-colors hover:bg-surface-container-low">
     <div class="mb-3 flex items-center justify-between"><span class="text-label-xs-caps uppercase tracking-wider text-text-tertiary">{{.L.T "nav.policies"}}</span><span class="material-symbols-outlined text-text-tertiary">gavel</span></div>
     <div class="text-headline-md text-ink">{{$stat.Policies}}</div>
-  </div>
+  </a>
   <a href="/pipeline" class="rounded-lg border border-border-hairline bg-canvas p-4 transition-colors hover:bg-surface-container-low">
     <div class="mb-3 flex items-center justify-between"><span class="text-label-xs-caps uppercase tracking-wider text-text-tertiary">{{.L.T "page.overview.stat_open_changes"}}</span><span class="material-symbols-outlined text-mint-deep">commit</span></div>
     <div class="text-headline-md text-ink">{{$stat.OpenChanges}}</div>

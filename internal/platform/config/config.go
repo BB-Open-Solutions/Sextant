@@ -117,6 +117,9 @@ type Config struct {
 	// Organisation presentation defaults; per-user preferences override.
 	DefaultLocale   string
 	DefaultTimezone string
+	// OrgName is the organisation's display name - the scope tree's root as
+	// shown in the console (group parents, scope selectors).
+	OrgName string
 
 	// ConsoleURL is the console's public base (e.g. https://console.example.com),
 	// used to make notification e-mails clickable. Empty omits the link.
@@ -160,6 +163,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		LDAPNameAttr:     envOr(getenv, "LDAP_NAME_ATTR", ""),
 		DefaultLocale:    envOr(getenv, "DEFAULT_LOCALE", "en"),
 		DefaultTimezone:  envOr(getenv, "DEFAULT_TIMEZONE", "UTC"),
+		OrgName:          envOr(getenv, "ORG_NAME", ""),
 		ConsoleURL:       envOr(getenv, "CONSOLE_URL", ""),
 	}
 	if v := getenv(EnvPrefix + "SHUTDOWN_GRACE"); v != "" {

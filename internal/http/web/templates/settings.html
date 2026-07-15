@@ -9,7 +9,7 @@
   {{$scope := .Scope}}
   <div class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border-hairline bg-canvas p-1 text-label-md shadow-sm">
     <span class="pl-2 pr-1 text-text-tertiary">{{.L.T "common.scope"}}</span>
-    <a href="/settings?scope=org" data-scope-link class="inline-flex items-center gap-1 rounded-md px-3 py-1.5 transition-colors {{if eq $scope "org"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}"><span class="material-symbols-outlined msz-16">domain</span>{{.L.T "common.organisation"}}</a>
+    <a href="/settings?scope=org" data-scope-link class="inline-flex items-center gap-1 rounded-md px-3 py-1.5 transition-colors {{if eq $scope "org"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}"><span class="material-symbols-outlined msz-16">domain</span>{{.OrgName}}</a>
     <span class="material-symbols-outlined msz-16 text-text-tertiary">chevron_right</span>
     <form method="get" action="/settings" class="!m-0 !inline-flex !border-0 !p-0 !shadow-none">
       <label class="inline-flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors {{if hasPrefix $scope "group:"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}">

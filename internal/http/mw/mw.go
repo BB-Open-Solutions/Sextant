@@ -93,7 +93,11 @@ func SecureHeaders(hsts bool) Middleware {
 				"default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 			h.Set("X-Content-Type-Options", "nosniff")
 			h.Set("X-Frame-Options", "DENY")
-			h.Set("Referrer-Policy", "no-referrer")
+			// same-origin (not no-referrer): nothing ever leaks to other sites,
+			// while the console itself still sees where a failed action came
+			// from - the error page's "go back" returns the operator to the
+			// form they submitted, not the dashboard.
+			h.Set("Referrer-Policy", "same-origin")
 			h.Set("Cross-Origin-Opener-Policy", "same-origin")
 			if hsts {
 				h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
