@@ -197,6 +197,38 @@ func TestGateRejectionRollsBack(t *testing.T) {
 	}
 }
 
+// ApplyStructural skips the nix gate: a metadata-only change (add a group)
+// commits even when the gate rejects everything, because such a change alters
+// no device build. The mutation itself is still validated (structural safety),
+// and the same reject-all gate proves a normal Apply is still gated.
+func TestApplyStructuralSkipsGate(t *testing.T) {
+	rejecting := ports.GateFunc(func(context.Context, string, []string) error {
+		return &ports.ValidationError{Detail: "gate would reject anything"}
+	})
+	svc, _ := newService(t, rejecting)
+
+	// A gated Apply of the SAME metadata mutation is refused by the gate.
+	if err := svc.Apply(context.Background(),
+		fleet.AddGroup("gated", fleet.Group{}), "gated add", ports.Author{}); err == nil {
+		t.Fatal("Apply should be blocked by the reject-all gate")
+	}
+
+	// ApplyStructural skips the gate: the group is created despite it.
+	if err := svc.ApplyStructural(context.Background(),
+		fleet.AddGroup("kiosks", fleet.Group{}), "add group", ports.Author{}); err != nil {
+		t.Fatalf("ApplyStructural should skip the gate: %v", err)
+	}
+	if _, ok := svc.Fleet().Groups["kiosks"]; !ok {
+		t.Fatal("ApplyStructural did not create the group")
+	}
+
+	// A structurally invalid mutation is still rejected (gate skip != no checks).
+	if err := svc.ApplyStructural(context.Background(),
+		fleet.RemoveGroup("does-not-exist"), "bad remove", ports.Author{}); err == nil {
+		t.Fatal("ApplyStructural should still reject an invalid mutation")
+	}
+}
+
 func TestMutationErrorAborts(t *testing.T) {
 	svc, dir := newService(t, nil)
 	head := sh(t, dir, "rev-parse", "HEAD")

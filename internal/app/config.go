@@ -148,11 +148,29 @@ func (s *ConfigService) reload() error {
 // ever reaches git. affectedHosts scopes the gate to the change's blast
 // radius; empty validates the whole set.
 func (s *ConfigService) Apply(ctx context.Context, mut fleet.Mutation, msg string, a ports.Author, affectedHosts ...string) error {
+	return s.applyWithGate(ctx, mut, msg, a, affectedHosts, s.gate)
+}
+
+// ApplyStructural applies a change that alters no device's generated config -
+// the group tree (adding/removing a group), access (RBAC) bindings, or the
+// governance controls - and therefore SKIPS the nix eval, which would only
+// re-evaluate byte-identical device toplevels. Structural validity is still
+// enforced: the mutation validates its own invariants (slug, parent, cycle,
+// emptiness) and applyTx re-decodes the document. NEVER use it for a change that
+// can alter a device's config (settings, policy assignment, group re-parenting,
+// the rollout plan): those must pass the gate.
+func (s *ConfigService) ApplyStructural(ctx context.Context, mut fleet.Mutation, msg string, a ports.Author) error {
+	return s.applyWithGate(ctx, mut, msg, a, nil, passGate{})
+}
+
+// applyWithGate runs the safe write transaction (mutate -> gate -> commit, with
+// a sync/rebase-retry loop when the repo has a remote) under a chosen gate.
+func (s *ConfigService) applyWithGate(ctx context.Context, mut fleet.Mutation, msg string, a ports.Author, affectedHosts []string, gate ports.Gate) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
 	if !s.repo.HasRemote() {
-		return s.applyOnce(ctx, mut, msg, a, affectedHosts)
+		return s.applyOnce(ctx, mut, msg, a, affectedHosts, gate)
 	}
 
 	// HA path: sync to the remote, apply on the fresh base, push. On a lost
@@ -165,7 +183,7 @@ func (s *ConfigService) Apply(ctx context.Context, mut fleet.Mutation, msg strin
 		if err := s.reload(); err != nil {
 			return err
 		}
-		if err := s.applyOnce(ctx, mut, msg, a, affectedHosts); err != nil {
+		if err := s.applyOnce(ctx, mut, msg, a, affectedHosts, gate); err != nil {
 			return err // mutation/gate errors are not retryable
 		}
 		err := s.repo.Push(ctx)
@@ -180,10 +198,16 @@ func (s *ConfigService) Apply(ctx context.Context, mut fleet.Mutation, msg strin
 	return fmt.Errorf("gave up after %d push conflicts: %w", maxPushRetries, lastErr)
 }
 
+// passGate accepts everything: the gate for ApplyStructural, where the change
+// touches no device build so the nix eval has nothing to reject.
+type passGate struct{}
+
+func (passGate) Validate(context.Context, string, []string) error { return nil }
+
 // applyOnce runs the shared transaction against the service repo and
 // refreshes the snapshot on success.
-func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg string, a ports.Author, hosts []string) error {
-	f, err := applyTx(ctx, s.repo, s.gate, mut, msg, a, hosts)
+func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg string, a ports.Author, hosts []string, gate ports.Gate) error {
+	f, err := applyTx(ctx, s.repo, gate, mut, msg, a, hosts)
 	if err != nil {
 		return err
 	}

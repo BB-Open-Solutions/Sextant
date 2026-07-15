@@ -85,7 +85,7 @@ func (s *Server) postAssurance(w http.ResponseWriter, r *http.Request, v view) e
 	}
 	msg := fmt.Sprintf("assurance: four-eyes=%v change-request=%v test-wave=%v",
 		a.RequireFourEyes, a.RequireChangeRequest, a.RequireTestWave)
-	if err := s.svc.Config.Apply(r.Context(), fleet.SetAssurance(a), msg, webAuthor(v)); err != nil {
+	if err := s.svc.Config.ApplyStructural(r.Context(), fleet.SetAssurance(a), msg, webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/access", http.StatusSeeOther)

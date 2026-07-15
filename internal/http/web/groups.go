@@ -115,7 +115,7 @@ func (s *Server) postGroupAdd(w http.ResponseWriter, r *http.Request, v view) er
 	}
 	g := fleet.Group{Parent: parent, IdpGroup: strings.TrimSpace(r.FormValue("idpGroup"))}
 	msg := "groups: add " + name
-	if err := s.svc.Config.Apply(r.Context(), fleet.AddGroup(name, g), msg, webAuthor(v)); err != nil {
+	if err := s.svc.Config.ApplyStructural(r.Context(), fleet.AddGroup(name, g), msg, webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/groups", http.StatusSeeOther)
@@ -156,7 +156,7 @@ func (s *Server) postGroupRemove(w http.ResponseWriter, r *http.Request, v view)
 	}
 	name := r.PathValue("name")
 	msg := "groups: remove " + name
-	if err := s.svc.Config.Apply(r.Context(), fleet.RemoveGroup(name), msg, webAuthor(v)); err != nil {
+	if err := s.svc.Config.ApplyStructural(r.Context(), fleet.RemoveGroup(name), msg, webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/groups", http.StatusSeeOther)

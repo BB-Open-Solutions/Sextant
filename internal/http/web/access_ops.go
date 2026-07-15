@@ -50,7 +50,7 @@ func (s *Server) postAccessGrant(w http.ResponseWriter, r *http.Request, v view)
 		return err
 	}
 	msg := fmt.Sprintf("access: grant %s %s at %s", b.Group, b.Role, b.Scope)
-	if err := s.svc.Config.Apply(r.Context(), fleet.Grant(b), msg, webAuthor(v)); err != nil {
+	if err := s.svc.Config.ApplyStructural(r.Context(), fleet.Grant(b), msg, webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/access", http.StatusSeeOther)
@@ -63,7 +63,7 @@ func (s *Server) postAccessRevoke(w http.ResponseWriter, r *http.Request, v view
 		return err
 	}
 	msg := fmt.Sprintf("access: revoke %s at %s", group, scope)
-	if err := s.svc.Config.Apply(r.Context(), fleet.Revoke(group, scope), msg, webAuthor(v)); err != nil {
+	if err := s.svc.Config.ApplyStructural(r.Context(), fleet.Revoke(group, scope), msg, webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/access", http.StatusSeeOther)
