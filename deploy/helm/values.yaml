@@ -43,6 +43,16 @@ gateRunner:
   # fleet: size it to the runner's memory limit below (a batch that does not fit
   # OOM-fails its own change instead of the node). Empty = the binary default.
   chunkSize: ""
+  # Release cache (build-before-promote): the runner realises a ring's release
+  # and serves it - signed - under /cache, so devices substitute instead of
+  # compiling. Enabled by naming the Secret that holds the nix signing secret
+  # key (key: "key"; generate with `nix key generate-secret --key-name <org>-1`).
+  # The console enables the build step separately via releaseCache below.
+  cache:
+    keySecret: ""
+    # Optional dedicated host for the cache (Ingress + TLS via certManager);
+    # empty serves /cache only inside the cluster.
+    host: ""
   # The nix store is baked into the image (chowned to the runtime uid); a
   # volume over /nix would hide it, so only the overlay clone is persisted.
   # First eval per pod re-fetches nixpkgs to the ephemeral layer.
@@ -75,6 +85,10 @@ viewerGroups: ""
 
 # Organisation presentation defaults; per-user preferences override.
 orgName: "" # the organisation's display name (the scope tree's root); empty = "Organisation"
+# Build-before-promote (requires gateMode remote + gateRunner.cache configured):
+# a ring's release is built into the runner's signed cache before its branch
+# moves. Devices must list the cache as a substituter (overlay config).
+releaseCache: false
 defaultLocale: "" # en|nl; empty = en
 defaultTimezone: "" # IANA name; empty = UTC
 

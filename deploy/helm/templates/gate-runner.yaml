@@ -59,6 +59,10 @@ spec:
             {{- with .Values.gateRunner.chunkSize }}
             - --chunk-size={{ . }}
             {{- end }}
+            {{- if .Values.gateRunner.cache.keySecret }}
+            - --cache-dir=/data/cache
+            - --cache-key=/cache-key/key
+            {{- end }}
           env:
             # git and nix read /data/.netrc for the private overlay remote.
             - { name: HOME, value: /data }
@@ -88,10 +92,21 @@ spec:
             capabilities: { drop: [ALL] }
           volumeMounts:
             - { name: data, mountPath: /data }
+            {{- if .Values.gateRunner.cache.keySecret }}
+            - { name: cache-key, mountPath: /cache-key, readOnly: true }
+            {{- end }}
       volumes:
         {{- if .Values.gitRemote.netrcSecret }}
         - name: netrc
           secret: { secretName: {{ .Values.gitRemote.netrcSecret }} }
+        {{- end }}
+        {{- if .Values.gateRunner.cache.keySecret }}
+        # The nix signing secret key for published releases. nix wants a file
+        # path, so it mounts as a volume, never an env var.
+        - name: cache-key
+          secret:
+            secretName: {{ .Values.gateRunner.cache.keySecret }}
+            items: [{ key: key, path: key }]
         {{- end }}
         - name: data
           {{- if .Values.gateRunner.persistence.enabled }}
@@ -120,6 +135,40 @@ spec:
   resources: { requests: { storage: {{ .Values.gateRunner.persistence.dataSize }} } }
   {{- with .Values.gateRunner.persistence.storageClass }}
   storageClassName: {{ . }}
+  {{- end }}
+{{- end }}
+{{- if and .Values.gateRunner.cache.keySecret .Values.gateRunner.cache.host }}
+---
+# Public read endpoint for the signed release cache: devices substitute over
+# plain HTTPS GET; integrity comes from the path signatures (devices pin the
+# org public key), not transport secrecy. Only /cache is exposed - /validate
+# and /build stay cluster-internal (and bearer-guarded regardless).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-cache
+  {{- if .Values.certManager.enabled }}
+  annotations:
+    cert-manager.io/{{ if eq .Values.certManager.issuerKind "ClusterIssuer" }}cluster-issuer{{ else }}issuer{{ end }}: {{ .Values.certManager.issuerName }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.gateRunner.cache.host }}
+      http:
+        paths:
+          - path: /cache
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-gate
+                port: { name: http }
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts: [{{ .Values.gateRunner.cache.host }}]
+      secretName: {{ .Release.Name }}-cache-tls
   {{- end }}
 {{- end }}
 {{- end }}

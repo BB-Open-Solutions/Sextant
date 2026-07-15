@@ -89,7 +89,13 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 					row.Active = true
 					converged := row.Status.Total > 0 && row.Status.OnTarget >= row.Status.Total
 					_, approved := st.ApprovedAt[i]
+					_, building := st.BuildRequestedAt[i]
+					_, promoted := st.PromotedAt[i]
 					switch {
+					// Build-before-promote: the wave's release is being
+					// realised into the binary cache; promotion follows.
+					case building && !promoted:
+						row.Label = "Building"
 					case converged && rr.RequireApproval && !approved:
 						row.Label = "Awaiting approval"
 						row.Await = true

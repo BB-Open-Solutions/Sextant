@@ -150,6 +150,9 @@ spec:
             {{- with .Values.orgName }}
             - { name: SEXTANT_ORG_NAME, value: {{ . | quote }} }
             {{- end }}
+            {{- if .Values.releaseCache }}
+            - { name: SEXTANT_RELEASE_CACHE, value: "true" }
+            {{- end }}
             {{- with .Values.defaultLocale }}
             - { name: SEXTANT_DEFAULT_LOCALE, value: {{ . | quote }} }
             {{- end }}
