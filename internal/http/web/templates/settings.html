@@ -86,44 +86,68 @@
   <div class="flex items-center justify-between border-b border-border-hairline bg-surface-bright px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold capitalize text-ink">{{$sec.Name}}</h2><span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len $sec.Rows}} {{$.L.T "settings.keys_suffix"}}</span></div>
   <div class="flex flex-col divide-y divide-border-hairline">
     {{range $i, $row := $sec.Rows}}
-    <div class="px-6 py-4 transition-colors hover:bg-surface-container-low">
-      <!-- Top line: name grows, then a compact value control and enforce inline.
-           The description sits full-width below. -->
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    {{$risk := $row.Entry.RiskClass}}{{$set := $row.Set}}{{$sl := slug $row.Entry.Name}}
+    <div class="relative px-6 py-4 transition-colors {{if $risk}}bg-status-error/[0.03] hover:bg-status-error/[0.06]{{else}}hover:bg-surface-container-low{{end}}">
+      {{if $risk}}<div class="absolute inset-y-0 left-0 w-1 bg-status-error"></div>{{end}}
+      <div class="flex flex-wrap items-start gap-x-4 gap-y-3">
+        <!-- Identity: key + type pill + risk, description, provenance -->
         <div class="min-w-0 flex-1">
-          <span class="break-all font-mono font-medium text-ink">{{$row.Entry.Name}}</span>
-          {{if $row.Entry.RiskClass}}<span class="tag bad ml-1">{{$row.Entry.RiskClass}} {{$.L.T "settings.risk_suffix"}}</span>{{end}}
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="break-all font-mono font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Name}}</span>
+            <span class="rounded-full bg-surface-container px-2 py-0.5 text-label-xs-caps capitalize text-text-tertiary">{{$row.Entry.Type}}</span>
+            {{if $risk}}<span class="tag bad">{{$risk}} {{$.L.T "settings.risk_suffix"}}</span>{{end}}
+          </div>
+          {{with $row.Entry.Description}}<p class="mb-0 mt-1.5 max-w-3xl text-body-sm text-text-tertiary">{{.}}</p>{{end}}
+          <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-label-xs-caps">
+            {{if $set}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined msz-16">edit</span>{{$.L.T "settings.modified_here"}} {{$.ScopeLabel}}</span>
+            {{else if $row.Enforced}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined msz-16">lock</span>{{$.L.T "common.locked"}}</span>
+            {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="h-1.5 w-1.5 rounded-full bg-border-hairline"></span>{{$.L.T "settings.inherits_label"}}</span>{{end}}
+            {{with $row.Entry.DefaultString}}<span class="flex items-center gap-1 text-text-tertiary"><span class="h-1.5 w-1.5 rounded-full bg-border-hairline"></span>{{$.L.T "settings.default_label"}} <code>{{.}}</code></span>{{end}}
+            {{if $.IsDevice}}<span class="flex items-center gap-1 text-text-tertiary">{{$.L.T "settings.col_effective"}}: {{with $row.Resolved}}<code>{{.}}</code>{{else}}-{{end}} <span class="provenance">{{$row.Source}}</span></span>{{end}}
+          </div>
         </div>
         {{if $.CanEdit}}
         {{$vn := printf "v:%s" $row.Entry.Name}}
-        <div class="w-full shrink-0 sm:w-72">
+        <div class="flex shrink-0 items-center gap-4">
+          <div>
           {{if eq $row.Entry.Widget "toggle"}}
-            <select name="{{$vn}}" class="w-full"><option value="" {{if not $row.Set}}selected{{end}}>{{$.L.T "common.inherit"}}</option><option value="true" {{if and $row.Set (eq $row.Value "true")}}selected{{end}}>{{$.L.T "common.true"}}</option><option value="false" {{if and $row.Set (eq $row.Value "false")}}selected{{end}}>{{$.L.T "common.false"}}</option></select>
+            <!-- Colored 3-state segmented toggle: inherit / on / off (peer groups are
+                 scoped to this container, so the static names do not collide between rows). -->
+            <div class="inline-flex items-center rounded-lg border border-border-hairline bg-surface-container-low p-0.5 text-label-md">
+              <input type="radio" name="{{$vn}}" id="ti-{{$sl}}" value="" {{if not $set}}checked{{end}} class="peer/inh sr-only">
+              <input type="radio" name="{{$vn}}" id="ton-{{$sl}}" value="true" {{if and $set (eq $row.Value "true")}}checked{{end}} class="peer/on sr-only">
+              <input type="radio" name="{{$vn}}" id="tof-{{$sl}}" value="false" {{if and $set (eq $row.Value "false")}}checked{{end}} class="peer/off sr-only">
+              <label for="ti-{{$sl}}" class="cursor-pointer rounded-md px-3 py-1 text-text-tertiary peer-checked/inh:bg-ink peer-checked/inh:text-canvas">{{$.L.T "common.inherit"}}</label>
+              <label for="ton-{{$sl}}" class="cursor-pointer rounded-md px-3 py-1 font-medium text-text-secondary peer-checked/on:bg-mint-vibrant peer-checked/on:text-ink">{{$.L.T "common.on"}}</label>
+              <label for="tof-{{$sl}}" class="cursor-pointer rounded-md px-3 py-1 font-medium text-text-secondary peer-checked/off:bg-surface-container-high peer-checked/off:text-ink">{{$.L.T "common.off"}}</label>
+            </div>
           {{else if eq $row.Entry.Widget "select"}}
-            <select name="{{$vn}}" class="w-full"><option value="" {{if not $row.Set}}selected{{end}}>{{$.L.T "common.inherit"}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+            <select name="{{$vn}}" class="w-full sm:w-56 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.inherit"}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
           {{else if eq $row.Entry.Widget "secret"}}
-            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="{{$vn}}" class="w-full min-w-0 flex-1"><option value="" {{if not $row.Set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $row.Set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{slug $row.Entry.Name}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
-            {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{slug $row.Entry.Name}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
+            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2 sm:w-72"><select name="{{$vn}}" class="w-full min-w-0 flex-1 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
+            {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
           {{else if eq $row.Entry.Widget "number"}}
-            <input type="number" name="{{$vn}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full">
+            <input type="number" name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full sm:w-40 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
           {{else if eq $row.Entry.Widget "code"}}
-            <textarea name="{{$vn}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $row.Set}}{{$row.Lines}}{{end}}</textarea>
+            <textarea name="{{$vn}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md sm:w-80 {{if $set}}!border-mint-vibrant{{end}}" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{$row.Lines}}{{end}}</textarea>
           {{else if $row.Suggestions}}
-            {{$listId := printf "sugg-%s" (slug $row.Entry.Name)}}
-            <input name="{{$vn}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full" list="{{$listId}}">
+            {{$listId := printf "sugg-%s" $sl}}
+            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full sm:w-80 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" list="{{$listId}}">
             <datalist id="{{$listId}}">{{range $row.Suggestions}}<option value="{{.}}">{{end}}</datalist>
           {{else}}
-            <input name="{{$vn}}" value="{{if $row.Set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full">
+            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full sm:w-80 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
           {{end}}
+          </div>
+          <!-- Enforce shown as a lock toggle: locking pins the value for every child scope. -->
+          <label class="flex cursor-pointer flex-col items-center gap-1 text-label-xs-caps uppercase text-text-tertiary" title="{{$.L.T "common.enforce"}}">
+            <span class="material-symbols-outlined msz-18 {{if $row.Enforced}}text-ink{{end}}">{{if $row.Enforced}}lock{{else}}lock_open{{end}}</span>
+            <input type="checkbox" name="e:{{$row.Entry.Name}}" {{if $row.Enforced}}checked{{end}} class="!h-4 !w-4">
+          </label>
         </div>
-        <label class="flex shrink-0 flex-col items-center gap-1 text-label-xs-caps uppercase text-text-tertiary" title="{{$.L.T "common.enforce"}}">{{$.L.T "common.enforce"}}<input type="checkbox" name="e:{{$row.Entry.Name}}" {{if $row.Enforced}}checked{{end}} class="!h-5 !w-5"></label>
-        {{if $.IsDevice}}<div class="shrink-0 text-label-md"><span class="text-text-tertiary">{{$.L.T "settings.col_effective"}}:</span> {{with $row.Resolved}}<code>{{.}}</code>{{else}}<span class="muted">-</span>{{end}} <span class="provenance">{{$row.Source}}</span></div>{{end}}
         {{else}}
-        <div class="shrink-0 text-label-md">{{if $row.Set}}<code>{{$row.Value}}</code>{{else}}<span class="muted">{{$.L.T "settings.inherits_label"}}{{with $row.Entry.DefaultString}} <code>{{.}}</code>{{end}}</span>{{end}}{{if $row.Enforced}} <span class="tag lock ml-1">{{$.L.T "common.locked"}}</span>{{end}}</div>
-        {{if $.IsDevice}}<div class="shrink-0 text-label-md"><span class="text-text-tertiary">{{$.L.T "settings.col_effective"}}:</span> {{with $row.Resolved}}<code>{{.}}</code>{{else}}<span class="muted">-</span>{{end}} <span class="provenance">{{$row.Source}}</span></div>{{end}}
+        <div class="shrink-0 text-label-md">{{if $set}}<code>{{$row.Value}}</code>{{else}}<span class="muted">{{$.L.T "settings.inherits_label"}}{{with $row.Entry.DefaultString}} <code>{{.}}</code>{{end}}</span>{{end}}{{if $row.Enforced}} <span class="tag lock ml-1">{{$.L.T "common.locked"}}</span>{{end}}</div>
         {{end}}
       </div>
-      <div class="mt-1.5 max-w-3xl text-body-sm text-text-tertiary">{{$row.Entry.Description}}{{with $row.Entry.DefaultString}} <span class="text-text-tertiary/80">· {{$.L.T "settings.default_label"}} <code>{{.}}</code></span>{{end}}</div>
     </div>
     {{end}}
   </div>

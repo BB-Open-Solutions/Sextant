@@ -189,7 +189,6 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 		},
 		"Compliance":  map[string]int{"Healthy": healthy, "Warning": warn, "Critical": crit, "Total": total, "Score": hp},
 		"Donut":       donut,
-		"Capacity":    fleetCapacity(&fleet.Fleet{Devices: scopedDevices}),
 		"Utilization": fleetUtilization(status),
 		"Incidents":   incidents,
 		"Attention":   attn,

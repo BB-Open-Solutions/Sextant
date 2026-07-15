@@ -5,48 +5,6 @@
     <p class="text-body-md text-text-tertiary max-w-2xl">{{.L.T "devices.subtitle"}}</p>
   </div>
 
-  {{if .CanEdit}}
-  <!-- Enrollment card -->
-  <div class="relative overflow-hidden rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-    <div class="absolute left-0 top-0 h-full w-1 bg-mint-vibrant"></div>
-    <div class="flex items-center justify-between">
-      <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm text-ink">
-        <span class="material-symbols-outlined text-mint-vibrant">add_box</span>{{.L.T "devices.fast_enrollment"}}
-      </h2>
-      <span class="inline-flex items-center gap-1 rounded border border-[#1f1f1f] bg-surface-code px-2 py-1 text-label-md text-canvas">
-        <span class="material-symbols-outlined msz-14">commit</span>{{.L.T "devices.gitops_managed"}}
-      </span>
-    </div>
-    <form method="post" action="/devices" class="!block mt-5">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <div class="grid grid-cols-1 items-end gap-4 md:grid-cols-4">
-        <div class="flex flex-col gap-1">
-          <label>{{.L.T "common.asset_tag"}}</label>
-          <input name="tag" placeholder="ast-xxxx" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono">
-        </div>
-        <div class="flex flex-col gap-1">
-          <label>{{.L.T "common.hardware_profile"}}</label>
-          <input name="hardware" placeholder="{{.L.T "common.eg"}} lenovo-t495s" required>
-        </div>
-        <div class="flex flex-col gap-1">
-          <label>{{.L.T "devices.device_class"}}</label>
-          <input name="class" placeholder="laptop / server / station">
-        </div>
-        <div class="flex flex-col gap-1">
-          <label>{{.L.T "devices.primary_group"}}</label>
-          <select name="group">
-            <option value="">{{.L.T "common.no_group"}}</option>
-            {{range .Groups}}<option value="{{.}}">{{.}}</option>{{end}}
-          </select>
-        </div>
-      </div>
-      <div class="mt-4 flex items-center justify-end gap-3">
-        <span class="muted mr-auto">{{.L.T "devices.validated_hint"}}</span>
-        <button type="submit"><span class="material-symbols-outlined msz-18">note_add</span>{{.L.T "devices.enroll_device"}}</button>
-      </div>
-    </form>
-  </div>
-  {{end}}
 
   {{if .CanEdit}}
   <!-- Bulk selection bar: app.js reveals it once at least one row is ticked and
