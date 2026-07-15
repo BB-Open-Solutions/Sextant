@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -113,6 +115,80 @@ func TestValidateChunksLargeHostSet(t *testing.T) {
 	}
 	if batches != 3 { // ceil(7/3)
 		t.Fatalf("want 3 batches for 7 hosts at size 3, got %d", batches)
+	}
+}
+
+// Parallel workers evaluate every batch exactly once and genuinely overlap:
+// with 3 workers and 6 batches at least two nix processes must be in flight
+// at the same time, or the "workers" knob is decorative.
+func TestValidateParallelWorkersCoverAllBatches(t *testing.T) {
+	var mu sync.Mutex
+	inFlight, peak, calls := 0, 0, 0
+	seen := map[string]bool{}
+	g := &EvalGate{ChunkSize: 1, Workers: 3,
+		run: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			mu.Lock()
+			inFlight++
+			if inFlight > peak {
+				peak = inFlight
+			}
+			calls++
+			seen[strings.Join(args, " ")] = true
+			mu.Unlock()
+			time.Sleep(20 * time.Millisecond) // hold the slot so overlap is observable
+			mu.Lock()
+			inFlight--
+			mu.Unlock()
+			return []byte("ok"), nil
+		}}
+	hosts := []string{"h1", "h2", "h3", "h4", "h5", "h6"}
+	if err := g.Validate(context.Background(), "/repo", hosts); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 6 {
+		t.Fatalf("want 6 batch evals, got %d", calls)
+	}
+	for _, h := range hosts {
+		found := false
+		for k := range seen {
+			if strings.Contains(k, `"`+h+`"`) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("host %s never evaluated", h)
+		}
+	}
+	if peak < 2 {
+		t.Fatalf("no genuine concurrency observed (peak %d)", peak)
+	}
+}
+
+// A rejection with parallel workers still fails the whole validation and is
+// reported as the gate's verdict.
+func TestValidateParallelPropagatesRejection(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	g := &EvalGate{ChunkSize: 1, Workers: 4,
+		run: func(context.Context, string, ...string) ([]byte, error) {
+			mu.Lock()
+			calls++
+			n := calls
+			mu.Unlock()
+			if n == 2 {
+				return []byte("error: bad host"), errors.New("exit 1")
+			}
+			return []byte("ok"), nil
+		}}
+	err := g.Validate(context.Background(), "/repo",
+		[]string{"h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"})
+	var verr *ports.ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatalf("want ValidationError, got %T %v", err, err)
+	}
+	if calls >= 8 {
+		t.Fatalf("cancellation did not stop the remaining batches (%d calls)", calls)
 	}
 }
 

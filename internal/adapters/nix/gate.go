@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
@@ -40,10 +41,15 @@ type EvalGate struct {
 	HostVariants []string
 	// ChunkSize caps how many host toplevels are forced in a single nix
 	// process, so peak memory stays flat regardless of fleet size: a large
-	// host set is evaluated in sequential batches instead of loading every
-	// toplevel into one evaluator (which OOM-killed the runner at scale).
-	// Zero means defaultChunkSize.
+	// host set is evaluated in batches instead of loading every toplevel
+	// into one evaluator (which OOM-killed the runner at scale). Zero means
+	// defaultChunkSize.
 	ChunkSize int
+	// Workers is how many batches evaluate concurrently, each in its own nix
+	// process. Wall-clock for a large validation divides by it; peak memory
+	// multiplies by it (Workers x per-batch memory must fit the runner's
+	// limit). Zero or one means sequential.
+	Workers int
 
 	run runner
 }
@@ -82,16 +88,71 @@ func (g *EvalGate) Validate(ctx context.Context, repoDir string, hosts []string)
 	if size <= 0 {
 		size = defaultChunkSize
 	}
+	var batches [][]string
 	for start := 0; start < len(names); start += size {
 		end := start + size
 		if end > len(names) {
 			end = len(names)
 		}
-		if err := g.evalNames(ctx, run, repoDir, names[start:end]); err != nil {
-			return err
+		batches = append(batches, names[start:end])
+	}
+	return g.evalBatches(ctx, run, repoDir, batches)
+}
+
+// evalBatches evaluates the batches with up to Workers nix processes at once.
+// The first rejection cancels the remaining work: one failed host fails the
+// change, so evaluating the rest is wasted heat.
+func (g *EvalGate) evalBatches(ctx context.Context, run runner, repoDir string, batches [][]string) error {
+	workers := g.Workers
+	if workers <= 1 || len(batches) == 1 {
+		for _, b := range batches {
+			if err := g.evalNames(ctx, run, repoDir, b); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if workers > len(batches) {
+		workers = len(batches)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	jobs := make(chan []string)
+	errs := make(chan error, workers)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for b := range jobs {
+				if err := g.evalNames(ctx, run, repoDir, b); err != nil {
+					select {
+					case errs <- err:
+					default: // an error is already on its way out
+					}
+					cancel()
+					return
+				}
+			}
+		}()
+	}
+feed:
+	for _, b := range batches {
+		select {
+		case jobs <- b:
+		case <-ctx.Done():
+			break feed
 		}
 	}
-	return nil
+	close(jobs)
+	wg.Wait()
+	select {
+	case err := <-errs:
+		return err
+	default:
+		return ctx.Err() // nil unless the caller's own context ended
+	}
 }
 
 // resolveHosts returns the concrete host-attr names to force. An explicit host

@@ -49,6 +49,7 @@ func main() {
 		variants      = flag.String("host-variants", os.Getenv("GATE_HOST_VARIANTS"), "comma-separated host suffixes, e.g. ,-sb")
 		evalSecs      = flag.Int("eval-timeout", 120, "per-evaluation timeout, seconds")
 		chunkSize     = flag.Int("chunk-size", envOrInt("GATE_CHUNK_SIZE", 50), "max host toplevels forced per nix process (bounds peak memory)")
+		evalWorkers   = flag.Int("eval-workers", envOrInt("GATE_EVAL_WORKERS", 1), "concurrent eval batches; peak memory = workers x batch")
 		cacheDir      = flag.String("cache-dir", envOr("GATE_CACHE_DIR", ""), "binary-cache directory to publish releases into (empty disables /build and /cache)")
 		cacheKey      = flag.String("cache-key", envOr("GATE_CACHE_KEY_FILE", ""), "path to the nix signing secret key for published releases")
 		logFormat     = flag.String("log-format", envOr("GATE_LOG_FORMAT", "text"), "log format: text|json")
@@ -77,6 +78,10 @@ func main() {
 		log.Error("chunk-size must be positive", "value", *chunkSize)
 		os.Exit(2)
 	}
+	if *evalWorkers <= 0 {
+		log.Error("eval-workers must be positive", "value", *evalWorkers)
+		os.Exit(2)
+	}
 
 	// The shared bearer token is env-only, never a flag: a flag default is
 	// echoed by -h, and flag values can leak via process listings, neither
@@ -101,7 +106,7 @@ func main() {
 		remote:    *remote,
 		branch:    *branch,
 		variants:  splitVariants(*variants),
-		gate:      &nix.EvalGate{Timeout: time.Duration(*evalSecs) * time.Second, ChunkSize: *chunkSize},
+		gate:      &nix.EvalGate{Timeout: time.Duration(*evalSecs) * time.Second, ChunkSize: *chunkSize, Workers: *evalWorkers},
 		sem:       make(chan struct{}, *maxConcurrent),
 		token:     token,
 		builds:    map[string]*buildResponse{},

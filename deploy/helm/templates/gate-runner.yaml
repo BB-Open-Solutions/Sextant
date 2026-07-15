@@ -59,6 +59,9 @@ spec:
             {{- with .Values.gateRunner.chunkSize }}
             - --chunk-size={{ . }}
             {{- end }}
+            {{- with .Values.gateRunner.evalWorkers }}
+            - --eval-workers={{ . }}
+            {{- end }}
             {{- if .Values.gateRunner.cache.keySecret }}
             - --cache-dir=/cache
             - --cache-key=/cache-key/key

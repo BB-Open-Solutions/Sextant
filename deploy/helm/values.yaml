@@ -43,6 +43,10 @@ gateRunner:
   # fleet: size it to the runner's memory limit below (a batch that does not fit
   # OOM-fails its own change instead of the node). Empty = the binary default.
   chunkSize: ""
+  # Concurrent eval batches. Wall-clock for a big validation divides by it;
+  # peak memory multiplies by it: workers x per-batch memory must fit the
+  # resources.limits below. Empty = 1 (sequential).
+  evalWorkers: ""
   # Release cache (build-before-promote): the runner realises a ring's release
   # and serves it - signed - under /cache, so devices substitute instead of
   # compiling. Enabled by naming the Secret that holds the nix signing secret
