@@ -60,7 +60,7 @@ spec:
             - --chunk-size={{ . }}
             {{- end }}
             {{- if .Values.gateRunner.cache.keySecret }}
-            - --cache-dir=/data/cache
+            - --cache-dir=/cache
             - --cache-key=/cache-key/key
             {{- end }}
           env:
@@ -94,6 +94,7 @@ spec:
             - { name: data, mountPath: /data }
             {{- if .Values.gateRunner.cache.keySecret }}
             - { name: cache-key, mountPath: /cache-key, readOnly: true }
+            - { name: cache, mountPath: /cache }
             {{- end }}
       volumes:
         {{- if .Values.gitRemote.netrcSecret }}
@@ -107,6 +108,13 @@ spec:
           secret:
             secretName: {{ .Values.gateRunner.cache.keySecret }}
             items: [{ key: key, path: key }]
+        # The cache itself is deliberately ephemeral (node disk, capped): a
+        # binary cache is derived state - a pod restart clears it and the next
+        # EnsureBuilt republishes on demand. Durable/central storage (S3) is
+        # the enterprise tier, not a PVC on a space-constrained node.
+        - name: cache
+          emptyDir:
+            sizeLimit: {{ .Values.gateRunner.cache.sizeLimit }}
         {{- end }}
         - name: data
           {{- if .Values.gateRunner.persistence.enabled }}

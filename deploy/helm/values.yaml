@@ -53,6 +53,9 @@ gateRunner:
     # Optional dedicated host for the cache (Ingress + TLS via certManager);
     # empty serves /cache only inside the cluster.
     host: ""
+    # Node-disk cap for the ephemeral cache volume (emptyDir). The cache is
+    # derived state: a pod restart clears it and builds republish on demand.
+    sizeLimit: 20Gi
   # The nix store is baked into the image (chowned to the runtime uid); a
   # volume over /nix would hide it, so only the overlay clone is persisted.
   # First eval per pod re-fetches nixpkgs to the ephemeral layer.
