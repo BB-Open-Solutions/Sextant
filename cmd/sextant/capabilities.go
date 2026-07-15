@@ -245,6 +245,15 @@ func (d *deps) buildConfigPlane() error {
 	// The update funnel (ADR 0011): the same repo adapter moves the
 	// machine-owned rings/<group> branches devices follow.
 	d.rollouts = app.NewRolloutService(svc, st.Rollouts(), conv, clock, log).WithRefs(repo)
+	// Build-before-promote: with a remote runner, a ring's release is realised
+	// into the runner's signed binary cache before its branch moves, so devices
+	// substitute the release instead of each compiling it. Opt-in via
+	// --release-cache: existing deployments keep local device builds until the
+	// cache (signing key + substituter in the overlay) is provisioned.
+	if cfg.GateMode == "remote" && cfg.ReleaseCache {
+		d.rollouts.WithCacheBuilder(gateadapter.NewRemoteBuilder(cfg.GateURL, cfg.GateToken))
+		log.Info("build-before-promote enabled", "runner", cfg.GateURL)
+	}
 	// Guard on the concrete pointer: passing a typed-nil *NotifyService as the
 	// Notifier interface would be a non-nil interface wrapping nil and panic on
 	// use, so only attach when Postgres actually gave us a notifier.

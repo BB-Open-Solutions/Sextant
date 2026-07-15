@@ -175,6 +175,85 @@ func TestRolloutFullRun(t *testing.T) {
 	}
 }
 
+// fakeCacheBuilder scripts the release-build phases the rollout polls.
+type fakeCacheBuilder struct {
+	phase ports.BuildPhase
+	// calls records every EnsureBuilt invocation for assertions.
+	calls []struct {
+		Rev   string
+		Hosts []string
+	}
+}
+
+func (f *fakeCacheBuilder) EnsureBuilt(_ context.Context, rev string, hosts []string) (ports.BuildState, error) {
+	f.calls = append(f.calls, struct {
+		Rev   string
+		Hosts []string
+	}{rev, hosts})
+	return ports.BuildState{Phase: f.phase, Detail: "scripted"}, nil
+}
+
+// Build-before-promote: while the release build runs the promotion is held
+// (no pin, no branch move); once the cache reports done the same tick path
+// promotes. The builder sees the target revision and the ring's active hosts.
+func TestRolloutHoldsPromotionUntilBuilt(t *testing.T) {
+	rs, svc, _, _, _ := newRolloutStack(t)
+	builder := &fakeCacheBuilder{phase: ports.BuildBuilding}
+	rs.WithCacheBuilder(builder)
+	ctx := context.Background()
+
+	if _, err := rs.Start(ctx, "rev-2", ports.Author{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Building: promotion held, no pin committed, build request recorded.
+	tick(t, rs)
+	if pin := svc.Fleet().Groups["canary"].Pin; pin != "" {
+		t.Fatalf("promoted before the release was built (pin %q)", pin)
+	}
+	st, _, _ := rs.Status(ctx)
+	if _, seen := st.BuildRequestedAt[0]; !seen {
+		t.Fatal("build request not recorded on the run state")
+	}
+	if len(builder.calls) == 0 || builder.calls[0].Rev != "rev-2" ||
+		len(builder.calls[0].Hosts) != 1 || builder.calls[0].Hosts[0] != "c-1" {
+		t.Fatalf("builder saw %+v, want rev-2 for canary's host c-1", builder.calls)
+	}
+
+	// Done: the next tick promotes and clears the request marker.
+	builder.phase = ports.BuildDone
+	if k := tick(t, rs); k != rollout.Promote {
+		t.Fatal("want promote once built")
+	}
+	if pin := svc.Fleet().Groups["canary"].Pin; pin != "rev-2" {
+		t.Fatalf("canary pin = %q after built promote", pin)
+	}
+	st, _, _ = rs.Status(ctx)
+	if _, seen := st.BuildRequestedAt[0]; seen {
+		t.Fatal("build request marker not cleared on promotion")
+	}
+}
+
+// A failed release build halts the run: shipping an unbuilt release is what
+// build-before-promote exists to prevent.
+func TestRolloutHaltsOnFailedBuild(t *testing.T) {
+	rs, svc, _, _, _ := newRolloutStack(t)
+	rs.WithCacheBuilder(&fakeCacheBuilder{phase: ports.BuildFailed})
+	ctx := context.Background()
+
+	if _, err := rs.Start(ctx, "rev-2", ports.Author{}); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, rs)
+	st, _, _ := rs.Status(ctx)
+	if st.Status != rollout.Halted || !contains(st.Reason, "release build failed") {
+		t.Fatalf("state = %+v, want halted on failed build", st)
+	}
+	if pin := svc.Fleet().Groups["canary"].Pin; pin != "" {
+		t.Fatalf("failed build still promoted (pin %q)", pin)
+	}
+}
+
 func TestRolloutHaltsOnUnhealthyRing(t *testing.T) {
 	rs, _, conv, _, _ := newRolloutStack(t)
 	ctx := context.Background()

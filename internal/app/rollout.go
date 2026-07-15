@@ -29,7 +29,12 @@ type RolloutService struct {
 	// the owning groups the fleet reached its target.
 	notifier Notifier
 	audience []string
-	mu       sync.Mutex // one tick / start / cancel at a time
+	// builder, when set, enforces build-before-promote: a ring's release is
+	// realised into the binary cache before its branch moves, so devices
+	// substitute the release instead of each compiling it locally. Nil skips
+	// the build gate (devices build locally, as without a cache).
+	builder ports.CacheBuilder
+	mu      sync.Mutex // one tick / start / cancel at a time
 }
 
 // NewRolloutService wires the rollout engine.
@@ -50,6 +55,50 @@ func (s *RolloutService) WithNotifier(n Notifier, audience []string) *RolloutSer
 	s.notifier = n
 	s.audience = audience
 	return s
+}
+
+// WithCacheBuilder enables build-before-promote: a ring's release is realised
+// into the binary cache before its branch moves.
+func (s *RolloutService) WithCacheBuilder(b ports.CacheBuilder) *RolloutService {
+	s.builder = b
+	return s
+}
+
+// ensureRingBuilt drives the release build for the ring about to promote.
+// Returns ready=true when the promotion may proceed. While the build runs the
+// promotion is simply held (the next tick asks again); a failed build halts
+// the run - shipping an unbuilt release to devices is exactly what
+// build-before-promote exists to prevent.
+func (s *RolloutService) ensureRingBuilt(ctx context.Context, st *rollout.State, ring rollout.Ring, now time.Time) bool {
+	if s.builder == nil {
+		return true
+	}
+	hosts := s.cfg.Fleet().ActiveGroupDevices(ring.Group)
+	if len(hosts) == 0 {
+		return true // nothing will pull the release; nothing to build
+	}
+	bs, err := s.builder.EnsureBuilt(ctx, st.Target, hosts)
+	if err != nil {
+		// Transient (runner unreachable, etc): hold the promotion and retry on
+		// the next tick rather than halting a healthy run.
+		s.log.Warn("release build check failed; holding promotion", "err", err)
+		return false
+	}
+	switch bs.Phase {
+	case ports.BuildDone:
+		delete(st.BuildRequestedAt, st.Ring)
+		return true
+	case ports.BuildFailed:
+		st.Status = rollout.Halted
+		st.Reason = "release build failed: " + bs.Detail
+		return false
+	default: // building
+		if _, seen := st.BuildRequestedAt[st.Ring]; !seen {
+			st.BuildRequestedAt[st.Ring] = now
+			s.log.Info("release build started", "ring", st.Ring, "group", ring.Group, "target", st.Target)
+		}
+		return false
+	}
 }
 
 // notifyDone tells the owning groups a rollout reached the whole fleet. Best
@@ -291,6 +340,17 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 	switch act.Kind {
 	case rollout.Promote:
 		ring := rings[st.Ring]
+		// Build-before-promote: the release must be in the binary cache before
+		// the ring's branch moves, so devices substitute instead of compiling.
+		if !s.ensureRingBuilt(ctx, st, ring, now) {
+			st.Updated = now
+			if err := s.store.Put(ctx, st); err != nil {
+				return &act, st, err
+			}
+			s.log.Info("rollout tick", "action", "await-build", "ring", st.Ring,
+				"status", string(st.Status))
+			return &act, st, nil
+		}
 		msg := fmt.Sprintf("rollout: pin ring %d (%s) to %s", st.Ring, ring.Group, st.Target)
 		author := ports.Author{Name: "sextant-rollout", Email: "rollout@sextant"}
 		// Group pin: the audit record + the marker FollowHead uses to leave this

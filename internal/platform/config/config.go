@@ -44,6 +44,11 @@ type Config struct {
 	// that requires authentication (GATE_TOKEN on the runner). Empty sends no
 	// Authorization header, for a runner that allows unauthenticated calls.
 	GateToken string
+	// ReleaseCache enables build-before-promote (GateMode remote only): a
+	// ring's release is built into the runner's signed binary cache before its
+	// branch moves. Requires the runner's cache to be configured
+	// (GATE_CACHE_DIR + signing key) and devices to list it as a substituter.
+	ReleaseCache bool
 	// GitRemote names the push remote for the HA write path ("" = local
 	// commits only).
 	GitRemote string
@@ -135,6 +140,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		GateMode:         envOr(getenv, "GATE", "eval"),
 		GateURL:          envOr(getenv, "GATE_URL", ""),
 		GateToken:        envOr(getenv, "GATE_TOKEN", ""),
+		ReleaseCache:     envOr(getenv, "RELEASE_CACHE", "") == "true",
 		GitRemote:        envOr(getenv, "GIT_REMOTE", ""),
 		APIToken:         getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
 		CheckinToken:     getenv(EnvPrefix + "CHECKIN_TOKEN"), // env-only secret
@@ -203,6 +209,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.StringVar(&cfg.GateMode, "gate", cfg.GateMode, "validation gate: eval|remote|none")
 	fs.StringVar(&cfg.GateURL, "gate-url", cfg.GateURL, "gate-runner base URL (when --gate=remote)")
 	fs.StringVar(&cfg.GateToken, "gate-token", cfg.GateToken, "bearer token for the gate-runner (when --gate=remote)")
+	fs.BoolVar(&cfg.ReleaseCache, "release-cache", cfg.ReleaseCache, "build releases into the runner's binary cache before ring promotion (when --gate=remote)")
 	fs.StringVar(&cfg.GitRemote, "git-remote", cfg.GitRemote, "push remote for the HA write path")
 	fs.StringVar(&cfg.StateDir, "state-dir", cfg.StateDir, "durable control-plane state dir (default <repo>/.sextant-state)")
 	fs.StringVar(&cfg.OIDCIssuer, "oidc-issuer", cfg.OIDCIssuer, "OIDC issuer URL (empty disables session auth)")

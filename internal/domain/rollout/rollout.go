@@ -118,7 +118,11 @@ type State struct {
 	// ApprovedAt records when a manual-gate wave was approved for promotion
 	// (keyed by ring index). A wave with RequireApproval waits here until set.
 	ApprovedAt map[int]time.Time `json:"approvedAt,omitempty"`
-	Status     RunStatus         `json:"status"`
+	// BuildRequestedAt records when a ring's release build was requested
+	// (keyed by ring index): the promotion is held until the build lands in
+	// the binary cache (build-before-promote). Cleared on promotion.
+	BuildRequestedAt map[int]time.Time `json:"buildRequestedAt,omitempty"`
+	Status           RunStatus         `json:"status"`
 	// Reason explains a halt.
 	Reason  string    `json:"reason,omitempty"`
 	Started time.Time `json:"started"`
@@ -129,10 +133,11 @@ type State struct {
 func NewState(target string, now time.Time) *State {
 	return &State{
 		Target: target, Ring: 0, Status: Active,
-		PromotedAt:  map[int]time.Time{},
-		ConvergedAt: map[int]time.Time{},
-		ApprovedAt:  map[int]time.Time{},
-		Started:     now, Updated: now,
+		PromotedAt:       map[int]time.Time{},
+		ConvergedAt:      map[int]time.Time{},
+		ApprovedAt:       map[int]time.Time{},
+		BuildRequestedAt: map[int]time.Time{},
+		Started:          now, Updated: now,
 	}
 }
 
@@ -156,6 +161,9 @@ func (s *State) Normalize() {
 	}
 	if s.ApprovedAt == nil {
 		s.ApprovedAt = map[int]time.Time{}
+	}
+	if s.BuildRequestedAt == nil {
+		s.BuildRequestedAt = map[int]time.Time{}
 	}
 }
 

@@ -49,6 +49,8 @@ func main() {
 		variants      = flag.String("host-variants", os.Getenv("GATE_HOST_VARIANTS"), "comma-separated host suffixes, e.g. ,-sb")
 		evalSecs      = flag.Int("eval-timeout", 120, "per-evaluation timeout, seconds")
 		chunkSize     = flag.Int("chunk-size", envOrInt("GATE_CHUNK_SIZE", 50), "max host toplevels forced per nix process (bounds peak memory)")
+		cacheDir      = flag.String("cache-dir", envOr("GATE_CACHE_DIR", ""), "binary-cache directory to publish releases into (empty disables /build and /cache)")
+		cacheKey      = flag.String("cache-key", envOr("GATE_CACHE_KEY_FILE", ""), "path to the nix signing secret key for published releases")
 		logFormat     = flag.String("log-format", envOr("GATE_LOG_FORMAT", "text"), "log format: text|json")
 		logLevel      = flag.String("log-level", envOr("GATE_LOG_LEVEL", "info"), "log level: debug|info|warn|error")
 		maxConcurrent = flag.Int("max-concurrent", 4, "max /validate requests admitted to wait for the evaluation slot at once")
@@ -94,14 +96,31 @@ func main() {
 	}
 
 	srv := &server{
-		log:      log,
-		workdir:  *workdir,
-		remote:   *remote,
-		branch:   *branch,
-		variants: splitVariants(*variants),
-		gate:     &nix.EvalGate{Timeout: time.Duration(*evalSecs) * time.Second, ChunkSize: *chunkSize},
-		sem:      make(chan struct{}, *maxConcurrent),
-		token:    token,
+		log:       log,
+		workdir:   *workdir,
+		remote:    *remote,
+		branch:    *branch,
+		variants:  splitVariants(*variants),
+		gate:      &nix.EvalGate{Timeout: time.Duration(*evalSecs) * time.Second, ChunkSize: *chunkSize},
+		sem:       make(chan struct{}, *maxConcurrent),
+		token:     token,
+		builds:    map[string]*buildResponse{},
+		buildSlot: make(chan struct{}, 1),
+	}
+	// The release cache is opt-in: both the directory and the signing key must
+	// be configured, or /build answers 501 and /cache stays dark. Half a
+	// configuration (a cache without a key) must not publish unsigned paths.
+	if *cacheDir != "" && *cacheKey != "" {
+		if err := ensureCacheInfo(*cacheDir); err != nil {
+			log.Error("cache dir not usable", "dir", *cacheDir, "err", err)
+			os.Exit(2)
+		}
+		srv.cacheDir = *cacheDir
+		srv.publisher = nix.NewPublisher(*cacheDir, *cacheKey)
+		log.Info("release cache enabled", "dir", *cacheDir)
+	} else if *cacheDir != "" || *cacheKey != "" {
+		log.Error("cache-dir and cache-key must be set together (refusing an unsigned cache)")
+		os.Exit(2)
 	}
 	if err := srv.ensureClone(context.Background()); err != nil {
 		log.Error("initial overlay clone failed", "err", err)
@@ -114,6 +133,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /validate", srv.handleValidate)
+	mux.HandleFunc("POST /build", srv.handleBuild)
+	mux.HandleFunc("GET /cache/", srv.handleCache)
 	mux.Handle("GET /healthz", checks.Liveness())
 	mux.Handle("GET /readyz", checks.Readiness())
 
@@ -163,6 +184,15 @@ type server struct {
 	// fails fast (503) instead of stacking up unbounded blocked goroutines
 	// behind the single evaluation slot.
 	sem chan struct{}
+
+	// Release cache (build-before-promote). publisher nil = /build disabled.
+	publisher *nix.Publisher
+	cacheDir  string
+	buildMu   sync.Mutex // guards builds
+	builds    map[string]*buildResponse
+	// buildSlot serialises actual build work (heavier than an eval) while the
+	// job API stays responsive.
+	buildSlot chan struct{}
 }
 
 type validateRequest struct {

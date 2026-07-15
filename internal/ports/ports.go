@@ -110,6 +110,33 @@ type Builder interface {
 	Build(ctx context.Context, repoDir string, hosts []string) error
 }
 
+// BuildPhase is where a release build stands.
+type BuildPhase string
+
+// Release-build phases. Building covers both queued and running: the caller
+// only needs to know "not ready yet".
+const (
+	BuildBuilding BuildPhase = "building"
+	BuildDone     BuildPhase = "done"
+	BuildFailed   BuildPhase = "failed"
+)
+
+// BuildState reports a release build's phase; Detail explains a failure.
+type BuildState struct {
+	Phase  BuildPhase
+	Detail string
+}
+
+// CacheBuilder realises hosts' system closures at a git revision and
+// publishes them to the organisation's binary cache, ahead of a ring
+// promotion (build-before-promote): devices then substitute the release
+// instead of each compiling it locally. EnsureBuilt is idempotent - it starts
+// the build when absent and reports progress when running - so a periodic
+// caller (the rollout tick) can poll it safely.
+type CacheBuilder interface {
+	EnsureBuilt(ctx context.Context, rev string, hosts []string) (BuildState, error)
+}
+
 // Clock supplies time so services stay deterministic under test.
 type Clock interface {
 	Now() time.Time
