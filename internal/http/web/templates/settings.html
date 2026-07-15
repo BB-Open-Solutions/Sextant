@@ -75,7 +75,9 @@
 <!-- One form saves every editable setting at this scope in a single commit;
      edit several rows, then Save (top or bottom). data-dirty-form drives the
      unsaved-changes warning in app.js. -->
-<form method="post" action="/settings" id="settings-form" data-dirty-form>
+<!-- !block overrides the base `form:not(.inline)` flex layout so the section
+     cards stack full-width instead of shrinking to their content. -->
+<form method="post" action="/settings" id="settings-form" data-dirty-form class="!block">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
   <input type="hidden" name="scope" value="{{.Scope}}">
   <div class="sticky top-0 z-10 mb-4 flex items-center justify-between gap-3 rounded-lg border border-border-hairline bg-canvas px-4 py-2.5 shadow-sm">
