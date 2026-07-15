@@ -56,6 +56,9 @@ spec:
             {{- with .Values.gateRunner.hostVariants }}
             - --host-variants={{ . }}
             {{- end }}
+            {{- with .Values.gateRunner.chunkSize }}
+            - --chunk-size={{ . }}
+            {{- end }}
           env:
             # git and nix read /data/.netrc for the private overlay remote.
             - { name: HOME, value: /data }

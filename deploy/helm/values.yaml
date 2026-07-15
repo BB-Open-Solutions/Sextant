@@ -38,6 +38,11 @@ gateRunner:
     tag: ""
     pullPolicy: IfNotPresent
   hostVariants: "" # comma-separated suffixes the generator emits, e.g. ",-sb"
+  # Max host toplevels forced per nix process. The gate evaluates a large host
+  # set in batches of this size so peak memory is bounded by the batch, not the
+  # fleet: size it to the runner's memory limit below (a batch that does not fit
+  # OOM-fails its own change instead of the node). Empty = the binary default.
+  chunkSize: ""
   # The nix store is baked into the image (chowned to the runtime uid); a
   # volume over /nix would hide it, so only the overlay clone is persisted.
   # First eval per pod re-fetches nixpkgs to the ephemeral layer.
