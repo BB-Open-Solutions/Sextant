@@ -62,6 +62,16 @@ spec:
           env:
             # git and nix read /data/.netrc for the private overlay remote.
             - { name: HOME, value: /data }
+            # Bearer token the console must present to /validate. Optional so a
+            # loopback/dev runner may go without; when the key is set in the
+            # app secret, a networked runner requires it (fail-closed) and the
+            # console picks up the same value via envFrom the same secret.
+            - name: GATE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: GATE_TOKEN
+                  optional: true
           ports:
             - { containerPort: 8090, name: http }
           startupProbe:
