@@ -53,6 +53,9 @@
 </div>
 
 {{$ := .}}
+<!-- The organisation is the root scope: it has no parent, so "inherit" reads as
+     "default" there. -->
+{{$inhWord := .L.T "common.inherit"}}{{if eq .Scope "org"}}{{$inhWord = .L.T "settings.default_word"}}{{end}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
   <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">inventory_2</span>{{.L.T "settings.apps_title"}}</h2>
   <p class="muted mb-4">{{.L.T "settings.apps_help"}}</p>
@@ -90,62 +93,72 @@
     <div class="relative px-6 py-4 transition-colors {{if $risk}}bg-status-error/[0.03] hover:bg-status-error/[0.06]{{else}}hover:bg-surface-container-low{{end}}">
       {{if $risk}}<div class="absolute inset-y-0 left-0 w-1 bg-status-error"></div>{{end}}
       <div class="flex flex-wrap items-start gap-x-4 gap-y-3">
-        <!-- Identity: key + type pill + risk, description, provenance -->
+        <!-- Identity: key + type pill + risk, then description -->
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
             <span class="break-all font-mono font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Name}}</span>
             <span class="rounded-full bg-surface-container px-2 py-0.5 text-label-xs-caps capitalize text-text-tertiary">{{$row.Entry.Type}}</span>
             {{if $risk}}<span class="tag bad">{{$risk}} {{$.L.T "settings.risk_suffix"}}</span>{{end}}
           </div>
-          {{with $row.Entry.Description}}<p class="mb-0 mt-1.5 max-w-3xl text-body-sm text-text-tertiary">{{.}}</p>{{end}}
-          <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-label-xs-caps">
-            {{if $set}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined msz-16">edit</span>{{$.L.T "settings.modified_here"}} {{$.ScopeLabel}}</span>
-            {{else if $row.Enforced}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined msz-16">lock</span>{{$.L.T "common.locked"}}</span>
+          {{with $row.Entry.Description}}<p class="mb-0 mt-1.5 max-w-2xl text-body-sm text-text-tertiary">{{.}}</p>{{end}}
+        </div>
+        {{if $.CanEdit}}
+        {{$vn := printf "v:%s" $row.Entry.Name}}
+        <!-- Value column: one fixed width so controls line up across every row;
+             the provenance (modified/inherits + default + effective) sits right
+             underneath the control. -->
+        <div class="w-full shrink-0 sm:w-72">
+          {{if eq $row.Entry.Widget "toggle"}}
+            <!-- Red/green slider: off = red (false), on = green (true). The inherit
+                 checkbox greys and blocks the slider and unsets the value; two
+                 fields (i: inherit, b: boolean) express three states with no JS.
+                 When inheriting, the greyed slider still sits on the effective
+                 value (resolved on a device, else the default) so it stays
+                 scannable - and unchecking inherit starts from that value. -->
+            {{$eff := $row.Entry.DefaultString}}{{if and $.IsDevice $row.Resolved}}{{$eff = $row.Resolved}}{{end}}
+            <div class="flex items-center gap-3">
+              <input type="checkbox" name="i:{{$row.Entry.Name}}" id="inh-{{$sl}}" value="1" {{if not $set}}checked{{end}} class="peer/inh sr-only">
+              <label class="relative inline-flex cursor-pointer items-center transition-opacity peer-checked/inh:pointer-events-none peer-checked/inh:opacity-40" title="{{$.L.T "common.off"}} / {{$.L.T "common.on"}}">
+                <input type="checkbox" name="b:{{$row.Entry.Name}}" value="true" {{if or (and $set (eq $row.Value "true")) (and (not $set) (eq $eff "true"))}}checked{{end}} class="peer/sl sr-only">
+                <span class="relative h-6 w-11 rounded-full bg-status-error transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked/sl:bg-mint-vibrant peer-checked/sl:after:translate-x-5"></span>
+              </label>
+              <label for="inh-{{$sl}}" class="cursor-pointer select-none text-label-md text-text-tertiary">{{$inhWord}}</label>
+            </div>
+          {{else if eq $row.Entry.Widget "select"}}
+            <select name="{{$vn}}" class="w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$inhWord}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+          {{else if eq $row.Entry.Widget "secret"}}
+            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="{{$vn}}" class="w-full min-w-0 flex-1 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
+            {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
+          {{else if eq $row.Entry.Widget "number"}}
+            <input type="number" name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
+          {{else if eq $row.Entry.Widget "code"}}
+            <textarea name="{{$vn}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md {{if $set}}!border-mint-vibrant{{end}}" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{$row.Lines}}{{end}}</textarea>
+          {{else if $row.Suggestions}}
+            {{$listId := printf "sugg-%s" $sl}}
+            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" list="{{$listId}}">
+            <datalist id="{{$listId}}">{{range $row.Suggestions}}<option value="{{.}}">{{end}}</datalist>
+          {{else}}
+            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
+          {{end}}
+          <!-- Provenance, directly under the control -->
+          <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-xs-caps">
+            {{if $set}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined msz-14">edit</span>{{$.L.T "settings.modified_here"}} {{$.ScopeLabel}}</span>
+            {{else if $row.Enforced}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined msz-14">lock</span>{{$.L.T "common.locked"}}</span>
             {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="h-1.5 w-1.5 rounded-full bg-border-hairline"></span>{{$.L.T "settings.inherits_label"}}</span>{{end}}
             {{with $row.Entry.DefaultString}}<span class="flex items-center gap-1 text-text-tertiary"><span class="h-1.5 w-1.5 rounded-full bg-border-hairline"></span>{{$.L.T "settings.default_label"}} <code>{{.}}</code></span>{{end}}
             {{if $.IsDevice}}<span class="flex items-center gap-1 text-text-tertiary">{{$.L.T "settings.col_effective"}}: {{with $row.Resolved}}<code>{{.}}</code>{{else}}-{{end}} <span class="provenance">{{$row.Source}}</span></span>{{end}}
           </div>
         </div>
-        {{if $.CanEdit}}
-        {{$vn := printf "v:%s" $row.Entry.Name}}
-        <div class="flex shrink-0 items-center gap-4">
-          <div>
-          {{if eq $row.Entry.Widget "toggle"}}
-            <!-- Colored 3-state segmented toggle: inherit / on / off (peer groups are
-                 scoped to this container, so the static names do not collide between rows). -->
-            <div class="inline-flex items-center rounded-lg border border-border-hairline bg-surface-container-low p-0.5 text-label-md">
-              <input type="radio" name="{{$vn}}" id="ti-{{$sl}}" value="" {{if not $set}}checked{{end}} class="peer/inh sr-only">
-              <input type="radio" name="{{$vn}}" id="ton-{{$sl}}" value="true" {{if and $set (eq $row.Value "true")}}checked{{end}} class="peer/on sr-only">
-              <input type="radio" name="{{$vn}}" id="tof-{{$sl}}" value="false" {{if and $set (eq $row.Value "false")}}checked{{end}} class="peer/off sr-only">
-              <label for="ti-{{$sl}}" class="cursor-pointer rounded-md px-3 py-1 text-text-tertiary peer-checked/inh:bg-ink peer-checked/inh:text-canvas">{{$.L.T "common.inherit"}}</label>
-              <label for="ton-{{$sl}}" class="cursor-pointer rounded-md px-3 py-1 font-medium text-text-secondary peer-checked/on:bg-mint-vibrant peer-checked/on:text-ink">{{$.L.T "common.on"}}</label>
-              <label for="tof-{{$sl}}" class="cursor-pointer rounded-md px-3 py-1 font-medium text-text-secondary peer-checked/off:bg-surface-container-high peer-checked/off:text-ink">{{$.L.T "common.off"}}</label>
-            </div>
-          {{else if eq $row.Entry.Widget "select"}}
-            <select name="{{$vn}}" class="w-full sm:w-56 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.inherit"}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
-          {{else if eq $row.Entry.Widget "secret"}}
-            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2 sm:w-72"><select name="{{$vn}}" class="w-full min-w-0 flex-1 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
-            {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
-          {{else if eq $row.Entry.Widget "number"}}
-            <input type="number" name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full sm:w-40 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
-          {{else if eq $row.Entry.Widget "code"}}
-            <textarea name="{{$vn}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md sm:w-80 {{if $set}}!border-mint-vibrant{{end}}" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{$row.Lines}}{{end}}</textarea>
-          {{else if $row.Suggestions}}
-            {{$listId := printf "sugg-%s" $sl}}
-            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full sm:w-80 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" list="{{$listId}}">
-            <datalist id="{{$listId}}">{{range $row.Suggestions}}<option value="{{.}}">{{end}}</datalist>
-          {{else}}
-            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$.L.T "common.inherit"}}" class="w-full sm:w-80 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
-          {{end}}
-          </div>
-          <!-- Enforce shown as a lock toggle: locking pins the value for every child scope. -->
-          <label class="flex cursor-pointer flex-col items-center gap-1 text-label-xs-caps uppercase text-text-tertiary" title="{{$.L.T "common.enforce"}}">
-            <span class="material-symbols-outlined msz-18 {{if $row.Enforced}}text-ink{{end}}">{{if $row.Enforced}}lock{{else}}lock_open{{end}}</span>
-            <input type="checkbox" name="e:{{$row.Entry.Name}}" {{if $row.Enforced}}checked{{end}} class="!h-4 !w-4">
-          </label>
-        </div>
+        {{if not $.IsDevice}}
+        <!-- Enforce (lock) pins the value for every child scope; meaningless on a
+             device (a leaf with no child scope), so it is hidden there. -->
+        <label class="flex shrink-0 cursor-pointer flex-col items-center gap-1 pt-1 text-label-xs-caps uppercase text-text-tertiary" title="{{$.L.T "common.enforce"}}">
+          <span class="material-symbols-outlined msz-18 {{if $row.Enforced}}text-ink{{end}}">{{if $row.Enforced}}lock{{else}}lock_open{{end}}</span>
+          <input type="checkbox" name="e:{{$row.Entry.Name}}" {{if $row.Enforced}}checked{{end}} class="!h-4 !w-4">
+        </label>
+        {{end}}
         {{else}}
-        <div class="shrink-0 text-label-md">{{if $set}}<code>{{$row.Value}}</code>{{else}}<span class="muted">{{$.L.T "settings.inherits_label"}}{{with $row.Entry.DefaultString}} <code>{{.}}</code>{{end}}</span>{{end}}{{if $row.Enforced}} <span class="tag lock ml-1">{{$.L.T "common.locked"}}</span>{{end}}</div>
+        <div class="w-full shrink-0 text-label-md sm:w-72">{{if $set}}<code>{{$row.Value}}</code>{{else}}<span class="muted">{{$.L.T "settings.inherits_label"}}{{with $row.Entry.DefaultString}} <code>{{.}}</code>{{end}}</span>{{end}}{{if $row.Enforced}} <span class="tag lock ml-1">{{$.L.T "common.locked"}}</span>{{end}}</div>
         {{end}}
       </div>
     </div>

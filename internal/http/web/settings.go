@@ -1,7 +1,9 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -208,7 +210,7 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 
 	var changes []app.SettingChange
 	for _, e := range cat.Entries {
-		submitted := strings.TrimSpace(r.FormValue("v:" + e.Name))
+		submitted := settingValue(r, e)
 		enf := r.FormValue("e:"+e.Name) != ""
 		curVal, curSet := own[e.Name]
 		curStr := ""
@@ -224,11 +226,76 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 	}
 	if len(changes) > 0 {
 		if err := s.svc.Config.ApplySettings(r.Context(), scope, changes, webAuthor(v)); err != nil {
+			// A review-gated org does not fail the save: it flows into the review
+			// process. Stage the same edits on a fresh change request and send the
+			// operator to the Updates board.
+			if errors.Is(err, app.ErrChangeRequestRequired) && s.svc.Changes != nil {
+				return s.stageSettingsAsChange(w, r, v, scope, changes)
+			}
 			return err
 		}
 	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
 	return nil
+}
+
+// settingValue reads one submitted setting value. Booleans post as two fields -
+// i:<key> (inherit) and b:<key> (the slider) - so three states (inherit, true,
+// false) survive a plain form without JS; every other widget posts v:<key>.
+func settingValue(r *http.Request, e fleet.CatalogEntry) string {
+	if e.Widget() == fleet.WidgetToggle {
+		switch {
+		case r.FormValue("i:"+e.Name) != "":
+			return ""
+		case r.FormValue("b:"+e.Name) != "":
+			return "true"
+		default:
+			return "false"
+		}
+	}
+	return strings.TrimSpace(r.FormValue("v:" + e.Name))
+}
+
+// stageSettingsAsChange opens a fresh change request, stages the batch of edits
+// on its branch, and redirects to the Updates board - the review path a save
+// takes when the organisation mandates a change request.
+func (s *Server) stageSettingsAsChange(w http.ResponseWriter, r *http.Request, v view, scope string, changes []app.SettingChange) error {
+	mut, msg, hosts, err := s.svc.Config.SettingsMutation(scope, changes)
+	if err != nil {
+		return err
+	}
+	id, err := s.nextChangeID(r.Context(), scope)
+	if err != nil {
+		return err
+	}
+	title := fmt.Sprintf("Settings: %d change(s) at %s", len(changes), scopeLabel(scope))
+	if _, err := s.svc.Changes.Open(r.Context(), id, title, webAuthor(v)); err != nil {
+		return err
+	}
+	if err := s.svc.Changes.Edit(r.Context(), id, mut, msg, webAuthor(v), hosts...); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/changes", http.StatusSeeOther)
+	return nil
+}
+
+// nextChangeID mints a unique, valid change-request id for an auto-staged save.
+func (s *Server) nextChangeID(ctx context.Context, scope string) (string, error) {
+	list, err := s.svc.Changes.List(ctx)
+	if err != nil {
+		return "", err
+	}
+	existing := make(map[string]bool, len(list))
+	for _, cr := range list {
+		existing[cr.ID] = true
+	}
+	base := slugify("cfg-" + scope)
+	for n := len(list) + 1; ; n++ {
+		id := fmt.Sprintf("%s-%d", base, n)
+		if !existing[id] {
+			return id, nil
+		}
+	}
 }
 
 // deviceInGroup reports whether a device is a direct member of the group.

@@ -329,8 +329,15 @@ func TestSyncLoopPicksUpExternalCommits(t *testing.T) {
 	sh(t, other, "push", "-q", "origin", "main")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go svc2.SyncLoop(ctx, 30*time.Millisecond, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	done := make(chan struct{})
+	go func() {
+		svc2.SyncLoop(ctx, 30*time.Millisecond, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		close(done)
+	}()
+	// Stop the sync loop AND wait for it to exit before the test returns, so its
+	// background git fetch cannot race t.TempDir cleanup (which otherwise fails
+	// with "unlinkat .../.git/objects: directory not empty").
+	defer func() { cancel(); <-done }()
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {

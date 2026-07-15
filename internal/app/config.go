@@ -271,6 +271,22 @@ func (s *ConfigService) ApplySettings(ctx context.Context, scope string, changes
 	if len(changes) == 0 {
 		return nil
 	}
+	mut, msg, hosts, err := s.SettingsMutation(scope, changes)
+	if err != nil {
+		return err
+	}
+	return s.Apply(ctx, mut, msg, a, hosts...)
+}
+
+// SettingsMutation compiles a batch of setting changes at one scope into a
+// single mutation, plus its commit message and the hosts it affects. It
+// validates every change - catalog membership, typing, secret-reference
+// integrity - before any is applied, so one bad value rejects the whole batch.
+// It touches no git: ApplySettings applies it to main directly, while the web
+// layer stages the same mutation on a change request's branch when the org
+// mandates review (so a review-gated save flows into the review process instead
+// of failing).
+func (s *ConfigService) SettingsMutation(scope string, changes []SettingChange) (fleet.Mutation, string, []string, error) {
 	muts := make([]fleet.Mutation, 0, len(changes))
 	for _, c := range changes {
 		if c.Clear {
@@ -279,15 +295,15 @@ func (s *ConfigService) ApplySettings(ctx context.Context, scope string, changes
 		}
 		entry, ok := s.Catalog().Lookup(c.Key)
 		if !ok {
-			return fmt.Errorf("unknown setting %q (not in catalog)", c.Key)
+			return nil, "", nil, fmt.Errorf("unknown setting %q (not in catalog)", c.Key)
 		}
 		val, err := entry.ParseValue(strings.TrimSpace(c.RawValue))
 		if err != nil {
-			return err
+			return nil, "", nil, err
 		}
 		if entry.Widget() == fleet.WidgetSecret {
 			if ref, _ := val.(string); ref != "" && !s.Fleet().HasSecretRef(ref) {
-				return fmt.Errorf("unknown secret reference %q; register it first", ref)
+				return nil, "", nil, fmt.Errorf("unknown secret reference %q; register it first", ref)
 			}
 		}
 		key, enforce := c.Key, c.Enforce
@@ -307,7 +323,7 @@ func (s *ConfigService) ApplySettings(ctx context.Context, scope string, changes
 		return nil
 	}
 	msg := fmt.Sprintf("settings: update %d at %s", len(changes), scope)
-	return s.Apply(ctx, combined, msg, a, AffectedHosts(s.Fleet(), scope)...)
+	return combined, msg, AffectedHosts(s.Fleet(), scope), nil
 }
 
 // requireDirectEditAllowed rejects a direct-to-main edit when the org mandates
