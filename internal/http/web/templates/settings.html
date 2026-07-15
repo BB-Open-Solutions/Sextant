@@ -2,10 +2,11 @@
 <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
   <div>
     <h1 class="mb-1">{{.L.T "settings.title"}}</h1>
-    <p class="mb-1 text-body-md"><span class="text-text-tertiary">{{.L.T "settings.editing"}}</span> <span class="tag lock font-semibold">{{.ScopeLabel}}</span></p>
     <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "settings.scope_help_pre"}} <strong>{{.L.T "common.enforce"}}</strong> {{.L.T "settings.scope_help_post"}}</p>
   </div>
-  <!-- Scope selector: drill organisation -> group -> device; the open scope is black. -->
+  <!-- The ONE scope indicator: the selector both chooses and shows what is
+       being edited (the active segment is black). No separate "you are
+       editing" line or cascade explainer repeating it. -->
   {{$scope := .Scope}}
   <div class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border-hairline bg-canvas p-1 text-label-md shadow-sm">
     <span class="pl-2 pr-1 text-text-tertiary">{{.L.T "common.scope"}}</span>
@@ -39,18 +40,6 @@
   <p class="muted">{{.L.T "settings.no_catalog_pre"}} <code>nix eval .#catalog --json &gt; catalog.json</code> {{.L.T "settings.no_catalog_post"}}</p>
 </div>
 {{end}}
-
-<!-- Cascade explainer: how settings flow org -> group -> device -->
-<div class="mb-6 flex flex-col gap-3 rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
-  <div class="flex flex-wrap items-center gap-2 text-label-md">
-    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if eq .Scope "org"}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined msz-16">domain</span>{{.L.T "common.organisation"}}</span>
-    <span class="material-symbols-outlined text-text-tertiary">arrow_forward</span>
-    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if hasPrefix .Scope "group:"}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined msz-16">group_work</span>{{.L.T "common.group"}}</span>
-    <span class="material-symbols-outlined text-text-tertiary">arrow_forward</span>
-    <span class="flex items-center gap-1 rounded-full px-3 py-1 {{if .IsDevice}}bg-ink text-canvas{{else}}bg-surface-container text-text-secondary{{end}}"><span class="material-symbols-outlined msz-16">desktop_windows</span>{{.L.T "common.device"}}</span>
-  </div>
-  <p class="mb-0 text-body-sm text-text-tertiary">{{.L.T "settings.flow_pre"}} <strong>{{.L.T "common.enforce"}}</strong> {{.L.T "settings.flow_post"}}</p>
-</div>
 
 {{$ := .}}
 <!-- The organisation is the root scope: it has no parent, so "inherit" reads as

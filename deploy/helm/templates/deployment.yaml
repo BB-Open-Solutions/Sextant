@@ -135,6 +135,18 @@ spec:
                   name: {{ .Values.cnpg.name }}-app
                   key: uri
             {{- end }}
+            # The gate-runner's bearer secret is stored unprefixed (GATE_TOKEN,
+            # the runner's own env name); the console reads SEXTANT_-prefixed
+            # env only, so map it explicitly. Without this the console sends no
+            # Authorization header and every direct gate call is refused (401)
+            # while CR-staged edits appear to work (their build step is a no-op
+            # in remote mode) - an easy misconfiguration to miss.
+            - name: SEXTANT_GATE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: GATE_TOKEN
+                  optional: true
             {{- with .Values.orgName }}
             - { name: SEXTANT_ORG_NAME, value: {{ . | quote }} }
             {{- end }}
