@@ -127,9 +127,9 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 	// every org post below echoes v:desktop to keep it - exactly as the settings
 	// page always resubmits every row, touched or not.
 
-	// Set + enforce apps.office at org (slider on = b:).
+	// Set + enforce apps.office at org (slider On = v:true).
 	resp := post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"},
-		"b:apps.office": {"true"}, "e:apps.office": {"on"}})
+		"v:apps.office": {"true"}, "e:apps.office": {"on"}})
 	if resp.StatusCode != 303 {
 		t.Fatalf("set status = %d", resp.StatusCode)
 	}
@@ -147,13 +147,13 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 		t.Fatalf("after off at org: own=%v enforced=%v", own, enforced)
 	}
 
-	// Group and device scopes take writes too (apps.office left at inherit).
-	post(url.Values{"scope": {"group:pilot"}, "v:desktop": {"gnome"}, "i:apps.office": {"1"}})
+	// Group and device scopes take writes too (apps.office left at inherit = v: "").
+	post(url.Values{"scope": {"group:pilot"}, "v:desktop": {"gnome"}, "v:apps.office": {""}})
 	own, _, _ = cfg.Fleet().ScopeSettings("group:pilot")
 	if own["desktop"] != "gnome" {
 		t.Fatalf("group set: own=%v", own)
 	}
-	post(url.Values{"scope": {"device:lt-1"}, "v:desktop": {"cosmic"}, "i:apps.office": {"1"}})
+	post(url.Values{"scope": {"device:lt-1"}, "v:desktop": {"cosmic"}, "v:apps.office": {""}})
 	if res := cfg.Fleet().Resolve("lt-1"); res["desktop"].Value != "cosmic" {
 		t.Fatalf("device set not resolved: %+v", res["desktop"])
 	}
