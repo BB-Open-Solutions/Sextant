@@ -22,68 +22,10 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 	// whole fleet: per-scope read-confidentiality.
 	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 
-	// Scope selector: the same dashboard, computed for org (default), one
-	// group (including its subtree), or one device. ?scope= is validated
-	// against the visible fleet and re-checked with the same per-scope read
-	// gate every other page uses, so a tampered value answers like a 404
-	// rather than leaking an invisible scope's data.
-	scope := r.URL.Query().Get("scope")
-	if scope == "" {
-		scope = "org"
-	}
-	switch {
-	case scope == "org":
-		// always visible
-	case strings.HasPrefix(scope, "group:"):
-		if _, ok := f.Groups[strings.TrimPrefix(scope, "group:")]; !ok || !v.canView(scope) {
-			http.NotFound(w, r)
-			return
-		}
-	case strings.HasPrefix(scope, "device:"):
-		if _, ok := f.Devices[strings.TrimPrefix(scope, "device:")]; !ok || !v.canView(scope) {
-			http.NotFound(w, r)
-			return
-		}
-	default:
-		http.NotFound(w, r)
-		return
-	}
-	inScope := scopeFilter(f, scope)
-
-	// Scope selector's own drill-down state: which group is selected (own
-	// scope, or the group the selected device belongs to), and the device
-	// list narrowed to it - mirrors settingsPage's cascade exactly.
-	selGroup := ""
-	if g, ok := strings.CutPrefix(scope, "group:"); ok {
-		selGroup = g
-	} else if tag, ok := strings.CutPrefix(scope, "device:"); ok {
-		if d, ok := f.Devices[tag]; ok && len(d.Groups) > 0 {
-			selGroup = d.Groups[0]
-		}
-	}
-	groupNames := make([]string, 0, len(f.Groups))
-	for g := range f.Groups {
-		groupNames = append(groupNames, g)
-	}
-	sort.Strings(groupNames)
-	deviceTags := make([]string, 0, len(f.Devices))
-	for tag, d := range f.Devices {
-		if selGroup != "" && !deviceInGroup(d, selGroup) {
-			continue
-		}
-		deviceTags = append(deviceTags, tag)
-	}
-	sort.Strings(deviceTags)
-
-	// Devices in scope, filtered from what is already loaded (no extra store
-	// calls): drives the device-count stat, the capacity donut and the
-	// compliance total.
-	scopedDevices := make(map[string]fleet.Device, len(f.Devices))
-	for tag, d := range f.Devices {
-		if inScope(tag) {
-			scopedDevices[tag] = d
-		}
-	}
+	// The dashboard is fleet-wide (no scope selector): the visible slice above
+	// already enforces per-scope read-confidentiality, and the "org" filter
+	// passes every device the viewer may see.
+	inScope := scopeFilter(f, "org")
 
 	var status []app.StatusView
 	if s.svc.Inventory != nil {
@@ -150,11 +92,11 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 			warn++
 		}
 	}
-	// Compliance is over the ACTIVE fleet: a retired device has no agent, so it
-	// is neither healthy nor an incident - counting it would drag the score.
-	// Scoped to the selected group/device via scopedDevices.
+	// Compliance is over the ACTIVE, visible fleet: a retired device has no
+	// agent, so it is neither healthy nor an incident - counting it would drag
+	// the score.
 	total := 0
-	for _, d := range scopedDevices {
+	for _, d := range f.Devices {
 		if !d.Retired() {
 			total++
 		}
@@ -184,7 +126,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 			// Device count and online are scoped; groups/policies/open-changes
 			// are fleet-wide vocabulary (open changes are org-only by nature -
 			// see the guard above) and stay as-is at every scope.
-			"Devices": len(scopedDevices), "Online": online, "Groups": len(f.Groups),
+			"Devices": len(f.Devices), "Online": online, "Groups": len(f.Groups),
 			"Policies": len(f.Policies), "OpenChanges": openChanges,
 		},
 		"Compliance":  map[string]int{"Healthy": healthy, "Warning": warn, "Critical": crit, "Total": total, "Score": hp},
@@ -195,13 +137,6 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 		"Approvals":   approvals,
 		"Status":      status,
 		"CanEnroll":   v.roleAt("org").Meets(identity.Editor),
-		// Scope selector state (mirrors settingsPage's cascade: org -> group,
-		// including subtree -> device).
-		"Scope":    scope,
-		"SelGroup": selGroup,
-		"IsDevice": strings.HasPrefix(scope, "device:"),
-		"Groups":   groupNames,
-		"Devices":  deviceTags,
 	}, v)
 }
 
