@@ -55,6 +55,12 @@ linters:
           - errcheck
           - gosec
           - bodyclose
+      # catalog.go is the EN/NL translation table; Dutch words (selectie,
+      # selecteren, ...) repeatedly trip misspell's English dictionary. The
+      # per-word ignore-rules above cannot keep up, so skip misspell here.
+      - path: internal/http/web/catalog\.go
+        linters:
+          - misspell
 
 formatters:
   enable:
