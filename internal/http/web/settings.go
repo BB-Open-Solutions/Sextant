@@ -258,7 +258,7 @@ func (s *Server) stageSettingsAsChange(w http.ResponseWriter, r *http.Request, v
 	if err := s.svc.Changes.Edit(r.Context(), id, mut, msg, webAuthor(v), hosts...); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/changes", http.StatusSeeOther)
+	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
 	return nil
 }
 

@@ -56,7 +56,7 @@ func (s *Server) postChangeEdit(w http.ResponseWriter, r *http.Request, v view) 
 		app.AffectedHosts(s.svc.Config.Fleet(), scope)...); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/changes", http.StatusSeeOther)
+	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
 	return nil
 }
 
@@ -120,6 +120,6 @@ func (s *Server) postRolloutPlan(w http.ResponseWriter, r *http.Request, v view)
 	if err := s.svc.Config.Apply(r.Context(), fleet.SetRolloutPlan(plan), msg, webAuthor(v)); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/rollout", http.StatusSeeOther)
+	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
 	return nil
 }

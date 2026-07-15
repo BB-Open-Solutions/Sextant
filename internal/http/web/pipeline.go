@@ -108,6 +108,18 @@ func (s *Server) pipelinePage(w http.ResponseWriter, r *http.Request, v view) {
 		"CanEdit": v.roleAt("org").Meets(identity.Editor),
 		"CanOwn":  v.roleAt("org").Meets(identity.Owner),
 	}
+	// The rollout procedure (ring plan) and governance controls live on this
+	// board too, so a change flows edit -> review -> roll out without leaving it.
+	for k, val := range rolloutPlanData(f) {
+		data[k] = val
+	}
+	if f.Assurance != nil {
+		data["RequireFourEyes"] = f.Assurance.RequireFourEyes
+		data["RequireChangeRequest"] = f.Assurance.RequireChangeRequest
+		data["RequireTestWave"] = f.Assurance.RequireTestWave
+	}
+	data["NeedsTestWaveSkip"] = f.Assurance != nil && f.Assurance.RequireTestWave &&
+		f.Rollout != nil && !f.Rollout.HasTestGate()
 	if listErr != nil {
 		data["Error"] = listErr.Error()
 	}

@@ -28,48 +28,9 @@ func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
 		// owner an explicit skip (governance: instelbare test-flow).
 		"NeedsTestWaveSkip": f.Assurance != nil && f.Assurance.RequireTestWave && !f.Rollout.HasTestGate(),
 	}
-	// Ring-plan editor state: every existing ring plus two blank rows.
-	// Sizing to the plan (not a fixed cap) means a large plan can never
-	// render truncated and then lose rings on an unrelated save.
-	ringRows := 2
-	if f.Rollout != nil {
-		ringRows += len(f.Rollout.Rings)
+	for k, val := range rolloutPlanData(f) {
+		data[k] = val
 	}
-	planGroups := make([]string, ringRows)
-	planNames := make([]string, ringRows)
-	planSoaks := make([]string, ringRows)
-	planHealthy := make([]string, ringRows)
-	planApproval := make([]bool, ringRows)
-	planMax := make([]string, ringRows)
-	if f.Rollout != nil {
-		for i, ring := range f.Rollout.Rings {
-			planGroups[i] = ring.Group
-			planNames[i] = ring.Name
-			planApproval[i] = ring.RequireApproval
-			if ring.SoakMinutes > 0 {
-				planSoaks[i] = fmt.Sprint(ring.SoakMinutes)
-			}
-			if ring.MinHealthyPercent > 0 {
-				planHealthy[i] = fmt.Sprint(ring.MinHealthyPercent)
-			}
-			if ring.MaxDevices > 0 {
-				planMax[i] = fmt.Sprint(ring.MaxDevices)
-			}
-		}
-	}
-	rows := make([]int, ringRows)
-	for i := range rows {
-		rows[i] = i
-	}
-	allGroups := make([]string, 0, len(f.Groups))
-	for g := range f.Groups {
-		allGroups = append(allGroups, g)
-	}
-	sort.Strings(allGroups)
-	data["RingRows"] = rows
-	data["AllGroups"] = allGroups
-	data["PlanGroups"], data["PlanSoaks"], data["PlanHealthy"] = planGroups, planSoaks, planHealthy
-	data["PlanNames"], data["PlanApproval"], data["PlanMax"] = planNames, planApproval, planMax
 
 	// Plan ladder: the ordered waves with each wave's device count, so an
 	// operator sees the progression at a glance (e.g. Canary 1 -> Pilot 10 ->
@@ -178,7 +139,7 @@ func (s *Server) postRolloutStart(w http.ResponseWriter, r *http.Request, v view
 	if _, err := s.svc.Rollouts.Start(r.Context(), r.FormValue("target"), webAuthor(v)); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/rollout", http.StatusSeeOther)
+	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
 	return nil
 }
 
@@ -189,7 +150,7 @@ func (s *Server) postRolloutTick(w http.ResponseWriter, r *http.Request, v view)
 	if _, _, err := s.svc.Rollouts.Tick(r.Context()); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/rollout", http.StatusSeeOther)
+	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
 	return nil
 }
 
@@ -205,7 +166,7 @@ func (s *Server) postRolloutApprove(w http.ResponseWriter, r *http.Request, v vi
 	if _, _, err := s.svc.Rollouts.Tick(r.Context()); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/rollout", http.StatusSeeOther)
+	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
 	return nil
 }
 
@@ -216,6 +177,54 @@ func (s *Server) postRolloutCancel(w http.ResponseWriter, r *http.Request, v vie
 	if _, err := s.svc.Rollouts.Cancel(r.Context()); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/rollout", http.StatusSeeOther)
+	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
 	return nil
+}
+
+// rolloutPlanData builds the ring-plan editor state (every existing ring plus
+// two blank rows) and the group list. Shared by the rollout page and the
+// pipeline board so both edit the plan identically. Sizing to the plan (not a
+// fixed cap) means a large plan can never render truncated and then lose rings
+// on an unrelated save.
+func rolloutPlanData(f *fleet.Fleet) map[string]any {
+	ringRows := 2
+	if f.Rollout != nil {
+		ringRows += len(f.Rollout.Rings)
+	}
+	planGroups := make([]string, ringRows)
+	planNames := make([]string, ringRows)
+	planSoaks := make([]string, ringRows)
+	planHealthy := make([]string, ringRows)
+	planApproval := make([]bool, ringRows)
+	planMax := make([]string, ringRows)
+	if f.Rollout != nil {
+		for i, ring := range f.Rollout.Rings {
+			planGroups[i] = ring.Group
+			planNames[i] = ring.Name
+			planApproval[i] = ring.RequireApproval
+			if ring.SoakMinutes > 0 {
+				planSoaks[i] = fmt.Sprint(ring.SoakMinutes)
+			}
+			if ring.MinHealthyPercent > 0 {
+				planHealthy[i] = fmt.Sprint(ring.MinHealthyPercent)
+			}
+			if ring.MaxDevices > 0 {
+				planMax[i] = fmt.Sprint(ring.MaxDevices)
+			}
+		}
+	}
+	rows := make([]int, ringRows)
+	for i := range rows {
+		rows[i] = i
+	}
+	allGroups := make([]string, 0, len(f.Groups))
+	for g := range f.Groups {
+		allGroups = append(allGroups, g)
+	}
+	sort.Strings(allGroups)
+	return map[string]any{
+		"RingRows": rows, "AllGroups": allGroups,
+		"PlanGroups": planGroups, "PlanSoaks": planSoaks, "PlanHealthy": planHealthy,
+		"PlanNames": planNames, "PlanApproval": planApproval, "PlanMax": planMax,
+	}
 }

@@ -14,6 +14,19 @@
 
 {{with .Error}}<div class="mb-4 rounded-lg border border-error/30 bg-error-container px-4 py-3 text-body-md text-on-error-container">{{.}}</div>{{end}}
 
+{{if .CanEdit}}
+<!-- Open a change: stage edits on a fresh branch, right from the board. -->
+<section class="mb-8 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+  <h2 class="mt-0 mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="material-symbols-outlined text-mint-deep">add_circle</span>{{.L.T "changes.open_title"}}</h2>
+  <form method="post" action="/changes" class="!flex-col !items-stretch gap-3 sm:!flex-row sm:!items-end">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <div class="flex flex-col gap-1"><label>{{.L.T "changes.id_label"}}</label><input name="id" placeholder="{{.L.T "changes.slug_placeholder"}}" required pattern="[a-z0-9][a-z0-9-]*"></div>
+    <div class="flex flex-1 flex-col gap-1"><label>{{.L.T "changes.title_label"}}</label><input name="title" placeholder="{{.L.T "changes.title_placeholder"}}" required class="w-full"></div>
+    <button type="submit">{{.L.T "changes.open_button"}}</button>
+  </form>
+</section>
+{{end}}
+
 <!-- Step 1: review proposed changes -->
 <section class="mb-8">
   <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-label-xs-caps font-bold text-canvas">1</span>{{.L.T "page.pipeline.to_review"}}</h2>
@@ -112,4 +125,54 @@
   </div>
   {{end}}
 </section>
+
+<!-- Step 3: the rollout procedure (waves) and governance controls -->
+{{if .CanOwn}}
+<section class="mt-8">
+  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-label-xs-caps font-bold text-canvas">3</span>{{.L.T "page.pipeline.procedure"}}</h2>
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <!-- Ring plan editor: which groups roll out in which order, with soak, health and an approval gate per wave. -->
+    <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+      <h3 class="mt-0 mb-1 text-label-md font-bold text-ink">{{.L.T "rollout.wave_plan_title"}}</h3>
+      <p class="muted mb-4">{{.L.T "rollout.wave_plan_desc"}}</p>
+      <form method="post" action="/rollout/plan" class="!block">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        {{$ := .}}
+        <div class="flex flex-col gap-3">
+        {{range $i := .RingRows}}
+        <div class="rounded-md border border-border-soft p-3">
+          <div class="mb-2 text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "rollout.wave_n_label"}} {{$i}}</div>
+          <div class="flex flex-col gap-2">
+            <input name="name{{$i}}" placeholder="{{$.L.T "rollout.wave_name_placeholder"}}" value="{{index $.PlanNames $i}}">
+            <select name="group{{$i}}"><option value="">{{$.L.T "rollout.unused_wave"}}</option>{{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}</select>
+            <div class="flex gap-2">
+              <input name="soak{{$i}}" type="number" min="0" placeholder="{{$.L.T "rollout.soak_placeholder"}}" value="{{index $.PlanSoaks $i}}" class="w-full">
+              <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="{{$.L.T "rollout.min_healthy_placeholder"}}" value="{{index $.PlanHealthy $i}}" class="w-full">
+              <input name="maxDevices{{$i}}" type="number" min="0" placeholder="{{$.L.T "rollout.max_at_once_placeholder"}}" value="{{index $.PlanMax $i}}" class="w-full" title="{{$.L.T "rollout.max_at_once_title"}}">
+            </div>
+            <label class="flex items-center gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="approval{{$i}}" value="1" {{if index $.PlanApproval $i}}checked{{end}} class="!w-auto">{{$.L.T "rollout.require_approval"}}</label>
+          </div>
+        </div>
+        {{end}}
+        </div>
+        <button type="submit" class="mt-4 w-full">{{.L.T "rollout.save_plan"}}</button>
+      </form>
+    </div>
+    <!-- Governance: how strict the review is before a change takes effect. -->
+    <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+      <h3 class="mt-0 mb-1 text-label-md font-bold text-ink">{{.L.T "page.pipeline.governance"}}</h3>
+      <p class="muted mb-4">{{.L.T "page.pipeline.governance_desc"}}</p>
+      <form method="post" action="/assurance" class="!block">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <div class="flex flex-col gap-3">
+          <label class="flex items-start gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="requireChangeRequest" value="1" {{if .RequireChangeRequest}}checked{{end}} class="!mt-0.5 !w-auto">{{.L.T "page.pipeline.g_require_cr"}}</label>
+          <label class="flex items-start gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="requireFourEyes" value="1" {{if .RequireFourEyes}}checked{{end}} class="!mt-0.5 !w-auto">{{.L.T "page.pipeline.g_four_eyes"}}</label>
+          <label class="flex items-start gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="requireTestWave" value="1" {{if .RequireTestWave}}checked{{end}} class="!mt-0.5 !w-auto">{{.L.T "page.pipeline.g_test_wave"}}</label>
+        </div>
+        <button type="submit" class="mt-4 w-full">{{.L.T "page.pipeline.save_governance"}}</button>
+      </form>
+    </div>
+  </div>
+</section>
+{{end}}
 {{end}}
