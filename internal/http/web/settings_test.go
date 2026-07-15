@@ -38,6 +38,15 @@ const seedCatalog = `[
 // fleet.json + catalog.json, dev sessions, allow-all gate.
 func newConsole(t *testing.T) (*httptest.Server, *app.ConfigService) {
 	t.Helper()
+	allow := ports.GateFunc(func(context.Context, string, []string) error { return nil })
+	return newConsoleWithGate(t, allow)
+}
+
+// newConsoleWithGate builds the console over the seed fleet with a caller-chosen
+// gate, so a test can prove how a handler behaves when the nix gate rejects
+// (e.g. metadata handlers that skip the gate must still succeed).
+func newConsoleWithGate(t *testing.T, gate ports.Gate) (*httptest.Server, *app.ConfigService) {
+	t.Helper()
 	dir := t.TempDir()
 	run := func(args ...string) {
 		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
@@ -58,7 +67,6 @@ func newConsole(t *testing.T) (*httptest.Server, *app.ConfigService) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gate := ports.GateFunc(func(context.Context, string, []string) error { return nil })
 	cfg, err := app.NewConfigService(repo, gate)
 	if err != nil {
 		t.Fatal(err)

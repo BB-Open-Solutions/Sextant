@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -226,6 +227,44 @@ func TestApplyStructuralSkipsGate(t *testing.T) {
 	if err := svc.ApplyStructural(context.Background(),
 		fleet.RemoveGroup("does-not-exist"), "bad remove", ports.Author{}); err == nil {
 		t.Fatal("ApplyStructural should still reject an invalid mutation")
+	}
+}
+
+// A scoped edit reaches the gate with only its blast radius, never the whole
+// fleet - the resource-frugality contract that stops one device change from
+// triggering a full-fleet nix evaluation (the eval that OOM-killed the gate
+// runner). AffectedHosts computes the radius (see TestAffectedHosts); this
+// proves Apply forwards it verbatim to the gate.
+func TestApplyForwardsAffectedHostsToGate(t *testing.T) {
+	var got [][]string
+	recording := ports.GateFunc(func(_ context.Context, _ string, hosts []string) error {
+		got = append(got, hosts)
+		return nil
+	})
+	svc, _ := newService(t, recording)
+	ctx := context.Background()
+	f := svc.Fleet()
+	author := ports.Author{Name: "Ada", Email: "ada@x"}
+
+	// Device scope gates exactly that host.
+	if err := svc.Apply(ctx, fleet.SetScopeSetting("device:lt-1", "apps.office", true),
+		"device edit", author, AffectedHosts(f, "device:lt-1")...); err != nil {
+		t.Fatalf("device edit: %v", err)
+	}
+	// Group scope gates the group's active members (only lt-1 here).
+	if err := svc.Apply(ctx, fleet.SetScopeSetting("group:pilot", "apps.office", true),
+		"group edit", author, AffectedHosts(f, "group:pilot")...); err != nil {
+		t.Fatalf("group edit: %v", err)
+	}
+	// Org scope has an unbounded blast radius: nil = gate the whole fleet.
+	if err := svc.Apply(ctx, fleet.SetScopeSetting("org", "apps.office", true),
+		"org edit", author, AffectedHosts(f, "org")...); err != nil {
+		t.Fatalf("org edit: %v", err)
+	}
+
+	want := [][]string{{"lt-1"}, {"lt-1"}, nil}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("gate host scoping = %v, want %v", got, want)
 	}
 }
 

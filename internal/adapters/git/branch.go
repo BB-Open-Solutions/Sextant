@@ -69,21 +69,26 @@ func (r *Repo) Diff(ctx context.Context, branch string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(out) > maxDiffBytes {
-		cut := out[:maxDiffBytes]
-		// Back off byte-by-byte while the tail is an incomplete/invalid
-		// UTF-8 sequence, so the raw byte cutoff never splits a multibyte
-		// rune (which would corrupt the diff text).
-		for len(cut) > 0 {
-			r, size := utf8.DecodeLastRuneInString(cut)
-			if r != utf8.RuneError || size > 1 {
-				break
-			}
-			cut = cut[:len(cut)-1]
-		}
-		return cut + "\n... (diff truncated)", nil
+	return truncateDiff(out), nil
+}
+
+// truncateDiff bounds a diff to maxDiffBytes so one pathological change cannot
+// flood the API or an approver's browser. The cut backs off byte-by-byte while
+// the tail is an incomplete/invalid UTF-8 sequence, so the raw byte cutoff
+// never splits a multibyte rune (which would corrupt the diff text).
+func truncateDiff(out string) string {
+	if len(out) <= maxDiffBytes {
+		return out
 	}
-	return out, nil
+	cut := out[:maxDiffBytes]
+	for len(cut) > 0 {
+		r, size := utf8.DecodeLastRuneInString(cut)
+		if r != utf8.RuneError || size > 1 {
+			break
+		}
+		cut = cut[:len(cut)-1]
+	}
+	return cut + "\n... (diff truncated)"
 }
 
 // MergeNoFF implements ports.BranchRepo: merge with a merge commit for the

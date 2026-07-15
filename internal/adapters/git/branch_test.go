@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -72,6 +73,36 @@ func TestDiffShowsBranchChanges(t *testing.T) {
 	}
 	if !strings.Contains(diff, "fleet.json") || !strings.Contains(diff, "+{\"v\":3}") {
 		t.Fatalf("diff missing the change:\n%s", diff)
+	}
+}
+
+func TestTruncateDiff(t *testing.T) {
+	// A diff within the cap passes through byte-for-byte.
+	small := "diff --git a/x b/x\n+hello\n"
+	if got := truncateDiff(small); got != small {
+		t.Fatalf("small diff altered: %q", got)
+	}
+
+	// An oversized diff is cut to the marker and stays valid UTF-8.
+	big := strings.Repeat("a", maxDiffBytes+1000)
+	got := truncateDiff(big)
+	if !strings.HasSuffix(got, "\n... (diff truncated)") {
+		t.Fatal("truncated diff missing the marker")
+	}
+	if len(got) > maxDiffBytes+len("\n... (diff truncated)") {
+		t.Fatalf("truncated diff still over the cap: %d bytes", len(got))
+	}
+
+	// The cut must never split a multibyte rune. maxDiffBytes is not a
+	// multiple of 3, so filling with 3-byte runes forces a naive byte cut to
+	// land mid-rune; the backoff must leave the body rune-clean.
+	multibyte := strings.Repeat("世", maxDiffBytes/3+50) // 3 bytes each
+	body := strings.TrimSuffix(truncateDiff(multibyte), "\n... (diff truncated)")
+	if !utf8.ValidString(body) {
+		t.Fatal("truncation split a multibyte rune (body not valid UTF-8)")
+	}
+	if strings.ContainsRune(body, utf8.RuneError) {
+		t.Fatal("truncated body contains U+FFFD (split rune)")
 	}
 }
 
