@@ -276,8 +276,10 @@ func TestSettingsPageGroupScopeFiltersDeviceDrilldown(t *testing.T) {
 		t.Fatalf("status = %d\n%s", resp.StatusCode, body)
 	}
 	page := string(body)
-	if !strings.Contains(page, "group pilot") {
-		t.Error("group-scope page missing the scope label")
+	// The scope selector IS the scope indicator (the "you are editing" line
+	// was consolidated away): the group option must render selected.
+	if !strings.Contains(page, `value="group:pilot" selected`) {
+		t.Error("group-scope page's selector does not show pilot as the edited scope")
 	}
 	if !strings.Contains(page, "lt-1") {
 		t.Error("group-scope page missing its own member lt-1")
