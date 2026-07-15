@@ -3,6 +3,12 @@
   <span class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-error-container text-on-error-container"><span class="material-symbols-outlined">error</span></span>
   <h1 class="mb-2 text-headline-sm">{{.L.T "error.title"}}</h1>
   <p class="mb-6 text-body-md text-text-secondary">{{.Message}}</p>
+  {{if .Detail}}
+  <details class="mx-auto mb-6 max-w-xl text-left">
+    <summary class="cursor-pointer text-label-md text-text-tertiary hover:text-ink">{{.L.T "error.show_detail"}}</summary>
+    <pre class="mt-2 overflow-x-auto rounded-lg bg-surface-code p-4 text-code-md text-canvas">{{.Detail}}</pre>
+  </details>
+  {{end}}
   <a href="{{.Back}}" class="btn quiet"><span class="material-symbols-outlined msz-18">arrow_back</span>{{.L.T "error.back"}}</a>
 </div>
 {{end}}

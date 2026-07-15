@@ -210,7 +210,7 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 
 	var changes []app.SettingChange
 	for _, e := range cat.Entries {
-		submitted := settingValue(r, e)
+		submitted := settingValue(r, e, scope)
 		enf := r.FormValue("e:"+e.Name) != ""
 		curVal, curSet := own[e.Name]
 		curStr := ""
@@ -239,18 +239,23 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 	return nil
 }
 
-// settingValue reads one submitted setting value. Booleans post as two fields -
-// i:<key> (inherit) and b:<key> (the slider) - so three states (inherit, true,
-// false) survive a plain form without JS; every other widget posts v:<key>.
-func settingValue(r *http.Request, e fleet.CatalogEntry) string {
+// settingValue reads one submitted setting value. Booleans post as i:<key>
+// (inherit) and b:<key> (the slider), so three states survive a plain form
+// without JS. The organisation root has no inherit control (nothing to inherit
+// from), so there the slider is two-state and "off" means default (unset) - it
+// never writes an explicit false, which would otherwise bloat every save with
+// every untouched boolean. Every other widget posts v:<key>.
+func settingValue(r *http.Request, e fleet.CatalogEntry, scope string) string {
 	if e.Widget() == fleet.WidgetToggle {
 		switch {
 		case r.FormValue("i:"+e.Name) != "":
-			return ""
+			return "" // inherit ticked (group/device)
 		case r.FormValue("b:"+e.Name) != "":
-			return "true"
+			return "true" // slider on
+		case scope == "org":
+			return "" // org root: off means default (unset), not explicit false
 		default:
-			return "false"
+			return "false" // slider off with inherit available: explicit false
 		}
 	}
 	return strings.TrimSpace(r.FormValue("v:" + e.Name))

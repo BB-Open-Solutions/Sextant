@@ -395,9 +395,9 @@ func (s *Server) action(h func(http.ResponseWriter, *http.Request, view) error) 
 			if back == "" {
 				back = "/"
 			}
-			status, msg := classifyActionError(err)
+			status, msg, detail := classifyActionError(err)
 			s.render(w, "error", map[string]any{
-				"Title": "Error", "Message": msg, "Back": back,
+				"Title": "Error", "Message": msg, "Detail": detail, "Back": back,
 				"__status": status,
 			}, v)
 			return

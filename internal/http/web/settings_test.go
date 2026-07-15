@@ -138,18 +138,13 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 		t.Fatalf("after set: own=%v enforced=%v", own, enforced)
 	}
 
-	// Slider off (neither i: nor b:) and no enforce: false, unlocked.
+	// The organisation root has no inherit control: sliding the boolean off (no
+	// b:) means default, so it clears and unenforces - org never writes an
+	// explicit false.
 	post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"}})
 	own, enforced, _ = cfg.Fleet().ScopeSettings("org")
-	if own["apps.office"] != false || len(enforced) != 0 {
-		t.Fatalf("after unlock: own=%v enforced=%v", own, enforced)
-	}
-
-	// Ticking inherit (i:) on a currently-set key clears it.
-	post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"}, "i:apps.office": {"1"}})
-	own, _, _ = cfg.Fleet().ScopeSettings("org")
-	if _, has := own["apps.office"]; has {
-		t.Fatalf("after clear: own=%v", own)
+	if _, has := own["apps.office"]; has || len(enforced) != 0 {
+		t.Fatalf("after off at org: own=%v enforced=%v", own, enforced)
 	}
 
 	// Group and device scopes take writes too (apps.office left at inherit).
@@ -164,7 +159,7 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 	}
 
 	// Guard rail: a value the catalog type rejects fails the whole batch.
-	if resp := post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"}, "i:apps.office": {"1"}, "v:apps.retries": {"notanumber"}}); resp.StatusCode != 400 {
+	if resp := post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"}, "v:apps.retries": {"notanumber"}}); resp.StatusCode != 400 {
 		t.Errorf("bad value: status = %d, want 400", resp.StatusCode)
 	}
 	respCSRF, _ := client().PostForm(ts.URL+"/settings", url.Values{

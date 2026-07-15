@@ -109,21 +109,28 @@
              underneath the control. -->
         <div class="w-full shrink-0 sm:w-72">
           {{if eq $row.Entry.Widget "toggle"}}
-            <!-- Red/green slider: off = red (false), on = green (true). The inherit
-                 checkbox greys and blocks the slider and unsets the value; two
-                 fields (i: inherit, b: boolean) express three states with no JS.
-                 When inheriting, the greyed slider still sits on the effective
-                 value (resolved on a device, else the default) so it stays
-                 scannable - and unchecking inherit starts from that value. -->
-            {{$eff := $row.Entry.DefaultString}}{{if and $.IsDevice $row.Resolved}}{{$eff = $row.Resolved}}{{end}}
-            <div class="flex items-center gap-3">
-              <input type="checkbox" name="i:{{$row.Entry.Name}}" id="inh-{{$sl}}" value="1" {{if not $set}}checked{{end}} class="peer/inh sr-only">
-              <label class="relative inline-flex cursor-pointer items-center transition-opacity peer-checked/inh:pointer-events-none peer-checked/inh:opacity-40" title="{{$.L.T "common.off"}} / {{$.L.T "common.on"}}">
-                <input type="checkbox" name="b:{{$row.Entry.Name}}" value="true" {{if or (and $set (eq $row.Value "true")) (and (not $set) (eq $eff "true"))}}checked{{end}} class="peer/sl sr-only">
+            <!-- Red (off/false) / green (on/true) slider. At the organisation root
+                 there is no inherit, so it is a plain two-state slider (off =
+                 default). At a group/device an inherit checkbox greys and blocks
+                 the slider and unsets the value; the greyed slider still sits on
+                 the effective value (resolved on a device, else the default) so it
+                 stays scannable. Three states travel as i:/b: fields, no JS. -->
+            {{if eq $.Scope "org"}}
+              <label class="relative inline-flex cursor-pointer items-center" title="{{$.L.T "common.off"}} / {{$.L.T "common.on"}}">
+                <input type="checkbox" name="b:{{$row.Entry.Name}}" value="true" {{if and $set (eq $row.Value "true")}}checked{{end}} class="peer/sl sr-only">
                 <span class="relative h-6 w-11 rounded-full bg-status-error transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked/sl:bg-mint-vibrant peer-checked/sl:after:translate-x-5"></span>
               </label>
-              <label for="inh-{{$sl}}" class="cursor-pointer select-none text-label-md text-text-tertiary">{{$inhWord}}</label>
-            </div>
+            {{else}}
+              {{$eff := $row.Entry.DefaultString}}{{if and $.IsDevice $row.Resolved}}{{$eff = $row.Resolved}}{{end}}
+              <div class="flex items-center gap-3">
+                <input type="checkbox" name="i:{{$row.Entry.Name}}" id="inh-{{$sl}}" value="1" {{if not $set}}checked{{end}} class="peer/inh sr-only">
+                <label class="relative inline-flex cursor-pointer items-center transition-opacity peer-checked/inh:pointer-events-none peer-checked/inh:opacity-40" title="{{$.L.T "common.off"}} / {{$.L.T "common.on"}}">
+                  <input type="checkbox" name="b:{{$row.Entry.Name}}" value="true" {{if or (and $set (eq $row.Value "true")) (and (not $set) (eq $eff "true"))}}checked{{end}} class="peer/sl sr-only">
+                  <span class="relative h-6 w-11 rounded-full bg-status-error transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked/sl:bg-mint-vibrant peer-checked/sl:after:translate-x-5"></span>
+                </label>
+                <label for="inh-{{$sl}}" class="cursor-pointer select-none text-label-md text-text-tertiary">{{$inhWord}}</label>
+              </div>
+            {{end}}
           {{else if eq $row.Entry.Widget "select"}}
             <select name="{{$vn}}" class="w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$inhWord}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
           {{else if eq $row.Entry.Widget "secret"}}
