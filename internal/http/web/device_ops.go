@@ -45,8 +45,13 @@ func (s *Server) postDeviceRetire(w http.ResponseWriter, r *http.Request, v view
 	if err := s.requireDeviceEditor(v, tag); err != nil {
 		return err
 	}
-	if err := s.applyGated(r, v, fleet.RetireDevice(tag),
-		"devices: retire "+tag); err != nil {
+	// Retiring is subtract-only (approved by Bram, 2026-07-16): the host
+	// leaves the build set and no remaining host's configuration changes, so
+	// there is nothing for the nix gate to prove - the structural checks
+	// (decode, mutate, encode) still run. Reactivate DOES re-add a host and
+	// stays gated.
+	if err := s.svc.Config.ApplyStructural(r.Context(), fleet.RetireDevice(tag),
+		"devices: retire "+tag, webAuthor(v)); err != nil {
 		return err
 	}
 	if s.svc.DevCreds != nil {
@@ -85,8 +90,9 @@ func (s *Server) postDeviceRemove(w http.ResponseWriter, r *http.Request, v view
 	if err := s.requireDeviceEditor(v, tag); err != nil {
 		return err
 	}
-	if err := s.applyGated(r, v, fleet.RemoveDevice(tag),
-		"devices: remove "+tag); err != nil {
+	// Subtract-only, like retire: see postDeviceRetire.
+	if err := s.svc.Config.ApplyStructural(r.Context(), fleet.RemoveDevice(tag),
+		"devices: remove "+tag, webAuthor(v)); err != nil {
 		return err
 	}
 	if s.svc.DevCreds != nil {

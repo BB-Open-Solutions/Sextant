@@ -39,6 +39,32 @@ type CatalogEntry struct {
 	// console renders a reference picker, never a text box, so a secret can
 	// never be pasted into git.
 	Secret bool `json:"secret,omitempty"`
+	// Classes lists the device classes whose image defines this option
+	// (derived by the per-class catalog export - never hand-maintained, so it
+	// cannot drift from the images). Empty means universal: every class has
+	// it. The generator skips a setting for a device whose class is absent
+	// here, so a workplace-only option (a desktop environment) set at a scope
+	// that also covers headless machines configures the laptops and visibly
+	// skips the servers instead of failing their evaluation.
+	Classes []string `json:"classes,omitempty"`
+}
+
+// AppliesTo reports whether the entry applies to a device of the given
+// class. An empty Classes list is universal. An empty class applies
+// everything: filtering only happens on a known class, so a device without
+// one fails loudly at the gate (image lacks the option) rather than being
+// silently under-configured. Mirrors the generator's rule (generator.nix,
+// applicableTo) - the parity the mixed-class tests pin down.
+func (e CatalogEntry) AppliesTo(class string) bool {
+	if len(e.Classes) == 0 || class == "" {
+		return true
+	}
+	for _, c := range e.Classes {
+		if c == class {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultString renders the declared default for display; empty when none.
