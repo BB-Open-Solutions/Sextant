@@ -159,7 +159,13 @@ in
     { nixpkgs
     , system
     , fleet
+      # coreModules is the default host recipe (the module set every device
+      # gets before its per-host settings). coreModulesFor overrides it per
+      # host, so one fleet can carry more than one IMAGE - a desktop laptop
+      # recipe and a headless server/station recipe - chosen by the device's
+      # class. Default: every host gets coreModules.
     , coreModules
+    , coreModulesFor ? (_: coreModules)
     , hardwareProfiles
     , overlaysDir ? null
     , extraModules ? [ ]
@@ -185,7 +191,7 @@ in
         nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = specialArgsFor tag;
-          modules = coreModules
+          modules = (coreModulesFor tag)
             ++ [ hardwareProfiles.${fleet.devices.${tag}.hardware} ]
             ++ mkModules { inherit fleet tag overlaysDir; }
             ++ [{ networking.hostName = lib.mkDefault tag; }]
