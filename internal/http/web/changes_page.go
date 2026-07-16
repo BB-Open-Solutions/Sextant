@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"sort"
 
@@ -66,7 +67,14 @@ func (s *Server) postChangeSubmit(w http.ResponseWriter, r *http.Request, v view
 	if err := s.requireWeb(v, "org", identity.Editor); err != nil {
 		return err
 	}
-	if _, err := s.svc.Changes.Submit(r.Context(), r.PathValue("id")); err != nil {
+	// Submitting kicks the change's build/test gate - minutes, not
+	// milliseconds. Grace-window: the board shows the card moving, the
+	// outcome lands as a notification.
+	id := r.PathValue("id")
+	if err := s.runGated(r, v, "change "+id+" submitted", func(ctx context.Context) error {
+		_, err := s.svc.Changes.Submit(ctx, id)
+		return err
+	}); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
@@ -77,7 +85,14 @@ func (s *Server) postChangeMerge(w http.ResponseWriter, r *http.Request, v view)
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
-	if _, err := s.svc.Changes.Merge(r.Context(), r.PathValue("id"), webAuthor(v)); err != nil {
+	// The merge re-validates the merged result through the nix gate before
+	// committing - same grace-window treatment as any gated write.
+	id := r.PathValue("id")
+	author := webAuthor(v)
+	if err := s.runGated(r, v, "change "+id+" merged", func(ctx context.Context) error {
+		_, err := s.svc.Changes.Merge(ctx, id, author)
+		return err
+	}); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)

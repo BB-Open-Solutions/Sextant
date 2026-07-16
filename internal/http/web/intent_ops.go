@@ -30,9 +30,10 @@ func (s *Server) postDeviceIntent(w http.ResponseWriter, r *http.Request, v view
 	if intent == fleet.IntentWipe && r.FormValue("confirm") != tag {
 		return fmt.Errorf("type the device tag exactly to confirm a wipe")
 	}
+	// Grace-window write, scoped to this one host: arming an intent must feel
+	// instant (the wizard's reboot button), not wait out an org-wide eval.
 	msg := fmt.Sprintf("intent: %s %s", intent, tag)
-	if err := s.svc.Config.Apply(r.Context(), fleet.SetDeviceIntent(tag, intent, force),
-		msg, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.SetDeviceIntent(tag, intent, force), msg, tag); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
@@ -45,8 +46,7 @@ func (s *Server) postDeviceIntentClear(w http.ResponseWriter, r *http.Request, v
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
-	if err := s.svc.Config.Apply(r.Context(), fleet.ClearDeviceIntent(tag),
-		"intent: clear "+tag, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.ClearDeviceIntent(tag), "intent: clear "+tag, tag); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)

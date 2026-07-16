@@ -1,4 +1,5 @@
 {{define "content"}}
+{{$ctl := "h-9 rounded-lg border border-border-hairline bg-canvas px-3 text-label-md text-ink focus:border-mint-vibrant focus:outline-none focus:ring-2 focus:ring-mint-vibrant/20"}}
 <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
   <div>
     <h1 class="mb-1">{{.L.T "settings.title"}}</h1>
@@ -117,20 +118,20 @@
               {{end}}
             </div>
           {{else if eq $row.Entry.Widget "select"}}
-            <select name="{{$vn}}" class="w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$inhWord}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+            <select name="{{$vn}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$inhWord}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
           {{else if eq $row.Entry.Widget "secret"}}
-            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="{{$vn}}" class="w-full min-w-0 flex-1 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
+            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="{{$vn}}" class="{{$ctl}} w-full min-w-0 flex-1 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
             {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
           {{else if eq $row.Entry.Widget "number"}}
-            <input type="number" name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
+            <input type="number" name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
           {{else if eq $row.Entry.Widget "code"}}
             <textarea name="{{$vn}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md {{if $set}}!border-mint-vibrant{{end}}" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{$row.Lines}}{{end}}</textarea>
           {{else if $row.Suggestions}}
             {{$listId := printf "sugg-%s" $sl}}
-            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" list="{{$listId}}">
+            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" list="{{$listId}}">
             <datalist id="{{$listId}}">{{range $row.Suggestions}}<option value="{{.}}">{{end}}</datalist>
           {{else}}
-            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
+            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
           {{end}}
           <!-- Provenance, directly under the control -->
           <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-xs-caps">

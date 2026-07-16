@@ -123,3 +123,10 @@
   form:not(.inline) { @apply flex flex-wrap items-end gap-3; }
   form:not(.inline) textarea { @apply basis-full; }
 }
+
+/* Suggestion inputs (datalist-backed): hide the browser's built-in picker
+   arrow so they read like every other control; the suggestion list still
+   pops on focus/typing. */
+input::-webkit-calendar-picker-indicator {
+  display: none !important;
+}
