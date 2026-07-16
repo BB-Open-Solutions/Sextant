@@ -256,15 +256,41 @@ func TestApplyForwardsAffectedHostsToGate(t *testing.T) {
 		"group edit", author, AffectedHosts(f, "group:pilot")...); err != nil {
 		t.Fatalf("group edit: %v", err)
 	}
-	// Org scope has an unbounded blast radius: nil = gate the whole fleet.
+	// Org scope has an unbounded blast radius: the gate receives one
+	// representative per configuration-shape class (sampling), never nil -
+	// the seed fleet has one active device, so the sample is exactly it.
 	if err := svc.Apply(ctx, fleet.SetScopeSetting("org", "apps.office", true),
 		"org edit", author, AffectedHosts(f, "org")...); err != nil {
 		t.Fatalf("org edit: %v", err)
 	}
 
-	want := [][]string{{"lt-1"}, {"lt-1"}, nil}
+	want := [][]string{{"lt-1"}, {"lt-1"}, {"lt-1"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("gate host scoping = %v, want %v", got, want)
+	}
+}
+
+// An org-wide (unbounded) change is validated against one representative per
+// configuration-shape class, never against nil (= every host): the sampling
+// that keeps an interactive org-wide save at minutes on a 10k fleet. The
+// seed fleet's lt-1 is its only active device, so the sample is exactly it.
+func TestApplyOrgWideSamplesRepresentatives(t *testing.T) {
+	var got [][]string
+	recording := ports.GateFunc(func(_ context.Context, _ string, hosts []string) error {
+		got = append(got, hosts)
+		return nil
+	})
+	svc, _ := newService(t, recording)
+
+	if err := svc.Apply(context.Background(),
+		fleet.SetScopeSetting("org", "apps.office", true), "org edit", ports.Author{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("want one gate call, got %d", len(got))
+	}
+	if len(got[0]) != 1 || got[0][0] != "lt-1" {
+		t.Fatalf("org-wide gate scope = %v, want the class representative [lt-1], never nil", got[0])
 	}
 }
 

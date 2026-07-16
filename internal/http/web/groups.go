@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
@@ -140,8 +141,12 @@ func (s *Server) postGroupUpdate(w http.ResponseWriter, r *http.Request, v view)
 		return fmt.Errorf("nothing to update")
 	}
 	msg := "groups: update " + name
+	// A re-parent changes inheritance for exactly this group's subtree: those
+	// devices are the blast radius, so the gate needs only them - not a
+	// whole-fleet evaluation.
+	hosts := app.AffectedHosts(s.svc.Config.Fleet(), "group:"+name)
 	if err := s.svc.Config.Apply(r.Context(), fleet.UpdateGroup(name, parent, idp),
-		msg, webAuthor(v)); err != nil {
+		msg, webAuthor(v), hosts...); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/groups", http.StatusSeeOther)

@@ -570,6 +570,18 @@ func applyTx(ctx context.Context, repo ports.ConfigRepo, gate ports.Gate, mut fl
 	if err := repo.WriteFile(FleetFile, next); err != nil {
 		return nil, err
 	}
+	// An unbounded blast radius (org-wide change) is validated interactively
+	// against one representative per configuration-shape class instead of
+	// every host: an option/type/assertion error fails every member of a
+	// class identically, so the sample proves the change against each
+	// distinct shape in minutes instead of hours at fleet scale. The full
+	// per-host proof still happens down the pipeline: a ring's release
+	// realises every member's toplevel before its branch moves
+	// (build-before-promote), and a device's own rebuild converges
+	// generation-safe regardless. See docs/architecture/scale.md.
+	if len(hosts) == 0 {
+		hosts = f.Representatives()
+	}
 	if err := gate.Validate(ctx, repo.Dir(), hosts); err != nil {
 		if werr := repo.WriteFile(FleetFile, orig); werr != nil {
 			// The working tree now holds the rejected edit, which would

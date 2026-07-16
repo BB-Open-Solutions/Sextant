@@ -17,13 +17,23 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
-// runner executes a command and returns its combined output. Injectable so
-// tests assert the exact invocation without a real nix evaluation.
+// runner executes a command. On success it returns STDOUT ONLY - callers
+// that parse the output (the attrNames discovery) must never see stderr
+// noise (fetch progress, git dirty-tree warnings) interleaved into it. On
+// failure it returns stdout and stderr combined: that is diagnostic text for
+// sanitize, and the real reason is usually on stderr. Injectable so tests
+// assert the exact invocation without a real nix evaluation.
 type runner func(ctx context.Context, name string, args ...string) ([]byte, error)
 
 func execRunner(ctx context.Context, name string, args ...string) ([]byte, error) {
 	// #nosec G204 - name/args are the gate's own fixed nix invocation (code-controlled), passed as an argv slice with no shell.
-	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, name, args...)
+	var stdout, stderr strings.Builder
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return []byte(stdout.String() + stderr.String()), err
+	}
+	return []byte(stdout.String()), nil
 }
 
 // EvalGate validates by forcing the toplevel DERIVATION (drvPath) of the

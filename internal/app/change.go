@@ -191,14 +191,16 @@ func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error
 	// The eval gate is the safety property and runs on every submit,
 	// scoped to the change's recorded blast radius: it re-proves the WHOLE
 	// branch state (edits validate incrementally, but a branch behind main
-	// or an out-of-band commit must not slip through on old verdicts). The
-	// realisation build after it is the heavier tier; it needs concrete
-	// hosts (there is no whole-set flake target), so an unbounded change
-	// relies on the eval gate alone. In remote gate mode the local builder
-	// is a no-op until the runner's /build is wired here.
-	gateErr := s.gate.Validate(ctx, wt.Dir(), cr.GateHosts())
-	if gateErr == nil && len(cr.GateHosts()) > 0 {
-		gateErr = s.builder.Build(ctx, wt.Dir(), cr.GateHosts())
+	// or an out-of-band commit must not slip through on old verdicts). An
+	// unbounded change samples one host per configuration-shape class (see
+	// applyTx). The realisation build after it is the heavier tier; it
+	// needs concrete hosts (there is no whole-set flake target). In remote
+	// gate mode the local builder is a no-op until the runner's /build is
+	// wired here.
+	hosts := gateScope(wt, cr.GateHosts())
+	gateErr := s.gate.Validate(ctx, wt.Dir(), hosts)
+	if gateErr == nil && len(hosts) > 0 {
+		gateErr = s.builder.Build(ctx, wt.Dir(), hosts)
 	}
 	if err := gateErr; err != nil {
 		cr.Error = err.Error()
@@ -273,7 +275,7 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 		if err := s.repo.MergeNoFF(ctx, cr.Branch, fmt.Sprintf("merge change %s: %s", cr.ID, cr.Title), a); err != nil {
 			return err
 		}
-		if err := s.gate.Validate(ctx, s.repo.Dir(), cr.GateHosts()); err != nil {
+		if err := s.gate.Validate(ctx, s.repo.Dir(), gateScope(s.repo, cr.GateHosts())); err != nil {
 			if rerr := s.repo.ResetHard(ctx, pre); rerr != nil {
 				return fmt.Errorf("merged result failed the gate (%w) AND rollback failed: %w", err, rerr)
 			}
@@ -337,6 +339,26 @@ func (s *ChangeService) Abandon(ctx context.Context, id string) (change.CR, erro
 	}
 	s.cleanup(ctx, cr)
 	return cr, s.store.Put(ctx, cr)
+}
+
+// gateScope is the host set a submit/merge validation runs against: the
+// change's recorded blast radius, or - when the radius is unbounded - one
+// representative per configuration-shape class of the CANDIDATE fleet in
+// repo. Falls back to nil (validate everything) if the candidate cannot be
+// read: fail toward the wider check, never the narrower one.
+func gateScope(repo ports.ConfigRepo, recorded []string) []string {
+	if len(recorded) > 0 {
+		return recorded
+	}
+	raw, err := repo.ReadFile(FleetFile)
+	if err != nil {
+		return nil
+	}
+	f, err := fleet.Decode(raw)
+	if err != nil {
+		return nil
+	}
+	return f.Representatives()
 }
 
 func (s *ChangeService) mustGet(ctx context.Context, id string) (change.CR, error) {
