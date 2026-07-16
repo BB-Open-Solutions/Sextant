@@ -180,14 +180,39 @@
     {{end}}
     {{end}}
 
-    <!-- Identity -->
+    <!-- Identity (the CMDB card): class, groups and the assigned user are
+         operator-editable in place; hardware profile is set at imaging. -->
     <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
       <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">badge</span>{{.L.T "device.identity_title"}}</h2>
+      {{if .CanEdit}}
+      <form method="post" action="/devices/{{.Tag}}/update" class="!block">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="setclass" value="1">
+        <input type="hidden" name="setuser" value="1">
+        <input type="hidden" name="setgroups" value="1">
+        <div class="flex flex-col gap-3 text-body-sm">
+          <div class="flex flex-col gap-1"><label>{{.L.T "common.class"}}</label>
+            <input name="class" value="{{.Device.Class}}" placeholder="{{.L.T "device.class_placeholder"}}" list="device-classes">
+            <datalist id="device-classes">{{range .AllClasses}}<option value="{{.}}"></option>{{end}}</datalist></div>
+          <div class="flex flex-col gap-1"><label>{{.L.T "device.assigned_user"}}</label>
+            <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="{{.L.T "device.assigned_user_placeholder"}}">
+            <span class="text-label-md text-text-tertiary">{{.L.T "device.assigned_user_hint"}}</span></div>
+          <div class="flex flex-col gap-1"><label>{{.L.T "common.groups"}}</label>
+            <select name="groups" multiple size="4">
+              {{range .GroupOpts}}<option value="{{.Name}}" {{if .Member}}selected{{end}}>{{.Name}}</option>{{end}}
+            </select>
+            <span class="text-label-md text-text-tertiary">{{.L.T "device.groups_hint"}}</span></div>
+          <div class="flex items-center justify-between border-b border-border-soft pb-2 pt-1 text-text-secondary"><span>{{.L.T "common.hardware"}}</span><span class="font-mono text-code-inline text-ink">{{with .Device.Hardware}}{{.}}{{else}}-{{end}}</span></div>
+          <button type="submit" class="w-full"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "common.save"}}</button>
+        </div>
+      </form>
+      {{else}}
       <div class="flex flex-col gap-2 text-body-sm text-text-secondary">
         <div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{.L.T "common.groups"}}</span><span>{{range .Device.Groups}}<span class="tag">{{.}}</span> {{else}}<span class="muted">{{$.L.T "common.none"}}</span>{{end}}</span></div>
         <div class="flex items-center justify-between border-b border-border-soft pb-2"><span>{{.L.T "common.hardware"}}</span><span class="font-mono text-code-inline text-ink">{{with .Device.Hardware}}{{.}}{{else}}-{{end}}</span></div>
         <div class="flex items-center justify-between"><span>{{.L.T "device.assigned_user"}}</span><span class="text-ink">{{with .Device.AssignedUser}}{{.}}{{else}}<span class="muted">-</span>{{end}}</span></div>
       </div>
+      {{end}}
     </section>
 
     {{with .Device.Spec}}
@@ -227,25 +252,8 @@
   <div>
     <h2 class="mt-0 mb-1 text-headline-sm font-bold text-ink">{{.L.T "device.manage_title"}}</h2>
     <p class="muted mb-4">{{.L.T "device.manage_desc"}}</p>
-    <div class="flex flex-col gap-3">
-      <form method="post" action="/devices/{{.Tag}}/update" class="inline">
-        <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setclass" value="1">
-        <input name="class" value="{{.Device.Class}}" placeholder="{{.L.T "device.class_placeholder"}}">
-        <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">category</span>{{.L.T "device.set_class"}}</button>
-      </form>
-      <form method="post" action="/devices/{{.Tag}}/update" class="inline">
-        <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setuser" value="1">
-        <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="{{.L.T "device.assigned_user_placeholder"}}">
-        <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">person_add</span>{{.L.T "device.assign_user"}}</button>
-      </form>
-      <form method="post" action="/devices/{{.Tag}}/update" class="inline">
-        <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="setgroups" value="1">
-        <select name="groups" multiple size="3">
-          {{range .GroupOpts}}<option value="{{.Name}}" {{if .Member}}selected{{end}}>{{.Name}}</option>{{end}}
-        </select>
-        <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">group_add</span>{{.L.T "device.set_groups"}}</button>
-      </form>
-    </div>
+    {{/* Class, user and groups moved to the Identity card in the right
+         column - the CMDB surface belongs with the identity it describes. */}}
     <div class="mt-4 flex flex-wrap items-center gap-3">
       {{if .Retired}}
       <form method="post" action="/devices/{{.Tag}}/reactivate" class="inline">

@@ -267,6 +267,20 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
 	data["GroupOpts"] = groups
+	// Class suggestions: the vocabulary in use across the fleet, so the
+	// identity card's class field is picked, not retyped from memory.
+	classSet := map[string]bool{}
+	for _, dev := range f.Devices {
+		if dev.Class != "" {
+			classSet[dev.Class] = true
+		}
+	}
+	classes := make([]string, 0, len(classSet))
+	for c := range classSet {
+		classes = append(classes, c)
+	}
+	sort.Strings(classes)
+	data["AllClasses"] = classes
 	pkgs, flats, ovs := f.ResolveApps(tag)
 	data["Packages"], data["Flatpaks"], data["Overlays"] = pkgs, flats, ovs
 	if s.svc.Inventory != nil {
