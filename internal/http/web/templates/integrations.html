@@ -45,7 +45,7 @@
               <select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}} disabled>{{$.L.T "page.integrations.inherit"}}</option>{{range .Entry.Options}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select>
             {{else if eq .Entry.Widget "secret"}}
               {{if $.SecretRefs}}<select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "page.integrations.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{slug .Entry.Name}}" class="text-label-md text-secondary whitespace-nowrap" title="{{$.L.T "page.integrations.register_title"}}">{{$.L.T "common.add"}}</a>
-              {{else}}<span class="text-body-sm text-text-tertiary">{{$.L.T "page.integrations.no_secrets"}} <a href="/secrets?name={{slug .Entry.Name}}" class="text-secondary">{{$.L.T "page.integrations.register_one"}}</a></span>{{end}}
+              {{else}}<span class="min-w-0 flex-1 text-body-sm text-text-tertiary">{{$.L.T "page.integrations.no_secrets"}} <a href="/secrets?name={{slug .Entry.Name}}" class="text-secondary">{{$.L.T "page.integrations.register_one"}}</a></span>{{end}}
             {{else if eq .Entry.Widget "number"}}
               <input type="number" name="value" value="{{if .Set}}{{.Value}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="min-w-0 flex-1">
             {{else}}
