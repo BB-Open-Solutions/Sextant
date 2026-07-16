@@ -103,7 +103,11 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 			}
 			sec.Rows = append(sec.Rows, row)
 		}
-		sections = append(sections, sec)
+		// A category whose every entry moved to the Integrations page would
+		// render as an empty card ("Netbird - 0 keys"): skip it.
+		if len(sec.Rows) > 0 {
+			sections = append(sections, sec)
+		}
 	}
 
 	groups := make([]string, 0, len(f.Groups))
