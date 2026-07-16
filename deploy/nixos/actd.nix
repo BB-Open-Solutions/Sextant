@@ -128,7 +128,12 @@ let
           # (plus Microsoft's certificates - option ROMs and shims stay
           # bootable). Secure Boot enforces from the next boot on.
           echo "sextant-actd: firmware in setup mode - enrolling Secure Boot keys"
-          if sbctl enroll-keys --microsoft; then
+          # --disable-landlock: sbctl's own sandbox has already bitten this
+          # flow once (the station's key export); this unit's systemd
+          # sandbox (ProtectSystem=strict + explicit ReadWritePaths) is the
+          # containment here, and stacking the two risks a refused write to
+          # a path systemd allows.
+          if sbctl --disable-landlock enroll-keys --microsoft; then
             writeAck sb-enrolled
             systemctl reboot || true
           else
