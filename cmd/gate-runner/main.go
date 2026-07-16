@@ -246,25 +246,58 @@ func (s *server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 
 	// Refresh the overlay so the generator and modules match the console's
-	// base, then drop in the candidate fleet.json and evaluate.
+	// base, then stage the candidate as a throwaway COMMIT in a scratch
+	// worktree and evaluate that. A committed (clean) tree matters: nix
+	// copies a dirty flake's entire source to the store on EVERY eval and
+	// disables its eval cache, which put a multi-second floor under each
+	// validation. The commit stays local to the runner - nothing pushes it.
 	if err := s.sync(r.Context()); err != nil {
 		s.log.Error("overlay sync failed", "err", err)
 		writeJSON(w, http.StatusInternalServerError, validateResponse{Error: "overlay sync failed"})
 		return
 	}
-	// #nosec G306 - candidate fleet.json is a throwaway eval input in a scratch workdir, not a secret; world-readable is fine.
-	if err := os.WriteFile(filepath.Join(s.workdir, "fleet.json"), []byte(req.Fleet), 0o644); err != nil {
-		writeJSON(w, http.StatusInternalServerError, validateResponse{Error: "write candidate failed"})
+	scratch, err := s.stageCandidate(r.Context(), req.Fleet)
+	if err != nil {
+		s.log.Error("staging candidate failed", "err", err)
+		writeJSON(w, http.StatusInternalServerError, validateResponse{Error: "staging candidate failed"})
 		return
 	}
 
 	s.gate.HostVariants = s.variants
-	if err := s.gate.Validate(r.Context(), s.workdir, req.Hosts); err != nil {
+	if err := s.gate.Validate(r.Context(), scratch, req.Hosts); err != nil {
 		// A ValidationError is the expected "generator said no" verdict.
 		writeJSON(w, http.StatusUnprocessableEntity, validateResponse{Error: err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, validateResponse{OK: true})
+}
+
+// stageCandidate materialises the candidate fleet.json as a local commit in
+// a reusable detached scratch worktree and returns that worktree's path.
+// Caller holds s.mu (the worktree is shared per-runner state).
+func (s *server) stageCandidate(ctx context.Context, fleetDoc string) (string, error) {
+	scratch := filepath.Join(filepath.Dir(s.workdir), "validate")
+	if _, err := os.Stat(filepath.Join(scratch, ".git")); err != nil {
+		_ = s.git(ctx, s.workdir, "worktree", "remove", "--force", scratch)
+		if err := s.git(ctx, s.workdir, "worktree", "add", "--detach", scratch, "origin/"+s.branch); err != nil {
+			return "", err
+		}
+	} else if err := s.git(ctx, scratch, "checkout", "--detach", "--force", "origin/"+s.branch); err != nil {
+		return "", err
+	}
+	// #nosec G306 - the candidate is a throwaway eval input, not a secret.
+	if err := os.WriteFile(filepath.Join(scratch, "fleet.json"), []byte(fleetDoc), 0o644); err != nil {
+		return "", err
+	}
+	if err := s.git(ctx, scratch, "add", "fleet.json"); err != nil {
+		return "", err
+	}
+	if err := s.git(ctx, scratch,
+		"-c", "user.name=gate-runner", "-c", "user.email=gate@localhost",
+		"commit", "--quiet", "--no-verify", "-m", "candidate"); err != nil {
+		return "", err
+	}
+	return scratch, nil
 }
 
 // authorized reports whether r carries the configured bearer token. An
