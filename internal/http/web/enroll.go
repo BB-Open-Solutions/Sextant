@@ -19,7 +19,8 @@ import (
 // action. It walks an operator from "pick an imaging station" to "these
 // devices are on the PXE network" to imaging them - one at a time with
 // brand-specific guidance, or in bulk for a rack of 1..100+ identical
-// machines. It reads the discovery plane and reuses enrollOne for the work.
+// machines. It reads the discovery plane and captures each device's record
+// via discoveredDevice (enroll_core.go).
 
 // enrollRow is one discovered device plus the profile suggested for it and
 // that profile's brand-specific imaging steps (the guidance).

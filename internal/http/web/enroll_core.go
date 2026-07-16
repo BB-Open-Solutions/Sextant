@@ -2,65 +2,15 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
-	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
-// enroll_core.go: the shared enrollment transaction, used by both the guided
-// single-device flow and batch imaging. The CALLER authorizes (the scope
-// differs: a single enroll checks the target group, a batch checks org once);
-// this only performs the work, so the two entry points cannot drift.
-
-// enrollOne enrolls one discovered device: it validates the hardware profile,
-// captures the discovered specs and native nixos-facter document, commits the
-// device (a gated, audited fleet.json change), optionally issues the device
-// credential, seeds the captured facts, and drops the MAC from the station
-// set. issueCred still triggers real credential issuance as a side effect;
-// the one-time secret itself is shown later via the device page's re-issue
-// action, not returned here - both call sites already discard it.
-func (s *Server) enrollOne(ctx context.Context, station, mac, tag, hardware, class string, groups []string, issueCred, removeMAC bool, author ports.Author) error {
-	if s.svc.Discovery == nil {
-		return fmt.Errorf("imaging stations need the observed store")
-	}
-	tag = strings.TrimSpace(tag)
-	if tag == "" {
-		return fmt.Errorf("enrolling a discovered device needs a tag")
-	}
-	hardware = strings.TrimSpace(hardware)
-	// When the overlay published hardware profiles, the chosen profile must be
-	// one of them - so a device only lands on a profile the generator builds.
-	profiles := s.svc.Config.HardwareProfiles()
-	if profiles.Len() > 0 && !profiles.Has(hardware) {
-		return fmt.Errorf("hardware profile %q is not one of the published profiles", hardware)
-	}
-
-	dev, capturedFacter := s.discoveredDevice(ctx, station, mac, hardware, class, groups)
-
-	msg := fmt.Sprintf("devices: enroll %s from station %s (%s)", tag, station, dev.Hardware)
-	if err := s.svc.Config.Apply(ctx, fleet.AddDevice(tag, dev), msg, author, tag); err != nil {
-		return err
-	}
-
-	if issueCred && s.svc.DevCreds != nil {
-		if _, err := s.svc.DevCreds.Issue(ctx, tag); err != nil {
-			s.log.Error("device enrolled but credential not issued", "tag", tag, "err", err)
-		}
-	}
-	if capturedFacter != nil && s.svc.Inventory != nil {
-		if err := s.svc.Inventory.RecordFacts(ctx, tag, capturedFacter); err != nil {
-			s.log.Warn("device enrolled but captured facter not stored", "tag", tag, "err", err)
-		}
-	}
-	if removeMAC && mac != "" {
-		if err := s.svc.Discovery.Remove(ctx, station, mac); err != nil {
-			s.log.Warn("device enrolled but not removed from station set", "station", station, "mac", mac, "err", err)
-		}
-	}
-	return nil
-}
+// enroll_core.go: the discovered-device record builder shared by the batch
+// enroll path. The one-batch gated apply (enroll.go postEnrollBatch) replaced
+// the old per-device enrollOne transaction - the record capture below is the
+// piece both worlds share.
 
 // discoveredDevice builds the device record for a discovered MAC: the flat
 // hardware summary onto the record, the native facter document returned for

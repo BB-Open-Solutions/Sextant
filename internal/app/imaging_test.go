@@ -3,13 +3,12 @@ package app
 import (
 	"context"
 	"strings"
-
-	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"sync"
 	"testing"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 )
 
 // memImageJobs is an in-memory ports.ImageJobStore for service tests. mu
