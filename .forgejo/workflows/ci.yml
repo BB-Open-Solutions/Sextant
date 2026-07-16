@@ -87,7 +87,10 @@ jobs:
       # design: a new advisory in a dependency SHOULD stop the line until
       # the dependency moves.
       - name: govulncheck (Go)
-        run: cd "$GITHUB_WORKSPACE/src" && nix shell nixpkgs#govulncheck --command govulncheck ./...
+        # go rides along (govulncheck drives the toolchain; the bare runner
+        # has none) and CGO_ENABLED=0 keeps it off the missing system gcc -
+        # the binary is pure Go anyway.
+        run: cd "$GITHUB_WORKSPACE/src" && nix shell nixpkgs#govulncheck nixpkgs#go --command bash -c 'CGO_ENABLED=0 govulncheck ./...' 
 
       - name: cargo audit (agent)
         run: cd "$GITHUB_WORKSPACE/src/agent" && nix shell nixpkgs#cargo nixpkgs#cargo-audit --command cargo audit
