@@ -198,6 +198,12 @@ type server struct {
 	// buildSlot serialises actual build work (heavier than an eval) while the
 	// job API stays responsive.
 	buildSlot chan struct{}
+
+	// Seams for the build path's tests: production wires these to the real
+	// git subprocess and the nix Publisher; tests observe the exact calls
+	// without a git repo or a nix evaluation. Nil falls back to production.
+	gitRun    func(ctx context.Context, dir string, args ...string) error
+	publishFn func(ctx context.Context, repoDir string, hosts []string) error
 }
 
 type validateRequest struct {
@@ -367,6 +373,9 @@ func (s *server) cloneUsable(ctx context.Context) error {
 }
 
 func (s *server) git(ctx context.Context, dir string, args ...string) error {
+	if s.gitRun != nil {
+		return s.gitRun(ctx, dir, args...)
+	}
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	// #nosec G204 - fixed "git" binary with an internal argv slice (no shell, no user-composed command); args are code-controlled subcommands.

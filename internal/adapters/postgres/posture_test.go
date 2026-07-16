@@ -14,24 +14,30 @@ func TestPostureRoundTripAndSticky(t *testing.T) {
 	t1 := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 
 	// First posture report.
-	_, _ = s.Upsert(ctx, "default", observed.CheckIn{
+	if _, err := s.Upsert(ctx, "default", observed.CheckIn{
 		Tag: "lt-1", Revision: "v1",
-		SB: observed.SBAudit, TPM2: observed.TPM2Present}, t1)
+		SB: observed.SBAudit, TPM2: observed.TPM2Present}, t1); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 	st, _, _ := s.Get(ctx, "default", "lt-1")
 	if st.SB != observed.SBAudit || st.TPM2 != observed.TPM2Present {
 		t.Fatalf("posture = %+v", st)
 	}
 
 	// An old agent (empty posture) must not erase stored posture.
-	_, _ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1", Revision: "v1"}, t1.Add(time.Minute))
+	if _, err := s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1", Revision: "v1"}, t1.Add(time.Minute)); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 	st, _, _ = s.Get(ctx, "default", "lt-1")
 	if st.SB != observed.SBAudit || st.TPM2 != observed.TPM2Present {
 		t.Fatalf("empty posture clobbered stored: %+v", st)
 	}
 
 	// Progress updates it.
-	_, _ = s.Upsert(ctx, "default", observed.CheckIn{
-		Tag: "lt-1", SB: observed.SBEnforcing, TPM2: observed.TPM2Enrolled}, t1.Add(2*time.Minute))
+	if _, err := s.Upsert(ctx, "default", observed.CheckIn{
+		Tag: "lt-1", SB: observed.SBEnforcing, TPM2: observed.TPM2Enrolled}, t1.Add(2*time.Minute)); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 	st, _, _ = s.Get(ctx, "default", "lt-1")
 	if st.SB != observed.SBEnforcing || st.TPM2 != observed.TPM2Enrolled {
 		t.Fatalf("posture progress = %+v", st)

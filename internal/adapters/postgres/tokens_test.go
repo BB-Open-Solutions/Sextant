@@ -35,8 +35,13 @@ func TestTokenStoreRoundTrip(t *testing.T) {
 	}
 
 	// List by subject.
-	other, _, _ := token.Mint("ci-2", "n", token.Personal, "sub-bob", nil, "", t0, time.Hour)
-	_ = ts.Put(ctx, other)
+	other, _, err := token.Mint("ci-2", "n", token.Personal, "sub-bob", nil, "", t0, time.Hour)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if err := ts.Put(ctx, other); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 	mine, err := ts.ListBySubject(ctx, "sub-ada")
 	if err != nil || len(mine) != 1 || mine[0].ID != "ci-1" {
 		t.Fatalf("list = %+v, %v", mine, err)

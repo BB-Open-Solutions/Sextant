@@ -371,14 +371,6 @@ func (s *ConfigService) AuditLog(ctx context.Context, limit int) ([]ports.AuditE
 	return al.Log(ctx, limit)
 }
 
-// Reload re-reads the working tree into the snapshot (e.g. after a change
-// request merged behind the service's back).
-func (s *ConfigService) Reload() error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	return s.reload()
-}
-
 // WithWriteLock runs fn while holding the single-writer lock. It lets another
 // service in this package that mutates the same main-branch working tree (the
 // change service, merging a change) serialize against the config write

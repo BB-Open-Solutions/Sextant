@@ -19,11 +19,6 @@ func TestParseHardwareProfiles(t *testing.T) {
 	if hp.Len() != 2 {
 		t.Fatalf("len = %d, want 2", hp.Len())
 	}
-	// Stable, sorted name order for rendering.
-	names := hp.Names()
-	if names[0] != "hp-probook-440" || names[1] != "lenovo-t495s" {
-		t.Fatalf("names not sorted: %v", names)
-	}
 	p, ok := hp.Get("lenovo-t495s")
 	if !ok || p.Vendor != "Lenovo" || len(p.Steps) != 2 || p.Steps[0].Key != "Enter" {
 		t.Fatalf("profile not parsed: %+v", p)

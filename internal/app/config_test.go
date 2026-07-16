@@ -833,11 +833,11 @@ func TestReload(t *testing.T) {
 	sh(t, dir, "add", "fleet.json")
 	sh(t, dir, "-c", "user.name=e", "-c", "user.email=e@e", "commit", "-q", "-m", "external edit")
 
-	if err := svc.Reload(); err != nil {
-		t.Fatalf("Reload: %v", err)
+	if err := svc.WithWriteLock(svc.reload); err != nil {
+		t.Fatalf("reload: %v", err)
 	}
 	if svc.Fleet().Org.Settings["desktop"] != "gnome" {
-		t.Fatalf("Reload did not pick up the external edit: %v", svc.Fleet().Org.Settings)
+		t.Fatalf("reload did not pick up the external edit: %v", svc.Fleet().Org.Settings)
 	}
 }
 

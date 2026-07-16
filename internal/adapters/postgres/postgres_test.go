@@ -50,19 +50,25 @@ func TestUpsertGetList(t *testing.T) {
 	}
 
 	// An error report sets and a clean report clears the error.
-	_, _ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1", Error: "unit failed"}, t0.Add(2*time.Minute))
+	if _, err := s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1", Error: "unit failed"}, t0.Add(2*time.Minute)); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 	st, _, _ = s.Get(ctx, "default", "lt-1")
 	if st.Error != "unit failed" {
 		t.Fatalf("error not stored: %+v", st)
 	}
-	_, _ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1"}, t0.Add(3*time.Minute))
+	if _, err := s.Upsert(ctx, "default", observed.CheckIn{Tag: "lt-1"}, t0.Add(3*time.Minute)); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 	st, _, _ = s.Get(ctx, "default", "lt-1")
 	if st.Error != "" {
 		t.Fatalf("error not cleared: %+v", st)
 	}
 
 	// List sorted by tag.
-	_, _ = s.Upsert(ctx, "default", observed.CheckIn{Tag: "aa-1", Revision: "v1"}, t0)
+	if _, err := s.Upsert(ctx, "default", observed.CheckIn{Tag: "aa-1", Revision: "v1"}, t0); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 	list, err := s.List(ctx, "default")
 	if err != nil || len(list) != 2 || list[0].Tag != "aa-1" {
 		t.Fatalf("list = %+v, %v", list, err)
@@ -107,8 +113,12 @@ func TestUpsertUtilisationPartialReadingKept(t *testing.T) {
 func TestTenantIsolation(t *testing.T) {
 	s := openStore(t)
 	ctx := context.Background()
-	_, _ = s.Upsert(ctx, "org-a", observed.CheckIn{Tag: "lt-1", Revision: "v1"}, t0)
-	_, _ = s.Upsert(ctx, "org-b", observed.CheckIn{Tag: "lt-1", Revision: "v9"}, t0)
+	if _, err := s.Upsert(ctx, "org-a", observed.CheckIn{Tag: "lt-1", Revision: "v1"}, t0); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if _, err := s.Upsert(ctx, "org-b", observed.CheckIn{Tag: "lt-1", Revision: "v9"}, t0); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 
 	a, _, _ := s.Get(ctx, "org-a", "lt-1")
 	b, _, _ := s.Get(ctx, "org-b", "lt-1")
@@ -169,7 +179,9 @@ func TestConvergenceAggregate(t *testing.T) {
 	up("r-3", "v2", "", now.Add(-time.Hour))       // on target, offline
 	up("r-4", "v1", "", now.Add(-time.Minute))     // behind
 	up("outsider", "v2", "", now.Add(-time.Minute))
-	_, _ = s.Upsert(ctx, "org-x", observed.CheckIn{Tag: "r-1", Revision: "v2"}, now)
+	if _, err := s.Upsert(ctx, "org-x", observed.CheckIn{Tag: "r-1", Revision: "v2"}, now); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 
 	conv := s.NewConvergence("default", func(group string) []string {
 		if group == "ring0" {

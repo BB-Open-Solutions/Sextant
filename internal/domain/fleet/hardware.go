@@ -82,13 +82,6 @@ func (h *HardwareProfiles) All() []HardwareProfile {
 	return out
 }
 
-// Names returns the profile names in stable order (the enroll dropdown).
-func (h *HardwareProfiles) Names() []string {
-	out := make([]string, len(h.order))
-	copy(out, h.order)
-	return out
-}
-
 // Get returns one profile by name.
 func (h *HardwareProfiles) Get(name string) (HardwareProfile, bool) {
 	p, ok := h.byName[name]

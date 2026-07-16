@@ -54,7 +54,7 @@ func (s *server) handleBuild(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, buildResponse{Phase: "failed", Detail: "unauthorized"})
 		return
 	}
-	if s.publisher == nil {
+	if s.publisher == nil && s.publishFn == nil {
 		writeJSON(w, http.StatusNotImplemented,
 			buildResponse{Phase: "failed", Detail: "release cache not configured on this runner"})
 		return
@@ -137,6 +137,9 @@ func (s *server) buildAtRev(req buildRequest) error {
 		_ = s.git(ctx, s.workdir, "worktree", "remove", "--force", scratch)
 	}()
 
+	if s.publishFn != nil {
+		return s.publishFn(ctx, scratch, req.Hosts)
+	}
 	s.publisher.HostVariants = s.variants
 	return s.publisher.Publish(ctx, scratch, req.Hosts)
 }
