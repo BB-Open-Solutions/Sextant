@@ -52,9 +52,21 @@ Org-wide validation of 10,000 hosts at chunk size 12 and ~45s per chunk:
 
 | Strategy | Wall-clock |
 |---|---|
-| 1 worker, sequential (today) | ~10 hours |
-| 16 workers, parallel chunks | ~40 minutes |
-| Equivalence-class sampling | minutes |
+| 1 worker, sequential | ~10 hours |
+| 16 workers, parallel chunks (`--eval-workers`) | ~40 minutes |
+| Equivalence-class sampling (interactive) | minutes |
+
+Measured on a synthetic 10,000-device fleet (4 hardware profiles x 3 device
+classes x 10 groups, two filtered org policies, 1% device-level overrides;
+`classes_bench_test.go`):
+
+| Measurement | Result |
+|---|---|
+| Partition 10,000 devices into shape classes | **~97 ms** |
+| Distinct configuration shapes | **160** |
+| Interactive gate evaluates | **160 hosts instead of 10,000 (62x fewer)** |
+| Resolve one device (policies, filters, chain) | **~6.5 us** |
+| Devices page | paginated server-side, 100 rows per response |
 
 The conclusions fall out of the table:
 

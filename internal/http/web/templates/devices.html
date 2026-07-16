@@ -60,6 +60,16 @@
       {{end}}
     </table>
   </div>
+  {{if gt .Pages 1}}
+  <div class="flex items-center justify-between border-t border-border-hairline bg-surface-bright px-6 py-3 text-label-md text-text-secondary">
+    <span>{{.From}}–{{.To}} {{.L.T "common.of"}} {{.Total}}</span>
+    <span class="inline-flex items-center gap-2">
+      {{with .PrevURL}}<a href="{{.}}" class="btn quiet !py-1 !px-3"><span class="material-symbols-outlined msz-16">chevron_left</span></a>{{end}}
+      <span>{{.Page}} / {{.Pages}}</span>
+      {{with .NextURL}}<a href="{{.}}" class="btn quiet !py-1 !px-3"><span class="material-symbols-outlined msz-16">chevron_right</span></a>{{end}}
+    </span>
+  </div>
+  {{end}}
 </section>
 {{end}}
 

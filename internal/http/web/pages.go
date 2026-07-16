@@ -3,8 +3,10 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
@@ -250,6 +252,42 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 	sortKey, dir := qy.Get("sort"), qy.Get("dir")
 	sortDeviceRows(rows, sortKey, dir)
 
+	// Paginate AFTER filter+sort so the page shows a stable slice of the
+	// whole result: at 10,000 devices a single response must never carry
+	// every row (fleet-scale posture, docs/architecture/scale.md).
+	const perPage = 100
+	total := len(rows)
+	pages := (total + perPage - 1) / perPage
+	if pages == 0 {
+		pages = 1
+	}
+	page, _ := strconv.Atoi(qy.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	if page > pages {
+		page = pages
+	}
+	lo := (page - 1) * perPage
+	hi := min(lo+perPage, total)
+	rows = rows[lo:hi]
+
+	// The pager links re-carry every filter/sort control.
+	baseQ := url.Values{}
+	for _, k := range []string{"q", "class", "group", "status", "sort", "dir"} {
+		if val := qy.Get(k); val != "" {
+			baseQ.Set(k, val)
+		}
+	}
+	pageURL := func(p int) string {
+		u := url.Values{}
+		for k, vs := range baseQ {
+			u[k] = vs
+		}
+		u.Set("page", strconv.Itoa(p))
+		return "/devices?" + u.Encode()
+	}
+
 	groups := make([]string, 0, len(f.Groups))
 	for g := range f.Groups {
 		groups = append(groups, g)
@@ -260,11 +298,20 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 		classes = append(classes, c)
 	}
 	sort.Strings(classes)
-	s.render(w, "devices", map[string]any{"Title": "Devices", "Nav": "devices",
+	data := map[string]any{"Title": "Devices", "Nav": "devices",
 		"Devices": rows, "Groups": groups, "Classes": classes,
 		"Q": qy.Get("q"), "FClass": fClass, "FGroup": fGroup, "FStatus": fStatus,
 		"Sort": sortKey, "Dir": dir,
-		"CanEdit": v.roleAt("org").Meets(identity.Editor)}, v)
+		"Total": total, "Page": page, "Pages": pages,
+		"From": lo + 1, "To": hi,
+		"CanEdit": v.roleAt("org").Meets(identity.Editor)}
+	if page > 1 {
+		data["PrevURL"] = pageURL(page - 1)
+	}
+	if page < pages {
+		data["NextURL"] = pageURL(page + 1)
+	}
+	s.render(w, "devices", data, v)
 }
 
 // deviceRow is one row of the device fleet table.
