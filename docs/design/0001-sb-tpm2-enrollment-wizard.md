@@ -1,6 +1,15 @@
 # Design 0001: Secure Boot + TPM2 enrollment wizard
 
-Status: designed, ready to build (task #35)
+Status: built and superseded in part by wizard v2 (task #89, v0.62.x).
+Key change vs. this design: the signing keys are **pre-generated on the
+station and staged with the install** (`--extra-files`), so lanzaboote signs
+the boot chain during the install itself - the separate "audit mode" deploy
+round-trip below no longer exists. The remaining ceremony is device-driven:
+a derived `provision` intent lets `sextant-actd` enrol the keys in firmware
+setup mode and seal the LUKS keyslot to the TPM2 (using a staged one-shot
+enrol key, shredded after use), with each milestone acked and verified via
+posture. Which phases apply is gated by the device's resolved config
+(`secureboot.enable`, `diskUnlock.tpm2.enable`) and hardware capability.
 
 ## Problem
 
