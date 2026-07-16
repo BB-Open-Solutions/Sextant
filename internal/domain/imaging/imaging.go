@@ -107,7 +107,9 @@ func (s Status) CanTransition(to Status) bool {
 	case Imaging:
 		return to == Installed || to == Failed || to == Canceled
 	case Installed:
-		return to == SBPending || to == TPM2Enrolled || to == Done || to == Failed || to == Canceled
+		// SBEnrolled directly: a device that comes up with Secure Boot already
+		// enforcing (pre-enrolled hardware) skips the firmware step.
+		return to == SBPending || to == SBEnrolled || to == TPM2Enrolled || to == Done || to == Failed || to == Canceled
 	case SBPending:
 		return to == SBEnrolled || to == Failed || to == Canceled
 	case SBEnrolled:

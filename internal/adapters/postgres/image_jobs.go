@@ -90,6 +90,25 @@ func (j *ImageJobStore) Get(ctx context.Context, tenant, station, mac string) (i
 	return job, true, nil
 }
 
+// GetActiveByTag returns the newest non-terminal job for a device tag.
+func (j *ImageJobStore) GetActiveByTag(ctx context.Context, tenant, tag string) (imaging.Job, bool, error) {
+	var job imaging.Job
+	var status string
+	err := j.s.pool.QueryRow(ctx, `
+		SELECT station, mac, tag, hardware, status, message, progress, step
+		FROM image_jobs WHERE tenant=$1 AND tag=$2 AND status NOT IN ('done','canceled')
+		ORDER BY updated DESC LIMIT 1`, tenant, tag).
+		Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return imaging.Job{}, false, nil
+		}
+		return imaging.Job{}, false, err
+	}
+	job.Status = imaging.Status(status)
+	return job, true, nil
+}
+
 // UpdateProgress records how far the current step is (0..100) and its label,
 // without changing status. It is the frequent, unguarded display-only tick.
 func (j *ImageJobStore) UpdateProgress(ctx context.Context, tenant, station, mac string, progress int, step string, now time.Time) error {

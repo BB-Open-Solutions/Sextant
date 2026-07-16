@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"strings"
+
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"sync"
 	"testing"
 	"time"
@@ -24,6 +27,16 @@ func (s *memImageJobs) Upsert(_ context.Context, tenant string, j imaging.Job, _
 	defer s.mu.Unlock()
 	s.m[key(tenant, j.Station, j.MAC)] = j
 	return nil
+}
+func (s *memImageJobs) GetActiveByTag(_ context.Context, tenant, tag string) (imaging.Job, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, j := range s.m {
+		if strings.HasPrefix(k, tenant+"|") && j.Tag == tag && !j.Status.Terminal() {
+			return j, true, nil
+		}
+	}
+	return imaging.Job{}, false, nil
 }
 func (s *memImageJobs) ListByStation(_ context.Context, tenant, station string) ([]imaging.Job, error) {
 	s.mu.Lock()
@@ -196,5 +209,63 @@ func TestImagingInstalledMessageClearsOnNextTransition(t *testing.T) {
 	got, _, _ = s.Get(ctx, "s", "aa:bb:cc:dd:ee:03")
 	if got.Message != "" {
 		t.Fatalf("plaintext LUKS key survived the next transition: %+v", got)
+	}
+}
+
+// TestWizardIntentAndAdvance drives a device through the post-install
+// ceremony purely via check-in reports, the way production advances it.
+func TestWizardIntentAndAdvance(t *testing.T) {
+	ctx := context.Background()
+	s := newImaging()
+	job := imaging.Job{Station: "s", MAC: "aa:bb:cc:dd:ee:09", Tag: "lap9", Hardware: "hw"}
+	if err := s.Dispatch(ctx, job); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+
+	// Pending/imaging: the station's plane, no provision intent yet.
+	if got := s.WizardIntent(ctx, "lap9"); got != "" {
+		t.Fatalf("pending job should not provision, got %q", got)
+	}
+	if err := s.Report(ctx, "s", job.MAC, imaging.Imaging, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Report(ctx, "s", job.MAC, imaging.Installed, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.WizardIntent(ctx, "lap9"); got != "provision" {
+		t.Fatalf("installed job should provision, got %q", got)
+	}
+
+	beat := func(sb observed.SBState, tpm2 observed.TPM2State, ack string) imaging.Status {
+		t.Helper()
+		if err := s.AdvanceFromDevice(ctx, observed.CheckIn{Tag: "lap9", SB: sb, TPM2: tpm2, Ack: ack}); err != nil {
+			t.Fatalf("advance: %v", err)
+		}
+		got, _, _ := s.Get(ctx, "s", job.MAC)
+		return got.Status
+	}
+
+	// First boot with staged keys -> firmware step pending.
+	if st := beat(observed.SBAudit, observed.TPM2Enrolled, ""); st != imaging.SBPending {
+		t.Fatalf("after first posture beat: %s", st)
+	}
+	// Executor enrolled the platform keys.
+	if st := beat(observed.SBAudit, observed.TPM2Enrolled, observed.AckSBEnrolled); st != imaging.SBEnrolled {
+		t.Fatalf("after sb-enrolled ack: %s", st)
+	}
+	// Executor sealed the LUKS keyslot.
+	if st := beat(observed.SBEnforcing, observed.TPM2Enrolled, observed.AckTPM2Enrolled); st != imaging.TPM2Enrolled {
+		t.Fatalf("after tpm2-enrolled ack: %s", st)
+	}
+	// Final boot, still enforcing: verified done, intent stops.
+	if st := beat(observed.SBEnforcing, observed.TPM2Enrolled, ""); st != imaging.Done {
+		t.Fatalf("after final beat: %s", st)
+	}
+	if got := s.WizardIntent(ctx, "lap9"); got != "" {
+		t.Fatalf("done job should stop provisioning, got %q", got)
+	}
+	// A device with no active job is a no-op, not an error.
+	if err := s.AdvanceFromDevice(ctx, observed.CheckIn{Tag: "lap9", SB: observed.SBEnforcing}); err != nil {
+		t.Fatalf("advance on done job: %v", err)
 	}
 }

@@ -42,6 +42,9 @@ func (s *wizJobStore) ListByStation(_ context.Context, _, station string) ([]ima
 func (s *wizJobStore) ListPending(context.Context, string, string) ([]imaging.Job, error) {
 	return nil, nil
 }
+func (s *wizJobStore) GetActiveByTag(context.Context, string, string) (imaging.Job, bool, error) {
+	return imaging.Job{}, false, nil
+}
 func (s *wizJobStore) Get(context.Context, string, string, string) (imaging.Job, bool, error) {
 	return imaging.Job{}, false, nil
 }
@@ -137,7 +140,7 @@ func TestEnrollWizardRendersProvisioningState(t *testing.T) {
 		t.Error("LUKS recovery key not surfaced on the installed device")
 	}
 	// Secure Boot phase: the manual firmware step with the Lenovo entry key.
-	if !strings.Contains(s, "Setup Mode (clear the existing keys)") {
+	if !strings.Contains(s, "Reset to Setup Mode") {
 		t.Error("Secure Boot firmware steps not rendered")
 	}
 	if !strings.Contains(s, "F1") {

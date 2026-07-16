@@ -6,15 +6,20 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 )
 
 // enroll_wizard.go: the batch provisioning wizard. One page that adapts to the
 // live state of a station's in-flight jobs - the install, Secure Boot and TPM2
 // phases, per-device progress, the manual firmware step for the current phase
-// (with an operator reboot-to-BIOS control), and one-shot recovery secrets.
-// It renders whatever state each device is in; the station/agent advance the
-// status, so a device whose group needs no Secure Boot simply jumps from
-// installed to done and never shows the firmware phase.
+// (with an operator reboot control), and one-shot recovery secrets.
+//
+// The page instructs, the device advances: every transition is derived from
+// what the device itself reports on check-in (posture, executor acks - see
+// imaging.Advance), so a step only turns green when it verifiably happened.
+// Steps a device cannot do are skipped by the same rule (no EFI, no TPM2 chip,
+// no TPM2 unlock configured), and each row carries a plain-language "what is
+// happening / what to do now" line so a non-expert can run the whole ceremony.
 
 // wizardRow is one device's live provisioning state in the batch.
 type wizardRow struct {
@@ -24,23 +29,32 @@ type wizardRow struct {
 	HasSecret bool   // a sealed recovery secret exists to reveal (owner reach)
 	LUKS      string // one-shot LUKS key, only when no secret store keeps it
 	Bios      biosStep
+	// NowKey is the catalog key of the guidance line for the row's current
+	// state. Empty on done/halted (those render their own card).
+	NowKey string
+	// Observed posture (empty until the device's first check-in) and whether
+	// the device is currently checking in - drives the verification chips.
+	SB     observed.SBState
+	TPM2   observed.TPM2State
+	Online bool
 }
 
 // biosStep is the manual firmware action for a phase, with a brand-specific
-// entry hint. Empty Title means no manual step (fully automatic phase).
+// entry hint. Empty TitleKey means no manual step (fully automatic phase).
+// The fields are catalog keys, translated at render.
 type biosStep struct {
-	Title string
-	Key   string   // firmware entry key, e.g. "F1" (Lenovo), "F2" (Intel NUC)
-	Steps []string // ordered BIOS actions
+	TitleKey string
+	Key      string   // firmware entry key, e.g. "F1" (Lenovo), "F2" (Intel NUC)
+	StepKeys []string // ordered BIOS actions
 }
 
 // firmwareKey guesses the BIOS-entry key from the hardware profile name.
 func firmwareKey(hardware string) string {
 	h := strings.ToLower(hardware)
 	switch {
-	case strings.Contains(h, "lenovo") || strings.Contains(h, "thinkpad"):
+	case strings.Contains(h, "lenovo") || strings.Contains(h, "thinkpad") || strings.Contains(h, "t495"):
 		return "F1"
-	case strings.Contains(h, "nuc") || strings.Contains(h, "intel"):
+	case strings.Contains(h, "nuc") || strings.Contains(h, "intel") || strings.Contains(h, "msi"):
 		return "F2"
 	case strings.Contains(h, "hp") || strings.Contains(h, "elitebook"):
 		return "F10"
@@ -50,21 +64,41 @@ func firmwareKey(hardware string) string {
 }
 
 // biosFor returns the manual firmware step for a job's current phase. Only the
-// Secure Boot phase needs a human at the BIOS; install and TPM2 are automatic.
+// Secure Boot phase needs a human at the machine; everything else is automatic.
 func biosFor(j imaging.Job) biosStep {
 	if j.Status != imaging.SBPending {
 		return biosStep{}
 	}
 	return biosStep{
-		Title: "Enable Secure Boot in the firmware",
-		Key:   firmwareKey(j.Hardware),
-		Steps: []string{
-			"Enter the BIOS (tap the entry key on boot)",
-			"Secure Boot -> Setup Mode (clear the existing keys)",
-			"Secure Boot -> Enabled, then Save & Exit",
-			"The device signs and enrols the platform keys on reboot",
+		TitleKey: "wizard.bios_title",
+		Key:      firmwareKey(j.Hardware),
+		StepKeys: []string{
+			"wizard.bios_s1", // power off (or use the Reboot button) and tap the entry key
+			"wizard.bios_s2", // Security -> Secure Boot -> Enabled
+			"wizard.bios_s3", // Reset to Setup Mode / Clear Secure Boot keys
+			"wizard.bios_s4", // Save & Exit and let it boot
+			"wizard.bios_s5", // the rest is automatic (enrol + reboots)
 		},
 	}
+}
+
+// nowKeyFor picks the plain-language guidance line for a row.
+func nowKeyFor(st imaging.Status) string {
+	switch st {
+	case imaging.Pending:
+		return "wizard.now_pending"
+	case imaging.Imaging:
+		return "wizard.now_imaging"
+	case imaging.Installed:
+		return "wizard.now_installed"
+	case imaging.SBPending:
+		return "wizard.now_sb_pending"
+	case imaging.SBEnrolled:
+		return "wizard.now_sb_enrolled"
+	case imaging.TPM2Enrolled:
+		return "wizard.now_tpm2"
+	}
+	return ""
 }
 
 // enrollWizard renders the batch provisioning wizard for a station.
@@ -96,10 +130,17 @@ func (s *Server) enrollWizard(w http.ResponseWriter, r *http.Request, v view) {
 	var needFirmware bool
 	for _, j := range jobs {
 		st := j.Status
-		row := wizardRow{Job: j, Phase: st.Phase(), Bios: biosFor(j)}
+		row := wizardRow{Job: j, Phase: st.Phase(), Bios: biosFor(j), NowKey: nowKeyFor(st)}
 		switch st {
 		case imaging.Installed, imaging.SBPending, imaging.SBEnrolled, imaging.TPM2Enrolled:
 			row.Reboot = true
+		}
+		// Observed posture for the verification chips; absent until the
+		// device's first check-in.
+		if s.svc.Inventory != nil {
+			if dst, ok, err := s.svc.Inventory.Status(r.Context(), j.Tag); err == nil && ok {
+				row.SB, row.TPM2, row.Online = dst.SB, dst.TPM2, dst.Online
+			}
 		}
 		// A sealed recovery secret is revealable (owner reach) once it exists.
 		// With no secret store the station keeps the key in the message for a

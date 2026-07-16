@@ -150,6 +150,33 @@ document.addEventListener("click", function (e) {
   });
 })();
 
+// Live view: a section marked data-poll="<region-id>" re-fetches the current
+// URL every few seconds and swaps that region's content, so state that
+// advances server-side (the provisioning wizard) appears without manual
+// refreshes. Skipped while the operator is mid-interaction (focus inside the
+// region, or the confirm modal open), so a pending click never gets yanked
+// away. Delegated handlers (copy, confirm) survive the swap by design.
+(function () {
+  var marked = document.querySelector("[data-poll]");
+  if (!marked) return;
+  var id = marked.getAttribute("data-poll");
+  setInterval(function () {
+    var live = document.getElementById(id);
+    if (!live) return;
+    var modal = document.getElementById("confirm-modal");
+    if (modal && !modal.classList.contains("hidden")) return;
+    if (document.activeElement && live.contains(document.activeElement)) return;
+    fetch(window.location.href)
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (!html) return;
+        var next = new DOMParser().parseFromString(html, "text/html").getElementById(id);
+        if (next) live.innerHTML = next.innerHTML;
+      })
+      .catch(function () {});
+  }, 5000);
+})();
+
 // Account menu (and any <details data-menu>): the native disclosure opens and
 // closes on the summary already; this only adds the expected "click outside to
 // close" and Escape-to-close, so it behaves like a dropdown.

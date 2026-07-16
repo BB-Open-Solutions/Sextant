@@ -316,7 +316,7 @@ func TestCheckinReturnsIntent(t *testing.T) {
 	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
 	mux := http.NewServeMux()
 	NewCheckin(inv, nil, "bridge-tok").
-		WithIntent(func(tag string) string {
+		WithIntent(func(_ context.Context, tag string) string {
 			if tag == "stolen" {
 				return "lock"
 			}

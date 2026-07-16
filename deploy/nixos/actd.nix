@@ -33,7 +33,21 @@ let
 
   actd = pkgs.writeShellApplication {
     name = "sextant-actd";
-    runtimeInputs = [ pkgs.cryptsetup pkgs.util-linux pkgs.systemd pkgs.coreutils ];
+    runtimeInputs = [
+      pkgs.cryptsetup
+      pkgs.util-linux
+      pkgs.systemd
+      pkgs.coreutils
+      # The provision step: sbctl enrols the staged Secure Boot keys;
+      # findutils/gawk/gnugrep read the EFI variables and crypttab. Listed
+      # explicitly - coreutils does NOT provide find/awk/grep, and a missing
+      # runtime input fails silently inside command substitutions (the
+      # station-runner's awk lesson).
+      pkgs.sbctl
+      pkgs.findutils
+      pkgs.gawk
+      pkgs.gnugrep
+    ];
     # The wipe gates (armWipe, allowUnlockedWipe, poweroffAfterWipe) are
     # resolved at build time into DIFFERENT emitted bash, rather than compared
     # as strings in the script - so an unarmed host ships a script that simply
@@ -44,8 +58,11 @@ let
 
       # writeAck records the OUTCOME for the unprivileged agent to read and
       # forward to the console on its next beat, so "delivered" (spooled) is
-      # never confused with "executed"/"refused"/"failed" (design 0004).
-      writeAck() { printf '%s' "$1" > "$spool/action.ack" 2>/dev/null || true; }
+      # never confused with "executed"/"refused"/"failed" (design 0004). The
+      # ack lives in persistent state (matching the agent's ACK_FILE), not
+      # the tmpfs spool: provisioning steps reboot right after acking, and
+      # the outcome must survive the reboot.
+      writeAck() { printf '%s' "$1" > "/var/lib/sextant-agent/action.ack" 2>/dev/null || true; }
 
       # lock: lock every session. Idempotent. The marker is removed after
       # handling so the path unit does not re-trigger this oneshot in a loop
@@ -83,6 +100,64 @@ let
           # boot; drop the re-spooled marker and wait for the machine to go down.
           rm -f "$spool/reboot.intent" || true
         fi
+      fi
+
+      # provision: advance the Secure Boot / TPM2 ceremony (wizard, design
+      # 0004). Constructive and guarded: each visit performs at most the one
+      # step the machine is actually ready for, acks it, and reboots so the
+      # firmware state the next step depends on is real. The install stages
+      # the material this consumes: per-device sbctl keys at /var/lib/sbctl
+      # (lanzaboote signed the boot chain with them at install time) and a
+      # one-shot copy of the LUKS key at /var/lib/sextant-actd/luks-enroll.key
+      # (systemd-cryptenroll needs an existing secret to authorise a new
+      # keyslot), shredded after use.
+      if [ -e "$spool/provision.intent" ]; then
+        rm -f "$spool/provision.intent" || true
+        # efibool reads the value byte of an EFI variable (4-byte attribute
+        # prefix, then the boolean - the kernel's documented efivarfs layout).
+        efibool() {
+          local f
+          f="$(find /sys/firmware/efi/efivars -maxdepth 1 -name "$1-*" 2>/dev/null | head -n1)"
+          if [ -z "$f" ]; then echo ""; return; fi
+          od -An -tu1 "$f" 2>/dev/null | awk '{v=$NF} END {print v}'
+        }
+        sb="$(efibool SecureBoot)"; setup="$(efibool SetupMode)"
+        keyfile="/var/lib/sextant-actd/luks-enroll.key"
+        if [ "$sb" != "1" ] && [ "$setup" = "1" ] && [ -d /var/lib/sbctl/keys ]; then
+          # Firmware in setup mode with our signing keys present: enrol them
+          # (plus Microsoft's certificates - option ROMs and shims stay
+          # bootable). Secure Boot enforces from the next boot on.
+          echo "sextant-actd: firmware in setup mode - enrolling Secure Boot keys"
+          if sbctl enroll-keys --microsoft; then
+            writeAck sb-enrolled
+            systemctl reboot || true
+          else
+            echo "sextant-actd: sbctl enroll-keys failed" >&2
+            writeAck sb-enroll-failed
+          fi
+        elif [ "$sb" = "1" ] && [ -e /dev/tpmrm0 ] && [ -e "$keyfile" ] \
+            && grep -q "tpm2-device" /etc/crypttab 2>/dev/null; then
+          # Secure Boot enforcing, a TPM2 present, the config wires a TPM2
+          # unlock and the enrol key is still staged: seal the LUKS keyslot
+          # to PCR 7 (the Secure Boot state). The passphrase keyslot stays
+          # as break-glass. The staged key is shredded either way - it is
+          # single-purpose material.
+          echo "sextant-actd: Secure Boot enforcing - sealing LUKS to the TPM2 (PCR 7)"
+          dev="$(blkid -t TYPE=crypto_LUKS -o device | head -n1)"
+          if [ -n "$dev" ] && systemd-cryptenroll --unlock-key-file="$keyfile" \
+               --tpm2-device=auto --tpm2-pcrs=7 "$dev"; then
+            shred -u "$keyfile" 2>/dev/null || rm -f "$keyfile"
+            writeAck tpm2-enrolled
+            systemctl reboot || true
+          else
+            echo "sextant-actd: systemd-cryptenroll failed on ''${dev:-<no LUKS device>}" >&2
+            shred -u "$keyfile" 2>/dev/null || rm -f "$keyfile"
+            writeAck tpm2-enroll-failed
+          fi
+        fi
+        # Otherwise: waiting on a firmware step (or nothing applies). No ack -
+        # the console keeps showing the operator instruction; the agent
+        # re-spools next beat while the intent stands.
       fi
 
       # wipe: destructive, heavily gated.
@@ -196,9 +271,15 @@ in
         # correctness matters more here than a maximal lockdown that cannot
         # be validated against real hardware in this change.
         ProtectSystem = "strict";
-        ReadWritePaths = [ spoolDir "/var/lib/sextant-agent" ];
+        # sbctl (enroll-keys, GUID bookkeeping) writes /var/lib/sbctl; the
+        # provision step consumes and shreds the staged enrol key under
+        # /var/lib/sextant-actd.
+        ReadWritePaths = [ spoolDir "/var/lib/sextant-agent" "/var/lib/sextant-actd" "/var/lib/sbctl" ];
         ProtectHome = true;
-        ProtectKernelTunables = true;
+        # NOT ProtectKernelTunables: it mounts /sys read-only, and the
+        # provision step must write EFI variables (sbctl enroll-keys). The
+        # rest of the sandbox stands.
+        ProtectKernelTunables = false;
         ProtectKernelModules = true;
         ProtectControlGroups = true;
         RestrictSUIDSGID = true;

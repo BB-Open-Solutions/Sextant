@@ -19,6 +19,14 @@ type jobMemStore struct{ m map[string]imaging.Job }
 
 func jk(station, mac string) string { return station + "|" + mac }
 
+func (s *jobMemStore) GetActiveByTag(_ context.Context, _, tag string) (imaging.Job, bool, error) {
+	for _, j := range s.m {
+		if j.Tag == tag && !j.Status.Terminal() {
+			return j, true, nil
+		}
+	}
+	return imaging.Job{}, false, nil
+}
 func (s *jobMemStore) Upsert(_ context.Context, _ string, j imaging.Job, _ time.Time) error {
 	s.m[jk(j.Station, j.MAC)] = j
 	return nil

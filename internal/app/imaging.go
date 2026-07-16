@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
@@ -118,6 +119,44 @@ func (s *ImagingService) Report(ctx context.Context, station, mac string, to ima
 // contends with the guarded status transitions.
 func (s *ImagingService) ReportProgress(ctx context.Context, station, mac string, progress int, step string) error {
 	return s.store.UpdateProgress(ctx, s.tenant, station, imaging.NormalizeMAC(mac), progress, step, s.clock.Now())
+}
+
+// WizardIntent returns "provision" when the tag has a live image job in a
+// ceremony state - the check-in response hands it to the device so the
+// executor advances whatever step is possible. Empty otherwise. A store error
+// yields empty: a check-in must never fail because the wizard lookup did.
+func (s *ImagingService) WizardIntent(ctx context.Context, tag string) string {
+	job, ok, err := s.store.GetActiveByTag(ctx, s.tenant, tag)
+	if err != nil || !ok || !job.Status.NeedsProvisioning() {
+		return ""
+	}
+	return "provision"
+}
+
+// AdvanceFromDevice moves the tag's live image job along the provisioning
+// ceremony from what the device just reported (posture + executor ack). It is
+// called on every check-in; when the report warrants no transition it is a
+// no-op. Advancement errors are returned for logging but must not fail the
+// check-in itself - the device's report is already stored.
+func (s *ImagingService) AdvanceFromDevice(ctx context.Context, c observed.CheckIn) error {
+	job, ok, err := s.store.GetActiveByTag(ctx, s.tenant, c.Tag)
+	if err != nil || !ok {
+		return err
+	}
+	to, message, ok := imaging.Advance(job.Status, c.SB, c.TPM2, c.Ack)
+	if !ok || !job.Status.CanTransition(to) {
+		return nil
+	}
+	applied, err := s.store.TransitionStatus(ctx, s.tenant, job.Station, job.MAC, job.Status, to, message, s.clock.Now())
+	if err != nil {
+		return err
+	}
+	if !applied {
+		// Another reporter (station or a concurrent beat) moved the job
+		// first; the next check-in re-evaluates against the fresh status.
+		return nil
+	}
+	return nil
 }
 
 // Cancel withdraws a job the operator no longer wants imaged.

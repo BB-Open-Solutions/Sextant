@@ -35,6 +35,15 @@ pub fn react(root: &Path, intent: &str) {
             // root executor performs the reboot, the agent only records the request.
             spool(root, "reboot");
         }
+        "provision" => {
+            // Provisioning-ceremony step (wizard): the root executor advances
+            // whatever is possible right now - enrol Secure Boot platform keys
+            // when the firmware is in setup mode, seal the LUKS keyslot to the
+            // TPM2 once Secure Boot enforces - and acks the milestone. Both
+            // operations are constructive and idempotent-guarded in the
+            // executor; the agent only records the request.
+            spool(root, "provision");
+        }
         "wipe" => {
             spool(root, "wipe");
             eprintln!(
@@ -47,8 +56,11 @@ pub fn react(root: &Path, intent: &str) {
     }
 }
 
-/// ACK_FILE is where the root executor records what it actually did.
-const ACK_FILE: &str = "/run/sextant-intent/action.ack";
+/// ACK_FILE is where the root executor records what it actually did. It
+/// lives in persistent state, NOT the tmpfs spool: the provisioning steps
+/// (Secure Boot enrol, TPM2 seal) reboot immediately after recording their
+/// outcome, and the ack must survive that reboot to reach the console.
+const ACK_FILE: &str = "/var/lib/sextant-agent/action.ack";
 
 /// executed_ack reads and clears the outcome the root executor recorded for the
 /// last spooled intent ("lock"/"wipe"/"wipe-refused"/"wipe-failed"), so the
@@ -166,6 +178,17 @@ mod tests {
     }
 
     #[test]
+    fn provision_spools_for_the_executor() {
+        let root = tmp("provision");
+        react(&root, "provision");
+        assert!(root
+            .join(SPOOL.trim_start_matches('/'))
+            .join("provision.intent")
+            .exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn unknown_intent_is_ignored() {
         let root = tmp("unknown");
         react(&root, "explode"); // must not panic or spool anything
@@ -181,10 +204,11 @@ mod tests {
         let root = tmp("ack");
         // No outcome recorded yet.
         assert_eq!(executed_ack(&root), None);
-        // The root executor records what it did.
-        let dir = root.join(SPOOL.trim_start_matches('/'));
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("action.ack"), "wipe-refused\n").unwrap();
+        // The root executor records what it did (persistent state, so an
+        // ack written right before a provisioning reboot survives it).
+        let ack = root.join(ACK_FILE.trim_start_matches('/'));
+        fs::create_dir_all(ack.parent().unwrap()).unwrap();
+        fs::write(&ack, "wipe-refused\n").unwrap();
         assert_eq!(executed_ack(&root).as_deref(), Some("wipe-refused"));
         // Consumed once: a second read is empty.
         assert_eq!(executed_ack(&root), None);

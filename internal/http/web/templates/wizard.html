@@ -1,5 +1,5 @@
 {{define "content"}}
-<section class="flex flex-col gap-6">
+<section class="flex flex-col gap-6" data-poll="wizard-live">
   <div class="flex flex-col gap-2">
     <div class="flex items-center gap-2 text-label-md text-text-tertiary">
       <a href="/enroll?station={{.Station}}" class="hover:text-ink">{{.L.T "enroll.title"}}</a>
@@ -23,6 +23,7 @@
     </div>
   </div>
 
+  <div id="wizard-live" class="flex flex-col gap-6">
   {{if .NeedFirmware}}
   <!-- Manual firmware action: shown once while any device is in the Secure Boot phase -->
   <div class="relative overflow-hidden rounded-lg border border-status-warn/40 bg-canvas p-6 shadow-sm">
@@ -60,6 +61,8 @@
             <div class="mt-0.5 text-label-md text-text-tertiary">{{.Job.Hardware}}</div>
           </div>
           <div class="flex items-center gap-3">
+            {{if .SB}}{{if eq (printf "%s" .SB) "enforcing"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">verified_user</span>SB</span>{{else}}<span class="tag"><span class="material-symbols-outlined msz-14">gpp_maybe</span>SB</span>{{end}}{{end}}
+            {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined msz-14">wifi</span>{{$.L.T "wizard.online"}}</span>{{end}}
             {{template "wizStatus" (list $.L .Job.Status)}}
             {{if and .Reboot $.CanEdit}}
             <form method="post" action="/devices/{{.Job.Tag}}/intent" class="!m-0 inline" data-confirm="{{$.L.T "wizard.reboot_confirm"}} {{.Job.Tag}}?">
@@ -71,11 +74,37 @@
           </div>
         </div>
 
+        {{/* The plain-language "what now" line: what the ceremony is doing, or
+             the one thing the operator must do. Every state has one, so a
+             non-expert is never left guessing. */}}
+        {{if .NowKey}}
+        <div class="flex items-start gap-2 rounded-md border border-border-soft bg-surface-container-low px-3 py-2 text-body-sm text-text-secondary">
+          <span class="material-symbols-outlined msz-18 mt-0.5 text-mint-deep">assistant_direction</span>
+          <span><span class="font-medium text-ink">{{$.L.T "wizard.now_label"}}</span> {{$.L.T .NowKey}}</span>
+        </div>
+        {{end}}
+
         {{/* Cable guidance: the device needs the network until every phase has
              converged (posture confirmed over check-in), so only "done" is safe
              to unplug. */}}
         {{$st := printf "%s" .Job.Status}}
         {{if eq $st "done"}}
+        {{/* Verification card: the states below are device-reported (EFI
+             SecureBoot variable via the agent, executor acks), never assumed. */}}
+        <div class="rounded-md border border-mint-deep/40 bg-mint-vibrant/5 p-4">
+          <div class="mb-2 flex items-center gap-2 text-label-md font-bold text-mint-deep"><span class="material-symbols-outlined msz-16">task_alt</span>{{$.L.T "wizard.verify_title"}}</div>
+          <ul class="mb-0 flex list-none flex-col gap-1 text-body-sm text-text-secondary">
+            <li class="flex items-center gap-2">
+              {{if eq (printf "%s" .SB) "enforcing"}}<span class="material-symbols-outlined msz-16 text-mint-deep">check_circle</span>{{$.L.T "wizard.verify_sb_ok"}}
+              {{else}}<span class="material-symbols-outlined msz-16 text-text-tertiary">remove_circle</span>{{$.L.T "wizard.verify_sb_skip"}}{{end}}
+            </li>
+            <li class="flex items-center gap-2">
+              {{if eq (printf "%s" .TPM2) "enrolled"}}<span class="material-symbols-outlined msz-16 text-mint-deep">check_circle</span>{{$.L.T "wizard.verify_tpm2_ok"}}
+              {{else if eq (printf "%s" .TPM2) "absent"}}<span class="material-symbols-outlined msz-16 text-text-tertiary">remove_circle</span>{{$.L.T "wizard.verify_tpm2_absent"}}
+              {{else}}<span class="material-symbols-outlined msz-16 text-text-tertiary">remove_circle</span>{{$.L.T "wizard.verify_tpm2_skip"}}{{end}}
+            </li>
+          </ul>
+        </div>
         <div class="flex items-center gap-2 rounded-md border border-mint-deep/40 bg-mint-vibrant/5 px-3 py-2 text-body-sm font-medium text-mint-deep"><span class="material-symbols-outlined msz-18">power_off</span>{{$.L.T "wizard.cable_safe"}}</div>
         {{else if or (eq $st "failed") (eq $st "canceled")}}
         {{else}}
@@ -94,11 +123,11 @@
         </div>
         {{end}}
 
-        {{if .Bios.Title}}
-        <div class="rounded-md border border-border-soft bg-surface-container-low p-4">
-          <div class="mb-2 flex items-center gap-2 text-label-md font-medium text-ink"><span class="material-symbols-outlined msz-16 text-status-warn">lightbulb</span>{{.Bios.Title}}{{with .Bios.Key}} <kbd class="rounded border border-border-soft bg-canvas px-1.5 py-0.5 font-mono text-label-xs-caps text-ink">{{.}}</kbd>{{end}}</div>
+        {{if .Bios.TitleKey}}
+        <div class="rounded-md border border-status-warn/40 bg-surface-container-low p-4">
+          <div class="mb-2 flex items-center gap-2 text-label-md font-medium text-ink"><span class="material-symbols-outlined msz-16 text-status-warn">person</span>{{$.L.T .Bios.TitleKey}}{{with .Bios.Key}} <kbd class="rounded border border-border-soft bg-canvas px-1.5 py-0.5 font-mono text-label-xs-caps text-ink">{{.}}</kbd>{{end}}</div>
           <ol class="ml-4 flex list-decimal flex-col gap-1 text-body-sm text-text-secondary">
-            {{range .Bios.Steps}}<li>{{.}}</li>{{end}}
+            {{range .Bios.StepKeys}}<li>{{$.L.T .}}</li>{{end}}
           </ol>
         </div>
         {{end}}
@@ -136,6 +165,7 @@
     </div>
     {{end}}
   </div>
+  </div><!-- /wizard-live -->
 </section>
 {{end}}
 

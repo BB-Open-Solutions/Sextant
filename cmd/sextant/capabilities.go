@@ -19,6 +19,8 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
+
 	gateadapter "code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/gate"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	ldapdir "code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/ldap"
@@ -326,8 +328,23 @@ func (d *deps) observedCapability() capability.Capability {
 					dev, ok := d.svc.Fleet().Devices[tag]
 					return ok && dev.Retired()
 				}).
-				WithIntent(func(tag string) string {
-					return d.svc.Fleet().Devices[tag].Intent
+				WithIntent(func(ctx context.Context, tag string) string {
+					// An operator-set intent (lock/wipe/reboot) always wins;
+					// otherwise a device mid-provisioning gets the wizard's
+					// derived provision intent.
+					if it := d.svc.Fleet().Devices[tag].Intent; it != "" {
+						return it
+					}
+					if d.imaging == nil {
+						return ""
+					}
+					return d.imaging.WizardIntent(ctx, tag)
+				}).
+				WithProvision(func(ctx context.Context, c observed.CheckIn) error {
+					if d.imaging == nil {
+						return nil
+					}
+					return d.imaging.AdvanceFromDevice(ctx, c)
 				}).Routes(inner)
 			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner))
 		},

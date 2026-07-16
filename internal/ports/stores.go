@@ -89,6 +89,10 @@ type ImageJobStore interface {
 	ListPending(ctx context.Context, tenant, station string) ([]imaging.Job, error)
 	// Get returns one job by MAC, or false.
 	Get(ctx context.Context, tenant, station, mac string) (imaging.Job, bool, error)
+	// GetActiveByTag returns the newest non-terminal job for a device tag, or
+	// false. It is the check-in path's wizard lookup: a device mid-ceremony
+	// has exactly one live job; done/canceled history never matches.
+	GetActiveByTag(ctx context.Context, tenant, tag string) (imaging.Job, bool, error)
 	// UpdateProgress records the current step's percent-complete (0..100) and
 	// label without changing status - the frequent, display-only tick the
 	// station emits while a single status (e.g. imaging) is in progress.

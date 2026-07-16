@@ -32,7 +32,11 @@ type CheckinAPI struct {
 	// intent returns a device's pending remote action ("" when none). The
 	// check-in response carries it back synchronously, so the device acts
 	// on a fresh instruction - no store-and-forward, no replay window.
-	intent func(tag string) string
+	intent func(ctx context.Context, tag string) string
+	// provision advances the device's image job (the provisioning wizard)
+	// from this check-in's posture and ack. Best-effort: it runs after the
+	// report is stored and never fails the check-in. nil = no imaging plane.
+	provision func(ctx context.Context, c observed.CheckIn) error
 }
 
 // NewCheckin builds the check-in surface. Both auth sources are optional
@@ -47,9 +51,16 @@ func (c *CheckinAPI) WithLifecycle(retired func(tag string) bool) *CheckinAPI {
 	return c
 }
 
-// WithIntent wires the pending-intent lookup (from the config snapshot).
-func (c *CheckinAPI) WithIntent(intent func(tag string) string) *CheckinAPI {
+// WithIntent wires the pending-intent lookup (from the config snapshot,
+// falling back to the provisioning wizard's derived intent).
+func (c *CheckinAPI) WithIntent(intent func(ctx context.Context, tag string) string) *CheckinAPI {
 	c.intent = intent
+	return c
+}
+
+// WithProvision wires the provisioning-wizard advancement hook.
+func (c *CheckinAPI) WithProvision(provision func(ctx context.Context, c observed.CheckIn) error) *CheckinAPI {
+	c.provision = provision
 	return c
 }
 
@@ -110,11 +121,18 @@ func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Advance the provisioning wizard from what this beat reported (posture,
+	// executor ack). Best-effort by design: the device's report is already
+	// stored, so a wizard hiccup must not turn into a device-visible error.
+	if c.provision != nil {
+		_ = c.provision(r.Context(), in.CheckIn)
+	}
+
 	// A pending remote action rides back on the response (design 0004):
 	// the device acts on it locally and echoes an ack next beat. Because
 	// this is the direct response to THIS request, it cannot be replayed.
 	if c.intent != nil {
-		if action := c.intent(in.Tag); action != "" {
+		if action := c.intent(r.Context(), in.Tag); action != "" {
 			writeJSON(w, http.StatusOK, map[string]string{"intent": action})
 			return
 		}

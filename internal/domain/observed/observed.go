@@ -95,6 +95,16 @@ const (
 	AckWipe        = "wipe"         // crypto-wipe carried out
 	AckWipeRefused = "wipe-refused" // executor declined (unarmed / interlock)
 	AckWipeFailed  = "wipe-failed"  // erase attempted but did not complete
+	AckRebooted    = "rebooted"     // operator-requested reboot completed
+
+	// Provisioning-ceremony outcomes (design 0004, wizard). The executor
+	// reports the milestone it just carried out; the console advances the
+	// device's image job on them, so the wizard reflects what HAPPENED on
+	// the device, never what was merely requested.
+	AckSBEnrolled       = "sb-enrolled"        // platform keys enrolled; SB active next boot
+	AckSBEnrollFailed   = "sb-enroll-failed"   // sbctl enroll-keys failed
+	AckTPM2Enrolled     = "tpm2-enrolled"      // LUKS keyslot sealed to the TPM2 (PCR 7)
+	AckTPM2EnrollFailed = "tpm2-enroll-failed" // systemd-cryptenroll failed
 )
 
 // Validate rejects malformed check-ins before they reach storage.
@@ -112,7 +122,8 @@ func (c CheckIn) Validate() error {
 		return fmt.Errorf("check-in field too long")
 	}
 	switch c.Ack {
-	case "", AckLock, AckWipe, AckWipeRefused, AckWipeFailed:
+	case "", AckLock, AckWipe, AckWipeRefused, AckWipeFailed, AckRebooted,
+		AckSBEnrolled, AckSBEnrollFailed, AckTPM2Enrolled, AckTPM2EnrollFailed:
 	default:
 		return fmt.Errorf("unknown ack %q", c.Ack)
 	}
