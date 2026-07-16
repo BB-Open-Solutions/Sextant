@@ -273,7 +273,20 @@ func (s *Server) stageSettingsAsChange(w http.ResponseWriter, r *http.Request, v
 		return err
 	}
 	if err := s.svc.Changes.Edit(r.Context(), id, mut, msg, webAuthor(v), hosts...); err != nil {
+		// Do not strand a freshly-opened CR when its edit fails.
+		_, _ = s.svc.Changes.Abandon(r.Context(), id)
 		return err
+	}
+	// A stale read snapshot can compute phantom changes (values the operator
+	// submitted that main already holds): the staged branch then has no diff.
+	// Do not leave an empty draft CR behind - abandon it and return to the
+	// editor, where the desired state is already shown.
+	if diff, derr := s.svc.Changes.Diff(r.Context(), id); derr == nil && strings.TrimSpace(diff) == "" {
+		if _, err := s.svc.Changes.Abandon(r.Context(), id); err != nil {
+			s.log.Warn("abandon empty settings CR", "id", id, "err", err)
+		}
+		http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
+		return nil
 	}
 	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
 	return nil
