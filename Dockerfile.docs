@@ -14,8 +14,12 @@
 FROM docker.io/nixos/nix:2.24.9@sha256:fd7a5c67d396fe6bddeb9c10779d97541ab3a1b2a9d744df3754a99add4046f1 AS build
 WORKDIR /src
 COPY docs/handbook ./docs/handbook
+# mdbook-mermaid must be on PATH: book.toml declares it as a preprocessor to
+# render the architecture diagrams. Its JS/CSS assets are vendored in the
+# source tree (mdbook-mermaid install), so runtime stays CDN-free.
 RUN nix --extra-experimental-features "nix-command flakes" \
-      run nixpkgs#mdbook -- build docs/handbook
+      shell nixpkgs#mdbook nixpkgs#mdbook-mermaid \
+      --command mdbook build docs/handbook
 
 # Runtime stage: nginx serving the static book, non-root.
 FROM docker.io/nginxinc/nginx-unprivileged:alpine@sha256:6320020c7da8714feab524e02c08c5a1958675c4e68700e93a2fd8970b065786
