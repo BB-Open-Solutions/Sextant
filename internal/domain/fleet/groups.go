@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -60,6 +61,32 @@ func (f *Fleet) GroupDevices(group string) []string {
 	}
 	sort.Strings(tags)
 	return tags
+}
+
+// classAllowedBy reports whether a device of the given class may be a member of
+// group g. An empty AllowedClasses guardrail permits every class.
+func classAllowedBy(g Group, class string) bool {
+	if len(g.AllowedClasses) == 0 {
+		return true
+	}
+	return slices.Contains(g.AllowedClasses, class)
+}
+
+// checkClassAllowed verifies a device's class passes the AllowedClasses
+// guardrail of every named group it would join. Unknown group names are left
+// for the caller's own existence check; this only enforces the class gate.
+func (f *Fleet) checkClassAllowed(class string, groups []string) error {
+	for _, name := range groups {
+		g, ok := f.Groups[name]
+		if !ok {
+			continue
+		}
+		if !classAllowedBy(g, class) {
+			return fmt.Errorf("device class %q is not allowed in group %q (allowed: %s)",
+				class, name, strings.Join(g.AllowedClasses, ", "))
+		}
+	}
+	return nil
 }
 
 // Retired reports whether the device is parked (audit record only).

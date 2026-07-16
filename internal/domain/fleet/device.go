@@ -28,6 +28,9 @@ func AddDevice(tag string, d Device) Mutation {
 				return fmt.Errorf("unknown group %q", g)
 			}
 		}
+		if err := f.checkClassAllowed(d.Class, d.Groups); err != nil {
+			return err
+		}
 		if f.Devices == nil {
 			f.Devices = map[string]Device{}
 		}
@@ -94,6 +97,15 @@ func UpdateDevice(tag string, p DevicePatch) Mutation {
 		}
 		if p.ITAM != nil {
 			d.ITAM = *p.ITAM
+		}
+		// Enforce the class guardrail whenever the class OR the membership
+		// changed: either edit can put the device's class outside a group's
+		// AllowedClasses set. Validate the resulting state (class after patch,
+		// groups after patch).
+		if p.Class != nil || p.Groups != nil {
+			if err := f.checkClassAllowed(d.Class, d.Groups); err != nil {
+				return err
+			}
 		}
 		f.Devices[tag] = d
 		return nil
@@ -170,6 +182,9 @@ func CreateGroupWithDevices(name string, g Group, tags []string) Mutation {
 			d, ok := f.Devices[tag]
 			if !ok {
 				return fmt.Errorf("unknown device %q", tag)
+			}
+			if err := f.checkClassAllowed(d.Class, []string{name}); err != nil {
+				return err
 			}
 			already := false
 			for _, gr := range d.Groups {

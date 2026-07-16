@@ -116,6 +116,10 @@ type Group struct {
 	IdpGroup string `json:"idpGroup,omitempty"`
 	// Pin holds a staged-rollout ring at a target revision; empty follows HEAD.
 	Pin string `json:"pin,omitempty"`
+	// AllowedClasses restricts which device classes may be direct members of
+	// this group (a guardrail against, say, a server landing in a laptop
+	// group). An empty list means no restriction: every class is allowed.
+	AllowedClasses []string `json:"allowedClasses,omitempty"`
 
 	Settings map[string]any    `json:"settings,omitempty"`
 	Enforced []string          `json:"enforced,omitempty"`

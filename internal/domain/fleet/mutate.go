@@ -205,6 +205,46 @@ func SetGroupParent(group, parent string) Mutation {
 	}
 }
 
+// SetGroupAllowedClasses sets a group's device-class guardrail: only the named
+// classes may be direct members. Every class must be a known one. An empty set
+// clears the guardrail (any class allowed). A narrowing that would strand a
+// device already in the group is refused - a guardrail must never silently
+// exclude an existing member - and the error names the offending device and
+// class so the operator knows what blocks it.
+func SetGroupAllowedClasses(group string, classes []string) Mutation {
+	return func(f *Fleet) error {
+		g, ok := f.Groups[group]
+		if !ok {
+			return fmt.Errorf("unknown group %q", group)
+		}
+		for _, c := range classes {
+			if !ValidClass(c) {
+				return fmt.Errorf("unknown device class %q", c)
+			}
+		}
+		if len(classes) > 0 {
+			allow := make(map[string]bool, len(classes))
+			for _, c := range classes {
+				allow[c] = true
+			}
+			for _, tag := range f.ActiveGroupDevices(group) {
+				dc := f.Devices[tag].Class
+				if !allow[dc] {
+					return fmt.Errorf("cannot restrict group %q to %s: active device %q has class %q, which would fall outside the set",
+						group, strings.Join(classes, ", "), tag, dc)
+				}
+			}
+		}
+		if len(classes) == 0 {
+			g.AllowedClasses = nil
+		} else {
+			g.AllowedClasses = slices.Clone(classes)
+		}
+		f.Groups[group] = g
+		return nil
+	}
+}
+
 // SetGroupPin pins a group (a rollout ring) to a target revision; an empty
 // target unpins (the group follows HEAD). The pin is config-as-data: it
 // rides the gated write transaction and lands as an audited commit.
