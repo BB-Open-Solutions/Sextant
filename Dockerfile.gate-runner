@@ -7,7 +7,7 @@
 #   skopeo inspect docker://nixos/nix:2.24.9 | grep -i digest
 
 # Build stage: offline, reproducible (vendored deps, trimmed paths).
-FROM golang:1.25-alpine@sha256:56961d79ea8129efddcc0b8643fd8a5416b4e6228cfd477e3fd61deb2672c587 AS build
+FROM docker.io/library/golang:1.25-alpine@sha256:56961d79ea8129efddcc0b8643fd8a5416b4e6228cfd477e3fd61deb2672c587 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 COPY vendor/ vendor/
@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" \
     -o /out/gate-runner ./cmd/gate-runner
 
 # Runtime stage: the official nix image, plus git for the overlay clone.
-FROM nixos/nix:2.24.9@sha256:fd7a5c67d396fe6bddeb9c10779d97541ab3a1b2a9d744df3754a99add4046f1
+FROM docker.io/nixos/nix:2.24.9@sha256:fd7a5c67d396fe6bddeb9c10779d97541ab3a1b2a9d744df3754a99add4046f1
 # Flakes on; single-user nix. The store is chowned to an unprivileged uid so
 # the pod satisfies the cluster's strict non-root PodSecurity (ADR-0029) - nix
 # runs rootless with a store it owns, no daemon, no capabilities.
