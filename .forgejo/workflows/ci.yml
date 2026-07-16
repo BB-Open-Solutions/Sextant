@@ -81,3 +81,13 @@ jobs:
 
       - name: Agent package
         run: cd "$GITHUB_WORKSPACE/src" && nix build .#sextant-agent
+
+      # Recurring vulnerability gates (the one-time manual pass in the
+      # security audit is not a control; a scheduled scan is). Blocking by
+      # design: a new advisory in a dependency SHOULD stop the line until
+      # the dependency moves.
+      - name: govulncheck (Go)
+        run: cd "$GITHUB_WORKSPACE/src" && nix shell nixpkgs#govulncheck --command govulncheck ./...
+
+      - name: cargo audit (agent)
+        run: cd "$GITHUB_WORKSPACE/src/agent" && nix shell nixpkgs#cargo nixpkgs#cargo-audit --command cargo audit
