@@ -238,7 +238,7 @@ func TestWizardIntentAndAdvance(t *testing.T) {
 
 	beat := func(sb observed.SBState, tpm2 observed.TPM2State, ack string) imaging.Status {
 		t.Helper()
-		if err := s.AdvanceFromDevice(ctx, observed.CheckIn{Tag: "lap9", SB: sb, TPM2: tpm2, Ack: ack}); err != nil {
+		if err := s.AdvanceFromDevice(ctx, observed.CheckIn{Tag: "lap9", SB: sb, TPM2: tpm2, Ack: ack}, true, true); err != nil {
 			t.Fatalf("advance: %v", err)
 		}
 		got, _, _ := s.Get(ctx, "s", job.MAC)
@@ -265,7 +265,7 @@ func TestWizardIntentAndAdvance(t *testing.T) {
 		t.Fatalf("done job should stop provisioning, got %q", got)
 	}
 	// A device with no active job is a no-op, not an error.
-	if err := s.AdvanceFromDevice(ctx, observed.CheckIn{Tag: "lap9", SB: observed.SBEnforcing}); err != nil {
+	if err := s.AdvanceFromDevice(ctx, observed.CheckIn{Tag: "lap9", SB: observed.SBEnforcing}, true, true); err != nil {
 		t.Fatalf("advance on done job: %v", err)
 	}
 }

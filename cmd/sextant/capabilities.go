@@ -344,7 +344,16 @@ func (d *deps) observedCapability() capability.Capability {
 					if d.imaging == nil {
 						return nil
 					}
-					return d.imaging.AdvanceFromDevice(ctx, c)
+					// The resolved config decides which ceremony steps apply
+					// (a no-Secure-Boot config runs an unsigned bootloader -
+					// the wizard must never steer that firmware toggle).
+					resolved := d.svc.Fleet().ResolveValues(c.Tag)
+					want := func(key string) bool {
+						b, _ := resolved[key].(bool)
+						return b
+					}
+					return d.imaging.AdvanceFromDevice(ctx, c,
+						want("secureboot.enable"), want("diskUnlock.tpm2.enable"))
 				}).Routes(inner)
 			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner))
 		},

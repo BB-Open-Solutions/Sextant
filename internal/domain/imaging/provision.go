@@ -28,14 +28,22 @@ func (s Status) NeedsProvisioning() bool {
 // a firmware step, a reboot, or the executor). Acks are considered before
 // posture: they carry the executor's own outcome, including failures.
 //
+// wantSB/wantTPM2 are the device's RESOLVED config targets (secureboot.enable,
+// diskUnlock.tpm2.enable). They gate the whole ceremony: a device whose config
+// does not enable Secure Boot runs an UNSIGNED bootloader - walking an
+// operator through the firmware toggle there would leave the machine unable
+// to boot. Config says which steps apply; the device reports when they
+// happened. TPM2 sealing requires Secure Boot (PCR 7 measures it), so without
+// wantSB the job completes at install either way.
+//
 // Capability skips (a device that cannot do a step never shows it):
 //   - No EFI at all (the posture-aware agent reports no Secure Boot state but
-//     does report TPM2): Secure Boot is impossible and a TPM2 seal without it
-//     binds to a meaningless PCR 7 - the job completes at install.
+//     does report TPM2): Secure Boot is impossible - the job completes at
+//     install even when the config asks for it.
 //   - No TPM2 chip ("absent"), or a config that wires no TPM2 unlock (the
 //     agent reports "present" only when /etc/crypttab lacks a tpm2-device
 //     entry): the ceremony ends after Secure Boot.
-func Advance(current Status, sb observed.SBState, tpm2 observed.TPM2State, ack string) (to Status, message string, ok bool) {
+func Advance(current Status, sb observed.SBState, tpm2 observed.TPM2State, ack string, wantSB, wantTPM2 bool) (to Status, message string, ok bool) {
 	switch ack {
 	case observed.AckSBEnrollFailed:
 		return Failed, "Secure Boot key enrolment failed on the device", current != Failed
@@ -55,12 +63,19 @@ func Advance(current Status, sb observed.SBState, tpm2 observed.TPM2State, ack s
 	case Installed:
 		// The first posture beat after the install decides the path.
 		switch {
+		case !wantSB:
+			// Config targets no Secure Boot: the ceremony does not apply
+			// (and TPM2 without it would bind a meaningless PCR 7). The
+			// first check-in - proof the install boots - completes the job.
+			if sb != observed.SBUnknown || tpm2 != observed.TPM2Unknown {
+				return Done, "", true
+			}
 		case sb == observed.SBEnforcing:
 			return SBEnrolled, "", true
 		case sb == observed.SBOff || sb == observed.SBAudit:
 			return SBPending, "", true
 		case sb == observed.SBUnknown && tpm2 != observed.TPM2Unknown:
-			return Done, "", true // non-EFI machine: skip the whole ceremony
+			return Done, "", true // non-EFI machine: cannot do Secure Boot
 		}
 	case SBPending:
 		// The operator flipped the firmware and the executor enrolled the
@@ -69,6 +84,9 @@ func Advance(current Status, sb observed.SBState, tpm2 observed.TPM2State, ack s
 			return SBEnrolled, "", true
 		}
 	case SBEnrolled:
+		if !wantTPM2 {
+			return Done, "", true
+		}
 		switch tpm2 {
 		case observed.TPM2Absent, observed.TPM2Present:
 			return Done, "", true // no chip, or no TPM2 unlock configured

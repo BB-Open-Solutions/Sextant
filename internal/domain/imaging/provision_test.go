@@ -21,42 +21,50 @@ func TestNeedsProvisioning(t *testing.T) {
 
 func TestAdvanceCeremony(t *testing.T) {
 	cases := []struct {
-		name    string
-		from    Status
-		sb      observed.SBState
-		tpm2    observed.TPM2State
-		ack     string
-		want    Status
-		wantOK  bool
-		wantMsg bool
+		name     string
+		from     Status
+		sb       observed.SBState
+		tpm2     observed.TPM2State
+		ack      string
+		wantSB   bool
+		wantTPM2 bool
+		want     Status
+		wantOK   bool
+		wantMsg  bool
 	}{
 		// The happy path, beat by beat: first boot with staged keys ->
 		// firmware step -> executor enrols -> executor seals -> final boot.
-		{"first boot, keys staged", Installed, observed.SBAudit, observed.TPM2Enrolled, "", SBPending, true, false},
-		{"waiting on the firmware toggle", SBPending, observed.SBAudit, observed.TPM2Enrolled, "", SBPending, false, false},
-		{"executor enrolled the keys", SBPending, observed.SBAudit, observed.TPM2Enrolled, observed.AckSBEnrolled, SBEnrolled, true, false},
-		{"post-reboot, firmware enforces", SBPending, observed.SBEnforcing, observed.TPM2Enrolled, "", SBEnrolled, true, false},
-		{"executor sealed the TPM2", SBEnrolled, observed.SBEnforcing, observed.TPM2Enrolled, observed.AckTPM2Enrolled, TPM2Enrolled, true, false},
-		{"final boot still enforcing", TPM2Enrolled, observed.SBEnforcing, observed.TPM2Enrolled, "", Done, true, false},
-		{"final boot posture unknown", TPM2Enrolled, observed.SBUnknown, observed.TPM2Unknown, "", TPM2Enrolled, false, false},
+		{"first boot, keys staged", Installed, observed.SBAudit, observed.TPM2Enrolled, "", true, true, SBPending, true, false},
+		{"waiting on the firmware toggle", SBPending, observed.SBAudit, observed.TPM2Enrolled, "", true, true, SBPending, false, false},
+		{"executor enrolled the keys", SBPending, observed.SBAudit, observed.TPM2Enrolled, observed.AckSBEnrolled, true, true, SBEnrolled, true, false},
+		{"post-reboot, firmware enforces", SBPending, observed.SBEnforcing, observed.TPM2Enrolled, "", true, true, SBEnrolled, true, false},
+		{"executor sealed the TPM2", SBEnrolled, observed.SBEnforcing, observed.TPM2Enrolled, observed.AckTPM2Enrolled, true, true, TPM2Enrolled, true, false},
+		{"final boot still enforcing", TPM2Enrolled, observed.SBEnforcing, observed.TPM2Enrolled, "", true, true, Done, true, false},
+		{"final boot posture unknown", TPM2Enrolled, observed.SBUnknown, observed.TPM2Unknown, "", true, true, TPM2Enrolled, false, false},
 
 		// Capability skips.
-		{"non-EFI machine skips it all", Installed, observed.SBUnknown, observed.TPM2Absent, "", Done, true, false},
-		{"old agent, no posture: wait", Installed, observed.SBUnknown, observed.TPM2Unknown, "", Installed, false, false},
-		{"no TPM2 chip after SB", SBEnrolled, observed.SBEnforcing, observed.TPM2Absent, "", Done, true, false},
-		{"no TPM2 unlock configured", SBEnrolled, observed.SBEnforcing, observed.TPM2Present, "", Done, true, false},
-		{"pre-enrolled hardware", Installed, observed.SBEnforcing, observed.TPM2Enrolled, "", SBEnrolled, true, false},
+		{"non-EFI machine skips it all", Installed, observed.SBUnknown, observed.TPM2Absent, "", true, true, Done, true, false},
+		{"old agent, no posture: wait", Installed, observed.SBUnknown, observed.TPM2Unknown, "", true, true, Installed, false, false},
+		{"no TPM2 chip after SB", SBEnrolled, observed.SBEnforcing, observed.TPM2Absent, "", true, true, Done, true, false},
+		{"no TPM2 unlock configured", SBEnrolled, observed.SBEnforcing, observed.TPM2Present, "", true, true, Done, true, false},
+		{"pre-enrolled hardware", Installed, observed.SBEnforcing, observed.TPM2Enrolled, "", true, true, SBEnrolled, true, false},
 
 		// Executor failures halt the job with a reason.
-		{"sb enrol failed", SBPending, observed.SBAudit, observed.TPM2Enrolled, observed.AckSBEnrollFailed, Failed, true, true},
-		{"tpm2 enrol failed", SBEnrolled, observed.SBEnforcing, observed.TPM2Enrolled, observed.AckTPM2EnrollFailed, Failed, true, true},
+		{"sb enrol failed", SBPending, observed.SBAudit, observed.TPM2Enrolled, observed.AckSBEnrollFailed, true, true, Failed, true, true},
+		{"tpm2 enrol failed", SBEnrolled, observed.SBEnforcing, observed.TPM2Enrolled, observed.AckTPM2EnrollFailed, true, true, Failed, true, true},
+
+		// Config gates: no Secure Boot targeted -> the first sign of life
+		// completes the job; no TPM2 targeted -> done after Secure Boot.
+		{"config wants no SB", Installed, observed.SBAudit, observed.TPM2Present, "", false, false, Done, true, false},
+		{"config wants no SB, no posture yet", Installed, observed.SBUnknown, observed.TPM2Unknown, "", false, false, Installed, false, false},
+		{"config wants no TPM2 after SB", SBEnrolled, observed.SBEnforcing, observed.TPM2Enrolled, "", true, false, Done, true, false},
 
 		// States outside the ceremony never move.
-		{"imaging is the station's plane", Imaging, observed.SBEnforcing, observed.TPM2Enrolled, "", Imaging, false, false},
-		{"done is terminal", Done, observed.SBEnforcing, observed.TPM2Enrolled, "", Done, false, false},
+		{"imaging is the station's plane", Imaging, observed.SBEnforcing, observed.TPM2Enrolled, "", true, true, Imaging, false, false},
+		{"done is terminal", Done, observed.SBEnforcing, observed.TPM2Enrolled, "", true, true, Done, false, false},
 	}
 	for _, c := range cases {
-		to, msg, ok := Advance(c.from, c.sb, c.tpm2, c.ack)
+		to, msg, ok := Advance(c.from, c.sb, c.tpm2, c.ack, c.wantSB, c.wantTPM2)
 		if ok != c.wantOK || (ok && to != c.want) {
 			t.Errorf("%s: Advance(%s) = %s,%v want %s,%v", c.name, c.from, to, ok, c.want, c.wantOK)
 		}

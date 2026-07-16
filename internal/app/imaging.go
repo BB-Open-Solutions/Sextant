@@ -134,16 +134,18 @@ func (s *ImagingService) WizardIntent(ctx context.Context, tag string) string {
 }
 
 // AdvanceFromDevice moves the tag's live image job along the provisioning
-// ceremony from what the device just reported (posture + executor ack). It is
-// called on every check-in; when the report warrants no transition it is a
-// no-op. Advancement errors are returned for logging but must not fail the
-// check-in itself - the device's report is already stored.
-func (s *ImagingService) AdvanceFromDevice(ctx context.Context, c observed.CheckIn) error {
+// ceremony from what the device just reported (posture + executor ack),
+// gated by the device's resolved config targets (wantSB, wantTPM2 - see
+// imaging.Advance). It is called on every check-in; when the report warrants
+// no transition it is a no-op. Advancement errors are returned for logging
+// but must not fail the check-in itself - the device's report is already
+// stored.
+func (s *ImagingService) AdvanceFromDevice(ctx context.Context, c observed.CheckIn, wantSB, wantTPM2 bool) error {
 	job, ok, err := s.store.GetActiveByTag(ctx, s.tenant, c.Tag)
 	if err != nil || !ok {
 		return err
 	}
-	to, message, ok := imaging.Advance(job.Status, c.SB, c.TPM2, c.Ack)
+	to, message, ok := imaging.Advance(job.Status, c.SB, c.TPM2, c.Ack, wantSB, wantTPM2)
 	if !ok || !job.Status.CanTransition(to) {
 		return nil
 	}
