@@ -45,8 +45,8 @@ func (s *Server) postDeviceRetire(w http.ResponseWriter, r *http.Request, v view
 	if err := s.requireDeviceEditor(v, tag); err != nil {
 		return err
 	}
-	if err := s.svc.Config.Apply(r.Context(), fleet.RetireDevice(tag),
-		"devices: retire "+tag, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.RetireDevice(tag),
+		"devices: retire "+tag); err != nil {
 		return err
 	}
 	if s.svc.DevCreds != nil {
@@ -64,8 +64,8 @@ func (s *Server) postDeviceReactivate(w http.ResponseWriter, r *http.Request, v 
 	if err := s.requireDeviceEditor(v, tag); err != nil {
 		return err
 	}
-	if err := s.svc.Config.Apply(r.Context(), fleet.ReactivateDevice(tag),
-		"devices: reactivate "+tag, webAuthor(v), tag); err != nil {
+	if err := s.applyGated(r, v, fleet.ReactivateDevice(tag),
+		"devices: reactivate "+tag, tag); err != nil {
 		return err
 	}
 	if s.svc.DevCreds != nil {
@@ -85,8 +85,8 @@ func (s *Server) postDeviceRemove(w http.ResponseWriter, r *http.Request, v view
 	if err := s.requireDeviceEditor(v, tag); err != nil {
 		return err
 	}
-	if err := s.svc.Config.Apply(r.Context(), fleet.RemoveDevice(tag),
-		"devices: remove "+tag, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.RemoveDevice(tag),
+		"devices: remove "+tag); err != nil {
 		return err
 	}
 	if s.svc.DevCreds != nil {
@@ -127,8 +127,8 @@ func (s *Server) postDevicesGroupCreate(w http.ResponseWriter, r *http.Request, 
 	}
 	g := fleet.Group{Parent: parent}
 	msg := fmt.Sprintf("groups: create %s from %d device(s)", name, len(tags))
-	if err := s.svc.Config.Apply(r.Context(), fleet.CreateGroupWithDevices(name, g, tags),
-		msg, webAuthor(v), tags...); err != nil {
+	if err := s.applyGated(r, v, fleet.CreateGroupWithDevices(name, g, tags),
+		msg, tags...); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/groups", http.StatusSeeOther)
@@ -191,8 +191,8 @@ func (s *Server) postDeviceUpdate(w http.ResponseWriter, r *http.Request, v view
 	if p.Class == nil && p.AssignedUser == nil && p.Groups == nil {
 		return fmt.Errorf("nothing to update")
 	}
-	if err := s.svc.Config.Apply(r.Context(), fleet.UpdateDevice(tag, p),
-		"devices: update "+tag, webAuthor(v), tag); err != nil {
+	if err := s.applyGated(r, v, fleet.UpdateDevice(tag, p),
+		"devices: update "+tag, tag); err != nil {
 		return err
 	}
 	redirectToDevice(w, r, tag)

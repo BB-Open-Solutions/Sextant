@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
@@ -143,10 +144,32 @@ func (s *Server) postGroupUpdate(w http.ResponseWriter, r *http.Request, v view)
 	msg := "groups: update " + name
 	// A re-parent changes inheritance for exactly this group's subtree: those
 	// devices are the blast radius, so the gate needs only them - not a
-	// whole-fleet evaluation.
+	// whole-fleet evaluation. The validation may take tens of seconds (a real
+	// nix eval): fast answers inline, slow detaches and notifies.
 	hosts := app.AffectedHosts(s.svc.Config.Fleet(), "group:"+name)
-	if err := s.svc.Config.Apply(r.Context(), fleet.UpdateGroup(name, parent, idp),
-		msg, webAuthor(v), hosts...); err != nil {
+	author := webAuthor(v)
+	if err := s.runGated(r, v, msg, func(ctx context.Context) error {
+		return s.svc.Config.Apply(ctx, fleet.UpdateGroup(name, parent, idp), msg, author, hosts...)
+	}); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/groups", http.StatusSeeOther)
+	return nil
+}
+
+// postGroupUnpin releases a group's rollout pin so it follows HEAD again.
+// Pins are set by the rollout engine on promotion and deliberately survive a
+// cancel (config is truth; the operator decides) - this IS that decision.
+// Gated and scoped to the group's subtree: releasing a pin changes what its
+// devices will build next.
+func (s *Server) postGroupUnpin(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	name := r.PathValue("name")
+	hosts := app.AffectedHosts(s.svc.Config.Fleet(), "group:"+name)
+	msg := fmt.Sprintf("groups: release pin on %s (follow HEAD)", name)
+	if err := s.applyGated(r, v, fleet.SetGroupPin(name, ""), msg, hosts...); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/groups", http.StatusSeeOther)

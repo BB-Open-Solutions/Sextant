@@ -108,8 +108,8 @@ func (s *Server) postStationRegister(w http.ResponseWriter, r *http.Request, v v
 		Description: strings.TrimSpace(r.FormValue("description")),
 		Site:        strings.TrimSpace(r.FormValue("site")),
 	}
-	if err := s.svc.Config.Apply(r.Context(), fleet.AddStation(tag, st),
-		"stations: register "+tag, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.AddStation(tag, st),
+		"stations: register "+tag); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/station?tag="+url.QueryEscape(tag), http.StatusSeeOther)
@@ -122,8 +122,8 @@ func (s *Server) postStationRemove(w http.ResponseWriter, r *http.Request, v vie
 		return err
 	}
 	station := r.PathValue("tag")
-	if err := s.svc.Config.Apply(r.Context(), fleet.RemoveStation(station),
-		"stations: remove "+station, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.RemoveStation(station),
+		"stations: remove "+station); err != nil {
 		return err
 	}
 	if s.svc.StationCreds != nil {

@@ -225,7 +225,14 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 		}
 	}
 	if len(changes) > 0 {
-		if err := s.svc.Config.ApplySettings(r.Context(), scope, changes, webAuthor(v)); err != nil {
+		// Grace-window save: the change-request governance check fires in
+		// milliseconds (well inside the window), so ErrChangeRequestRequired
+		// still stages inline below; only the nix validation can detach.
+		author := webAuthor(v)
+		desc := fmt.Sprintf("settings: %d change(s) at %s", len(changes), scopeLabel(scope))
+		if err := s.runGated(r, v, desc, func(ctx context.Context) error {
+			return s.svc.Config.ApplySettings(ctx, scope, changes, author)
+		}); err != nil {
 			// A review-gated org does not fail the save: it flows into the review
 			// process. Stage the same edits on a fresh change request and send the
 			// operator to the Updates board.

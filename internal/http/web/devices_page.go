@@ -326,8 +326,8 @@ func (s *Server) postDeviceSetting(w http.ResponseWriter, r *http.Request, v vie
 		return fmt.Errorf("setting key required")
 	}
 	msg := fmt.Sprintf("settings: set %s at %s", key, ref)
-	if err := s.svc.Config.Apply(r.Context(), fleet.SetScopeSetting(ref, key, val),
-		msg, webAuthor(v), app.AffectedHosts(s.svc.Config.Fleet(), ref)...); err != nil {
+	if err := s.applyGated(r, v, fleet.SetScopeSetting(ref, key, val),
+		msg, app.AffectedHosts(s.svc.Config.Fleet(), ref)...); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)

@@ -40,6 +40,10 @@ func notifPresent(n notify.Notification) notifRow {
 		icon, tone = "gpp_bad", "text-status-error"
 	case notify.WipeExecuted:
 		icon, tone = "delete_forever", "text-status-error"
+	case notify.WritePending:
+		icon, tone = "hourglass_top", "text-text-secondary"
+	case notify.WriteApplied:
+		icon, tone = "task_alt", "text-mint-deep"
 	}
 	return notifRow{ID: n.ID, Icon: icon, Tone: tone, Title: n.Title,
 		Body: n.Body, Link: n.Link, Read: n.Read, When: n.CreatedAt}

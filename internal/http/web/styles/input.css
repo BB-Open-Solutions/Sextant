@@ -112,6 +112,11 @@
   }
   form.inline, .inline { @apply inline-flex items-center gap-2; }
 
+  /* Native dropdown lists inherit the CONTROL's text color. A select styled
+     as a dark chip (scope selector: !text-canvas) would otherwise render its
+     open option list white-on-white. Options always draw ink-on-canvas. */
+  select option { @apply bg-canvas text-ink; }
+
   /* Forms lay out with breathing room. Align to the bottom edge so a button
      lines up with the input of a stacked label+field beside it, not its
      vertical centre (the common "button floats above the field" misalign). */

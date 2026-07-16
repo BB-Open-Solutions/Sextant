@@ -69,10 +69,6 @@
 <form method="post" action="/settings" id="settings-form" data-dirty-form class="!block">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
   <input type="hidden" name="scope" value="{{.Scope}}">
-  <div class="sticky top-0 z-10 mb-4 flex items-center justify-between gap-3 rounded-lg border border-border-hairline bg-canvas px-4 py-2.5 shadow-sm">
-    <span class="text-label-md text-text-tertiary" data-dirty-hint>{{.L.T "settings.save_hint"}}</span>
-    <button type="submit"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "settings.save_all"}}</button>
-  </div>
 {{end}}
 
 {{range $sec := .Sections}}

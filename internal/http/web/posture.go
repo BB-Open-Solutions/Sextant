@@ -132,8 +132,8 @@ func (s *Server) postDevicePosture(w http.ResponseWriter, r *http.Request, v vie
 		return fmt.Errorf("unknown posture action")
 	}
 	msg := fmt.Sprintf("posture: %s at %s", what, ref)
-	if err := s.svc.Config.Apply(r.Context(), fleet.SetScopeSetting(ref, key, val),
-		msg, webAuthor(v), app.AffectedHosts(s.svc.Config.Fleet(), ref)...); err != nil {
+	if err := s.applyGated(r, v, fleet.SetScopeSetting(ref, key, val),
+		msg, app.AffectedHosts(s.svc.Config.Fleet(), ref)...); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)

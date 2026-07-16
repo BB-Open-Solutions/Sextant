@@ -21,6 +21,8 @@ const (
 	RolloutDone    Kind = "rollout-done"    // a rollout reached the whole fleet
 	GateFailed     Kind = "gate-failed"     // a write was refused by the nix gate
 	WipeExecuted   Kind = "wipe-executed"   // a device carried out a crypto-wipe
+	WritePending   Kind = "write-pending"   // a slow validation continues in the background
+	WriteApplied   Kind = "write-applied"   // a background-validated write committed
 )
 
 // Valid reports whether k is a known kind.

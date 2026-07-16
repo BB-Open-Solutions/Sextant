@@ -22,9 +22,9 @@ func (s *Server) postAcceptance(w http.ResponseWriter, r *http.Request, v view) 
 	}
 	key := strings.TrimSpace(r.FormValue("key"))
 	reason := strings.TrimSpace(r.FormValue("reason"))
-	if err := s.svc.Config.Apply(r.Context(),
+	if err := s.applyGated(r, v,
 		fleet.SetAcceptance(scope, key, reason),
-		"acceptance: accept "+key+" at "+scope, webAuthor(v)); err != nil {
+		"acceptance: accept "+key+" at "+scope); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
@@ -38,9 +38,9 @@ func (s *Server) postAcceptanceClear(w http.ResponseWriter, r *http.Request, v v
 		return err
 	}
 	key := strings.TrimSpace(r.FormValue("key"))
-	if err := s.svc.Config.Apply(r.Context(),
+	if err := s.applyGated(r, v,
 		fleet.ClearAcceptance(scope, key),
-		"acceptance: withdraw "+key+" at "+scope, webAuthor(v)); err != nil {
+		"acceptance: withdraw "+key+" at "+scope); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)

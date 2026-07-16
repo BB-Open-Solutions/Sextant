@@ -50,8 +50,8 @@ func (s *Server) postSecretRegister(w http.ResponseWriter, r *http.Request, v vi
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	ref := fleet.SecretRef{Description: strings.TrimSpace(r.FormValue("description"))}
-	if err := s.svc.Config.Apply(r.Context(), fleet.AddSecretRef(name, ref),
-		"secrets: register reference "+name, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.AddSecretRef(name, ref),
+		"secrets: register reference "+name); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/secrets", http.StatusSeeOther)
@@ -65,8 +65,8 @@ func (s *Server) postSecretRemove(w http.ResponseWriter, r *http.Request, v view
 		return err
 	}
 	name := r.PathValue("name")
-	if err := s.svc.Config.Apply(r.Context(), fleet.RemoveSecretRef(name),
-		"secrets: remove reference "+name, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.RemoveSecretRef(name),
+		"secrets: remove reference "+name); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/secrets", http.StatusSeeOther)

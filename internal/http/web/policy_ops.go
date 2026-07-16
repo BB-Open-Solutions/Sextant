@@ -73,8 +73,8 @@ func (s *Server) postPolicyPut(w http.ResponseWriter, r *http.Request, v view) e
 	}
 	p := fleet.Policy{Description: strings.TrimSpace(r.FormValue("description")),
 		Settings: settings, Enforced: enforced}
-	if err := s.svc.Config.Apply(r.Context(), fleet.PutPolicy(id, p),
-		"policies: put "+id, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.PutPolicy(id, p),
+		"policies: put "+id); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/policies", http.StatusSeeOther)
@@ -87,8 +87,8 @@ func (s *Server) postPolicyDelete(w http.ResponseWriter, r *http.Request, v view
 		return err
 	}
 	id := r.PathValue("id")
-	if err := s.svc.Config.Apply(r.Context(), fleet.DeletePolicy(id),
-		"policies: delete "+id, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.DeletePolicy(id),
+		"policies: delete "+id); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/policies", http.StatusSeeOther)
@@ -113,7 +113,7 @@ func (s *Server) postAssignmentAdd(w http.ResponseWriter, r *http.Request, v vie
 		return err
 	}
 	msg := fmt.Sprintf("policies: assign %s to %s", in.Policy, in.Target)
-	if err := s.svc.Config.Apply(r.Context(), fleet.Assign(in), msg, webAuthor(v),
+	if err := s.applyGated(r, v, fleet.Assign(in), msg,
 		app.AffectedHosts(s.svc.Config.Fleet(), in.Target)...); err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (s *Server) postAssignmentDelete(w http.ResponseWriter, r *http.Request, v 
 		return err
 	}
 	msg := fmt.Sprintf("policies: unassign %s from %s", policy, target)
-	if err := s.svc.Config.Apply(r.Context(), fleet.Unassign(policy, target, filter), msg, webAuthor(v),
+	if err := s.applyGated(r, v, fleet.Unassign(policy, target, filter), msg,
 		app.AffectedHosts(s.svc.Config.Fleet(), target)...); err != nil {
 		return err
 	}
@@ -162,8 +162,8 @@ func (s *Server) postFilterPut(w http.ResponseWriter, r *http.Request, v view) e
 		}
 		fl.Rules = append(fl.Rules, rule)
 	}
-	if err := s.svc.Config.Apply(r.Context(), fleet.PutFilter(id, fl),
-		"filters: put "+id, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.PutFilter(id, fl),
+		"filters: put "+id); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/policies", http.StatusSeeOther)
@@ -176,8 +176,8 @@ func (s *Server) postFilterDelete(w http.ResponseWriter, r *http.Request, v view
 		return err
 	}
 	id := r.PathValue("id")
-	if err := s.svc.Config.Apply(r.Context(), fleet.DeleteFilter(id),
-		"filters: delete "+id, webAuthor(v)); err != nil {
+	if err := s.applyGated(r, v, fleet.DeleteFilter(id),
+		"filters: delete "+id); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/policies", http.StatusSeeOther)
@@ -199,8 +199,8 @@ func (s *Server) postScopeApps(w http.ResponseWriter, r *http.Request, v view) e
 		}
 	}
 	msg := fmt.Sprintf("apps: set %s at %s (%d)", kind, scope, len(names))
-	if err := s.svc.Config.Apply(r.Context(), fleet.SetScopeApps(scope, kind, names),
-		msg, webAuthor(v), app.AffectedHosts(s.svc.Config.Fleet(), scope)...); err != nil {
+	if err := s.applyGated(r, v, fleet.SetScopeApps(scope, kind, names),
+		msg, app.AffectedHosts(s.svc.Config.Fleet(), scope)...); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)

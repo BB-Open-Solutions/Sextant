@@ -177,6 +177,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/apps", s.postScopeApps)
 	post("/groups", s.postGroupAdd)
 	post("/groups/{name}/update", s.postGroupUpdate)
+	post("/groups/{name}/unpin", s.postGroupUnpin)
 	post("/groups/{name}/remove", s.postGroupRemove)
 	post("/changes", s.postChange)
 	post("/changes/{id}/edits", s.postChangeEdit)
