@@ -10,6 +10,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -43,14 +45,18 @@ Environment: SEXTANT_URL (or -url), SEXTANT_TOKEN (required).
 Flags: -json forces JSON output for list commands.`
 
 func main() {
-	os.Exit(run(os.Args[1:]))
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-func run(args []string) int {
+// run is the testable seam: argument parsing, dispatch and the exit-code
+// policy, with stdout/stderr injected so tests can assert on output without
+// touching process-global os.Stdout/os.Stderr.
+func run(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("sxctl", flag.ContinueOnError)
+	fs.SetOutput(stderr)
 	url := fs.String("url", os.Getenv("SEXTANT_URL"), "Sextant base URL")
 	asJSON := fs.Bool("json", false, "JSON output for lists")
-	fs.Usage = func() { fmt.Fprintln(os.Stderr, usage) }
+	fs.Usage = func() { _, _ = fmt.Fprintln(stderr, usage) }
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -61,20 +67,20 @@ func run(args []string) int {
 	}
 	token := os.Getenv("SEXTANT_TOKEN")
 	if *url == "" || token == "" {
-		fmt.Fprintln(os.Stderr, "sxctl: SEXTANT_URL and SEXTANT_TOKEN are required")
+		_, _ = fmt.Fprintln(stderr, "sxctl: SEXTANT_URL and SEXTANT_TOKEN are required")
 		return 2
 	}
-	c := newClient(*url, token)
+	c := newClient(*url, token, stdout)
 
 	err := dispatch(c, *asJSON, rest)
 	switch {
 	case err == nil:
 		return 0
 	case errors.As(err, new(*usageError)):
-		fmt.Fprintln(os.Stderr, "sxctl:", err)
+		_, _ = fmt.Fprintln(stderr, "sxctl:", err)
 		return 2
 	default:
-		fmt.Fprintln(os.Stderr, "sxctl:", err)
+		_, _ = fmt.Fprintln(stderr, "sxctl:", err)
 		return 1
 	}
 }
@@ -127,7 +133,7 @@ func dispatch(c *client, asJSON bool, args []string) error {
 		if err := c.do("GET", "/api/v1/fleet", nil, &out); err != nil {
 			return err
 		}
-		printJSON(out)
+		c.printJSON(out)
 		return nil
 	case "me":
 		path := "/api/v1/me"
@@ -142,25 +148,28 @@ func dispatch(c *client, asJSON bool, args []string) error {
 		if err := c.do("GET", path, nil, &out); err != nil {
 			return err
 		}
-		printJSON(out)
+		c.printJSON(out)
 		return nil
 	case "audit":
 		var out any
 		if err := c.do("GET", "/api/v1/audit", nil, &out); err != nil {
 			return err
 		}
-		printJSON(out)
+		c.printJSON(out)
 		return nil
 	case "evidence":
+		// evidence has NO verb - its arguments are two positional dates, so
+		// the generic verb split above would swallow FROM. Reassemble from
+		// the raw args (audit finding: the range filter was dead code).
 		path := "/api/v1/evidence"
-		if len(rest) == 2 { // evidence FROM TO (RFC 3339)
-			path += "?from=" + rest[0] + "&to=" + rest[1]
+		if dates := args[1:]; len(dates) == 2 { // evidence FROM TO (RFC 3339)
+			path += "?from=" + url.QueryEscape(dates[0]) + "&to=" + url.QueryEscape(dates[1])
 		}
 		var out any
 		if err := c.do("GET", path, nil, &out); err != nil {
 			return err
 		}
-		printJSON(out)
+		c.printJSON(out)
 		return nil
 	}
 	return usagef("unknown resource %q", res)

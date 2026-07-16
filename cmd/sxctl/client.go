@@ -6,24 +6,28 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
 
 // client is the thin /api/v1 client: bearer token, JSON bodies, typed
 // failures. Exit-code policy lives in main; the client only reports.
+// out is where command output (printJSON/table/etc) is written - os.Stdout
+// in production, a buffer in tests - so commands never hardcode os.Stdout
+// and stay testable without redirecting process-global state.
 type client struct {
 	base  string
 	token string
 	http  *http.Client
+	out   io.Writer
 }
 
-func newClient(base, token string) *client {
+func newClient(base, token string, out io.Writer) *client {
 	return &client{
 		base:  strings.TrimRight(base, "/"),
 		token: token,
 		http:  &http.Client{Timeout: 30 * time.Second},
+		out:   out,
 	}
 }
 
@@ -88,32 +92,32 @@ func (c *client) do(method, path string, in, out any) error {
 	return nil
 }
 
-// printJSON pretty-prints any value to stdout.
-func printJSON(v any) {
-	enc := json.NewEncoder(os.Stdout)
+// printJSON pretty-prints any value to the client's output writer.
+func (c *client) printJSON(v any) {
+	enc := json.NewEncoder(c.out)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(v)
 }
 
-// table prints rows with aligned columns.
-func table(header []string, rows [][]string) {
+// table prints rows with aligned columns to the client's output writer.
+func (c *client) table(header []string, rows [][]string) {
 	width := make([]int, len(header))
 	for i, h := range header {
 		width[i] = len(h)
 	}
 	for _, r := range rows {
-		for i, c := range r {
-			if i < len(width) && len(c) > width[i] {
-				width[i] = len(c)
+		for i, col := range r {
+			if i < len(width) && len(col) > width[i] {
+				width[i] = len(col)
 			}
 		}
 	}
 	line := func(cols []string) {
 		var b strings.Builder
-		for i, c := range cols {
-			fmt.Fprintf(&b, "%-*s  ", width[i], c)
+		for i, col := range cols {
+			fmt.Fprintf(&b, "%-*s  ", width[i], col)
 		}
-		fmt.Println(strings.TrimRight(b.String(), " "))
+		_, _ = fmt.Fprintln(c.out, strings.TrimRight(b.String(), " "))
 	}
 	line(header)
 	for _, r := range rows {

@@ -1,0 +1,59 @@
+# Release: a version tag (v0.58.0) builds and pushes every image, so no
+# release ever reaches the registry from a developer laptop again. The tag is
+# the single lever; flux picks versions up from the platform repo as before.
+#
+# Requires one repository secret: REGISTRY_TOKEN - a Forgejo access token
+# (package:write) for a machine account, set under the repo's
+# Settings -> Actions -> Secrets. The workflow refuses to run without it
+# rather than pushing anonymously.
+name: release
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  images:
+    runs-on: nixos
+    steps:
+      - name: Checkout tag
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/src"
+          git clone --depth 1 --branch "$GITHUB_REF_NAME" \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" "$GITHUB_WORKSPACE/src"
+          git --no-pager -C "$GITHUB_WORKSPACE/src" log -1 --oneline
+
+      - name: Build and push images
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          if [ -z "${REGISTRY_TOKEN}" ]; then
+            echo "REGISTRY_TOKEN secret is not configured; refusing to release" >&2
+            exit 1
+          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          REGISTRY="forgejo.bb-open.com"
+          nix shell nixpkgs#podman --command bash -c "
+            set -euo pipefail
+            podman login -u release-bot -p \"\$REGISTRY_TOKEN\" $REGISTRY
+            for spec in 'sextant:Dockerfile' 'sextant-gate:Dockerfile.gate-runner' 'sextant-docs:Dockerfile.docs'; do
+              name=\${spec%%:*}; file=\${spec#*:}
+              img=$REGISTRY/bb-open/\$name:$VERSION
+              echo \"== building \$img\"
+              podman build -t \"\$img\" -f \"\$file\" .
+              podman push \"\$img\"
+            done
+          "
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+
+      # The chart version must match the tag: the release IS the chart+images
+      # at one version, and a drifting Chart.yaml is exactly the appVersion
+      # confusion the deploy mechanics memory warns about.
+      - name: Chart version guard
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          VERSION="${GITHUB_REF_NAME#v}"
+          grep -q "^version: $VERSION\$" deploy/helm/Chart.yaml || {
+            echo "Chart.yaml version does not match tag $GITHUB_REF_NAME" >&2
+            exit 1
+          }

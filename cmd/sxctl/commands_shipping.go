@@ -16,7 +16,7 @@ func changesCmd(c *client, asJSON bool, verb string, rest []string) error {
 			return err
 		}
 		if asJSON {
-			printJSON(out)
+			c.printJSON(out)
 			return nil
 		}
 		rows := make([][]string, 0, len(out))
@@ -24,7 +24,7 @@ func changesCmd(c *client, asJSON bool, verb string, rest []string) error {
 			rows = append(rows, []string{str(cr["id"]), str(cr["status"]),
 				str(cr["author"]), str(cr["title"])})
 		}
-		table([]string{"ID", "STATUS", "AUTHOR", "TITLE"}, rows)
+		c.table([]string{"ID", "STATUS", "AUTHOR", "TITLE"}, rows)
 		return nil
 	case "open":
 		if len(rest) < 2 {
@@ -46,7 +46,7 @@ func changesCmd(c *client, asJSON bool, verb string, rest []string) error {
 		if err := c.do("GET", "/api/v1/changes/"+rest[0]+"/diff", nil, &out); err != nil {
 			return err
 		}
-		fmt.Print(out)
+		_, _ = fmt.Fprint(c.out, out)
 		return nil
 	case "submit", "merge", "abandon":
 		if len(rest) != 1 {
@@ -56,7 +56,7 @@ func changesCmd(c *client, asJSON bool, verb string, rest []string) error {
 		if err := c.do("POST", "/api/v1/changes/"+rest[0]+"/"+verb, nil, &out); err != nil {
 			return err
 		}
-		fmt.Printf("%s: %s\n", rest[0], str(out["status"]))
+		_, _ = fmt.Fprintf(c.out, "%s: %s\n", rest[0], str(out["status"]))
 		return nil
 	}
 	return usagef("changes: unknown verb %q", verb)
@@ -69,7 +69,7 @@ func rolloutCmd(c *client, verb string, rest []string) error {
 		if err := c.do("GET", "/api/v1/rollout", nil, &out); err != nil {
 			return err
 		}
-		printJSON(out)
+		c.printJSON(out)
 		return nil
 	case "start":
 		if len(rest) != 1 {
@@ -81,7 +81,7 @@ func rolloutCmd(c *client, verb string, rest []string) error {
 		if err := c.do("POST", "/api/v1/rollout/tick", nil, &out); err != nil {
 			return err
 		}
-		printJSON(out)
+		c.printJSON(out)
 		return nil
 	case "cancel":
 		return c.do("DELETE", "/api/v1/rollout", nil, nil)
@@ -95,7 +95,7 @@ func statusCmd(c *client, asJSON bool, rest []string) error {
 		if err := c.do("GET", "/api/v1/status/"+rest[0], nil, &out); err != nil {
 			return err
 		}
-		printJSON(out)
+		c.printJSON(out)
 		return nil
 	}
 	var out []map[string]any
@@ -103,7 +103,7 @@ func statusCmd(c *client, asJSON bool, rest []string) error {
 		return err
 	}
 	if asJSON {
-		printJSON(out)
+		c.printJSON(out)
 		return nil
 	}
 	rows := make([][]string, 0, len(out))
@@ -114,7 +114,7 @@ func statusCmd(c *client, asJSON bool, rest []string) error {
 		}
 		rows = append(rows, []string{str(s["tag"]), online, str(s["revision"]), str(s["phase"])})
 	}
-	table([]string{"TAG", "STATE", "REVISION", "PHASE"}, rows)
+	c.table([]string{"TAG", "STATE", "REVISION", "PHASE"}, rows)
 	return nil
 }
 
@@ -126,14 +126,14 @@ func accessCmd(c *client, asJSON bool, verb string, rest []string) error {
 			return err
 		}
 		if asJSON {
-			printJSON(out)
+			c.printJSON(out)
 			return nil
 		}
 		rows := make([][]string, 0, len(out))
 		for _, b := range out {
 			rows = append(rows, []string{str(b["group"]), str(b["role"]), str(b["scope"])})
 		}
-		table([]string{"IDP GROUP", "ROLE", "SCOPE"}, rows)
+		c.table([]string{"IDP GROUP", "ROLE", "SCOPE"}, rows)
 		return nil
 	case "grant":
 		if len(rest) != 3 {
@@ -159,7 +159,7 @@ func tokensCmd(c *client, asJSON bool, verb string, rest []string) error {
 			return err
 		}
 		if asJSON {
-			printJSON(out)
+			c.printJSON(out)
 			return nil
 		}
 		rows := make([][]string, 0, len(out))
@@ -167,7 +167,7 @@ func tokensCmd(c *client, asJSON bool, verb string, rest []string) error {
 			rows = append(rows, []string{str(t["id"]), str(t["name"]), str(t["kind"]),
 				str(t["ceiling"]), str(t["expires"])})
 		}
-		table([]string{"ID", "NAME", "KIND", "CEILING", "EXPIRES"}, rows)
+		c.table([]string{"ID", "NAME", "KIND", "CEILING", "EXPIRES"}, rows)
 		return nil
 	case "mint":
 		fs := flag.NewFlagSet("mint", flag.ContinueOnError)
@@ -188,7 +188,7 @@ func tokensCmd(c *client, asJSON bool, verb string, rest []string) error {
 		if err := c.do("POST", "/api/v1/tokens", in, &out); err != nil {
 			return err
 		}
-		fmt.Println(str(out["secret"]))
+		_, _ = fmt.Fprintln(c.out, str(out["secret"]))
 		return nil
 	case "revoke":
 		if len(rest) != 1 {

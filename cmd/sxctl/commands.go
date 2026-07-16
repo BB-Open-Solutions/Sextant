@@ -17,7 +17,7 @@ func devicesCmd(c *client, asJSON bool, verb string, rest []string) error {
 			return err
 		}
 		if asJSON {
-			printJSON(out)
+			c.printJSON(out)
 			return nil
 		}
 		rows := make([][]string, 0, len(out))
@@ -25,7 +25,7 @@ func devicesCmd(c *client, asJSON bool, verb string, rest []string) error {
 			rows = append(rows, []string{str(d["tag"]), str(d["class"]),
 				str(d["hardware"]), fmt.Sprint(d["groups"])})
 		}
-		table([]string{"TAG", "CLASS", "HARDWARE", "GROUPS"}, rows)
+		c.table([]string{"TAG", "CLASS", "HARDWARE", "GROUPS"}, rows)
 		return nil
 	case "get":
 		if len(rest) != 1 {
@@ -35,7 +35,7 @@ func devicesCmd(c *client, asJSON bool, verb string, rest []string) error {
 		if err := c.do("GET", "/api/v1/devices/"+rest[0], nil, &out); err != nil {
 			return err
 		}
-		printJSON(out)
+		c.printJSON(out)
 		return nil
 	case "enroll":
 		fs := flag.NewFlagSet("enroll", flag.ContinueOnError)
@@ -121,7 +121,7 @@ func devicesCmd(c *client, asJSON bool, verb string, rest []string) error {
 		if err := c.do("POST", "/api/v1/devices/"+rest[0]+"/reactivate", nil, &out); err != nil {
 			return err
 		}
-		printJSON(out) // includes the fresh credential, shown once
+		c.printJSON(out) // includes the fresh credential, shown once
 		return nil
 	}
 	return usagef("devices: unknown verb %q", verb)
