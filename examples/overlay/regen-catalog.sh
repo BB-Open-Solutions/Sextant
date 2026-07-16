@@ -44,7 +44,8 @@ trap 'rm -f "$tmp"' EXIT
 nix eval --json .#catalog | jq -S --indent 4 . >"$tmp"
 
 if [[ "$CHECK" == "1" ]]; then
-  if ! diff -u "$OUT" "$tmp"; then
+  # git diff, not diff(1): the NixOS CI runner carries git but no diffutils.
+  if ! git diff --no-index -- "$OUT" "$tmp"; then
     echo "error: $OUT is stale - regenerate with examples/overlay/regen-catalog.sh" >&2
     exit 1
   fi
