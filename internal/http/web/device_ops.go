@@ -169,14 +169,25 @@ func (s *Server) postDeviceUpdate(w http.ResponseWriter, r *http.Request, v view
 		return err
 	}
 	var p fleet.DevicePatch
-	if val := strings.TrimSpace(r.FormValue("class")); r.FormValue("setclass") == "1" {
+	if r.FormValue("setclass") == "1" {
+		val := strings.TrimSpace(r.FormValue("class"))
+		// The class comes from a controlled dropdown; validate it here so a
+		// tampered or legacy value gets a neat error instead of persisting.
+		if !fleet.ValidClass(val) {
+			return fmt.Errorf("unknown device class %q (choose one of %s)", val, strings.Join(fleet.Classes, ", "))
+		}
 		p.Class = &val
 	}
 	if val := strings.TrimSpace(r.FormValue("assignedUser")); r.FormValue("setuser") == "1" {
 		p.AssignedUser = &val
 	}
 	if r.FormValue("setgroups") == "1" {
-		groups := r.Form["groups"]
+		// The group picker is a single-select now: one chosen group (or none)
+		// becomes the device's whole membership.
+		var groups []string
+		if g := strings.TrimSpace(r.FormValue("groups")); g != "" {
+			groups = []string{g}
+		}
 		// Editor on groups joined AND left: a device move must not silently
 		// pull the device out of a group the editor does not control (that
 		// would evade that group's policy enforcement).

@@ -192,14 +192,18 @@
         <input type="hidden" name="setgroups" value="1">
         <div class="flex flex-col gap-3 text-body-sm">
           <div class="flex flex-col gap-1"><label>{{.L.T "common.class"}}</label>
-            <input name="class" value="{{.Device.Class}}" placeholder="{{.L.T "device.class_placeholder"}}" list="device-classes">
-            <datalist id="device-classes">{{range .AllClasses}}<option value="{{.}}"></option>{{end}}</datalist></div>
+            {{$cur := .Device.Class}}{{$known := false}}{{range .AllClasses}}{{if eq . $cur}}{{$known = true}}{{end}}{{end}}
+            <select name="class">
+              {{if not $known}}<option value="{{$cur}}" selected>{{if $cur}}{{$cur}} - {{$.L.T "device.class_unknown"}}{{else}}{{$.L.T "device.class_choose"}}{{end}}</option>{{end}}
+              {{range .AllClasses}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}
+            </select></div>
           <div class="flex flex-col gap-1"><label>{{.L.T "device.assigned_user"}}</label>
             <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="{{.L.T "device.assigned_user_placeholder"}}">
             <span class="text-label-md text-text-tertiary">{{.L.T "device.assigned_user_hint"}}</span></div>
-          <div class="flex flex-col gap-1"><label>{{.L.T "common.groups"}}</label>
-            <select name="groups" multiple size="4">
-              {{range .GroupOpts}}<option value="{{.Name}}" {{if .Member}}selected{{end}}>{{.Name}}</option>{{end}}
+          <div class="flex flex-col gap-1"><label>{{.L.T "common.group"}}</label>
+            <select name="groups">
+              <option value="">{{.L.T "common.no_group"}}</option>
+              {{$picked := false}}{{range .GroupOpts}}<option value="{{.Name}}" {{if and .Member (not $picked)}}selected{{$picked = true}}{{end}}>{{.Name}}</option>{{end}}
             </select>
             <span class="text-label-md text-text-tertiary">{{.L.T "device.groups_hint"}}</span></div>
           <div class="flex items-center justify-between border-b border-border-soft pb-2 pt-1 text-text-secondary"><span>{{.L.T "common.hardware"}}</span><span class="font-mono text-code-inline text-ink">{{with .Device.Hardware}}{{.}}{{else}}-{{end}}</span></div>
@@ -323,15 +327,15 @@
     {{else}}
     <p class="mb-0 text-body-md text-on-error-container">{{.L.T "device.lost_stolen_desc"}}</p>
     <div class="flex flex-wrap items-end gap-4">
-      <form method="post" action="/devices/{{.Tag}}/intent" class="inline">
+      <form method="post" action="/devices/{{.Tag}}/intent" class="!m-0 flex items-end gap-3">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="lock">
         <button type="submit"><span class="material-symbols-outlined msz-18">lock</span>{{.L.T "device.lock_device"}}</button>
       </form>
-      <form method="post" action="/devices/{{.Tag}}/intent" class="inline"
+      <form method="post" action="/devices/{{.Tag}}/intent" class="!m-0 flex items-end gap-3"
             data-confirm="WIPE {{.Tag}}? This destroys the disk encryption keys - irreversible.">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="wipe"><input type="hidden" name="force" value="1">
-        <span class="flex flex-col gap-1"><label>{{.L.T "device.confirm_wipe_label"}}</label>
-          <input name="confirm" placeholder="{{.Tag}}" required></span>
+        <div class="flex flex-col gap-1"><label>{{.L.T "device.confirm_wipe_label"}}</label>
+          <input name="confirm" placeholder="{{.Tag}}" required></div>
         <button type="submit" class="quiet">{{.L.T "device.wipe_device"}}</button>
       </form>
     </div>

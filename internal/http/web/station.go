@@ -30,10 +30,6 @@ func setStationCredCookie(w http.ResponseWriter, secret string) {
 // devices it has discovered over PXE; an operator enrolls one into the fleet,
 // and an org owner registers stations and mints their report credentials.
 
-// deviceClasses is the fixed set of device classes offered as a choice, so an
-// operator never has to remember or free-type one.
-var deviceClasses = []string{"laptop", "workstation", "kiosk", "server", "station"}
-
 // reportURL is the endpoint a station posts discoveries to, built from the
 // request so the console shows the operator exactly what to configure.
 func reportURL(r *http.Request, station string) string {

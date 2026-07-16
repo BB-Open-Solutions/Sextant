@@ -86,7 +86,7 @@ func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request, v view) {
 		}
 		sort.Strings(groups)
 		data["Groups"] = groups
-		data["Classes"] = deviceClasses
+		data["Classes"] = fleet.Classes
 
 		// In-flight and finished image jobs for this station.
 		if s.svc.Imaging != nil {

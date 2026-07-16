@@ -18,13 +18,14 @@ import (
 
 // groupRow is one tree node, depth-first with indentation level.
 type groupRow struct {
-	Name     string
-	Depth    int
-	Parent   string
-	IdpGroup string
-	Pin      string
-	Devices  int
-	CanOwn   bool
+	Name           string
+	Depth          int
+	Parent         string
+	IdpGroup       string
+	Pin            string
+	Devices        int
+	CanOwn         bool
+	AllowedClasses []string
 }
 
 // groupsPage renders the visible tree.
@@ -38,8 +39,9 @@ func (s *Server) groupsPage(w http.ResponseWriter, r *http.Request, v view) {
 		rows = append(rows, groupRow{
 			Name: name, Depth: depth, Parent: g.Parent,
 			IdpGroup: g.IdpGroup, Pin: g.Pin,
-			Devices: len(f.GroupDevices(name)),
-			CanOwn:  v.roleAt("group:" + name).Meets(identity.Owner),
+			Devices:        len(f.GroupDevices(name)),
+			CanOwn:         v.roleAt("group:" + name).Meets(identity.Owner),
+			AllowedClasses: g.AllowedClasses,
 		})
 		seen[name] = true
 	}
@@ -84,7 +86,8 @@ func (s *Server) groupsPage(w http.ResponseWriter, r *http.Request, v view) {
 	data := map[string]any{
 		"Title": "Groups", "Nav": "groups",
 		"Rows": rows, "AllGroups": all,
-		"CanOrgOwn": v.roleAt("org").Meets(identity.Owner),
+		"CanOrgOwn":  v.roleAt("org").Meets(identity.Owner),
+		"AllClasses": fleet.Classes,
 	}
 	// IdP-group picker: offer the real directory groups as a dropdown instead
 	// of free text. Best-effort; a slow or absent directory must not break the
@@ -130,6 +133,19 @@ func (s *Server) postGroupUpdate(w http.ResponseWriter, r *http.Request, v view)
 		return err
 	}
 	name := r.PathValue("name")
+	// Allowed-classes guardrail: a checkbox set (none = unrestricted). This
+	// only gates future membership, changing no device's resolved config, so
+	// it needs no host eval - apply it gated like the other group edits and
+	// return. Kept as its own branch so it never mixes with a re-parent.
+	if r.FormValue("setallowed") == "1" {
+		classes := r.Form["allowedClass"]
+		msg := "groups: set allowed classes on " + name
+		if err := s.applyGated(r, v, fleet.SetGroupAllowedClasses(name, classes), msg); err != nil {
+			return err
+		}
+		http.Redirect(w, r, "/groups", http.StatusSeeOther)
+		return nil
+	}
 	var parent, idp *string
 	if _, has := r.Form["parent"]; has || r.FormValue("parent") != "" || r.FormValue("reparent") == "1" {
 		p := r.FormValue("parent")

@@ -83,6 +83,16 @@
               <input name="idpGroup" list="dirgroups" value="{{.IdpGroup}}" placeholder="{{$.L.T "groups.idp_group_placeholder"}}" class="w-full" autocomplete="off">
               <button type="submit" class="quiet mt-2 self-start">{{$.L.T "groups.map_button"}}</button>
             </form>
+            <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="setallowed" value="1">
+              <label>{{$.L.T "groups.allowed_classes"}}</label>
+              {{$ac := .AllowedClasses}}
+              <div class="flex flex-wrap gap-3">
+                {{range $.AllClasses}}<label class="inline-flex items-center gap-1.5 text-body-sm"><input type="checkbox" name="allowedClass" value="{{.}}" class="!w-auto" {{if contains $ac .}}checked{{end}}>{{.}}</label>{{end}}
+              </div>
+              <span class="text-label-md text-text-tertiary">{{$.L.T "groups.allowed_classes_hint"}}</span>
+              <button type="submit" class="quiet mt-2 self-start">{{$.L.T "common.save"}}</button>
+            </form>
             <form method="post" action="/groups/{{.Name}}/remove" class="!block" data-confirm="Remove group {{.Name}}?">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet w-full justify-center !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-16">delete</span>{{$.L.T "groups.remove_group"}}</button>
             </form>
