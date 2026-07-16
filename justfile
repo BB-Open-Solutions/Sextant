@@ -3,7 +3,25 @@
 default: ci
 
 # Full quality gate: format check, vet, lint, race tests with coverage, build.
-ci: fmt-check vet lint test build
+# ci mirrors .forgejo/workflows/ci.yml - the REAL merge bar. If a step is
+# added there, add it here (and vice versa); a narrower local bar teaches
+# people the wrong definition of green.
+ci: fmt-check vet lint test coverage-floor build nix-build catalog-check agent-ci
+
+coverage-floor:
+    @bash -c 'grep -vE "internal/ports/|/cmd/|platform/logging|platform/capability" coverage.out > coverage-logic.out; \
+      total=$(go tool cover -func=coverage-logic.out | tail -1 | awk "{print \$$3}" | tr -d "%"); \
+      echo "logic-layer coverage: $${total}%"; \
+      awk -v t="$$total" "BEGIN { exit (t < 70) ? 1 : 0 }" || (echo "coverage below 70% floor" && exit 1)'
+
+nix-build:
+    nix build .#sextant
+
+catalog-check:
+    examples/overlay/regen-catalog.sh --check
+
+agent-ci:
+    cd agent && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 
 fmt:
     gofmt -w cmd internal

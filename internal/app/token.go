@@ -18,14 +18,27 @@ type TokenService struct {
 	clock ports.Clock
 	// DefaultTTL bounds new tokens and the personal-token group snapshot.
 	DefaultTTL time.Duration
+	// dir, when set, prunes a token's group snapshot to groups that still
+	// exist in the directory at authentication time (see Authenticate).
+	dir ports.Directory
 }
 
-// NewTokenService wires the service.
+// NewTokenService wires the service. The default TTL is deliberately 30
+// days, not 90: a personal token's group snapshot is only as fresh as its
+// lifetime, and a shorter ceiling bounds how long removed rights can
+// survive (ISO 27001 A.9.2.6). Callers pass an explicit TTL to deviate.
 func NewTokenService(store ports.TokenStore, clock ports.Clock, defaultTTL time.Duration) *TokenService {
 	if defaultTTL <= 0 {
-		defaultTTL = 90 * 24 * time.Hour
+		defaultTTL = 30 * 24 * time.Hour
 	}
 	return &TokenService{store: store, clock: clock, DefaultTTL: defaultTTL}
+}
+
+// WithDirectory enables snapshot pruning against the (cached) directory.
+// Returns the service for chaining at wiring time.
+func (s *TokenService) WithDirectory(d ports.Directory) *TokenService {
+	s.dir = d
+	return s
 }
 
 // MintRequest describes a new token.
@@ -123,5 +136,30 @@ func (s *TokenService) Authenticate(ctx context.Context, secret string) (identit
 	if r, hasCeiling := tok.CeilingRole(); hasCeiling {
 		ceiling = r
 	}
-	return tok.User(), ceiling, true
+	u := tok.User()
+	// The group snapshot is as old as the token. A directory cannot tell us
+	// per-user membership (no such port surface), but it CAN tell us which
+	// groups still exist: prune snapshot groups that were deleted from the
+	// directory, so rights tied to a removed group die immediately instead
+	// of living out the token's TTL. Membership-removal-while-group-exists
+	// remains bounded by the (30-day) TTL until a per-user membership
+	// adapter exists - documented residual risk (ADR 0008). Best effort: an
+	// unreachable directory must not lock every API client out, so on error
+	// the snapshot stands.
+	if s.dir != nil && len(u.Groups) > 0 {
+		if existing, err := s.dir.ListGroups(ctx, ""); err == nil {
+			known := make(map[string]bool, len(existing))
+			for _, g := range existing {
+				known[g.Name] = true
+			}
+			kept := u.Groups[:0]
+			for _, g := range u.Groups {
+				if known[g] {
+					kept = append(kept, g)
+				}
+			}
+			u.Groups = kept
+		}
+	}
+	return u, ceiling, true
 }

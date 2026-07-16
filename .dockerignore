@@ -10,6 +10,10 @@
 /dfctl
 /dist/
 
+# Rust build cache: hundreds of MB that no Dockerfile consumes (the agent is
+# packaged via nix, not docker) - keep it out of every build context.
+agent/target/
+
 # Nix
 /result
 /result-*

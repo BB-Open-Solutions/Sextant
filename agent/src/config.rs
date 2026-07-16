@@ -8,7 +8,10 @@ use std::fs;
 use std::time::Duration;
 
 /// Configuration resolved at startup.
-#[derive(Debug, Clone)]
+///
+/// Debug is implemented by hand (below) instead of derived: the credential
+/// field must never reach a log line, even from future debug statements.
+#[derive(Clone)]
 pub struct Config {
     /// Console base URL, e.g. "https://console.bb-open.com".
     pub url: String,
@@ -22,6 +25,19 @@ pub struct Config {
     pub facter: String,
     /// Seconds between facts uploads (facts are large; daily by default).
     pub facts_interval: Duration,
+}
+
+impl fmt::Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Config")
+            .field("url", &self.url)
+            .field("tag", &self.tag)
+            .field("credential", &"<redacted>")
+            .field("interval", &self.interval)
+            .field("facter", &self.facter)
+            .field("facts_interval", &self.facts_interval)
+            .finish()
+    }
 }
 
 /// A configuration error names the missing/broken piece exactly.

@@ -52,6 +52,23 @@ jobs:
       - name: Nix package
         run: cd "$GITHUB_WORKSPACE/src" && nix build .#sextant
 
+      # Drift guard (ADR 0005): catalog.json is derived output of the example
+      # overlay's flake; a hand-edited or stale copy ships a wrong settings
+      # vocabulary with no signal. The script exists exactly for this hook.
+      - name: Catalog drift guard
+        run: cd "$GITHUB_WORKSPACE/src" && examples/overlay/regen-catalog.sh --check
+
+      # Packaging must not break silently: the chart lints/renders and the
+      # images build on every push, not just when a human happens to try.
+      - name: Helm lint + render
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          nix shell nixpkgs#kubernetes-helm --command bash -c '
+            helm lint deploy/helm &&
+            helm template deploy/helm --set gateRunner.enabled=true \
+              --set gateRunner.cache.keySecret=k --set gateRunner.cache.host=cache.example \
+              --set releaseCache=true >/dev/null'
+
       - name: Agent (fmt + clippy + test)
         run: |
           cd "$GITHUB_WORKSPACE/src/agent"

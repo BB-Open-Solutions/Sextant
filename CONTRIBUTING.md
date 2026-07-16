@@ -39,7 +39,10 @@ Common types: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`.
 ## Engineering bar
 - Spec/ADR before a capability; pure domain with tests; effects behind
   ports; UI is a client of /api/v1 (see docs/capabilities.md).
-- `just ci` green before any merge: fmt, vet, lint, race tests, build.
+- `just ci` green before any merge. It mirrors the Forgejo workflow exactly:
+  fmt, vet, lint, race tests, the 70% logic-layer coverage floor, build,
+  `nix build .#sextant`, the catalog drift guard and the Rust agent checks
+  (fmt/clippy/test). A narrower local bar is not the bar.
 - Files stay small and single-purpose; edge cases and error paths are
   handled and tested, not assumed.
 

@@ -239,6 +239,13 @@ func (d *deps) buildConfigPlane() error {
 		// pay the LDAP dial on the first load after a TTL - the warmer refreshes
 		// ahead of expiry instead of a page request eating the round-trip.
 		d.background(func() { cached.WarmLoop(d.ctx) })
+		// Token authz hardening: a personal token's group snapshot is pruned
+		// against the live (cached) directory on every authentication, so
+		// rights tied to a DELETED group die immediately instead of living
+		// out the token's TTL.
+		if d.tokens != nil {
+			d.tokens.WithDirectory(cached)
+		}
 		log.Info("directory browse mounted", "ldap", cfg.LDAPURL, "base", cfg.LDAPBaseDN)
 	}
 

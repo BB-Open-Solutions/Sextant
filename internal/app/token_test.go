@@ -8,6 +8,7 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/token"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
 // memTokenStore is an in-memory ports.TokenStore for service-level tests.
@@ -116,6 +117,56 @@ func TestTokenServiceMintAndAuthenticate(t *testing.T) {
 	}
 	if _, _, ok := svc.Authenticate(ctx, secret); ok {
 		t.Error("revoked token still authenticates")
+	}
+}
+
+// dirStub scripts a directory's group listing (or failure).
+type dirStub struct {
+	groups []ports.DirectoryGroup
+	err    error
+}
+
+func (d dirStub) ListGroups(context.Context, string) ([]ports.DirectoryGroup, error) {
+	return d.groups, d.err
+}
+
+// A personal token's group snapshot is pruned against the directory at
+// authentication: rights tied to a DELETED group die immediately instead of
+// living out the token's TTL. An unreachable directory keeps the snapshot
+// (availability over best-effort hardening), and membership pruning never
+// invents groups.
+func TestTokenAuthenticatePrunesDeletedGroups(t *testing.T) {
+	store := newMemTokenStore()
+	svc := NewTokenService(store, newFakeClock(testT0), time.Hour)
+	ctx := context.Background()
+	_, secret, err := svc.Mint(ctx, MintRequest{
+		ID: "ada-ci", Name: "Ada CI", Kind: token.Personal,
+		Subject: "sub-ada", Groups: []string{"fo-editors", "fo-owners"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// fo-owners was deleted from the directory since mint.
+	svc.WithDirectory(dirStub{groups: []ports.DirectoryGroup{{Name: "fo-editors"}}})
+	u, _, ok := svc.Authenticate(ctx, secret)
+	if !ok || len(u.Groups) != 1 || u.Groups[0] != "fo-editors" {
+		t.Fatalf("deleted group survived the prune: %+v %v", u.Groups, ok)
+	}
+
+	// Directory down: the snapshot stands rather than locking clients out.
+	svc.WithDirectory(dirStub{err: context.DeadlineExceeded})
+	u, _, ok = svc.Authenticate(ctx, secret)
+	if !ok || len(u.Groups) != 2 {
+		t.Fatalf("unreachable directory changed the snapshot: %+v %v", u.Groups, ok)
+	}
+}
+
+// The default TTL ceiling is 30 days: the snapshot's staleness bound.
+func TestTokenDefaultTTLThirtyDays(t *testing.T) {
+	svc := NewTokenService(newMemTokenStore(), newFakeClock(testT0), 0)
+	if svc.DefaultTTL != 30*24*time.Hour {
+		t.Fatalf("default TTL = %v, want 30 days", svc.DefaultTTL)
 	}
 }
 

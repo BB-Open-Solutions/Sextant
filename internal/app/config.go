@@ -511,12 +511,14 @@ func (s *ConfigService) auxOnce(ctx context.Context, path string, content []byte
 	orig, readErr := s.repo.ReadFile(path)
 	existed := readErr == nil
 
-	restore := func() {
+	// restore undoes the working-tree edit after a gate rejection. Its OWN
+	// failure must be loud (mirroring applyTx): a silently failed rollback
+	// leaves rejected content as the base of the next write.
+	restore := func() error {
 		if existed {
-			_ = s.repo.WriteFile(path, orig)
-		} else {
-			_ = s.repo.RemoveFile(path)
+			return s.repo.WriteFile(path, orig)
 		}
+		return s.repo.RemoveFile(path)
 	}
 
 	if content == nil { // delete
@@ -535,8 +537,14 @@ func (s *ConfigService) auxOnce(ctx context.Context, path string, content []byte
 		}
 	}
 
-	if err := s.gate.Validate(ctx, s.repo.Dir(), nil); err != nil {
-		restore()
+	// An aux file (overlay, catalog) has no single-host blast radius, but the
+	// shape classes DO capture which devices use which overlays/apps: one
+	// representative per class proves the change against every distinct
+	// configuration shape, same sampling rule as applyTx.
+	if err := s.gate.Validate(ctx, s.repo.Dir(), s.Fleet().Representatives()); err != nil {
+		if rerr := restore(); rerr != nil {
+			return errors.Join(err, fmt.Errorf("ROLLBACK FAILED, working tree dirty: %w", rerr))
+		}
 		return err
 	}
 	return s.repo.Commit(ctx, msg, a, path)

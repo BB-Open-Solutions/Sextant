@@ -78,6 +78,13 @@
             git
             postgresql # psql client for local dev against the compose database
             tailwindcss # `just css` rebuilds the console stylesheet
+            # Rust toolchain for the device agent (agent/): the README and
+            # `just ci` run cargo fmt/clippy/test, so the shell must carry them.
+            cargo
+            rustc
+            clippy
+            rustfmt
+            gcc # `cc` for crate build scripts (proc-macro2, ring)
           ];
         };
       });

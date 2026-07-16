@@ -38,6 +38,10 @@ fn main() -> ExitCode {
     // pending_ack is echoed on the next beat once an intent has been acted
     // on, so the console can show delivered vs armed.
     let mut pending_ack = String::new();
+    // consecutive_failures drives exponential backoff: when the console is
+    // down, a 10k-device fleet must not keep hammering it at full cadence
+    // and then stampede its recovery.
+    let mut consecutive_failures: u32 = 0;
     loop {
         // Facts ride along on the first beat and then per facts_interval.
         let due = last_facts.is_none_or(|t| t.elapsed() >= cfg.facts_interval);
@@ -72,8 +76,11 @@ fn main() -> ExitCode {
             usage: Some(&usage),
         };
         let outcome = client.send(&beat);
-        if !beat_accepted(&outcome) {
+        if beat_accepted(&outcome) {
+            consecutive_failures = 0;
+        } else {
             pending_ack = ack;
+            consecutive_failures = consecutive_failures.saturating_add(1);
         }
         match outcome {
             Outcome::Ok => {
@@ -107,8 +114,19 @@ fn main() -> ExitCode {
         if once {
             return ExitCode::SUCCESS;
         }
-        std::thread::sleep(cfg.interval + jitter(cfg.interval));
+        let wait = backoff(cfg.interval, consecutive_failures);
+        std::thread::sleep(wait + jitter(wait));
     }
+}
+
+/// backoff stretches the beat interval exponentially while check-ins keep
+/// failing (x1, x2, x4, ... capped at 16x), so an unreachable console is not
+/// hammered at full fleet cadence and its recovery is not a stampede. The
+/// first successful beat resets to the normal interval. Jitter is applied
+/// over the STRETCHED interval, so spread grows with it.
+fn backoff(interval: Duration, consecutive_failures: u32) -> Duration {
+    let factor = 1u32 << consecutive_failures.min(4); // 1..16
+    interval.saturating_mul(factor)
 }
 
 /// jitter spreads beats up to 10% of the interval so a fleet rebooting
@@ -145,5 +163,16 @@ mod tests {
         assert!(!beat_accepted(&Outcome::Retired));
         assert!(!beat_accepted(&Outcome::Unauthorized));
         assert!(!beat_accepted(&Outcome::Transient("timeout".to_string())));
+    }
+
+    #[test]
+    fn backoff_doubles_and_caps_at_sixteen_x() {
+        let base = Duration::from_secs(60);
+        assert_eq!(backoff(base, 0), base); // healthy: normal cadence
+        assert_eq!(backoff(base, 1), base * 2);
+        assert_eq!(backoff(base, 2), base * 4);
+        assert_eq!(backoff(base, 4), base * 16);
+        assert_eq!(backoff(base, 10), base * 16); // capped
+        assert_eq!(backoff(base, u32::MAX), base * 16); // no overflow
     }
 }

@@ -112,6 +112,10 @@ func (s *server) runBuild(key string, req buildRequest) {
 // buildAtRev materialises the overlay at the revision in a scratch worktree
 // (the main workdir keeps serving /validate) and publishes the hosts from it.
 func (s *server) buildAtRev(req buildRequest) error {
+	// Deliberately detached from any request context: the build job outlives
+	// the HTTP request that kicked it (poll-style API) and must not die when
+	// that request's caller disconnects. The Publisher applies its own
+	// timeout.
 	ctx := context.Background()
 
 	// The revision may be newer than the last sync; fetch under the eval lock

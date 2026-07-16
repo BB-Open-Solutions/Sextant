@@ -96,7 +96,12 @@ func (g *RemoteGate) Validate(ctx context.Context, repoDir string, hosts []strin
 		return fmt.Errorf("gate-runner unreachable, refusing to commit unvalidated: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if len(raw) == 0 && readErr != nil {
+		// A truncated response must not surface as an EMPTY rejection detail:
+		// the operator would see a verdict with no reason.
+		raw = []byte(fmt.Sprintf("(response body unreadable: %v)", readErr))
+	}
 
 	switch resp.StatusCode {
 	case http.StatusOK:

@@ -39,7 +39,11 @@ OUT=catalog.json
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
-nix eval --json .#catalog | python3 -m json.tool --sort-keys >"$tmp"
+# Plain json.dump, not `python3 -m json.tool`: newer Pythons colorize
+# json.tool output under some environments (FORCE_COLOR et al.), which would
+# poison the committed file / the diff with ANSI codes.
+nix eval --json .#catalog | python3 -c \
+  'import json,sys; json.dump(json.load(sys.stdin), sys.stdout, indent=4, sort_keys=True); sys.stdout.write("\n")' >"$tmp"
 
 if [[ "$CHECK" == "1" ]]; then
   if ! diff -u "$OUT" "$tmp"; then
