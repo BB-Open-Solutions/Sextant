@@ -123,11 +123,35 @@ fn parse_df(s: &str) -> Option<(u32, u32)> {
 /// CURRENT_SYSTEM is the running system's store symlink on NixOS.
 pub const CURRENT_SYSTEM: &str = "/run/current-system";
 
-/// revision reads the deployed revision from the current-system symlink.
+/// revision reports the deployed revision. It prefers the git revision the
+/// NixOS agent module publishes (SEXTANT_REVISION_FILE, sourced from
+/// system.configurationRevision) - that is what a rollout target is compared
+/// against - and falls back to the store label when the file is absent or
+/// empty (the overlay did not set configurationRevision).
 pub fn revision() -> String {
-    match fs::read_link(CURRENT_SYSTEM) {
-        Ok(target) => revision_from_target(&target.to_string_lossy()),
-        Err(_) => String::new(), // not NixOS (dev host); report empty
+    let from_file = std::env::var("SEXTANT_REVISION_FILE")
+        .ok()
+        .and_then(|p| fs::read_to_string(p).ok());
+    let symlink = fs::read_link(CURRENT_SYSTEM)
+        .ok()
+        .map(|t| t.to_string_lossy().into_owned());
+    revision_of(from_file.as_deref(), symlink.as_deref())
+}
+
+/// revision_of is the pure selection: the published git revision if present
+/// and non-empty, else the store-label derived from the current-system
+/// symlink, else empty (not NixOS). Split out so it is testable without a
+/// filesystem.
+pub fn revision_of(rev_file: Option<&str>, symlink_target: Option<&str>) -> String {
+    if let Some(rev) = rev_file {
+        let rev = rev.trim();
+        if !rev.is_empty() {
+            return rev.chars().take(64).collect();
+        }
+    }
+    match symlink_target {
+        Some(target) => revision_from_target(target),
+        None => String::new(),
     }
 }
 
@@ -184,6 +208,20 @@ mod tests {
         // Length is bounded for the wire.
         let long = format!("/nix/store/h-nixos-system-{}", "x".repeat(200));
         assert_eq!(revision_from_target(&long).len(), 64);
+    }
+
+    #[test]
+    fn revision_prefers_published_git_rev() {
+        let sym = Some("/nix/store/abc-nixos-system-lt-42-25.11");
+        // Published git revision wins over the store label.
+        assert_eq!(revision_of(Some("946acf487633\n"), sym), "946acf487633");
+        // Empty/whitespace file falls back to the store label.
+        assert_eq!(revision_of(Some("  \n"), sym), "lt-42-25.11");
+        assert_eq!(revision_of(None, sym), "lt-42-25.11");
+        // Neither available (not NixOS): empty.
+        assert_eq!(revision_of(None, None), "");
+        // The published rev is length-bounded too.
+        assert_eq!(revision_of(Some(&"a".repeat(200)), None).len(), 64);
     }
 
     #[test]

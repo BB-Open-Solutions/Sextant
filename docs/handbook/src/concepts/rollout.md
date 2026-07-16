@@ -26,6 +26,22 @@ one shot.
 An organisation can require a gated test wave before any rollout starts; an
 owner may skip it for a specific rollout, and that is logged.
 
+## How "behind" is judged
+
+A device is *behind* when the revision it reports differs from its group's
+target pin. For that comparison to work, the deployed revision the agent
+reports must be the git revision the config was built from - the same kind of
+value the pin holds - not a store label.
+
+This requires **one line in the overlay flake**: set
+`system.configurationRevision = self.rev` (or `self.shortRev`) on each host.
+The Sextant agent module then publishes it to
+`/etc/sextant/configuration-revision`, and the agent reports it on every
+check-in. Without that line the field is empty and the agent falls back to
+the store label, which can never equal a git-hash pin - so every pinned
+device reads as falsely *behind*. A flake with uncommitted changes has no
+`self.rev`; commit before building, or the revision is unavailable.
+
 ## Troubleshooting
 
 **A wave is stuck on Building.**

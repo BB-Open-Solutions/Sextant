@@ -49,6 +49,17 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Publish the git revision this system was built from, so the agent can
+    # report the DEPLOYED revision and the console can judge it against a
+    # rollout target. NixOS keeps configurationRevision only inside the
+    # nixos-version tool; writing it to a stable file is the clean read path
+    # (no subprocess, readable under ProtectSystem=strict). The overlay flake
+    # sets system.configurationRevision = self.rev (or self.shortRev); when it
+    # does not, the file is empty and the agent falls back to the store label.
+    environment.etc."sextant/configuration-revision".text =
+      lib.optionalString (config.system.configurationRevision != null)
+        config.system.configurationRevision;
+
     systemd.services.sextant-agent = {
       description = "Sextant device agent";
       wantedBy = [ "multi-user.target" ];
@@ -60,6 +71,7 @@ in
           "SEXTANT_URL=${cfg.url}"
           "SEXTANT_TAG=${cfg.tag}"
           "SEXTANT_INTERVAL=${toString cfg.interval}"
+          "SEXTANT_REVISION_FILE=/etc/sextant/configuration-revision"
         ] ++ lib.optional (cfg.facter != null)
           "SEXTANT_FACTER=${lib.getExe cfg.facter}";
         # The credential reaches the agent as a systemd credential: the
