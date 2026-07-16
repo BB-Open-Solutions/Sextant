@@ -215,6 +215,35 @@
       {{end}}
     </section>
 
+    {{if .CanOwn}}
+    <!-- Device secrets: LUKS recovery + break-glass admin. Owner-only,
+         one-shot reveal, every reveal audited. -->
+    <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-mint-deep">vpn_key</span>{{.L.T "device.secrets_title"}}</h2>
+      {{if not .SecretsEnabled}}
+        <p class="muted mb-0 text-body-sm">{{.L.T "device.secrets_disabled"}}</p>
+      {{else if not .Secrets}}
+        <p class="muted mb-0 text-body-sm">{{.L.T "device.secrets_none"}}</p>
+      {{else}}
+        <div class="flex flex-col gap-2">
+          {{range .Secrets}}
+          <div class="flex items-center justify-between gap-2 rounded-md border border-border-soft px-3 py-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5 text-label-md font-medium text-ink"><span class="material-symbols-outlined msz-16 text-text-tertiary">{{if eq (printf "%s" .Kind) "luks"}}lock{{else}}admin_panel_settings{{end}}</span>{{.Kind}}</div>
+              <div class="text-label-xs-caps text-text-tertiary">{{if .RevealedBy}}{{$.L.T "device.secret_last_revealed"}} {{.RevealedBy}}{{else}}{{$.L.T "device.secret_never_revealed"}}{{end}}</div>
+            </div>
+            <form method="post" action="/devices/{{$.Tag}}/secret/{{.Kind}}/reveal" class="!m-0 inline" data-confirm="{{$.L.T "device.secret_reveal_confirm"}} {{.Kind}}?">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <button type="submit" class="quiet !py-1 !px-2 shrink-0"><span class="material-symbols-outlined msz-16">visibility</span>{{$.L.T "device.secret_reveal"}}</button>
+            </form>
+          </div>
+          {{end}}
+        </div>
+        <p class="muted mt-2 mb-0 text-label-xs-caps">{{.L.T "device.secrets_audited"}}</p>
+      {{end}}
+    </section>
+    {{end}}
+
     {{with .Device.Spec}}
     <!-- Hardware specification captured at imaging (inspoelstraat) -->
     <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">

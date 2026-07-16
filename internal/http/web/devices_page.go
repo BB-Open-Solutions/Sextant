@@ -318,6 +318,21 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 		}
 		data["Activity"] = acts
 	}
+	// Device secrets (LUKS recovery, break-glass admin): owner-only, one-shot
+	// reveal with an audit stamp. Only the metadata reaches the page - which
+	// kinds exist and their reveal history - never any plaintext.
+	if v.roleAt("org").Meets(identity.Owner) {
+		if s.svc.DeviceSecrets != nil && s.svc.DeviceSecrets.Enabled() {
+			data["SecretsEnabled"] = true
+			if metas, err := s.svc.DeviceSecrets.List(r.Context(), tag); err != nil {
+				s.log.Warn("device secrets list", "tag", tag, "err", err)
+			} else {
+				data["Secrets"] = metas
+			}
+		} else {
+			data["SecretsEnabled"] = false
+		}
+	}
 	// One-shot device credential from enroll/re-issue/reactivate.
 	if c, err := r.Cookie(devCredCookie); err == nil && c.Value != "" {
 		data["Credential"] = c.Value
