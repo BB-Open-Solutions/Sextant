@@ -39,11 +39,9 @@ OUT=catalog.json
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
-# Plain json.dump, not `python3 -m json.tool`: newer Pythons colorize
-# json.tool output under some environments (FORCE_COLOR et al.), which would
-# poison the committed file / the diff with ANSI codes.
-nix eval --json .#catalog | python3 -c \
-  'import json,sys; json.dump(json.load(sys.stdin), sys.stdout, indent=4, sort_keys=True); sys.stdout.write("\n")' >"$tmp"
+# Canonicalise with jq (in the devShell and the CI shell): sorted keys,
+# 4-space indent, trailing newline. Not python3 - the CI runner has no python.
+nix eval --json .#catalog | jq -S --indent 4 . >"$tmp"
 
 if [[ "$CHECK" == "1" ]]; then
   if ! diff -u "$OUT" "$tmp"; then
