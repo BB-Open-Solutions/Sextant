@@ -47,6 +47,7 @@
       <ul class="space-y-1 px-2">
         <li><a href="/settings" class="nav-link {{if eq $n "settings"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">settings</span>{{.L.T "nav.settings"}}</a></li>
         <li><a href="/policies" class="nav-link {{if eq $n "policies"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">policy</span>{{.L.T "nav.policies"}}</a></li>
+        <li><a href="/compliance" class="nav-link {{if eq $n "compliance"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">verified_user</span>{{.L.T "nav.compliance"}}</a></li>
         {{if .CanOrgView}}<li><a href="/integrations" class="nav-link {{if eq $n "integrations"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">extension</span>{{.L.T "nav.integrations"}}</a></li>{{end}}
       </ul>
       {{if .CanOrgView}}

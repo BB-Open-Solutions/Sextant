@@ -108,6 +108,30 @@ func (f *Fleet) ReleasedGroupDevices(group string) []string {
 	return out
 }
 
+// TargetDevices resolves an assignment/scope target to its ACTIVE devices:
+// "org" is the whole active fleet, "group:<g>" the group's subtree,
+// "device:<t>" that device (when active). Unknown shapes resolve to none.
+func (f *Fleet) TargetDevices(target string) []string {
+	switch {
+	case target == "org":
+		var tags []string
+		for _, tag := range f.DeviceTags() {
+			if !f.Devices[tag].Retired() {
+				tags = append(tags, tag)
+			}
+		}
+		return tags
+	case strings.HasPrefix(target, "group:"):
+		return f.ActiveGroupDevices(strings.TrimPrefix(target, "group:"))
+	case strings.HasPrefix(target, "device:"):
+		tag := strings.TrimPrefix(target, "device:")
+		if d, ok := f.Devices[tag]; ok && !d.Retired() {
+			return []string{tag}
+		}
+	}
+	return nil
+}
+
 // DeviceTags returns all device asset tags, sorted.
 func (f *Fleet) DeviceTags() []string {
 	ks := make([]string, 0, len(f.Devices))

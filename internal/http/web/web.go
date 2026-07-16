@@ -190,7 +190,7 @@ func New(svc Services, sessions Sessions, write bool,
 			return fmt.Sprintf("bar-w-%d", bucket)
 		},
 	}
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "pipeline", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -227,6 +227,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/groups", s.groupsPage)
 	get("/settings", s.settingsPage)
 	get("/policies", s.policies)
+	get("/compliance", s.compliancePage)
 	get("/changes", s.changesPage)
 	// A change's home is the Updates board; old notification links and
 	// bookmarks to /changes/<id> land there instead of a 404.

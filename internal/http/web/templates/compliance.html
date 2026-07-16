@@ -1,0 +1,76 @@
+{{define "content"}}
+<div class="mb-6">
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">verified_user</span>{{.L.T "page.compliance.title"}}</h1>
+  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "page.compliance.subtitle"}}</p>
+</div>
+
+<!-- Summary chips double as the severity filter. -->
+<div class="mb-6 flex flex-wrap gap-3">
+  {{$f := .FStatus}}
+  <a href="/compliance" class="rounded-lg border px-4 py-3 {{if not $f}}border-ink{{else}}border-border-hairline{{end}} bg-canvas">
+    <span class="block text-label-xs-caps uppercase tracking-wider text-text-tertiary">{{.L.T "page.compliance.all"}}</span>
+    <span class="text-headline-sm text-ink">{{.Total}}</span>
+  </a>
+  <a href="/compliance?status=critical" class="rounded-lg border px-4 py-3 {{if eq $f "critical"}}border-ink{{else}}border-border-hairline{{end}} bg-canvas">
+    <span class="flex items-center gap-2 text-label-xs-caps uppercase tracking-wider text-text-tertiary"><span class="h-2 w-2 rounded-full bg-status-error"></span>{{.L.T "page.overview.critical"}}</span>
+    <span class="text-headline-sm text-ink">{{.Critical}}</span>
+  </a>
+  <a href="/compliance?status=warning" class="rounded-lg border px-4 py-3 {{if eq $f "warning"}}border-ink{{else}}border-border-hairline{{end}} bg-canvas">
+    <span class="flex items-center gap-2 text-label-xs-caps uppercase tracking-wider text-text-tertiary"><span class="h-2 w-2 rounded-full bg-status-warn"></span>{{.L.T "page.overview.warning"}}</span>
+    <span class="text-headline-sm text-ink">{{.Warning}}</span>
+  </a>
+  <a href="/compliance?status=ok" class="rounded-lg border px-4 py-3 {{if eq $f "ok"}}border-ink{{else}}border-border-hairline{{end}} bg-canvas">
+    <span class="flex items-center gap-2 text-label-xs-caps uppercase tracking-wider text-text-tertiary"><span class="h-2 w-2 rounded-full bg-mint-vibrant"></span>{{.L.T "page.overview.to_spec"}}</span>
+    <span class="text-headline-sm text-ink">{{.OK}}</span>
+  </a>
+</div>
+
+<section class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <table class="w-full">
+    <tr>
+      <th>{{.L.T "common.device"}}</th>
+      <th>{{.L.T "common.status"}}</th>
+      <th>{{.L.T "page.compliance.issues"}}</th>
+      <th>{{.L.T "page.compliance.action"}}</th>
+    </tr>
+    {{range .Rows}}
+    <tr class="align-top">
+      <td class="whitespace-nowrap"><a href="/devices/{{.Tag}}" class="font-mono text-secondary hover:underline">{{.Tag}}</a>
+        <span class="block text-label-xs-caps text-text-tertiary">{{range $i, $g := .Groups}}{{if $i}}, {{end}}{{$g}}{{end}}</span></td>
+      <td>
+        {{if eq .Status "critical"}}<span class="tag bad">{{$.L.T "page.overview.critical"}}</span>
+        {{else if eq .Status "warning"}}<span class="tag" style=""><span class="material-symbols-outlined msz-14">warning</span>{{$.L.T "page.overview.warning"}}</span>
+        {{else}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "page.overview.to_spec"}}</span>{{end}}
+      </td>
+      <td>{{if .Issues}}{{range .Issues}}<span class="block text-body-sm text-ink">{{.Title}}</span><span class="block text-body-sm text-text-tertiary">{{.Detail}}</span>{{end}}{{else}}<span class="muted">—</span>{{end}}</td>
+      <td>{{if .Issues}}{{range .Issues}}{{with .Action}}<span class="block text-body-sm text-text-secondary">{{.}}</span>{{end}}{{end}}{{else}}<span class="muted">—</span>{{end}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4" class="muted">{{.L.T "page.compliance.empty"}}</td></tr>
+    {{end}}
+  </table>
+</section>
+
+<!-- Per-policy exposure: where each policy is assigned, and how many devices
+     under those targets currently carry an open issue. -->
+<section class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center gap-2 border-b border-border-hairline bg-surface-bright px-6 py-4">
+    <span class="material-symbols-outlined msz-18 text-text-tertiary">gavel</span>
+    <h2 class="mt-0 mb-0 text-label-md font-bold uppercase tracking-wide text-ink">{{.L.T "page.compliance.policies_title"}}</h2>
+    <span class="ml-auto text-label-md text-text-tertiary">{{.L.T "page.compliance.policies_help"}}</span>
+  </div>
+  <table class="w-full">
+    <tr><th>{{.L.T "nav.policies"}}</th><th>{{.L.T "page.compliance.assigned_to"}}</th><th>{{.L.T "page.compliance.devices_in_scope"}}</th><th>{{.L.T "page.compliance.with_issues"}}</th></tr>
+    {{range .Policies}}
+    <tr>
+      <td class="font-mono">{{.ID}}</td>
+      <td>{{if .Targets}}{{range $i, $t := .Targets}}{{if $i}}, {{end}}{{$t}}{{end}}{{else}}<span class="muted">{{$.L.T "page.compliance.unassigned"}}</span>{{end}}</td>
+      <td class="font-mono">{{.Devices}}</td>
+      <td>{{if gt .WithIssues 0}}<span class="tag bad">{{.WithIssues}}</span>{{else}}<span class="tag ok">0</span>{{end}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4" class="muted">{{.L.T "page.compliance.no_policies"}}</td></tr>
+    {{end}}
+  </table>
+</section>
+{{end}}
