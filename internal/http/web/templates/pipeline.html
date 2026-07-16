@@ -144,11 +144,13 @@
         <div class="rounded-md border {{if $configured}}border-border-soft{{else}}border-dashed border-border-soft bg-surface-bright{{end}} p-3">
           <div class="mb-2 flex items-center gap-2 text-label-xs-caps uppercase text-text-tertiary">
             {{if $configured}}<span class="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-canvas">{{$i}}</span>{{$.L.T "rollout.wave_n_label"}} {{$i}}{{with index $.PlanNames $i}} — <span class="normal-case text-ink">{{.}}</span>{{end}}
-            {{else}}<span class="material-symbols-outlined msz-16">add_circle</span>{{$.L.T "rollout.add_wave"}}{{end}}
+            {{else}}<span class="material-symbols-outlined msz-16 text-mint-deep">add_circle</span>{{$.L.T "rollout.add_wave"}}{{end}}
           </div>
           <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div class="flex flex-col gap-1 col-span-2 sm:col-span-1"><label class="!text-label-xs-caps">{{$.L.T "common.group"}}</label>
-              <select name="group{{$i}}"><option value="">—</option>{{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+              {{/* Picking a group here IS how a wave is added: the "add a wave"
+                   row has no group yet, so its option prompts for one. */}}
+              <select name="group{{$i}}"><option value="">{{if $configured}}—{{else}}{{$.L.T "rollout.pick_group"}}{{end}}</option>{{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}</select></div>
             <div class="flex flex-col gap-1 col-span-2 sm:col-span-1"><label class="!text-label-xs-caps">{{$.L.T "rollout.wave_name_label"}}</label>
               <input name="name{{$i}}" placeholder="Canary / Test / Phase 1" value="{{index $.PlanNames $i}}"></div>
             <div class="flex flex-col gap-1"><label class="!text-label-xs-caps">{{$.L.T "rollout.soak_label"}}</label>
@@ -164,8 +166,8 @@
         </div>
         {{end}}
         </div>
-        <p class="muted mt-2 mb-0 text-body-sm">{{.L.T "rollout.plan_footnote"}}</p>
-        <button type="submit" class="mt-4 w-full">{{.L.T "rollout.save_plan"}}</button>
+        <p class="muted mt-2 mb-0 text-body-sm">{{.L.T "rollout.add_wave_hint"}}</p>
+        <button type="submit" class="mt-4 w-full"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "rollout.save_plan"}}</button>
       </form>
     </div>
     <!-- Governance: how strict the review is before a change takes effect. -->
