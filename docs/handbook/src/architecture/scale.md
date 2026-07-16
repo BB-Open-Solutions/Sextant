@@ -100,11 +100,14 @@ Eval and build workers are themselves NixOS machines - so they are enrolled as
 Sextant devices in an `infra` group and managed declaratively by the product
 they serve. Scaling the build plane is enrolling another worker.
 
-## Roadmap to this posture
+## Status of this posture
 
-1. **Build-before-promote** - pipeline builds ring closures to the signed
-   cache before the ring branch flips; devices substitute.
-2. **Chunk-parallel gate** - a queue distributes batches over a worker pool;
-   the batching primitive already exists.
-3. **Equivalence-class sampling** for interactive org-wide feedback.
-4. **Infra group** - build/eval workers enrolled and managed by Sextant itself.
+1. **Build-before-promote** - SHIPPED: the pipeline builds a ring's closures
+   into the signed cache before the ring branch flips; devices substitute
+   (see [Ship an update](../operators/updates.md)).
+2. **Chunk-parallel gate** - SHIPPED (`--eval-workers`); the pilot deployment
+   runs 1 worker within its memory limit.
+3. **Equivalence-class sampling** - SHIPPED for every unbounded validation
+   (direct writes, change submit, merge revalidation).
+4. **Infra group** - PLANNED: build/eval workers enrolled and managed by
+   Sextant itself (scheduled with the hardware test round).
