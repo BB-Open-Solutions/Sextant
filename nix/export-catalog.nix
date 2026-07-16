@@ -39,6 +39,20 @@ let
     # console can say "has a default (not shown)" rather than "no default".
     else if hasDefault then { defaultOmitted = true; }
     else { };
+  # managedPrefixes: option subtrees Sextant itself wires and therefore NEVER
+  # exports to the operator catalog. The update funnel is the canonical case:
+  # the generator/addon sets autoUpdate's repoUrl and branch per device
+  # (rings/<group>, ADR 0011) - an operator-facing knob there would let a
+  # settings edit silently detach devices from the funnel Sextant manages.
+  # Engineers still see these options in the overlay source; they are
+  # plumbing, not policy.
+  managedPrefixes = [
+    [ "autoUpdate" ] # the update funnel Sextant owns (rings/<group>)
+    [ "secureboot" "pkiBundle" ] # sbctl PKI path: a fixed convention, not policy
+    [ "diskUnlock" "luksVolume" ] # disko layout name; wrong value bricks unlock
+  ];
+  isManaged = path:
+    lib.any (p: lib.take (lib.length p) path == p) managedPrefixes;
   riskClass = opt:
     if (opt.riskClass or "") != "" then { riskClass = opt.riskClass; } else { };
   # secret: an option annotated `// { secret = true; }` renders in the console

@@ -31,6 +31,7 @@ const seedCatalog = `[
   {"name":"apps.office","type":"boolean","description":"Office suite","default":false,"riskClass":"high"},
   {"name":"apps.retries","type":"positive integer","description":"Retries","default":0},
   {"name":"desktop","type":"string","description":"Desktop environment","default":"kde"},
+  {"name":"apps.licenseRef","type":"string","description":"App license key","secret":true},
   {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true}
 ]`
 
@@ -103,10 +104,15 @@ func TestSettingsPageRendersCatalog(t *testing.T) {
 	}
 	page := string(body)
 	for _, want := range []string{"apps.office", "Office suite", "high risk", "desktop",
-		`default: <code>&#34;kde&#34;</code>`} {
+		`&#34;kde&#34;`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page missing %q", want)
 		}
+	}
+	// Integration options live on the Integrations page, never in the general
+	// settings editor.
+	if strings.Contains(page, "netbird.setupKey") {
+		t.Error("integration setting leaked into the settings editor")
 	}
 	// Unknown scope 404s instead of rendering an empty editor.
 	resp2, _ := client().Get(ts.URL + "/settings?scope=group:ghost")

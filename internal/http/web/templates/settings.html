@@ -137,7 +137,7 @@
             {{if $set}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined msz-14">edit</span>{{$.L.T "settings.modified_here"}} {{$.ScopeLabel}}</span>
             {{else if $row.Enforced}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined msz-14">lock</span>{{$.L.T "common.locked"}}</span>
             {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="h-1.5 w-1.5 rounded-full bg-border-hairline"></span>{{$.L.T "settings.inherits_label"}}</span>{{end}}
-            {{with $row.Entry.DefaultString}}<span class="flex items-center gap-1 text-text-tertiary"><span class="h-1.5 w-1.5 rounded-full bg-border-hairline"></span>{{$.L.T "settings.default_label"}} <code>{{.}}</code></span>{{end}}
+            {{with $row.Entry.DefaultString}}<span class="flex min-w-0 max-w-full items-start gap-1 text-text-tertiary"><span class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-border-hairline"></span>{{$.L.T "settings.default_label"}} <code class="min-w-0 break-all normal-case">{{.}}</code></span>{{end}}
             {{if $.IsDevice}}<span class="flex items-center gap-1 text-text-tertiary">{{$.L.T "settings.col_effective"}}: {{with $row.Resolved}}<code>{{.}}</code>{{else}}-{{end}} <span class="provenance">{{$row.Source}}</span></span>{{end}}
           </div>
         </div>

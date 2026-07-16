@@ -33,6 +33,19 @@ var knownIntegrations = []integration{
 		"Endpoint security agent reporting to a Wazuh manager.", "wazuh."},
 }
 
+// isIntegrationSetting reports whether a catalog key belongs to an
+// integration. Those options live on the Integrations page (a card each);
+// the general Settings editor hides them so a key is configured in exactly
+// one place, never both.
+func isIntegrationSetting(key string) bool {
+	for _, ig := range knownIntegrations {
+		if strings.HasPrefix(key, ig.Prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // integrationsPage renders one card per integration. Org Viewer to see; the
 // set-forms post to the settings editor, which enforces org Editor.
 func (s *Server) integrationsPage(w http.ResponseWriter, r *http.Request, v view) {

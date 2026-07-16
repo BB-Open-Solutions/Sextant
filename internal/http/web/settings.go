@@ -45,6 +45,11 @@ var textSuggestions = map[string][]string{
 	"autoUpdate.options.repoUrl": {
 		"https://code.overheid.nl/MinBZK/DAWO-NixOS.git",
 	},
+	// LUKS mapper names the disko layouts actually create; free typing here
+	// bricks unlock on the next boot, so the known-good value leads.
+	"diskUnlock.tpm2.device": {
+		"crypted-main",
+	},
 }
 
 // settingSection groups rows per catalog category.
@@ -83,6 +88,11 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	for _, name := range cat.Categories() {
 		sec := settingSection{Name: name}
 		for _, e := range cat.ByCategory(name) {
+			// Integration options live on the Integrations page (one card
+			// each), not in the general settings editor - one key, one place.
+			if isIntegrationSetting(e.Name) {
+				continue
+			}
 			row := settingRow{Entry: e, Enforced: locked[e.Name], Suggestions: textSuggestions[e.Name]}
 			if val, has := own[e.Name]; has {
 				row.Set, row.Value = true, renderValue(val)
