@@ -295,17 +295,21 @@ func applyTx(ctx context.Context, repo ports.ConfigRepo, gate ports.Gate, mut fl
 	if err := repo.WriteFile(FleetFile, next); err != nil {
 		return nil, err
 	}
-	// An unbounded blast radius (org-wide change) is validated interactively
-	// against one representative per configuration-shape class instead of
-	// every host: an option/type/assertion error fails every member of a
-	// class identically, so the sample proves the change against each
-	// distinct shape in minutes instead of hours at fleet scale. The full
-	// per-host proof still happens down the pipeline: a ring's release
-	// realises every member's toplevel before its branch moves
+	// Interactive validation samples one host per configuration shape instead
+	// of evaluating every affected device: an option/type/assertion error
+	// fails every device of a shape identically, so the sample proves the
+	// change against each distinct shape. A single NixOS toplevel eval costs
+	// ~10s, so this is the difference between a group re-parent of N devices
+	// costing N*10s and costing shapes*10s. An unbounded (org-wide) radius
+	// samples the whole fleet; a scoped radius samples within its own set.
+	// The full per-host proof still happens down the pipeline: a ring's
+	// release realises every member's toplevel before its branch moves
 	// (build-before-promote), and a device's own rebuild converges
 	// generation-safe regardless. See docs/architecture/scale.md.
 	if len(hosts) == 0 {
 		hosts = f.Representatives()
+	} else {
+		hosts = f.SampleHosts(hosts)
 	}
 	if err := gate.Validate(ctx, repo.Dir(), hosts); err != nil {
 		if werr := repo.WriteFile(FleetFile, orig); werr != nil {

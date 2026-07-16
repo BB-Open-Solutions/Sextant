@@ -61,6 +61,37 @@ func (f *Fleet) Representatives() []string {
 	return reps
 }
 
+// SampleHosts narrows a SCOPED blast radius to one representative per
+// configuration shape among the given tags: a group re-parent that touches N
+// subtree devices only needs to evaluate each DISTINCT shape once, since an
+// option/type error fails every device of that shape identically. Same
+// sampling contract and residual as Representatives (the full per-host proof
+// is the ring build); the difference is the domain - here it is a caller-
+// supplied subset, not the whole fleet. Unknown/retired tags drop out. An
+// empty or single-tag input is returned unchanged.
+func (f *Fleet) SampleHosts(tags []string) []string {
+	if len(tags) <= 1 {
+		return tags
+	}
+	firstOfClass := map[string]string{}
+	for _, tag := range tags {
+		d, ok := f.Devices[tag]
+		if !ok || d.Retired() {
+			continue
+		}
+		key := f.classKey(tag, d)
+		if cur, seen := firstOfClass[key]; !seen || tag < cur {
+			firstOfClass[key] = tag
+		}
+	}
+	out := make([]string, 0, len(firstOfClass))
+	for _, tag := range firstOfClass {
+		out = append(out, tag)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // classKey derives a device's configuration-shape fingerprint from its
 // resolved (effective) state.
 func (f *Fleet) classKey(tag string, d Device) string {

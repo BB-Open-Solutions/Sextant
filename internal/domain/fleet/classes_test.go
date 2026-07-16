@@ -189,6 +189,38 @@ func TestRepresentativesDeterministic(t *testing.T) {
 	}
 }
 
+// SampleHosts collapses a scoped blast radius to one host per shape: two
+// identical devices in the set yield one, distinct devices survive, retired
+// and unknown tags drop, and a single tag passes through untouched.
+func TestSampleHosts(t *testing.T) {
+	f := classesFleet()
+	// twin-a and twin-b share a shape; other-hw is distinct.
+	got := f.SampleHosts([]string{"twin-a", "twin-b", "other-hw"})
+	if len(got) != 2 {
+		t.Fatalf("sample = %v, want 2 (twins collapse, other-hw distinct)", got)
+	}
+	// The twins' representative is the sorted-first.
+	if got[0] != "other-hw" && got[0] != "twin-a" {
+		t.Fatalf("unexpected representatives: %v", got)
+	}
+	for _, g := range got {
+		if g == "twin-b" {
+			t.Fatal("both twins sampled - shape not collapsed")
+		}
+	}
+
+	// Retired and unknown tags drop out.
+	got = f.SampleHosts([]string{"twin-a", "gone", "no-such-device"})
+	if len(got) != 1 || got[0] != "twin-a" {
+		t.Fatalf("retired/unknown not dropped: %v", got)
+	}
+
+	// A single tag (the common case: one device edited) passes through.
+	if got := f.SampleHosts([]string{"deeper"}); len(got) != 1 || got[0] != "deeper" {
+		t.Fatalf("single tag altered: %v", got)
+	}
+}
+
 // Values that differ only in type or map ordering must not collide: the key
 // uses canonical JSON, not fmt.
 func TestClassKeyCanonicalValues(t *testing.T) {

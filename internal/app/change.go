@@ -347,16 +347,16 @@ func (s *ChangeService) Abandon(ctx context.Context, id string) (change.CR, erro
 // repo. Falls back to nil (validate everything) if the candidate cannot be
 // read: fail toward the wider check, never the narrower one.
 func gateScope(repo ports.ConfigRepo, recorded []string) []string {
-	if len(recorded) > 0 {
-		return recorded
-	}
 	raw, err := repo.ReadFile(FleetFile)
 	if err != nil {
-		return nil
+		return recorded // fall back to the raw radius (or nil = everything)
 	}
 	f, err := fleet.Decode(raw)
 	if err != nil {
-		return nil
+		return recorded
+	}
+	if len(recorded) > 0 {
+		return f.SampleHosts(recorded)
 	}
 	return f.Representatives()
 }
