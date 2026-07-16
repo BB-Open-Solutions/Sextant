@@ -63,7 +63,10 @@ let
     lib.concatLists (lib.mapAttrsToList
       (name: v:
         let path = prefix ++ [ name ]; in
-        if lib.isOption v then
+        # Managed plumbing (autoUpdate, secureboot.pkiBundle, ...) is wired by
+        # Sextant, never an operator setting - skip the whole subtree.
+        if isManaged path then [ ]
+        else if lib.isOption v then
           lib.optional (v ? description && v.description != null) ({
             name = lib.concatStringsSep "." path;
             type = v.type.description or "unknown";
