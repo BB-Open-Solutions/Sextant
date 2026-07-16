@@ -43,14 +43,15 @@
   <table class="w-full">
     <tr>
       <th>{{.L.T "common.device"}}</th>
+      <th>{{.L.T "common.groups"}}</th>
       <th>{{.L.T "common.status"}}</th>
       <th>{{.L.T "page.compliance.issues"}}</th>
       <th>{{.L.T "page.compliance.action"}}</th>
     </tr>
     {{range .Rows}}
     <tr class="align-top">
-      <td class="whitespace-nowrap"><a href="/devices/{{.Tag}}" class="font-mono text-secondary hover:underline">{{.Tag}}</a>
-        <span class="block text-label-xs-caps text-text-tertiary">{{range $i, $g := .Groups}}{{if $i}}, {{end}}{{$g}}{{end}}</span></td>
+      <td class="whitespace-nowrap"><a href="/devices/{{.Tag}}" class="font-mono text-secondary hover:underline">{{.Tag}}</a></td>
+      <td>{{range .Groups}}<span class="tag">{{.}}</span> {{end}}</td>
       <td>
         {{if eq .Status "critical"}}<span class="tag bad">{{$.L.T "page.overview.critical"}}</span>
         {{else if eq .Status "warning"}}<span class="tag" style=""><span class="material-symbols-outlined msz-14">warning</span>{{$.L.T "page.overview.warning"}}</span>

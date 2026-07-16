@@ -44,11 +44,12 @@ func (s *Server) runGated(r *http.Request, v view, desc string, fn func(ctx cont
 
 	// Detached. Tell the operator NOW (the bell badge shows immediately on
 	// the page they land on), then report the outcome when it arrives.
+	// No Link on these: the story is fully in the row itself, and a link to
+	// /notifications from the notifications page reads as a dead click.
 	s.notifyUser(ctx, v, notify.Notification{
 		Kind:  notify.WritePending,
 		Title: v.L.T("async.pending_title"),
 		Body:  desc + " — " + v.L.T("async.pending_body"),
-		Link:  "/notifications",
 	})
 	go func() {
 		err := <-done
@@ -60,7 +61,6 @@ func (s *Server) runGated(r *http.Request, v view, desc string, fn func(ctx cont
 				Kind:  notify.GateFailed,
 				Title: v.L.T("async.failed_title"),
 				Body:  desc + " — " + msg,
-				Link:  "/notifications",
 			})
 			return
 		}

@@ -42,7 +42,7 @@
     <table>
       <tr>{{if .CanEdit}}<th class="!pl-4 w-8"><input type="checkbox" id="sel-all" class="cursor-pointer" title="{{.L.T "devices.select_all"}}"></th>{{end}}{{template "sortTh" (list $ "tag" (.L.T "common.tag"))}}<th>{{.L.T "common.groups"}}</th>{{template "sortTh" (list $ "class" (.L.T "common.class"))}}{{template "sortTh" (list $ "hardware" (.L.T "common.hardware"))}}{{template "sortTh" (list $ "user" (.L.T "common.user"))}}{{template "sortTh" (list $ "status" (.L.T "common.status"))}}<th class="whitespace-nowrap"><span class="material-symbols-outlined msz-16 align-middle text-text-tertiary" title="{{.L.T "page.overview.fleet_utilisation"}}">speed</span></th>{{if .CanEdit}}<th class="text-right !px-4">{{.L.T "common.actions"}}</th>{{end}}</tr>
       {{range .Devices}}
-      <tr class="group hover:bg-surface-container-low transition-colors">
+      <tr class="group align-middle hover:bg-surface-container-low transition-colors">
         {{if $.CanEdit}}<td class="!pl-4"><input type="checkbox" class="dev-select cursor-pointer" value="{{.Tag}}"></td>{{end}}
         <td><a href="/devices/{{.Tag}}" class="font-mono font-medium">{{.Tag}}</a></td>
         <td>{{range .Groups}}<span class="tag">{{.}}</span> {{end}}</td>
