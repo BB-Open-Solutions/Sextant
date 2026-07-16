@@ -167,6 +167,12 @@ in
       # flake inputs or a per-host identity (DAWO's hostConfig) get them
       # here; the generator itself never depends on them.
     , specialArgsFor ? (_: { })
+      # extraModulesFor: tag -> extra modules for THAT host only. This is how
+      # an infra host (an imaging station: PXE, harmonia, the imaging runner)
+      # carries its role modules while staying a normal fleet device -
+      # unlike extraModules, which every host gets. A plain workplace device
+      # returns [].
+    , extraModulesFor ? (_: [ ])
     }:
     # Retired devices keep their audit record in fleet.json but no longer
     # exist as hosts: no image builds, no gate target.
@@ -183,6 +189,7 @@ in
             ++ [ hardwareProfiles.${fleet.devices.${tag}.hardware} ]
             ++ mkModules { inherit fleet tag overlaysDir; }
             ++ [{ networking.hostName = lib.mkDefault tag; }]
-            ++ extraModules;
+            ++ extraModules
+            ++ extraModulesFor tag;
         });
 }
