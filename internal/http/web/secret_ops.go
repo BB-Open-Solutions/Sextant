@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/secret"
@@ -41,9 +42,16 @@ func (s *Server) postSecretReveal(w http.ResponseWriter, r *http.Request, v view
 		return nil
 	}
 	s.log.Info("device secret revealed", "tag", tag, "kind", kind, "by", by)
+	// Where the back arrow leads: the page that posted the reveal (the wizard
+	// sends its own URL). Local paths only - anything else falls back to the
+	// device page, so the form value can never turn into an open redirect.
+	back := r.FormValue("back")
+	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") {
+		back = "/devices/" + tag
+	}
 	s.render(w, "secret_reveal", map[string]any{
 		"Title": "Secret", "Nav": "enroll",
-		"Tag": tag, "Kind": string(kind), "Value": value,
+		"Tag": tag, "Kind": string(kind), "Value": value, "Back": back,
 	}, v)
 	return nil
 }
