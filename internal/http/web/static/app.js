@@ -2,21 +2,28 @@
 // framework, CSP-clean (default-src 'self'). The console works fully
 // without JS; this only adds convenience.
 
-// Copy-to-clipboard: any element with data-copy="<text>" copies it on
-// click and briefly confirms. The copied value stays selectable in the
+// Copy-to-clipboard, two forms: an element with data-copy="<text>" copies
+// that text on click; a bare data-copy (no value) copies the element's own
+// text. A [data-copy-btn] copies the nearest [data-copy] in the same parent
+// (the reveal page's code + button pair). The value stays selectable in the
 // DOM, so no-JS users can still select it by hand.
 document.addEventListener("click", function (e) {
   var el = e.target.closest("[data-copy]");
+  var btn = e.target.closest("[data-copy-btn]");
+  if (!el && btn) {
+    el = btn.parentElement && btn.parentElement.querySelector("[data-copy]");
+  }
   if (!el) return;
-  var text = el.getAttribute("data-copy");
+  var text = el.getAttribute("data-copy") || el.textContent;
   if (!navigator.clipboard) return;
   navigator.clipboard.writeText(text).then(function () {
-    var label = el.getAttribute("data-copied") || "Copied";
-    var prev = el.getAttribute("data-label");
-    if (prev === null) el.setAttribute("data-label", el.textContent);
-    el.textContent = label;
+    var target = btn || el;
+    var label = target.getAttribute("data-copied") || "Copied";
+    var prev = target.getAttribute("data-label");
+    if (prev === null) target.setAttribute("data-label", target.textContent);
+    target.textContent = label;
     setTimeout(function () {
-      el.textContent = el.getAttribute("data-label");
+      target.textContent = target.getAttribute("data-label");
     }, 1200);
   });
 });
