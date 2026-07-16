@@ -30,7 +30,10 @@
     <select name="group" class="{{$ctl}}"><option value="">{{.L.T "settings.all_groups"}}</option>{{range .Groups}}<option value="{{.}}" {{if eq $.FGroup .}}selected{{end}}>{{.}}</option>{{end}}</select>
     <select name="status" class="{{$ctl}}"><option value="">{{.L.T "devices.all_statuses"}}</option><option value="online" {{if eq .FStatus "online"}}selected{{end}}>{{.L.T "common.online"}}</option><option value="offline" {{if eq .FStatus "offline"}}selected{{end}}>{{.L.T "common.offline"}}</option><option value="never" {{if eq .FStatus "never"}}selected{{end}}>{{.L.T "common.never_seen"}}</option></select>
     {{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}">{{end}}{{if .Dir}}<input type="hidden" name="dir" value="{{.Dir}}">{{end}}
-    <button type="submit" class="!m-0 inline-flex h-9 items-center gap-1 rounded-lg bg-ink px-4 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">filter_list</span>{{.L.T "common.filter"}}</button>
+    {{/* !py-0/!h-9/!rounded-lg override the primary-button base (py-2,
+         rounded-full), which otherwise renders this a fraction taller than
+         the h-9 inputs beside it. */}}
+    <button type="submit" class="!m-0 inline-flex !h-9 items-center gap-1 !rounded-lg bg-ink !px-4 !py-0 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">filter_list</span>{{.L.T "common.filter"}}</button>
     {{if or .Q .FClass .FGroup .FStatus}}<a href="/devices" class="inline-flex h-9 items-center rounded-lg border border-border-hairline px-3 text-label-md text-text-secondary hover:bg-surface-container-low">{{.L.T "common.clear"}}</a>{{end}}
   </form>
 

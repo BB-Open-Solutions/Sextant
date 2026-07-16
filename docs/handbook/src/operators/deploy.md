@@ -62,6 +62,19 @@ the devices in that ring.
    every change passes the gate and commits to the overlay. Stage a rollout to
    land updates in waves.
 
+## Build-before-promote
+
+At scale, ring promotion should not mean 10,000 devices each independently
+compiling the same closures on weak edge hardware. With `gateMode: remote`
+and a gate-runner `cache` configured (a signing key secret, and optionally a
+dedicated cache host), a rollout's wave builds its release into that signed
+binary cache *before* its ring branch flips - devices then substitute
+(download) the pre-built closure instead of building it. Enable the console
+side with `releaseCache: true`. See
+[Scaling to 10,000+ devices](../architecture/scale.md) for the reasoning, and
+[Ship an update](./updates.md) for what a wave's **Building** status means
+day to day.
+
 ## Notification e-mail (SMTP)
 
 In-app notifications work with no extra setup. To also deliver them by mail,
@@ -80,3 +93,27 @@ secret; add it to the same secret the chart mounts (`secretName`).
 
 Multi-tenant (model B): one overlay repo per organisation, isolated stores,
 one console instance per repo. See `docs/adr/` for the decisions behind this.
+
+## Troubleshooting
+
+**The console refuses to start / refuses session cookies.**
+Behind TLS on a non-loopback `--addr`, Sextant refuses to ship session
+cookies without `--secure-cookies` (or `SEXTANT_SECURE_COOKIES=true`) - this
+is deliberate fail-closed behaviour, not a bug. Set the flag.
+
+**Every write is refused with `gateMode: remote`.**
+The gate is fail-closed: no reachable gate-runner means no writes, by
+design. Check the gate-runner's `/healthz` before flipping `gateMode` to
+`remote`, and after any gate-runner redeploy.
+
+**A rollout wave never leaves "Building".**
+With build-before-promote enabled (`releaseCache: true` +
+`gateRunner.cache`), check the gate-runner's cache is healthy and its signing
+key secret is present - a wave cannot promote until its release lands in the
+signed cache.
+
+**SMTP is configured but no mail arrives.**
+Confirm the password resolved: a secret reference must exist under
+**Secrets** with a value the runtime can actually read (agenix or the
+mounted `SECRET_DIR`); a typed password needs `SEXTANT_SECRET_KEY` set on
+the deployment, or the console disables that option outright.

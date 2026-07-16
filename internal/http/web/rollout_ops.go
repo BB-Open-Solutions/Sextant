@@ -193,7 +193,9 @@ func (s *Server) postRolloutCancel(w http.ResponseWriter, r *http.Request, v vie
 // fixed cap) means a large plan can never render truncated and then lose rings
 // on an unrelated save.
 func rolloutPlanData(f *fleet.Fleet) map[string]any {
-	ringRows := 2
+	// One blank row after the configured waves: the editor grows a wave at a
+	// time instead of presenting a wall of "(unused wave)" blocks.
+	ringRows := 1
 	if f.Rollout != nil {
 		ringRows += len(f.Rollout.Rings)
 	}

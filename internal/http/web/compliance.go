@@ -6,7 +6,9 @@ package web
 
 import (
 	"net/http"
+	"slices"
 	"sort"
+	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/incident"
@@ -14,8 +16,11 @@ import (
 
 // complianceRow is one device's compliance verdict.
 type complianceRow struct {
-	Tag    string
-	Groups []string
+	Tag          string
+	Groups       []string
+	Class        string
+	Hardware     string
+	AssignedUser string
 	// Status: critical | warning | ok. Rank orders the table (worst first).
 	Status string
 	Rank   int
@@ -45,6 +50,7 @@ func (s *Server) compliancePage(w http.ResponseWriter, r *http.Request, v view) 
 		}
 	}
 
+	classSet := map[string]bool{}
 	rows := make([]complianceRow, 0, len(f.Devices))
 	counts := map[string]int{}
 	for _, tag := range f.DeviceTags() {
@@ -52,7 +58,8 @@ func (s *Server) compliancePage(w http.ResponseWriter, r *http.Request, v view) 
 		if d.Retired() {
 			continue
 		}
-		row := complianceRow{Tag: tag, Groups: d.Groups, Status: "ok", Rank: 2}
+		row := complianceRow{Tag: tag, Groups: d.Groups, Class: d.Class,
+			Hardware: d.Hardware, AssignedUser: d.AssignedUser, Status: "ok", Rank: 2}
 		for _, in := range byTag[tag] {
 			row.Issues = append(row.Issues, incidentIssue{Title: in.Title, Detail: in.Detail, Action: in.Action})
 			if in.Severity == incident.Critical {
@@ -60,6 +67,9 @@ func (s *Server) compliancePage(w http.ResponseWriter, r *http.Request, v view) 
 			} else if row.Status != "critical" {
 				row.Status, row.Rank = "warning", 1
 			}
+		}
+		if d.Class != "" {
+			classSet[d.Class] = true
 		}
 		counts[row.Status]++
 		rows = append(rows, row)
@@ -70,23 +80,51 @@ func (s *Server) compliancePage(w http.ResponseWriter, r *http.Request, v view) 
 		}
 		return rows[i].Tag < rows[j].Tag
 	})
-	// Optional severity filter (?status=critical|warning|ok).
-	if want := r.URL.Query().Get("status"); want != "" {
-		kept := rows[:0]
-		for _, row := range rows {
-			if row.Status == want {
-				kept = append(kept, row)
-			}
+
+	// The same filter bar as the device fleet: search + class + group, plus
+	// the status facet (here the severity verdict). Counts above stay
+	// fleet-wide so the summary keeps meaning under any filter.
+	qy := r.URL.Query()
+	q := strings.ToLower(strings.TrimSpace(qy.Get("q")))
+	fClass, fGroup, fStatus := qy.Get("class"), qy.Get("group"), qy.Get("status")
+	kept := rows[:0]
+	for _, row := range rows {
+		if q != "" && !strings.Contains(strings.ToLower(row.Tag), q) &&
+			!strings.Contains(strings.ToLower(row.AssignedUser), q) &&
+			!strings.Contains(strings.ToLower(row.Hardware), q) {
+			continue
 		}
-		rows = kept
+		if fClass != "" && row.Class != fClass {
+			continue
+		}
+		if fGroup != "" && !slices.Contains(row.Groups, fGroup) {
+			continue
+		}
+		if fStatus != "" && row.Status != fStatus {
+			continue
+		}
+		kept = append(kept, row)
 	}
+	rows = kept
+
+	groups := make([]string, 0, len(f.Groups))
+	for g := range f.Groups {
+		groups = append(groups, g)
+	}
+	sort.Strings(groups)
+	classes := make([]string, 0, len(classSet))
+	for c := range classSet {
+		classes = append(classes, c)
+	}
+	sort.Strings(classes)
 
 	s.render(w, "compliance", map[string]any{
 		"Title": "Compliance", "Nav": "compliance",
 		"Rows":     rows,
 		"Critical": counts["critical"], "Warning": counts["warning"], "OK": counts["ok"],
-		"Total":    counts["critical"] + counts["warning"] + counts["ok"],
-		"FStatus":  r.URL.Query().Get("status"),
+		"Total": counts["critical"] + counts["warning"] + counts["ok"],
+		"Q":     qy.Get("q"), "FClass": fClass, "FGroup": fGroup, "FStatus": fStatus,
+		"Groups": groups, "Classes": classes,
 		"Policies": policyExposure(f, byTag),
 	}, v)
 }

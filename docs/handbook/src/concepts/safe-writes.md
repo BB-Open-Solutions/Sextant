@@ -32,4 +32,20 @@ gate, for tests or a console with no flake).
 
 The gate is a type-and-build check, not a policy check. Governance - who may
 edit, four-eyes review, a required test wave - sits on top of it, in the
-change-request and rollout flows.
+change-request and rollout flows (see [Approval flows](./approvals.md) and
+[Ship an update](../operators/updates.md)).
+
+## Troubleshooting
+
+**A write is rejected with a short error.**
+That message is a *distilled* line pulled out of the gate's evaluation
+trace - usually the actual cause (an unknown option, a wrong type, a value
+out of range), not the whole trace. A change-request's failure card, and any
+rejected save, carries the full multi-line detail behind a "technical
+detail" fold if the short line is not enough to act on.
+
+**Every write is refused, even ones that should evaluate fine.**
+In `remote` mode the gate is fail-closed: if the gate-runner cannot be
+reached at all, writes are refused rather than committed unvalidated. Check
+the gate-runner is up and reachable before assuming the change itself is at
+fault.

@@ -4,7 +4,19 @@
   <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "page.compliance.subtitle"}}</p>
 </div>
 
-<!-- Summary chips double as the severity filter. -->
+<!-- Same filter bar as the device fleet: identical control sizing. -->
+{{$ctl := "h-9 rounded-lg border border-border-hairline bg-canvas px-3 text-label-md text-ink focus:border-mint-vibrant focus:outline-none focus:ring-2 focus:ring-mint-vibrant/20"}}
+<form method="get" action="/compliance" class="!m-0 mb-4 flex flex-wrap items-center gap-2">
+  <input type="search" name="q" value="{{.Q}}" placeholder="{{.L.T "devices.search_ph"}}" class="{{$ctl}} w-64">
+  <select name="class" class="{{$ctl}}"><option value="">{{.L.T "devices.all_classes"}}</option>{{range .Classes}}<option value="{{.}}" {{if eq $.FClass .}}selected{{end}}>{{.}}</option>{{end}}</select>
+  <select name="group" class="{{$ctl}}"><option value="">{{.L.T "settings.all_groups"}}</option>{{range .Groups}}<option value="{{.}}" {{if eq $.FGroup .}}selected{{end}}>{{.}}</option>{{end}}</select>
+  <select name="status" class="{{$ctl}}"><option value="">{{.L.T "devices.all_statuses"}}</option><option value="critical" {{if eq .FStatus "critical"}}selected{{end}}>{{.L.T "page.overview.critical"}}</option><option value="warning" {{if eq .FStatus "warning"}}selected{{end}}>{{.L.T "page.overview.warning"}}</option><option value="ok" {{if eq .FStatus "ok"}}selected{{end}}>{{.L.T "page.overview.to_spec"}}</option></select>
+  {{/* Same base-override as the devices bar, so the button is exactly h-9. */}}
+  <button type="submit" class="!m-0 inline-flex !h-9 items-center gap-1 !rounded-lg bg-ink !px-4 !py-0 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">filter_list</span>{{.L.T "common.filter"}}</button>
+  {{if or .Q .FClass .FGroup .FStatus}}<a href="/compliance" class="inline-flex h-9 items-center rounded-lg border border-border-hairline px-3 text-label-md text-text-secondary hover:bg-surface-container-low">{{.L.T "common.clear"}}</a>{{end}}
+</form>
+
+<!-- Summary chips double as a quick severity filter. -->
 <div class="mb-6 flex flex-wrap gap-3">
   {{$f := .FStatus}}
   <a href="/compliance" class="rounded-lg border px-4 py-3 {{if not $f}}border-ink{{else}}border-border-hairline{{end}} bg-canvas">

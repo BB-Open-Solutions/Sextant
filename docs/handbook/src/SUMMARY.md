@@ -7,7 +7,11 @@
 - [Install and configure Sextant](./operators/deploy.md)
 - [Set up an imaging station (NUC)](./operators/station-nuc.md)
 - [Image a device from the console](./operators/image-devices.md)
+- [Ship an update](./operators/updates.md)
+- [Track compliance](./operators/compliance.md)
 - [Update, retire and wipe](./operators/lifecycle.md)
+- [Manage secrets](./operators/secrets.md)
+- [Notifications](./operators/notifications.md)
 - [Integrations](./operators/integrations.md)
 
 # Concepts

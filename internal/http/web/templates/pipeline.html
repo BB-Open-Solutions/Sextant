@@ -140,21 +140,31 @@
         {{$ := .}}
         <div class="flex flex-col gap-3">
         {{range $i := .RingRows}}
-        <div class="rounded-md border border-border-soft p-3">
-          <div class="mb-2 text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "rollout.wave_n_label"}} {{$i}}</div>
-          <div class="flex flex-col gap-2">
-            <input name="name{{$i}}" placeholder="{{$.L.T "rollout.wave_name_placeholder"}}" value="{{index $.PlanNames $i}}">
-            <select name="group{{$i}}"><option value="">{{$.L.T "rollout.unused_wave"}}</option>{{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}</select>
-            <div class="flex gap-2">
-              <input name="soak{{$i}}" type="number" min="0" placeholder="{{$.L.T "rollout.soak_placeholder"}}" value="{{index $.PlanSoaks $i}}" class="w-full">
-              <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="{{$.L.T "rollout.min_healthy_placeholder"}}" value="{{index $.PlanHealthy $i}}" class="w-full">
-              <input name="maxDevices{{$i}}" type="number" min="0" placeholder="{{$.L.T "rollout.max_at_once_placeholder"}}" value="{{index $.PlanMax $i}}" class="w-full" title="{{$.L.T "rollout.max_at_once_title"}}">
-            </div>
+        {{$configured := ne (index $.PlanGroups $i) ""}}
+        <div class="rounded-md border {{if $configured}}border-border-soft{{else}}border-dashed border-border-soft bg-surface-bright{{end}} p-3">
+          <div class="mb-2 flex items-center gap-2 text-label-xs-caps uppercase text-text-tertiary">
+            {{if $configured}}<span class="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-canvas">{{$i}}</span>{{$.L.T "rollout.wave_n_label"}} {{$i}}{{with index $.PlanNames $i}} — <span class="normal-case text-ink">{{.}}</span>{{end}}
+            {{else}}<span class="material-symbols-outlined msz-16">add_circle</span>{{$.L.T "rollout.add_wave"}}{{end}}
+          </div>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div class="flex flex-col gap-1 col-span-2 sm:col-span-1"><label class="!text-label-xs-caps">{{$.L.T "common.group"}}</label>
+              <select name="group{{$i}}"><option value="">—</option>{{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+            <div class="flex flex-col gap-1 col-span-2 sm:col-span-1"><label class="!text-label-xs-caps">{{$.L.T "rollout.wave_name_label"}}</label>
+              <input name="name{{$i}}" placeholder="Canary / Test / Phase 1" value="{{index $.PlanNames $i}}"></div>
+            <div class="flex flex-col gap-1"><label class="!text-label-xs-caps">{{$.L.T "rollout.soak_label"}}</label>
+              <input name="soak{{$i}}" type="number" min="0" placeholder="30" value="{{index $.PlanSoaks $i}}"></div>
+            <div class="flex flex-col gap-1"><label class="!text-label-xs-caps">{{$.L.T "rollout.healthy_label"}}</label>
+              <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="95" value="{{index $.PlanHealthy $i}}"></div>
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2"><label class="!text-label-xs-caps">{{$.L.T "rollout.max_label"}}</label>
+              <input name="maxDevices{{$i}}" type="number" min="0" placeholder="0 = {{$.L.T "rollout.all_at_once"}}" value="{{index $.PlanMax $i}}" class="!w-28" title="{{$.L.T "rollout.max_at_once_title"}}"></div>
             <label class="flex items-center gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="approval{{$i}}" value="1" {{if index $.PlanApproval $i}}checked{{end}} class="!w-auto">{{$.L.T "rollout.require_approval"}}</label>
           </div>
         </div>
         {{end}}
         </div>
+        <p class="muted mt-2 mb-0 text-body-sm">{{.L.T "rollout.plan_footnote"}}</p>
         <button type="submit" class="mt-4 w-full">{{.L.T "rollout.save_plan"}}</button>
       </form>
     </div>
@@ -164,10 +174,13 @@
       <p class="muted mb-4">{{.L.T "page.pipeline.governance_desc"}}</p>
       <form method="post" action="/assurance" class="!block">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <div class="flex flex-col gap-3">
-          <label class="flex items-start gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="requireChangeRequest" value="1" {{if .RequireChangeRequest}}checked{{end}} class="!mt-0.5 !w-auto">{{.L.T "page.pipeline.g_require_cr"}}</label>
-          <label class="flex items-start gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="requireFourEyes" value="1" {{if .RequireFourEyes}}checked{{end}} class="!mt-0.5 !w-auto">{{.L.T "page.pipeline.g_four_eyes"}}</label>
-          <label class="flex items-start gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="requireTestWave" value="1" {{if .RequireTestWave}}checked{{end}} class="!mt-0.5 !w-auto">{{.L.T "page.pipeline.g_test_wave"}}</label>
+        <div class="flex flex-col divide-y divide-border-soft">
+          <label class="flex items-start gap-3 py-3 !normal-case !tracking-normal"><input type="checkbox" name="requireChangeRequest" value="1" {{if .RequireChangeRequest}}checked{{end}} class="!mt-0.5 !w-auto">
+            <span><span class="block text-label-md font-medium text-ink">{{.L.T "page.pipeline.g_require_cr"}}</span><span class="block text-body-sm text-text-tertiary">{{.L.T "page.pipeline.g_require_cr_desc"}}</span></span></label>
+          <label class="flex items-start gap-3 py-3 !normal-case !tracking-normal"><input type="checkbox" name="requireFourEyes" value="1" {{if .RequireFourEyes}}checked{{end}} class="!mt-0.5 !w-auto">
+            <span><span class="block text-label-md font-medium text-ink">{{.L.T "page.pipeline.g_four_eyes"}}</span><span class="block text-body-sm text-text-tertiary">{{.L.T "page.pipeline.g_four_eyes_desc"}}</span></span></label>
+          <label class="flex items-start gap-3 py-3 !normal-case !tracking-normal"><input type="checkbox" name="requireTestWave" value="1" {{if .RequireTestWave}}checked{{end}} class="!mt-0.5 !w-auto">
+            <span><span class="block text-label-md font-medium text-ink">{{.L.T "page.pipeline.g_test_wave"}}</span><span class="block text-body-sm text-text-tertiary">{{.L.T "page.pipeline.g_test_wave_desc"}}</span></span></label>
         </div>
         <button type="submit" class="mt-4 w-full">{{.L.T "page.pipeline.save_governance"}}</button>
       </form>
