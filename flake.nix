@@ -79,6 +79,7 @@
             postgresql # psql client for local dev against the compose database
             tailwindcss # `just css` rebuilds the console stylesheet
             jq # catalog drift guard canonicalises the export (regen-catalog.sh)
+            govulncheck # vulnerability gate runs on THIS pinned toolchain (scripts/vulncheck.sh)
             # Rust toolchain for the device agent (agent/): the README and
             # `just ci` run cargo fmt/clippy/test, so the shell must carry them.
             cargo

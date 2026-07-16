@@ -1,0 +1,11 @@
+# Audited vulnerability exceptions (scripts/vulncheck.sh). CI fails on any
+# CALLED vulnerability that is not listed here; every entry MUST carry a
+# reason and a revisit condition, and should be removed the moment the
+# toolchain or dependency moves.
+#
+# Format: one GO-XXXX-NNNN id at the start of a line; the rest is the reason.
+
+GO-2026-5856 crypto/tls ECH client privacy leak. Sextant never enables
+Encrypted Client Hello (no ECHConfig anywhere in the tree), so the leaking
+path cannot be reached. Fixed in go1.26.5 - REMOVE this entry when nixpkgs
+ships it (the pinned devshell go is 1.26.4 today).
