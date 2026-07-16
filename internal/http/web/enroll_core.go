@@ -37,29 +37,7 @@ func (s *Server) enrollOne(ctx context.Context, station, mac, tag, hardware, cla
 		return fmt.Errorf("hardware profile %q is not one of the published profiles", hardware)
 	}
 
-	dev := fleet.Device{Hardware: hardware, Class: strings.TrimSpace(class), Groups: groups}
-
-	// Capture the hardware the station discovered: the flat summary onto the
-	// device record, the native facter document into the facts store (below).
-	var capturedFacter []byte
-	if mac != "" {
-		if d, ok, err := s.svc.Discovery.Get(ctx, station, mac); err != nil {
-			s.log.Warn("could not read discovered specs at enroll", "station", station, "mac", mac, "err", err)
-		} else if ok {
-			spec := fleet.HardwareSpec{
-				Vendor: d.Vendor, Model: d.Model, Serial: d.Serial,
-				CPU: d.CPU, Cores: d.Cores, MemGB: d.MemGB, DiskGB: d.DiskGB,
-				Firmware: d.Firmware,
-			}
-			if !spec.Empty() {
-				dev.Spec = &spec
-				dev.ITAM.Serial, dev.ITAM.Model = d.Serial, d.Model
-			}
-			if d.Facter != "" {
-				capturedFacter = []byte(d.Facter)
-			}
-		}
-	}
+	dev, capturedFacter := s.discoveredDevice(ctx, station, mac, hardware, class, groups)
 
 	msg := fmt.Sprintf("devices: enroll %s from station %s (%s)", tag, station, dev.Hardware)
 	if err := s.svc.Config.Apply(ctx, fleet.AddDevice(tag, dev), msg, author, tag); err != nil {
@@ -82,4 +60,37 @@ func (s *Server) enrollOne(ctx context.Context, station, mac, tag, hardware, cla
 		}
 	}
 	return nil
+}
+
+// discoveredDevice builds the device record for a discovered MAC: the flat
+// hardware summary onto the record, the native facter document returned for
+// the facts store. Missing discovery data degrades to a bare record - specs
+// are enrichment, never a precondition.
+func (s *Server) discoveredDevice(ctx context.Context, station, mac, hardware, class string, groups []string) (fleet.Device, []byte) {
+	dev := fleet.Device{Hardware: strings.TrimSpace(hardware), Class: strings.TrimSpace(class), Groups: groups}
+	if mac == "" {
+		return dev, nil
+	}
+	d, ok, err := s.svc.Discovery.Get(ctx, station, mac)
+	if err != nil {
+		s.log.Warn("could not read discovered specs at enroll", "station", station, "mac", mac, "err", err)
+		return dev, nil
+	}
+	if !ok {
+		return dev, nil
+	}
+	spec := fleet.HardwareSpec{
+		Vendor: d.Vendor, Model: d.Model, Serial: d.Serial,
+		CPU: d.CPU, Cores: d.Cores, MemGB: d.MemGB, DiskGB: d.DiskGB,
+		Firmware: d.Firmware,
+	}
+	if !spec.Empty() {
+		dev.Spec = &spec
+		dev.ITAM.Serial, dev.ITAM.Model = d.Serial, d.Model
+	}
+	var facter []byte
+	if d.Facter != "" {
+		facter = []byte(d.Facter)
+	}
+	return dev, facter
 }

@@ -160,38 +160,71 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 		names[mac] = name
 	}
 
-	var enrolled, failed int
+	// ONE gated apply for the whole batch: the gate evaluates all new hosts
+	// in a single (chunked) run instead of once per device, so dispatching a
+	// rack costs one evaluation, not N. All-or-nothing stays intact - one
+	// mutation, one commit, one audit entry. Job dispatch and facts capture
+	// are post-success side effects.
+	type pending struct {
+		mac, tag string
+		dev      fleet.Device
+		facter   []byte
+	}
+	items := make([]pending, 0, len(macs))
+	tags := make([]string, 0, len(macs))
 	for _, mac := range macs {
-		tag := names[mac]
-		if err := s.imageOne(r.Context(), v, station, mac, tag, hardware, class, groups); err != nil {
-			s.log.Warn("batch image: one device failed", "station", station, "mac", mac, "tag", tag, "err", err)
-			failed++
-			continue
+		dev, facter := s.discoveredDevice(r.Context(), station, mac, hardware, class, groups)
+		items = append(items, pending{mac: mac, tag: names[mac], dev: dev, facter: facter})
+		tags = append(tags, names[mac])
+	}
+	mut := func(f *fleet.Fleet) error {
+		for _, p := range items {
+			if err := fleet.AddDevice(p.tag, p.dev)(f); err != nil {
+				return err
+			}
 		}
-		enrolled++
+		return nil
 	}
-	s.log.Info("batch image dispatched", "station", station, "dispatched", enrolled, "failed", failed)
-	http.Redirect(w, r, "/enroll?station="+url.QueryEscape(station), http.StatusSeeOther)
-	return nil
-}
-
-// imageOne creates the device record from a discovered MAC and dispatches an
-// image job the station will execute. With no imaging-execution plane (no
-// database) it falls back to a direct enrollment, so the flow still works for
-// a device that is already running. The caller authorizes.
-func (s *Server) imageOne(ctx context.Context, v view, station, mac, tag, hardware, class string, groups []string) error {
-	if s.svc.Imaging == nil {
-		return s.enrollOne(ctx, station, mac, tag, hardware, class, groups, true, true, webAuthor(v))
-	}
-	// Create the device (capture specs + native facter), keep the MAC visible
-	// with its job, and do not issue a credential yet - the station receives a
-	// fresh one when it claims the job.
-	if err := s.enrollOne(ctx, station, mac, tag, hardware, class, groups, false, false, webAuthor(v)); err != nil {
+	msg := fmt.Sprintf("devices: enroll %d device(s) from station %s (%s)", len(items), station, hardware)
+	author := webAuthor(v)
+	if err := s.runGated(r, v, msg, func(ctx context.Context) error {
+		if err := s.svc.Config.Apply(ctx, mut, msg, author, tags...); err != nil {
+			return err
+		}
+		for _, p := range items {
+			if p.facter != nil && s.svc.Inventory != nil {
+				if err := s.svc.Inventory.RecordFacts(ctx, p.tag, p.facter); err != nil {
+					s.log.Warn("device enrolled but captured facter not stored", "tag", p.tag, "err", err)
+				}
+			}
+			if s.svc.Imaging == nil {
+				// No imaging plane: direct enrollment - issue the credential
+				// and clear the discovery row, as the single path does.
+				if s.svc.DevCreds != nil {
+					if _, err := s.svc.DevCreds.Issue(ctx, p.tag); err != nil {
+						s.log.Error("device enrolled but credential not issued", "tag", p.tag, "err", err)
+					}
+				}
+				if err := s.svc.Discovery.Remove(ctx, station, p.mac); err != nil {
+					s.log.Warn("device enrolled but not removed from station set", "station", station, "mac", p.mac, "err", err)
+				}
+				continue
+			}
+			// Imaging path: the MAC stays visible with its job and the station
+			// receives a fresh credential when it claims the job.
+			if err := s.svc.Imaging.Dispatch(ctx, imaging.Job{
+				Station: station, MAC: imaging.NormalizeMAC(p.mac), Tag: p.tag, Hardware: hardware,
+			}); err != nil {
+				s.log.Warn("batch image: dispatch failed", "station", station, "mac", p.mac, "tag", p.tag, "err", err)
+			}
+		}
+		s.log.Info("batch image dispatched", "station", station, "devices", len(items))
+		return nil
+	}); err != nil {
 		return err
 	}
-	return s.svc.Imaging.Dispatch(ctx, imaging.Job{
-		Station: station, MAC: imaging.NormalizeMAC(mac), Tag: tag, Hardware: strings.TrimSpace(hardware),
-	})
+	http.Redirect(w, r, "/enroll?station="+url.QueryEscape(station), http.StatusSeeOther)
+	return nil
 }
 
 // postDiscoveredRemove drops a MAC from a station's discovered set: a device
