@@ -32,6 +32,13 @@ jobs:
           fi
           VERSION="${GITHUB_REF_NAME#v}"
           REGISTRY="forgejo.bb-open.com"
+          # Rootless podman needs the setuid newuidmap/newgidmap to map the
+          # forgejo-runner user's /etc/subuid range into the build's user
+          # namespace. On NixOS those live in /run/wrappers/bin, which the
+          # bare runner job's PATH does not carry - without it podman falls
+          # back to a single-uid mapping and image unpacking dies on
+          # "lchown: invalid argument".
+          export PATH="/run/wrappers/bin:$PATH"
           nix shell nixpkgs#podman --command bash -c "
             set -euo pipefail
             podman login -u release-bot -p \"\$REGISTRY_TOKEN\" $REGISTRY
