@@ -53,12 +53,12 @@
       {{range .Rows}}
       <div class="flex flex-col gap-3 p-6">
         <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div class="min-w-0">
-            <div class="flex items-center gap-2">
-              <span class="font-mono font-medium text-ink">{{.Job.Tag}}</span>
-              <span class="font-mono text-code-inline text-text-tertiary">{{.Job.MAC}}</span>
-            </div>
-            <div class="mt-0.5 text-label-md text-text-tertiary">{{.Job.Hardware}}</div>
+          {{/* One baseline, one size: tag, MAC and hardware read as a single
+               identity line instead of two rows in mismatched type. */}}
+          <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 text-label-md">
+            <span class="font-mono font-medium text-ink">{{.Job.Tag}}</span>
+            <span class="font-mono text-text-tertiary">{{.Job.MAC}}</span>
+            <span class="text-text-tertiary">{{.Job.Hardware}}</span>
           </div>
           <div class="flex items-center gap-3">
             {{if .SB}}{{if eq (printf "%s" .SB) "enforcing"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">verified_user</span>SB</span>{{else}}<span class="tag"><span class="material-symbols-outlined msz-14">gpp_maybe</span>SB</span>{{end}}{{end}}
