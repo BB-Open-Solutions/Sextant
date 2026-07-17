@@ -51,6 +51,11 @@ RUN mkdir -p /etc/nix /data \
  # uid 65532 has no passwd entry, which fails with "cannot determine user's
  # home directory". Give it one (home = /data) so nix eval runs rootless.
  && printf 'gate:x:65532:65532::/data:/sbin/nologin\n' >> /etc/passwd \
+ # The GROUP needs a name too: builders that call `id -gn` (several nixpkgs
+ # build scripts do) die with "id: cannot find name for group ID 65532"
+ # otherwise - which surfaced the first time build-before-promote compiled a
+ # derivation instead of substituting it.
+ && printf 'gate:x:65532:\n' >> /etc/group \
  && chown -R 65532:65532 /nix /etc/nix /data
 COPY --from=build /out/gate-runner /usr/local/bin/gate-runner
 USER 65532:65532
