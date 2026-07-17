@@ -95,6 +95,11 @@ type Config struct {
 	// SecureCookies marks cookies Secure (set behind TLS). Settable by
 	// --secure-cookies or SEXTANT_SECURE_COOKIES (flag wins).
 	SecureCookies bool
+	// UpstreamRepo is the core image repository (DAWO-NixOS) the upstream
+	// watcher polls; a new HEAD stages a core-update change request. Empty
+	// disables the watcher.
+	UpstreamRepo string
+
 	// DevAuth substitutes a synthetic owner session (no IdP). Loopback
 	// only; the server refuses to start with dev auth on a public address.
 	DevAuth bool
@@ -164,6 +169,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		DefaultLocale:    envOr(getenv, "DEFAULT_LOCALE", "en"),
 		DefaultTimezone:  envOr(getenv, "DEFAULT_TIMEZONE", "UTC"),
 		OrgName:          envOr(getenv, "ORG_NAME", ""),
+		UpstreamRepo:     envOr(getenv, "UPSTREAM_REPO", ""),
 		ConsoleURL:       envOr(getenv, "CONSOLE_URL", ""),
 	}
 	if v := getenv(EnvPrefix + "SHUTDOWN_GRACE"); v != "" {

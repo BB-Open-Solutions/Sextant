@@ -389,3 +389,19 @@ func (r *Repo) Head(ctx context.Context) (string, error) {
 	}
 	return strings.TrimSpace(string(out)), nil
 }
+
+// RemoteHead resolves the HEAD revision of an arbitrary remote without a
+// local clone - the upstream watcher's one git need.
+func RemoteHead(ctx context.Context, remote string) (string, error) {
+	// #nosec G204 - fixed "git" binary, argv slice; the remote URL comes from
+	// server configuration, not request input.
+	out, err := exec.CommandContext(ctx, "git", "ls-remote", remote, "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("git ls-remote %s: %w", remote, err)
+	}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	if len(fields) < 1 {
+		return "", nil
+	}
+	return fields[0], nil
+}

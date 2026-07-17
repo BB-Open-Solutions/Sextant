@@ -317,3 +317,21 @@ the chosen option - (1) merge to main with a mandatory ring-0 test wave,
 rollouts, (4) ring 0 structural with only a logged per-rollout owner skip,
 (5) upstream updates auto-open a CR up to ready-for-review, (6) the
 per-host gate proof is never skipped - urgency shortens soaks, never proof.
+
+## 9. Upstream auto-CR (besluit 5)
+
+Fase 1 (gebouwd): de console pollt de core-repo (`SEXTANT_UPSTREAM_REPO`,
+elke 30 min, `git ls-remote HEAD`). Een nieuwe revisie staget precies één
+change request (`core-<rev12>`) en notificeert de owners
+(approval-needed → /updates). De laatst verwerkte revisie staat in de
+state-store, dus een herstart of een handmatig geopende CR leidt nooit
+tot duplicaten.
+
+Fase 2 (te bouwen): de INHOUD van de CR — de flake-input-bump — vergt nix
+en netwerk en hoort dus bij de gate-runner, niet in de console-pod. Plan:
+een job-type "bump" naast de bestaande build-jobs; de runner checkt de
+CR-branch uit, draait `nix flake update <core-input>`, commit het lock-
+bestand op de branch en meldt klaar. Daarna doorloopt de CR het gewone
+pad: gate bouwt, kanban toont "ready", mens keurt (vier-ogen), merge →
+testwave → ladder. Urgente core-fixes combineren met de spoedprocedure
+(§8/expedited): kortere soak, zelfde bewijs.

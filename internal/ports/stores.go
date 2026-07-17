@@ -27,6 +27,13 @@ type RolloutStore interface {
 	Put(ctx context.Context, s *rollout.State) error
 }
 
+// UpstreamStore remembers the last core-repo revision the upstream watcher
+// already staged a change for, so restarts do not re-open the same CR.
+type UpstreamStore interface {
+	LastUpstream(ctx context.Context) (string, error)
+	PutUpstream(ctx context.Context, rev string) error
+}
+
 // ConvergenceSource reports a ring's observed convergence on a target
 // revision. The observed plane (device check-ins) implements it; until that
 // plane exists a source may report zero data, which the engine treats as

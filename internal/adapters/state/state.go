@@ -197,3 +197,33 @@ func (r *RolloutStore) Put(_ context.Context, st *rollout.State) error {
 	defer r.s.mu.Unlock()
 	return r.s.writeJSON("rollout.json", st)
 }
+
+// --- ports.UpstreamStore ---
+
+// Upstream returns the upstream-watcher sub-store.
+func (s *Store) Upstream() *UpstreamStore { return &UpstreamStore{s} }
+
+// UpstreamStore persists the last core revision already staged as a CR.
+type UpstreamStore struct{ s *Store }
+
+type upstreamDoc struct {
+	Rev string `json:"rev"`
+}
+
+// LastUpstream implements ports.UpstreamStore.
+func (u *UpstreamStore) LastUpstream(context.Context) (string, error) {
+	u.s.mu.Lock()
+	defer u.s.mu.Unlock()
+	var doc upstreamDoc
+	if ok, err := u.s.readJSON("upstream.json", &doc); err != nil || !ok {
+		return "", err
+	}
+	return doc.Rev, nil
+}
+
+// PutUpstream implements ports.UpstreamStore.
+func (u *UpstreamStore) PutUpstream(_ context.Context, rev string) error {
+	u.s.mu.Lock()
+	defer u.s.mu.Unlock()
+	return u.s.writeJSON("upstream.json", upstreamDoc{Rev: rev})
+}

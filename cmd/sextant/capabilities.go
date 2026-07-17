@@ -272,6 +272,12 @@ func (d *deps) buildConfigPlane() error {
 	}
 	d.evidence = app.NewEvidenceService(svc, d.changes, clock)
 	d.background(func() { d.rollouts.Run(d.ctx, 30*time.Second) })
+	if cfg.UpstreamRepo != "" {
+		up := app.NewUpstreamService(cfg.UpstreamRepo, git.RemoteHead, d.changes.Open,
+			st.Upstream(), log).WithNotifier(d.notify, cfg.OwnerGroups)
+		d.background(func() { up.Run(d.ctx, 30*time.Minute) })
+		log.Info("upstream watcher started", "repo", redactRemote(cfg.UpstreamRepo))
+	}
 	d.checks.Register("config-repo", func(context.Context) error {
 		_, err := repo.ReadFile(app.FleetFile)
 		return err
