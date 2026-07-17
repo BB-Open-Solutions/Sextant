@@ -56,7 +56,7 @@ func (s *Server) postChangeEdit(w http.ResponseWriter, r *http.Request, v view) 
 		app.AffectedHosts(s.svc.Config.Fleet(), scope)...); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates", http.StatusSeeOther)
 	return nil
 }
 

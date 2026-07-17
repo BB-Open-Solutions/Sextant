@@ -59,7 +59,7 @@ func (s *Server) postChange(w http.ResponseWriter, r *http.Request, v view) erro
 	if err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates", http.StatusSeeOther)
 	return nil
 }
 
@@ -77,7 +77,7 @@ func (s *Server) postChangeSubmit(w http.ResponseWriter, r *http.Request, v view
 	}); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates", http.StatusSeeOther)
 	return nil
 }
 
@@ -95,7 +95,7 @@ func (s *Server) postChangeMerge(w http.ResponseWriter, r *http.Request, v view)
 	}); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates", http.StatusSeeOther)
 	return nil
 }
 
@@ -106,6 +106,6 @@ func (s *Server) postChangeAbandon(w http.ResponseWriter, r *http.Request, v vie
 	if _, err := s.svc.Changes.Abandon(r.Context(), r.PathValue("id")); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates", http.StatusSeeOther)
 	return nil
 }

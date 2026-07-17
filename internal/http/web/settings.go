@@ -281,7 +281,7 @@ func (s *Server) stageSettingsAsChange(w http.ResponseWriter, r *http.Request, v
 		http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
 		return nil
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates", http.StatusSeeOther)
 	return nil
 }
 

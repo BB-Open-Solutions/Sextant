@@ -128,7 +128,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	// A change's home is the Updates board; old notification links and
 	// bookmarks to /changes/<id> land there instead of a 404.
 	get("/changes/{id}", func(w http.ResponseWriter, r *http.Request, _ view) {
-		http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+		http.Redirect(w, r, "/updates", http.StatusSeeOther)
 	})
 	get("/changes/{id}/diff", s.diffPage)
 	get("/updates", s.updatesPage)

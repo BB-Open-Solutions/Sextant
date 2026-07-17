@@ -68,7 +68,7 @@ func (s *Server) postRolloutStart(w http.ResponseWriter, r *http.Request, v view
 	if _, err := s.svc.Rollouts.Start(r.Context(), r.FormValue("target"), webAuthor(v)); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates/rollout", http.StatusSeeOther)
 	return nil
 }
 
@@ -79,7 +79,7 @@ func (s *Server) postRolloutTick(w http.ResponseWriter, r *http.Request, v view)
 	if _, _, err := s.svc.Rollouts.Tick(r.Context()); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates/rollout", http.StatusSeeOther)
 	return nil
 }
 
@@ -95,7 +95,7 @@ func (s *Server) postRolloutApprove(w http.ResponseWriter, r *http.Request, v vi
 	if _, _, err := s.svc.Rollouts.Tick(r.Context()); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates/rollout", http.StatusSeeOther)
 	return nil
 }
 
@@ -109,7 +109,7 @@ func (s *Server) postRolloutPause(w http.ResponseWriter, r *http.Request, v view
 	if _, err := s.svc.Rollouts.Pause(r.Context()); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates/rollout", http.StatusSeeOther)
 	return nil
 }
 
@@ -120,7 +120,7 @@ func (s *Server) postRolloutResume(w http.ResponseWriter, r *http.Request, v vie
 	if _, err := s.svc.Rollouts.Resume(r.Context()); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates/rollout", http.StatusSeeOther)
 	return nil
 }
 
@@ -131,7 +131,7 @@ func (s *Server) postRolloutCancel(w http.ResponseWriter, r *http.Request, v vie
 	if _, err := s.svc.Rollouts.Cancel(r.Context()); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/updates/rollout", http.StatusSeeOther)
 	return nil
 }
 
