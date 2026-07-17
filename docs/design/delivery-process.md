@@ -273,3 +273,47 @@ The board (`pipeline.go`) already renders one continuous strip: CR columns
    requirement** (section 4 point 4) for an urgent security fix, or is "full
    per-host gate proof before any ring beyond test" non-negotiable regardless
    of urgency?
+
+## 7. Refinements from the MDM survey (17 jul, with Bram)
+
+Lessons adopted from Intune/Autopatch, ChromeOS, ConfigMgr phased
+deployments, Nebraska/FleetLock and greenboot - each mapped to the
+simplicity rule in section 8:
+
+1. **Time AND health per ring**: promotion needs both a minimum soak
+   (days) and a healthy convergence percentage. Neither alone suffices.
+2. **Success threshold, not perfection**: a wave promotes at >=95%
+   converged-healthy (default); the remainder becomes a visible "stragglers"
+   list instead of blocking the fleet.
+3. **Scatter within a wave** (ChromeOS): device switches spread over the
+   wave's window automatically - bandwidth, cache and blast-radius-per-minute.
+4. **Max in-flight / reboot semaphore** (Nebraska, FleetLock): never more
+   than N devices of a group down at once. Default derived from group size;
+   the counter-example to design for: two counter desks rebooting together.
+5. **Maintenance windows** per group: one field ("update outside
+   HH:MM-HH:MM"), applied to switches and ceremony reboots.
+6. **Pause button**: one control that freezes a rolling release org-wide.
+   Telemetry-triggered auto-halt can come later; the button comes first.
+7. **Deadline + grace for the user-visible reboot** (Intune): postponable,
+   eventually enforced, communicated on-device.
+8. **Boot-health auto-rollback per device** (greenboot): a device that
+   fails its health check after switching rolls back to the previous NixOS
+   generation on its own and reports the failure. This is the per-device
+   safety net UNDER the rings and is always on - not a setting.
+
+## 8. The simplicity budget
+
+Hard requirement (Bram): the tool must stay dead simple. The mechanics
+above are invisible defaults, not configuration surface. An operator sees
+exactly three org-level choices - the test group (ring 0), the default
+wave shape (count + percentages), the maintenance window per group - and
+per rollout: start, pause, progress. Everything else (scatter, thresholds,
+in-flight limits, boot rollback, deadlines) ships as opinionated defaults
+that only the whole-fleet plan may override.
+
+Corollary for the six open questions of section 6: the simple option is
+the chosen option - (1) merge to main with a mandatory ring-0 test wave,
+(2) a fixed always-on test group, (3) derived wave plans for scoped
+rollouts, (4) ring 0 structural with only a logged per-rollout owner skip,
+(5) upstream updates auto-open a CR up to ready-for-review, (6) the
+per-host gate proof is never skipped - urgency shortens soaks, never proof.
