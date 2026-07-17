@@ -177,6 +177,10 @@ func (a *API) postSetting(w http.ResponseWriter, r *http.Request) error {
 	// API cannot bypass change-request governance, catalog membership, typing
 	// or secret-reference integrity. The value arrives already typed from JSON;
 	// render it to the string the catalog entry parses and validates.
+	if err := app.GuardExclusiveSettings(a.cfg, in.Scope,
+		[]app.SettingChange{{Key: in.Key, RawValue: fmt.Sprint(in.Value)}}); err != nil {
+		return reject(err)
+	}
 	if err := app.GuardBrickingSettings(r.Context(), a.cfg, a.inv, in.Scope,
 		[]app.SettingChange{{Key: in.Key, RawValue: fmt.Sprint(in.Value)}}); err != nil {
 		return reject(err)

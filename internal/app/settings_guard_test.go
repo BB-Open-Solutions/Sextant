@@ -103,3 +103,48 @@ func TestGuardAllowsSafeSecureBootChanges(t *testing.T) {
 		t.Fatalf("nil inventory should disable the guard: %v", err)
 	}
 }
+
+// coherenceFleet: one device already on GNOME via its group.
+const coherenceFleet = `{
+  "version": 3,
+  "org": {},
+  "groups": {"kantoor": {"settings": {"desktop.gnome.enable": true}}},
+  "devices": {"wk-1": {"groups": ["kantoor"], "hardware": "hw"}}
+}`
+
+func TestGuardExclusiveSettings(t *testing.T) {
+	dir := t.TempDir()
+	sh(t, dir, "init", "-q", "-b", "main")
+	if err := os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(coherenceFleet), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sh(t, dir, "add", "fleet.json")
+	sh(t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
+	repo, err := git.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := NewConfigService(repo, ports.GateFunc(func(context.Context, string, []string) error { return nil }))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Turning Plasma on while GNOME resolves true for the device: invalid.
+	err = GuardExclusiveSettings(cfg, "group:kantoor",
+		[]SettingChange{{Key: "desktop.plasma.enable", RawValue: "true"}})
+	if err == nil || !strings.Contains(err.Error(), "cannot both be enabled") {
+		t.Fatalf("both desktops on was not refused: %v", err)
+	}
+	// The valid switch: Plasma on AND GNOME off in the same save.
+	if err := GuardExclusiveSettings(cfg, "group:kantoor", []SettingChange{
+		{Key: "desktop.plasma.enable", RawValue: "true"},
+		{Key: "desktop.gnome.enable", RawValue: "false"},
+	}); err != nil {
+		t.Fatalf("explicit switch refused: %v", err)
+	}
+	// Untouched pairs never block.
+	if err := GuardExclusiveSettings(cfg, "group:kantoor",
+		[]SettingChange{{Key: "apps.office.enable", RawValue: "true"}}); err != nil {
+		t.Fatalf("unrelated save blocked: %v", err)
+	}
+}

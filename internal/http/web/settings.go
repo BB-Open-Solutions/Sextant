@@ -225,6 +225,9 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 	if len(changes) > 0 {
 		// Brick guard: never let a save disable Secure Boot for a device
 		// whose firmware still enforces it (settings_guard.go).
+		if err := app.GuardExclusiveSettings(s.svc.Config, scope, changes); err != nil {
+			return err
+		}
 		if err := app.GuardBrickingSettings(r.Context(), s.svc.Config, s.svc.Inventory, scope, changes); err != nil {
 			return err
 		}
