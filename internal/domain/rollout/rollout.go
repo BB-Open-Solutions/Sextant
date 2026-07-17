@@ -22,9 +22,12 @@ type Ring struct {
 	// SoakMinutes is the minimum time the wave must run on the target after
 	// converging before the next wave may promote.
 	SoakMinutes int `json:"soakMinutes,omitempty"`
-	// MinHealthyPercent gates promotion of the NEXT wave: at least this
-	// share of the wave's devices must be healthy on the target. Zero means
-	// 100 (every device healthy).
+	// MinHealthyPercent is the wave's success threshold: the share of the
+	// wave's devices that must be healthy ON TARGET before it counts as
+	// converged (soak starts, promotion follows). Zero means 95 - the
+	// dead-simple default (delivery-process §7.2): a straggler or two must
+	// not wedge a fleet, they become a visible list instead. 100 restores
+	// the strict everyone-or-nothing gate.
 	MinHealthyPercent int `json:"minHealthyPercent,omitempty"`
 	// RequireApproval makes this wave a manual gate: even after it soaks
 	// healthy, the pipeline waits for an operator to approve promotion to the
@@ -47,9 +50,28 @@ func (r Ring) Label() string {
 
 func (r Ring) minHealthy() int {
 	if r.MinHealthyPercent <= 0 {
-		return 100
+		return 95
 	}
 	return r.MinHealthyPercent
+}
+
+// Converged reports whether the wave meets its success threshold: enough of
+// the cohort is healthy on the target. The remainder are stragglers - the
+// wave moves on, they stay visible.
+func (r Ring) Converged(rs RingStatus) bool {
+	return rs.Total > 0 && rs.Healthy*100/rs.Total >= r.minHealthy()
+}
+
+// TooBroken reports whether the wave can no longer reach its threshold on
+// merit: the devices that converged and turned out UNHEALTHY already exceed
+// the failure budget (100 - threshold). That is a bad release, not a slow
+// one - the run halts instead of waiting forever.
+func (r Ring) TooBroken(rs RingStatus) bool {
+	if rs.Total == 0 {
+		return false
+	}
+	broken := rs.OnTarget - rs.Healthy
+	return broken*100/rs.Total > 100-r.minHealthy()
 }
 
 // NextRelease is how many devices should be released after widening one
@@ -72,7 +94,11 @@ type RunStatus string
 
 // The lifecycle states a rollout run passes through.
 const (
-	Active    RunStatus = "active"
+	Active RunStatus = "active"
+	// Paused is the operator's freeze (delivery-process §7.6): no promotion,
+	// no widening, no branch moves until resumed. Unlike Halted it carries no
+	// failure - just "stop the world while we look".
+	Paused    RunStatus = "paused"
 	Halted    RunStatus = "halted" // gate failed; needs a human decision
 	Completed RunStatus = "completed"
 	Cancelled RunStatus = "cancelled"
@@ -208,21 +234,20 @@ func Decide(rings []Ring, s *State, ringStatus RingStatus, now time.Time) Action
 		return Action{Kind: Advance, Reason: fmt.Sprintf("ring %d (%s) has no devices", s.Ring, ring.Group)}
 	}
 
-	// Health gate: too many unhealthy devices on the target halts the run.
-	// Only meaningful once devices started converging.
-	if ringStatus.OnTarget > 0 {
-		healthyPct := ringStatus.Healthy * 100 / ringStatus.OnTarget
-		if healthyPct < ring.minHealthy() {
-			return Action{Kind: Halt, Reason: fmt.Sprintf(
-				"ring %d (%s): only %d%% of converged devices healthy (gate %d%%)",
-				s.Ring, ring.Group, healthyPct, ring.minHealthy())}
-		}
+	// Health gate: devices that converged and turned out unhealthy already
+	// exceed the failure budget - a bad release halts, it does not wait.
+	if ring.TooBroken(ringStatus) {
+		return Action{Kind: Halt, Reason: fmt.Sprintf(
+			"ring %d (%s): %d device(s) unhealthy on target exceeds the %d%% failure budget",
+			s.Ring, ring.Group, ringStatus.OnTarget-ringStatus.Healthy, 100-ring.minHealthy())}
 	}
 
-	// Still converging?
-	if ringStatus.OnTarget < ringStatus.Total {
+	// Still short of the success threshold? Keep converging; the devices
+	// beyond the threshold become stragglers once the wave moves on.
+	if !ring.Converged(ringStatus) {
 		return Action{Kind: Wait, Reason: fmt.Sprintf(
-			"ring %d (%s): %d/%d on target", s.Ring, ring.Group, ringStatus.OnTarget, ringStatus.Total)}
+			"ring %d (%s): %d/%d healthy on target (gate %d%%)",
+			s.Ring, ring.Group, ringStatus.Healthy, ringStatus.Total, ring.minHealthy())}
 	}
 
 	// Converged: soak from first full convergence.

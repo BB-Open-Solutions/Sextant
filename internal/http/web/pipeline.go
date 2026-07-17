@@ -63,6 +63,7 @@ func (s *Server) pipelinePage(w http.ResponseWriter, r *http.Request, v view) {
 	f := s.svc.Config.Fleet()
 	st, ringStatus, _ := s.svc.Rollouts.Status(r.Context())
 	active := st != nil && st.Status == rollout.Active
+	paused := st != nil && st.Status == rollout.Paused
 
 	var waves []waveCol
 	if f.Rollout != nil {
@@ -103,6 +104,7 @@ func (s *Server) pipelinePage(w http.ResponseWriter, r *http.Request, v view) {
 		"Waves":   waves,
 		"State":   st,
 		"Active":  active,
+		"Paused":  paused,
 		"MainRev": head,
 		"HasPlan": f.Rollout != nil && len(f.Rollout.Rings) > 0,
 		"CanEdit": v.roleAt("org").Meets(identity.Editor),

@@ -33,13 +33,14 @@ func TestWaitWhileConverging(t *testing.T) {
 func TestHaltOnUnhealthy(t *testing.T) {
 	s := NewState("rev-2", t0)
 	s.PromotedAt[0] = t0
-	// 3 of 4 converged devices healthy = 75% < 100% gate.
+	// 1 of 5 devices unhealthy on target = 20%, over the 5% failure budget
+	// of the default 95% gate: a bad release halts rather than waits.
 	act := Decide(rings, s, RingStatus{Total: 5, OnTarget: 4, Healthy: 3}, t0.Add(time.Minute))
 	if act.Kind != Halt {
 		t.Fatalf("act = %+v, want halt", act)
 	}
-	if !strings.Contains(act.Reason, "75%") {
-		t.Errorf("reason should carry the number: %s", act.Reason)
+	if !strings.Contains(act.Reason, "failure budget") {
+		t.Errorf("reason should name the failure budget: %s", act.Reason)
 	}
 }
 
@@ -201,5 +202,27 @@ func TestDecideUncappedNeverWidens(t *testing.T) {
 	// canary is uncapped + soaked -> advance to the next wave, never widen.
 	if act := Decide(rings, s, rs, t0.Add(61*time.Minute)); act.Kind != Advance {
 		t.Fatalf("uncapped = %s, want advance", act.Kind)
+	}
+}
+
+func TestThresholdPromotesWithStragglers(t *testing.T) {
+	// 20 devices, 19 healthy on target = 95%: meets the default gate even
+	// though one straggler never converged - the wave soaks and advances.
+	defaults := []Ring{{Group: "wave1"}, {Group: "wave2"}} // gate defaults to 95
+	s := NewState("rev-2", t0)
+	s.PromotedAt[0] = t0
+	s.ConvergedAt[0] = t0
+	act := Decide(defaults, s, RingStatus{Total: 20, OnTarget: 19, Healthy: 19, Released: 20, GroupTotal: 20}, t0.Add(2*time.Hour))
+	if act.Kind != Advance && act.Kind != AwaitApproval {
+		t.Fatalf("act = %+v, want advance/await past the straggler", act)
+	}
+}
+
+func TestPausedRunDecidesNothing(t *testing.T) {
+	s := NewState("rev-2", t0)
+	s.Status = Paused
+	act := Decide(rings, s, RingStatus{}, t0)
+	if act.Kind != Done || !strings.Contains(act.Reason, "paused") {
+		t.Fatalf("act = %+v, want inert done/paused", act)
 	}
 }

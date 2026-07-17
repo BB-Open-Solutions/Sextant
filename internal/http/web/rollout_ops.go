@@ -176,6 +176,31 @@ func (s *Server) postRolloutApprove(w http.ResponseWriter, r *http.Request, v vi
 	return nil
 }
 
+// postRolloutPause freezes the active run; postRolloutResume lifts it. The
+// operator's stop-the-world control (delivery-process §7.6) - unlike cancel
+// it keeps the run and its progress.
+func (s *Server) postRolloutPause(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	if _, err := s.svc.Rollouts.Pause(r.Context()); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	return nil
+}
+
+func (s *Server) postRolloutResume(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	if _, err := s.svc.Rollouts.Resume(r.Context()); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	return nil
+}
+
 func (s *Server) postRolloutCancel(w http.ResponseWriter, r *http.Request, v view) error {
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err

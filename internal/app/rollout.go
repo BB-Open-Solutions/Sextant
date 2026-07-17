@@ -382,8 +382,8 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 		}
 		delete(st.ConvergedAt, st.Ring)
 	case rollout.Wait:
-		// Record first full convergence so the soak clock starts.
-		if rs.Total > 0 && rs.OnTarget == rs.Total {
+		// Record the first threshold-met convergence so the soak clock starts.
+		if st.Ring < len(rings) && rings[st.Ring].Converged(rs) {
 			if _, seen := st.ConvergedAt[st.Ring]; !seen {
 				st.ConvergedAt[st.Ring] = now
 			}
@@ -408,6 +408,42 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 	s.log.Info("rollout tick", "action", string(act.Kind), "reason", act.Reason,
 		"ring", st.Ring, "status", string(st.Status))
 	return &act, st, nil
+}
+
+// Pause freezes an active run (delivery-process §7.6): the engine skips a
+// non-active run entirely, so nothing promotes, widens or moves branches
+// until Resume. Distinct from a halt: no failure, just an operator's hold.
+func (s *RolloutService) Pause(ctx context.Context) (*rollout.State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, err := s.store.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if st == nil || st.Status != rollout.Active {
+		return st, fmt.Errorf("no active rollout to pause")
+	}
+	st.Status = rollout.Paused
+	st.Reason = "paused by operator"
+	st.Updated = s.clock.Now()
+	return st, s.store.Put(ctx, st)
+}
+
+// Resume lifts an operator pause.
+func (s *RolloutService) Resume(ctx context.Context) (*rollout.State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, err := s.store.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if st == nil || st.Status != rollout.Paused {
+		return st, fmt.Errorf("no paused rollout to resume")
+	}
+	st.Status = rollout.Active
+	st.Reason = ""
+	st.Updated = s.clock.Now()
+	return st, s.store.Put(ctx, st)
 }
 
 // Run ticks the engine on an interval until ctx is cancelled. Wire it next

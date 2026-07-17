@@ -99,6 +99,11 @@
     {{if .CanOwn}}
     <div class="mt-4 flex items-center gap-2">
       <form method="post" action="/rollout/approve" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">done_all</span>{{.L.T "page.pipeline.approve_wave"}}</button></form>
+      {{if .Paused}}
+      <form method="post" action="/rollout/resume" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">play_arrow</span>{{.L.T "page.pipeline.resume"}}</button></form>
+      {{else if .Active}}
+      <form method="post" action="/rollout/pause" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5"><span class="material-symbols-outlined msz-18">pause</span>{{.L.T "page.pipeline.pause"}}</button></form>
+      {{end}}
       <form method="post" action="/rollout/cancel" class="!m-0" data-confirm="{{.L.T "page.pipeline.cancel"}}?"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5 !text-status-error">{{.L.T "page.pipeline.cancel"}}</button></form>
     </div>
     {{end}}
