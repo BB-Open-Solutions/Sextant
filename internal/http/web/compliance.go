@@ -124,7 +124,8 @@ func (s *Server) compliancePage(w http.ResponseWriter, r *http.Request, v view) 
 	// not scattered over the settings editor (Bram, 17 jul).
 	type acceptanceRow struct{ Scope, Key, Reason string }
 	var acceptances []acceptanceRow
-	scopes := []string{"org"}
+	scopes := make([]string, 1, 1+len(f.Groups)+len(f.Devices))
+	scopes[0] = "org"
 	for g := range f.Groups {
 		scopes = append(scopes, "group:"+g)
 	}
