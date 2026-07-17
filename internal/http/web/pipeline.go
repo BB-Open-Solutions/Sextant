@@ -205,6 +205,13 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 		"Active":  active,
 		"Paused":  paused,
 		"MainRev": head, "MainRelease": headRelease, "TargetRelease": targetRelease,
+		"Delivering": st != nil && st.ChangeTitle != "" && (active || paused),
+		"DeliveringTitle": func() string {
+			if st != nil {
+				return st.ChangeTitle
+			}
+			return ""
+		}(),
 		"HasPlan": f.Rollout != nil && len(f.Rollout.Rings) > 0,
 		"CanEdit": v.roleAt("org").Meets(identity.Editor),
 		"CanOwn":  v.roleAt("org").Meets(identity.Owner),

@@ -23,7 +23,7 @@ func WireAutoRollout(changes *ChangeService, rollouts *RolloutService,
 		if asr := f.Assurance; asr != nil && asr.ManualRolloutOnly {
 			return // the org chose hand-started runs
 		}
-		opts := StartOpts{}
+		opts := StartOpts{ChangeID: cr.ID, ChangeTitle: cr.Title}
 		if !cr.WholeFleet {
 			groups := deliveryGroups(f, cr.Hosts)
 			if len(groups) == 0 {

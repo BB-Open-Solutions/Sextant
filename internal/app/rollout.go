@@ -254,6 +254,8 @@ type StartOpts struct {
 	// q6: urgency shortens the soak, NEVER the evidence - the gate, the test
 	// wave and the health thresholds all still apply).
 	Expedited bool
+	// ChangeID/ChangeTitle name the change request this run delivers.
+	ChangeID, ChangeTitle string
 }
 
 // expeditedSoak is the per-wave soak of an expedited run: long enough for a
@@ -316,6 +318,7 @@ func (s *RolloutService) StartWith(ctx context.Context, target string, opts Star
 	}
 	st := rollout.NewState(target, s.clock.Now())
 	st.Rings = rings
+	st.ChangeID, st.ChangeTitle = opts.ChangeID, opts.ChangeTitle
 	return st, s.store.Put(ctx, st)
 }
 

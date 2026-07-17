@@ -67,6 +67,9 @@ func TestSavingIsRollingOut(t *testing.T) {
 	if run.Target != svc.Head(ctx) || run.Target == "" {
 		t.Fatalf("run target = %q, head = %q", run.Target, svc.Head(ctx))
 	}
+	if run.ChangeID != "office-on" || run.ChangeTitle == "" {
+		t.Fatalf("run does not name its change: %q %q", run.ChangeID, run.ChangeTitle)
+	}
 }
 
 func TestManualRolloutOnlySkipsAutoDelivery(t *testing.T) {

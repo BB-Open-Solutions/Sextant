@@ -128,6 +128,11 @@ type State struct {
 	// staging: editing the org plan mid-run must not reshuffle a rollout in
 	// flight, and a scoped run (test wave + one group) has a plan of its own.
 	Rings []Ring `json:"rings,omitempty"`
+	// ChangeID/ChangeTitle name the change request this run delivers (set by
+	// delivery-on-merge), so the board and monitor can say WHAT is rolling
+	// out - Intune's per-profile status report, wave-aware.
+	ChangeID    string `json:"changeId,omitempty"`
+	ChangeTitle string `json:"changeTitle,omitempty"`
 	// Ring is the index of the ring currently being rolled out.
 	Ring int `json:"ring"`
 	// PromotedAt records when each ring's pin was committed (keyed by ring
