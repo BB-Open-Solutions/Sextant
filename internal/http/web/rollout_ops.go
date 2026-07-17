@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
@@ -75,8 +76,15 @@ func (s *Server) postRolloutStart(w http.ResponseWriter, r *http.Request, v view
 		s.log.Warn("rollout started without the required test wave (owner skip)",
 			"by", v.User.Subject, "target", r.FormValue("target"))
 	}
-	if _, err := s.svc.Rollouts.StartScoped(r.Context(), r.FormValue("target"),
-		strings.TrimSpace(r.FormValue("scope")), webAuthor(v)); err != nil {
+	opts := app.StartOpts{
+		Scope:     strings.TrimSpace(r.FormValue("scope")),
+		Expedited: r.FormValue("expedited") == "1",
+	}
+	if opts.Expedited {
+		s.log.Warn("expedited rollout started (short soak, full evidence)",
+			"by", v.User.Subject, "target", r.FormValue("target"))
+	}
+	if _, err := s.svc.Rollouts.StartWith(r.Context(), r.FormValue("target"), opts, webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/updates/rollout", http.StatusSeeOther)

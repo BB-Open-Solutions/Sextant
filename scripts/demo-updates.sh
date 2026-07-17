@@ -40,13 +40,24 @@ podman rm -f sextant-demo-pg >/dev/null 2>&1 || true
 podman run -d --name sextant-demo-pg -p "$PG_PORT:5432" \
   -e POSTGRES_PASSWORD=demo -e POSTGRES_DB=sextant \
   docker.io/library/postgres:16-alpine >/dev/null
-for i in $(seq 1 30); do
-  podman exec sextant-demo-pg pg_isready -U postgres >/dev/null 2>&1 && break
+# Postgres restarts once during first-boot init, so a single pg_isready hit
+# can be the pre-restart instance. Require the published port AND two
+# consecutive ready checks.
+ok=0
+for i in $(seq 1 60); do
+  if (exec 3<>"/dev/tcp/127.0.0.1/$PG_PORT") 2>/dev/null &&
+     podman exec sextant-demo-pg pg_isready -U postgres >/dev/null 2>&1; then
+    ok=$((ok+1)); [ "$ok" -ge 2 ] && break
+  else
+    ok=0
+  fi
   sleep 1
 done
+[ "$ok" -ge 2 ] || { echo "postgres kwam niet op"; exit 1; }
 
 say "overlay-repo seeden met $DEVICES fake devices..."
 REPO="$DEMO_DIR/overlay"
+rm -rf "$REPO"
 mkdir -p "$REPO"
 git -C "$REPO" init -q -b main
 "$DEMO_DIR/fleetsim" -gen "$DEVICES" > "$REPO/fleet.json"
@@ -58,9 +69,13 @@ SEXTANT_REPO="$REPO" SEXTANT_GATE=none SEXTANT_ADDR="$ADDR" \
   SEXTANT_CHECKIN_TOKEN="$TOKEN" \
   SEXTANT_PG_DSN="postgres://postgres:demo@127.0.0.1:$PG_PORT/sextant?sslmode=disable" \
   SEXTANT_ORG_NAME="Demo Gemeente" \
-  "$DEMO_DIR/sextant" --dev-auth &
+  "$DEMO_DIR/sextant" --dev-auth --write &
 CONSOLE_PID=$!
-sleep 2
+for i in $(seq 1 30); do
+  curl -fsS -o /dev/null "http://$ADDR/healthz" 2>/dev/null && break
+  kill -0 "$CONSOLE_PID" 2>/dev/null || { echo "console stierf bij het opstarten (zie log hierboven)"; exit 1; }
+  sleep 1
+done
 
 say "fleet-simulator starten ($DEVICES devices, beat 10s)..."
 "$DEMO_DIR/fleetsim" -url "http://$ADDR" -token "$TOKEN" \

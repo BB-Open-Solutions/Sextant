@@ -305,3 +305,30 @@ func TestScopedRolloutSnapshotsItsOwnPlan(t *testing.T) {
 	}
 	_ = cfg
 }
+
+func TestExpeditedRunShortensSoakNotEvidence(t *testing.T) {
+	ts, _, rolloutSvc := newUpdatesConsole(t)
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"50, 50"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+	if code := postForm(t, ts, "/rollout", url.Values{
+		"target": {"feedf00d"}, "expedited": {"1"},
+	}); code != 303 {
+		t.Fatalf("expedited start = %d", code)
+	}
+	st, _, err := rolloutSvc.Status(context.Background())
+	if err != nil || st == nil {
+		t.Fatalf("status: %v (%v)", st, err)
+	}
+	for i, ring := range st.Rings {
+		if ring.SoakMinutes == 0 || ring.SoakMinutes > 5 {
+			t.Errorf("ring %d soak = %d, want 1-5 minutes", i, ring.SoakMinutes)
+		}
+	}
+	// Urgency never skips evidence: the test wave keeps its manual gate.
+	if !st.Rings[0].RequireApproval {
+		t.Error("expedited run lost the test wave's sign-off gate")
+	}
+}

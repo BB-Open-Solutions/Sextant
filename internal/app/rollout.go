@@ -242,15 +242,35 @@ func (s *RolloutService) planRings() ([]rollout.Ring, error) {
 
 // Start begins a rollout to the target revision. One run at a time.
 func (s *RolloutService) Start(ctx context.Context, target string, a ports.Author) (*rollout.State, error) {
-	return s.StartScoped(ctx, target, "", a)
+	return s.StartWith(ctx, target, StartOpts{}, a)
 }
+
+// StartOpts tunes one run without touching the org plan.
+type StartOpts struct {
+	// Scope limits the run to one group (test wave + that group).
+	Scope string
+	// Expedited shortens every wave's soak to expeditedSoak (delivery-process
+	// q6: urgency shortens the soak, NEVER the evidence - the gate, the test
+	// wave and the health thresholds all still apply).
+	Expedited bool
+}
+
+// expeditedSoak is the per-wave soak of an expedited run: long enough for a
+// broken release to start failing health checks, short enough for a security
+// fix to cross the fleet within the hour.
+const expeditedSoak = 5
 
 // StartScoped begins a rollout limited to one group: the plan's test wave
 // first (structural, delivery-process q4), then just the scoped group. An
 // empty scope rolls the full ladder. Either way the run SNAPSHOTS its wave
 // plan into the state, so editing the org plan mid-run cannot reshuffle a
 // rollout in flight.
-func (s *RolloutService) StartScoped(ctx context.Context, target, scope string, _ ports.Author) (*rollout.State, error) {
+func (s *RolloutService) StartScoped(ctx context.Context, target, scope string, a ports.Author) (*rollout.State, error) {
+	return s.StartWith(ctx, target, StartOpts{Scope: scope}, a)
+}
+
+// StartWith begins a run shaped by opts; see StartOpts.
+func (s *RolloutService) StartWith(ctx context.Context, target string, opts StartOpts, _ ports.Author) (*rollout.State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if target == "" {
@@ -261,18 +281,28 @@ func (s *RolloutService) StartScoped(ctx context.Context, target, scope string, 
 		return nil, err
 	}
 	rings := planned
-	if scope != "" {
+	if opts.Scope != "" {
 		f := s.cfg.Fleet()
-		if _, ok := f.Groups[scope]; !ok {
-			return nil, fmt.Errorf("unknown scope group %q", scope)
+		if _, ok := f.Groups[opts.Scope]; !ok {
+			return nil, fmt.Errorf("unknown scope group %q", opts.Scope)
 		}
 		test := planned[0]
-		if len(test.GroupList()) == 1 && test.GroupList()[0] == scope {
+		if len(test.GroupList()) == 1 && test.GroupList()[0] == opts.Scope {
 			// The scope IS the test group: one wave suffices.
 			rings = []rollout.Ring{test}
 		} else {
-			rings = []rollout.Ring{test, {Groups: []string{scope}, SoakMinutes: 30}}
+			rings = []rollout.Ring{test, {Groups: []string{opts.Scope}, SoakMinutes: 30}}
 		}
+	}
+	if opts.Expedited {
+		short := make([]rollout.Ring, len(rings))
+		copy(short, rings)
+		for i := range short {
+			if short[i].SoakMinutes == 0 || short[i].SoakMinutes > expeditedSoak {
+				short[i].SoakMinutes = expeditedSoak
+			}
+		}
+		rings = short
 	}
 	cur, err := s.store.Get(ctx)
 	if err != nil {

@@ -44,6 +44,9 @@
           <option value="">{{.L.T "updates.scope_fleet"}}</option>
           {{range .AllGroups}}<option value="{{.}}">{{$.L.T "updates.scope_only"}} {{.}}</option>{{end}}
         </select>
+        <label class="flex items-center gap-1.5 !normal-case !tracking-normal text-label-md text-text-secondary" title="{{.L.T "updates.expedited_hint"}}">
+          <input type="checkbox" name="expedited" value="1" class="!w-auto">{{.L.T "updates.expedited"}}
+        </label>
         <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{if .MainRelease}}Release {{.MainRelease}}{{else}}{{short .MainRev}}{{end}}</button>
       </form>
       <a href="/updates/rollout" class="btn quiet !py-1.5">{{.L.T "updates.view_rollout"}}</a>

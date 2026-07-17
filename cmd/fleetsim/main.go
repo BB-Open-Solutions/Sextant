@@ -88,15 +88,19 @@ func main() {
 		client: &http.Client{Timeout: 10 * time.Second},
 		state:  map[string]*devState{},
 	}
-	t := time.NewTicker(*interval)
+	// Spread the beats: real devices are not phase-locked, and 150 posts in
+	// one burst from one IP trips the console's rate limiter (429s that a
+	// real fleet, one IP per device, would never see). Each device gets a
+	// deterministic offset within the interval.
+	sim.spread = *interval
+	t := time.NewTicker(*interval / 10)
 	defer t.Stop()
-	sim.beat(ctx, devices) // first beat immediately
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
-			sim.beat(ctx, devices)
+		case now := <-t.C:
+			sim.slice(ctx, devices, now, *interval)
 		}
 	}
 }
@@ -120,22 +124,40 @@ type simulator struct {
 	pctSlow, pctOff, pctErr int
 	client                  *http.Client
 
-	beatN int
-	mu    sync.Mutex
-	state map[string]*devState
+	beatN    int
+	sliceN   int
+	spread   time.Duration
+	branches map[string]string
+	mu       sync.Mutex
+	state    map[string]*devState
 }
 
-// beat resolves every ring branch once, then lets each device act on it.
-func (s *simulator) beat(ctx context.Context, devices []device) {
-	s.beatN++
-	branches, err := s.ringRevs(ctx)
-	if err != nil {
-		log.Printf("ls-remote: %v", err)
+// slice runs one tenth of the beat interval: the devices whose offset falls
+// in this slice check in now, so load spreads evenly instead of bursting.
+func (s *simulator) slice(ctx context.Context, devices []device, now time.Time, interval time.Duration) {
+	s.sliceN++
+	phase := s.sliceN % 10
+	if phase == 0 {
+		s.beatN++
+		var err error
+		if s.branches, err = s.ringRevs(ctx); err != nil {
+			log.Printf("ls-remote: %v", err)
+			return
+		}
+		if s.beatN > 1 {
+			log.Printf("beat %d done", s.beatN-1)
+		}
+	}
+	branches := s.branches
+	if branches == nil {
 		return
 	}
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, 32)
+	sem := make(chan struct{}, 16)
 	for _, d := range devices {
+		if int(hash(d.Tag+"o")%10) != phase {
+			continue // not this device's slice
+		}
 		if behaviour(d.Tag, s.pctOff) && s.beatN > 3 {
 			continue // gone silent mid-run
 		}
@@ -148,7 +170,8 @@ func (s *simulator) beat(ctx context.Context, devices []device) {
 		}(d)
 	}
 	wg.Wait()
-	log.Printf("beat %d: %d devices reported", s.beatN, len(devices))
+	_ = now
+	_ = interval
 }
 
 func (s *simulator) beatOne(ctx context.Context, d device, branches map[string]string) {
