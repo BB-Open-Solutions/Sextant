@@ -64,6 +64,12 @@ func (s *UpstreamService) CheckOnce(ctx context.Context) error {
 	if head == last {
 		return nil
 	}
+	if last == "" {
+		// First run: adopt the current upstream head as the baseline instead
+		// of staging a "core update" that is not one.
+		s.log.Info("upstream baseline recorded", "rev", head)
+		return s.seen.PutUpstream(ctx, head)
+	}
 	short := head
 	if len(short) > 12 {
 		short = short[:12]

@@ -31,10 +31,20 @@ func TestUpstreamWatcherStagesOneCRPerRelease(t *testing.T) {
 		&memUpstream{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	ctx := context.Background()
+	// First check adopts the current head as baseline: no CR for a
+	// "release" that is merely the existing state.
 	if err := svc.CheckOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(opened) != 1 || opened[0] != "core-aaaaaaaaaaaa|Core update aaaaaaaaaaaa" {
+	if len(opened) != 0 {
+		t.Fatalf("baseline sync staged a CR: %v", opened)
+	}
+	// A subsequent new head IS a release.
+	head = "1111111111111111111111111111111111111111"
+	if err := svc.CheckOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 1 || opened[0] != "core-111111111111|Core update 111111111111" {
 		t.Fatalf("opened = %v", opened)
 	}
 	// Same head again: nothing new to stage.
@@ -55,7 +65,8 @@ func TestUpstreamWatcherStagesOneCRPerRelease(t *testing.T) {
 }
 
 func TestUpstreamWatcherSurvivesExistingCR(t *testing.T) {
-	seen := &memUpstream{}
+	// A baseline is already known, so the new head takes the CR path.
+	seen := &memUpstream{rev: "0000000000000000000000000000000000000000"}
 	svc := NewUpstreamService("https://example/core.git",
 		func(context.Context, string) (string, error) {
 			return "cccccccccccccccccccccccccccccccccccccccc", nil
@@ -70,7 +81,7 @@ func TestUpstreamWatcherSurvivesExistingCR(t *testing.T) {
 	if err := svc.CheckOnce(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if seen.rev == "" {
-		t.Fatal("existing CR did not mark the revision as handled")
+	if seen.rev != "cccccccccccccccccccccccccccccccccccccccc" {
+		t.Fatalf("existing CR did not mark the revision as handled: %q", seen.rev)
 	}
 }
