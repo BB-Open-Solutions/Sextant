@@ -58,6 +58,8 @@ func firmwareKey(hardware string) string {
 		return "F2"
 	case strings.Contains(h, "hp") || strings.Contains(h, "elitebook"):
 		return "F10"
+	case strings.Contains(h, "dell") || strings.Contains(h, "latitude") || strings.Contains(h, "optiplex"):
+		return "F2"
 	default:
 		return ""
 	}
