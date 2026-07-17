@@ -10,6 +10,7 @@
     <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "wizard.subtitle"}} <span class="font-mono text-ink">{{.Station}}</span></p>
   </div>
 
+  <div id="wizard-live" class="flex flex-col gap-6">
   <!-- Phase stepper -->
   <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
     <div class="flex flex-wrap items-center gap-3">
@@ -19,11 +20,10 @@
       <span class="material-symbols-outlined text-border-hairline">arrow_forward</span>
       {{template "wizStep" (list "3" (.L.T "wizard.phase_tpm2") .PhaseTPM2)}}
       <span class="material-symbols-outlined text-border-hairline">arrow_forward</span>
-      {{template "wizStep" (list "4" (.L.T "wizard.phase_done") false)}}
+      {{template "wizStep" (list "4" (.L.T "wizard.phase_done") .PhaseDone)}}
     </div>
   </div>
 
-  <div id="wizard-live" class="flex flex-col gap-6">
   {{if .NeedFirmware}}
   <!-- Manual firmware action: shown once while any device is in the Secure Boot phase -->
   <div class="relative overflow-hidden rounded-lg border border-status-warn/40 bg-canvas p-6 shadow-sm">

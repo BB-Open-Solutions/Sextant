@@ -126,7 +126,12 @@ func (s *Server) enrollWizard(w http.ResponseWriter, r *http.Request, v view) {
 
 	secretsEnabled := s.svc.DeviceSecrets.Enabled()
 	rows := make([]wizardRow, 0, len(jobs))
-	active := map[string]bool{} // which phases still have an unfinished device
+	// The stepper shows cumulative progress: a phase lights up once ANY
+	// device has reached or passed it, so a device that flies through a
+	// phase between two polls still leaves its trail. (The old "phase has an
+	// unfinished device" rule left later steps dark forever.)
+	phaseRank := map[string]int{"install": 1, "secureboot": 2, "tpm2": 3, "done": 4}
+	furthest := 0
 	var needFirmware bool
 	for _, j := range jobs {
 		st := j.Status
@@ -155,8 +160,8 @@ func (s *Server) enrollWizard(w http.ResponseWriter, r *http.Request, v view) {
 		if st == imaging.SBPending {
 			needFirmware = true
 		}
-		if !st.Terminal() && st != imaging.Failed && st != imaging.Canceled {
-			active[st.Phase()] = true
+		if r := phaseRank[st.Phase()]; r > furthest {
+			furthest = r
 		}
 		rows = append(rows, row)
 	}
@@ -168,10 +173,11 @@ func (s *Server) enrollWizard(w http.ResponseWriter, r *http.Request, v view) {
 		"CanEdit":      v.roleAt("org").Meets(identity.Editor),
 		"CanReveal":    v.roleAt("org").Meets(identity.Owner),
 		"NeedFirmware": needFirmware,
-		// Stepper phase flags: a phase is "active" if any device is still in it.
-		"PhaseInstall": active["install"],
-		"PhaseSB":      active["secureboot"],
-		"PhaseTPM2":    active["tpm2"],
+		// Stepper phase flags: cumulative - lit once reached or passed.
+		"PhaseInstall": furthest >= 1,
+		"PhaseSB":      furthest >= 2,
+		"PhaseTPM2":    furthest >= 3,
+		"PhaseDone":    furthest >= 4,
 	}
 	s.render(w, "wizard", data, v)
 }
