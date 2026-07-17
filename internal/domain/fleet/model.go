@@ -73,6 +73,10 @@ type Assurance struct {
 	// wave (a first ring with a manual approval gate). An org owner may skip
 	// it for a specific rollout ("hoeft niet, direct doorvoeren").
 	RequireTestWave bool `json:"requireTestWave,omitempty"`
+	// ManualRolloutOnly opts OUT of delivery-on-merge: with it set, merging a
+	// change stages nothing and an operator starts every run by hand. Off by
+	// default - saving IS rolling out (through the waves).
+	ManualRolloutOnly bool `json:"manualRolloutOnly,omitempty"`
 }
 
 // HasTestGate reports whether the rollout plan has a gated test wave: a ring

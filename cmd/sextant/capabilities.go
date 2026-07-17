@@ -272,6 +272,9 @@ func (d *deps) buildConfigPlane() error {
 	}
 	d.evidence = app.NewEvidenceService(svc, d.changes, clock)
 	d.background(func() { d.rollouts.Run(d.ctx, 30*time.Second) })
+	// Saving IS rolling out (Intune model, waves underneath): a merged change
+	// starts its own scoped delivery unless the org opted for manual runs.
+	app.WireAutoRollout(d.changes, d.rollouts, svc, d.notify, cfg.OwnerGroups, log)
 	if cfg.UpstreamRepo != "" {
 		up := app.NewUpstreamService(cfg.UpstreamRepo, git.RemoteHead, d.changes.Open,
 			st.Upstream(), log).WithNotifier(d.notify, cfg.OwnerGroups)

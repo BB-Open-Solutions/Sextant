@@ -53,6 +53,8 @@ type ChangeService struct {
 	notifier  Notifier
 	approvers []string
 
+	afterMerge func(ctx context.Context, cr change.CR)
+
 	mu sync.Mutex // serializes the whole change flow (branch/worktree ops)
 }
 
@@ -61,6 +63,16 @@ func NewChangeService(repo ChangeRepo, store ports.ChangeStore, gate ports.Gate,
 	builder ports.Builder, clock ports.Clock, open OpenWorktree, cfg *ConfigService) *ChangeService {
 	return &ChangeService{repo: repo, store: store, gate: gate,
 		builder: builder, clock: clock, open: open, cfg: cfg}
+}
+
+// WithAfterMerge registers a callback that runs after a change fully merges
+// (and, with a remote, pushes). Best-effort by design: the merge itself is
+// already durable, so the callback logs its own failures. The auto-rollout
+// wiring uses this to start the delivery run (Intune's "saving IS rolling
+// out", with our waves underneath).
+func (s *ChangeService) WithAfterMerge(fn func(ctx context.Context, cr change.CR)) *ChangeService {
+	s.afterMerge = fn
+	return s
 }
 
 // WithNotifier attaches in-app notifications to the change flow. approvers are
@@ -307,8 +319,11 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 			Recipient: cr.AuthorSubject, Kind: notify.ChangeMerged,
 			Title: fmt.Sprintf("Merged: %s", cr.Title),
 			Body:  fmt.Sprintf("%s approved and merged your change. It will roll out with the next release.", a.Name),
-			Link:  "/pipeline",
+			Link:  "/updates",
 		})
+	}
+	if s.afterMerge != nil {
+		s.afterMerge(ctx, cr)
 	}
 	return cr, nil
 }

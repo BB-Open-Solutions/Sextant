@@ -76,9 +76,9 @@ func (s *Server) postRolloutStart(w http.ResponseWriter, r *http.Request, v view
 		s.log.Warn("rollout started without the required test wave (owner skip)",
 			"by", v.User.Subject, "target", r.FormValue("target"))
 	}
-	opts := app.StartOpts{
-		Scope:     strings.TrimSpace(r.FormValue("scope")),
-		Expedited: r.FormValue("expedited") == "1",
+	opts := app.StartOpts{Expedited: r.FormValue("expedited") == "1"}
+	if sc := strings.TrimSpace(r.FormValue("scope")); sc != "" {
+		opts.Groups = []string{sc}
 	}
 	if opts.Expedited {
 		s.log.Warn("expedited rollout started (short soak, full evidence)",
@@ -193,6 +193,7 @@ func (s *Server) orgUpdatesPage(w http.ResponseWriter, r *http.Request, v view) 
 		data["RequireFourEyes"] = f.Assurance.RequireFourEyes
 		data["RequireChangeRequest"] = f.Assurance.RequireChangeRequest
 		data["RequireTestWave"] = f.Assurance.RequireTestWave
+		data["ManualRolloutOnly"] = f.Assurance.ManualRolloutOnly
 	}
 	s.render(w, "org_updates", data, v)
 }

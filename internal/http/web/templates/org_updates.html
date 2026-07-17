@@ -79,6 +79,8 @@
           <span><span class="block text-label-md font-medium text-ink">{{.L.T "page.pipeline.g_four_eyes"}}</span><span class="block text-body-sm text-text-tertiary">{{.L.T "page.pipeline.g_four_eyes_desc"}}</span></span></label>
         <label class="flex items-start gap-3 py-3 !normal-case !tracking-normal"><input type="checkbox" name="requireTestWave" value="1" {{if .RequireTestWave}}checked{{end}} class="!mt-0.5 !w-auto">
           <span><span class="block text-label-md font-medium text-ink">{{.L.T "page.pipeline.g_test_wave"}}</span><span class="block text-body-sm text-text-tertiary">{{.L.T "page.pipeline.g_test_wave_desc"}}</span></span></label>
+        <label class="flex items-start gap-3 py-3 !normal-case !tracking-normal"><input type="checkbox" name="manualRolloutOnly" value="1" {{if .ManualRolloutOnly}}checked{{end}} class="!mt-0.5 !w-auto">
+          <span><span class="block text-label-md font-medium text-ink">{{.L.T "page.pipeline.g_manual_only"}}</span><span class="block text-body-sm text-text-tertiary">{{.L.T "page.pipeline.g_manual_only_desc"}}</span></span></label>
       </div>
       <button type="submit" class="mt-4 w-full">{{.L.T "page.pipeline.save_governance"}}</button>
     </form>

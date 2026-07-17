@@ -82,6 +82,7 @@ func (s *Server) postAssurance(w http.ResponseWriter, r *http.Request, v view) e
 		RequireFourEyes:      r.FormValue("requireFourEyes") != "",
 		RequireChangeRequest: r.FormValue("requireChangeRequest") != "",
 		RequireTestWave:      r.FormValue("requireTestWave") != "",
+		ManualRolloutOnly:    r.FormValue("manualRolloutOnly") != "",
 	}
 	msg := fmt.Sprintf("assurance: four-eyes=%v change-request=%v test-wave=%v",
 		a.RequireFourEyes, a.RequireChangeRequest, a.RequireTestWave)
