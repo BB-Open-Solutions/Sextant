@@ -156,6 +156,11 @@ spec:
             {{- with .Values.defaultLocale }}
             - { name: SEXTANT_DEFAULT_LOCALE, value: {{ . | quote }} }
             {{- end }}
+            {{- with .Values.upstreamRepo }}
+            # Core image repository the upstream watcher polls: a new HEAD
+            # stages a core-update change request (delivery-process q5/§9).
+            - { name: SEXTANT_UPSTREAM_REPO, value: {{ . | quote }} }
+            {{- end }}
             {{- with .Values.defaultTimezone }}
             - { name: SEXTANT_DEFAULT_TIMEZONE, value: {{ . | quote }} }
             {{- end }}

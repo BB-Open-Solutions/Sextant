@@ -98,6 +98,7 @@ orgName: "" # the organisation's display name (the scope tree's root); empty = "
 releaseCache: false
 defaultLocale: "" # en|nl; empty = en
 defaultTimezone: "" # IANA name; empty = UTC
+upstreamRepo: "" # core image repo the upstream watcher polls; empty disables it
 
 # Optional LDAP directory browse (group pickers). The app runs fully
 # without it: empty url leaves the surface off and access bindings stay
