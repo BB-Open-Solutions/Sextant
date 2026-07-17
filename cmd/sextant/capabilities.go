@@ -19,6 +19,7 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 
 	gateadapter "code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/gate"
@@ -341,6 +342,20 @@ func (d *deps) observedCapability() capability.Capability {
 					return d.imaging.WizardIntent(ctx, tag)
 				}).
 				WithProvision(func(ctx context.Context, c observed.CheckIn) error {
+					// A confirmed reboot retires its own intent: the executor's
+					// boot-id guard prevents a loop within one boot, but the
+					// standing intent would re-trigger on the next one. The
+					// clear is structural (intent is runtime data, not build
+					// input) and rides the check-in that carried the ack.
+					if c.Ack == observed.AckRebooted &&
+						d.svc.Fleet().Devices[c.Tag].Intent == fleet.IntentReboot {
+						if err := d.svc.ApplyStructural(ctx,
+							fleet.ClearDeviceIntent(c.Tag),
+							"intent: reboot completed on "+c.Tag,
+							ports.Author{Name: "sextant-agent", Email: "agent@sextant"}); err != nil {
+							d.log.Warn("could not clear completed reboot intent", "tag", c.Tag, "err", err)
+						}
+					}
 					if d.imaging == nil {
 						return nil
 					}
