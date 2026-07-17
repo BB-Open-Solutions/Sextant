@@ -35,9 +35,15 @@
       {{if or .Active .Paused}}
       <a href="/updates/rollout" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">monitoring</span>{{.L.T "updates.view_rollout"}}</a>
       {{else if .CanOwn}}
-      <form method="post" action="/rollout" class="!m-0">
+      <form method="post" action="/rollout" class="!m-0 !flex-row !items-center gap-2">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <input type="hidden" name="target" value="{{.MainRev}}">
+        <!-- Scope: a fleet-wide update walks the whole ladder; a scoped
+             change gets the test wave plus just its group. -->
+        <select name="scope" class="!w-auto" title="{{.L.T "updates.scope_label"}}">
+          <option value="">{{.L.T "updates.scope_fleet"}}</option>
+          {{range .AllGroups}}<option value="{{.}}">{{$.L.T "updates.scope_only"}} {{.}}</option>{{end}}
+        </select>
         <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{if .MainRelease}}Release {{.MainRelease}}{{else}}{{short .MainRev}}{{end}}</button>
       </form>
       <a href="/updates/rollout" class="btn quiet !py-1.5">{{.L.T "updates.view_rollout"}}</a>

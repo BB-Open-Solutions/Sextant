@@ -64,10 +64,24 @@ func nowKeyForWave(status string) string {
 // shared by the Updates overview and the rollout monitoring page.
 func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus, active bool) []waveCol {
 	var waves []waveCol
-	if f.Rollout == nil {
+	// A run renders its own snapshotted plan (a scoped run's plan differs
+	// from the org ladder); the configured plan is the idle fallback.
+	var rings []rollout.Ring
+	switch {
+	case st != nil && len(st.Rings) > 0:
+		rings = st.Rings
+	case f.Rollout != nil:
+		for _, r := range f.Rollout.Rings {
+			rings = append(rings, rollout.Ring{
+				Group: r.Group, Groups: r.Groups, Name: r.Name,
+				RequireApproval: r.RequireApproval,
+			})
+		}
+	}
+	if len(rings) == 0 {
 		return nil
 	}
-	for i, rr := range f.Rollout.Rings {
+	for i, rr := range rings {
 		col := waveCol{Index: i, Label: rr.Label(), Groups: rr.GroupList(), Manual: rr.RequireApproval}
 		if i < len(ringStatus) {
 			col.OnTarget, col.Total = ringStatus[i].OnTarget, ringStatus[i].Total

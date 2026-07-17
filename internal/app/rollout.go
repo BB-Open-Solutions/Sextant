@@ -208,8 +208,18 @@ func (s *RolloutService) FollowHead(ctx context.Context) error {
 	return nil
 }
 
-// rings reads the ring plan from the fleet document.
-func (s *RolloutService) rings() ([]rollout.Ring, error) {
+// runRings is the wave plan of a run: its own snapshot when it carries one
+// (every run started since snapshots landed), the fleet plan otherwise
+// (older persisted runs).
+func (s *RolloutService) runRings(st *rollout.State) ([]rollout.Ring, error) {
+	if st != nil && len(st.Rings) > 0 {
+		return st.Rings, nil
+	}
+	return s.planRings()
+}
+
+// planRings reads the configured ring plan from the fleet document.
+func (s *RolloutService) planRings() ([]rollout.Ring, error) {
 	f := s.cfg.Fleet()
 	if f.Rollout == nil || len(f.Rollout.Rings) == 0 {
 		return nil, fmt.Errorf("no rollout rings configured (fleet.rollout.rings)")
@@ -231,14 +241,38 @@ func (s *RolloutService) rings() ([]rollout.Ring, error) {
 }
 
 // Start begins a rollout to the target revision. One run at a time.
-func (s *RolloutService) Start(ctx context.Context, target string, _ ports.Author) (*rollout.State, error) {
+func (s *RolloutService) Start(ctx context.Context, target string, a ports.Author) (*rollout.State, error) {
+	return s.StartScoped(ctx, target, "", a)
+}
+
+// StartScoped begins a rollout limited to one group: the plan's test wave
+// first (structural, delivery-process q4), then just the scoped group. An
+// empty scope rolls the full ladder. Either way the run SNAPSHOTS its wave
+// plan into the state, so editing the org plan mid-run cannot reshuffle a
+// rollout in flight.
+func (s *RolloutService) StartScoped(ctx context.Context, target, scope string, _ ports.Author) (*rollout.State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if target == "" {
 		return nil, fmt.Errorf("rollout needs a target revision")
 	}
-	if _, err := s.rings(); err != nil {
+	planned, err := s.planRings()
+	if err != nil {
 		return nil, err
+	}
+	rings := planned
+	if scope != "" {
+		f := s.cfg.Fleet()
+		if _, ok := f.Groups[scope]; !ok {
+			return nil, fmt.Errorf("unknown scope group %q", scope)
+		}
+		test := planned[0]
+		if len(test.GroupList()) == 1 && test.GroupList()[0] == scope {
+			// The scope IS the test group: one wave suffices.
+			rings = []rollout.Ring{test}
+		} else {
+			rings = []rollout.Ring{test, {Groups: []string{scope}, SoakMinutes: 30}}
+		}
 	}
 	cur, err := s.store.Get(ctx)
 	if err != nil {
@@ -248,6 +282,7 @@ func (s *RolloutService) Start(ctx context.Context, target string, _ ports.Autho
 		return nil, fmt.Errorf("a rollout to %s is already active", cur.Target)
 	}
 	st := rollout.NewState(target, s.clock.Now())
+	st.Rings = rings
 	return st, s.store.Put(ctx, st)
 }
 
@@ -257,11 +292,11 @@ func (s *RolloutService) Status(ctx context.Context) (*rollout.State, []rollout.
 	if err != nil || st == nil {
 		return st, nil, err
 	}
-	rings, err := s.rings()
+	rings, err := s.runRings(st)
 	if err != nil {
-		//nolint:nilerr // deliberate degrade: the wave plan changed under a
-		// running rollout, so ring convergence cannot be computed, but the
-		// run's own state is still valid and must render rather than 500.
+		//nolint:nilerr // deliberate degrade: an old run without a snapshot
+		// whose fleet plan disappeared cannot compute ring convergence, but
+		// the run's own state is still valid and must render rather than 500.
 		return st, nil, nil
 	}
 	statuses := make([]rollout.RingStatus, len(rings))
@@ -345,7 +380,7 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 		return nil, st, nil // nothing to do
 	}
 	st.Normalize() // stored state may have lost empty maps to omitempty
-	rings, err := s.rings()
+	rings, err := s.runRings(st)
 	if err != nil {
 		return nil, st, err
 	}

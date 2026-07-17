@@ -124,6 +124,10 @@ const (
 type State struct {
 	// Target is the revision every ring converges to.
 	Target string `json:"target"`
+	// Rings is the run's own wave plan, snapshotted at start. A run owns its
+	// staging: editing the org plan mid-run must not reshuffle a rollout in
+	// flight, and a scoped run (test wave + one group) has a plan of its own.
+	Rings []Ring `json:"rings,omitempty"`
 	// Ring is the index of the ring currently being rolled out.
 	Ring int `json:"ring"`
 	// PromotedAt records when each ring's pin was committed (keyed by ring

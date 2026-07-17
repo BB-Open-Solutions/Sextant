@@ -254,3 +254,54 @@ func TestPipelineAndRolloutRedirectToUpdates(t *testing.T) {
 		}
 	}
 }
+
+func TestScopedRolloutSnapshotsItsOwnPlan(t *testing.T) {
+	ts, cfg, rolloutSvc := newUpdatesConsole(t)
+
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"50, 50"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+	// A change scoped to one group: test wave plus just that group.
+	if code := postForm(t, ts, "/rollout", url.Values{
+		"target": {"cafebabe"}, "scope": {"mid"},
+	}); code != 303 {
+		t.Fatalf("scoped start = %d", code)
+	}
+	st, _, err := rolloutSvc.Status(context.Background())
+	if err != nil || st == nil {
+		t.Fatalf("status: %v (%v)", st, err)
+	}
+	if len(st.Rings) != 2 {
+		t.Fatalf("scoped run rings = %+v, want test wave + scope", st.Rings)
+	}
+	if st.Rings[0].Group != "test" || !st.Rings[0].RequireApproval {
+		t.Errorf("ring 0 = %+v, want the gated test wave", st.Rings[0])
+	}
+	if got := st.Rings[1].GroupList(); len(got) != 1 || got[0] != "mid" {
+		t.Errorf("ring 1 = %v, want [mid]", got)
+	}
+
+	// The run owns its snapshot: rewriting the org ladder mid-run must not
+	// reshuffle the waves the monitor shows.
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"tiny"}, "percents": {"100"},
+	}); code != 303 {
+		t.Fatalf("replan = %d", code)
+	}
+	if _, page := getPage(t, ts, "/updates/rollout"); !strings.Contains(page, "mid") {
+		t.Error("monitor lost the scoped run's own waves after a replan")
+	}
+	if code := postForm(t, ts, "/rollout/cancel", url.Values{}); code != 303 {
+		t.Fatalf("cancel = %d", code)
+	}
+
+	// An unknown scope group is refused.
+	if code := postForm(t, ts, "/rollout", url.Values{
+		"target": {"cafebabe"}, "scope": {"ghost"},
+	}); code != 400 {
+		t.Errorf("ghost scope = %d, want 400", code)
+	}
+	_ = cfg
+}

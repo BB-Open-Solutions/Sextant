@@ -75,7 +75,8 @@ func (s *Server) postRolloutStart(w http.ResponseWriter, r *http.Request, v view
 		s.log.Warn("rollout started without the required test wave (owner skip)",
 			"by", v.User.Subject, "target", r.FormValue("target"))
 	}
-	if _, err := s.svc.Rollouts.Start(r.Context(), r.FormValue("target"), webAuthor(v)); err != nil {
+	if _, err := s.svc.Rollouts.StartScoped(r.Context(), r.FormValue("target"),
+		strings.TrimSpace(r.FormValue("scope")), webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/updates/rollout", http.StatusSeeOther)
