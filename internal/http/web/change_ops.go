@@ -120,6 +120,6 @@ func (s *Server) postRolloutPlan(w http.ResponseWriter, r *http.Request, v view)
 	if err := s.applyGated(r, v, fleet.SetRolloutPlan(plan), msg); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	http.Redirect(w, r, "/org/updates", http.StatusSeeOther)
 	return nil
 }

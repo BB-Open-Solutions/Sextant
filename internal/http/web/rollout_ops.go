@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
@@ -120,6 +121,81 @@ func (s *Server) postRolloutCancel(w http.ResponseWriter, r *http.Request, v vie
 		return err
 	}
 	http.Redirect(w, r, "/pipeline", http.StatusSeeOther)
+	return nil
+}
+
+// orgUpdatesPage is the set-and-forget home of update policy (org tile):
+// the simple form (pick the test group, the rest derives), governance, and
+// the hand-authored ladder tucked under "advanced". The Updates overview
+// and the rollout monitor stay purely operational.
+func (s *Server) orgUpdatesPage(w http.ResponseWriter, r *http.Request, v view) {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	f := s.svc.Config.Fleet()
+	data := map[string]any{
+		"Title": "Update policy", "Nav": "org",
+		"CanOwn": true,
+	}
+	for k, val := range rolloutPlanData(f) {
+		data[k] = val
+	}
+	if f.Rollout != nil && len(f.Rollout.Rings) > 0 {
+		data["TestGroup"] = f.Rollout.Rings[0].Group
+		st, ringStatus, _ := s.svc.Rollouts.Status(r.Context())
+		active := st != nil && st.Status == rollout.Active
+		data["Waves"] = waveCols(f, st, ringStatus, active)
+	}
+	if f.Assurance != nil {
+		data["RequireFourEyes"] = f.Assurance.RequireFourEyes
+		data["RequireChangeRequest"] = f.Assurance.RequireChangeRequest
+		data["RequireTestWave"] = f.Assurance.RequireTestWave
+	}
+	s.render(w, "org_updates", data, v)
+}
+
+// postUpdatesPolicy derives the whole wave plan from one choice: the test
+// group. Ring 0 = that group, manual approval, an hour of soak; every other
+// group becomes a wave (smallest first - blast radius grows with confidence)
+// with the opinionated defaults (30 min soak, 95% threshold). The ladder
+// under "advanced" overwrites this for the rare hand-authored plan.
+func (s *Server) postUpdatesPolicy(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	test := strings.TrimSpace(r.FormValue("testgroup"))
+	f := s.svc.Config.Fleet()
+	if _, ok := f.Groups[test]; !ok {
+		return fmt.Errorf("unknown test group %q", test)
+	}
+	plan := &fleet.RolloutPolicy{Rings: []fleet.RolloutRing{{
+		Group: test, Name: "Testgroep", RequireApproval: true, SoakMinutes: 60,
+	}}}
+	type gs struct {
+		name string
+		n    int
+	}
+	var rest []gs
+	for g := range f.Groups {
+		if g == test {
+			continue
+		}
+		rest = append(rest, gs{g, len(f.ActiveGroupDevices(g))})
+	}
+	sort.Slice(rest, func(i, j int) bool {
+		if rest[i].n != rest[j].n {
+			return rest[i].n < rest[j].n
+		}
+		return rest[i].name < rest[j].name
+	})
+	for _, g := range rest {
+		plan.Rings = append(plan.Rings, fleet.RolloutRing{Group: g.name, SoakMinutes: 30})
+	}
+	if err := s.applyGated(r, v, fleet.SetRolloutPlan(plan), "rollout: derive plan from test group "+test); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/org/updates", http.StatusSeeOther)
 	return nil
 }
 

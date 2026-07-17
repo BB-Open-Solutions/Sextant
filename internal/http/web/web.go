@@ -86,7 +86,7 @@ func (s *Server) SetOrgName(name string) {
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
 	funcs := templateFuncs()
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "org_updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -132,6 +132,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	})
 	get("/changes/{id}/diff", s.diffPage)
 	get("/updates", s.updatesPage)
+	get("/org/updates", s.orgUpdatesPage)
+	post("/org/updates/policy", s.postUpdatesPolicy)
 	get("/updates/rollout", s.rolloutMonitorPage)
 	// The old names live on as redirects; the WORD pipeline left the UI.
 	get("/pipeline", func(w http.ResponseWriter, r *http.Request, _ view) {

@@ -37,6 +37,11 @@
   </a>
   {{end}}
   {{if .CanOrgOwn}}
+  <a href="/org/updates" class="group flex flex-col gap-2 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm transition-colors hover:border-mint-deep/40 hover:bg-surface-bright">
+    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-container text-ink"><span class="material-symbols-outlined">conveyor_belt</span></span>
+    <span class="font-semibold text-ink">{{.L.T "orgupd.title"}}</span>
+    <span class="text-body-sm text-text-tertiary">{{.L.T "orgupd.tile_desc"}}</span>
+  </a>
   <a href="/station" class="group flex flex-col gap-2 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm transition-colors hover:border-mint-deep/40 hover:bg-surface-bright">
     <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-highest text-text-secondary group-hover:text-mint-deep"><span class="material-symbols-outlined msz-20">lan</span></span>
     <span class="mt-1 text-label-md font-bold text-ink">{{.L.T "nav.stations"}}</span>

@@ -88,6 +88,6 @@ func (s *Server) postAssurance(w http.ResponseWriter, r *http.Request, v view) e
 	if err := s.svc.Config.ApplyStructural(r.Context(), fleet.SetAssurance(a), msg, webAuthor(v)); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/access", http.StatusSeeOther)
+	http.Redirect(w, r, "/org/updates", http.StatusSeeOther)
 	return nil
 }
