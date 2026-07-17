@@ -27,22 +27,49 @@
       <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
         <h2 class="mt-0 mb-1 flex items-center gap-2 text-label-md font-bold text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-body-sm text-canvas">2</span>{{.L.T "orgupd.ladder_title"}}</h2>
         <p class="muted mb-4">{{.L.T "orgupd.ladder_desc"}}</p>
-        <div class="flex max-w-md flex-col gap-1"><label>{{.L.T "orgupd.percents_label"}}</label>
-          <input name="percents" value="{{.Percents}}" placeholder="10, 30, 60">
-          <p class="muted mb-0 mt-1 text-body-sm">{{.L.T "orgupd.percents_hint"}}</p></div>
+        <label class="mb-2 block">{{.L.T "orgupd.percents_label"}}</label>
+        <!-- Preset chips: radios styled as pills; "custom" reveals the free
+             field. The server prefers a non-empty custom value (percents)
+             over the chosen preset (percentsPreset). -->
+        <div class="flex flex-wrap items-center gap-2">
+          {{$preset := .Percents}}
+          {{range $p := .Presets}}
+          <label class="cursor-pointer !normal-case !tracking-normal">
+            <input type="radio" name="percentsPreset" value="{{$p}}" {{if eq $p $preset}}checked{{end}} class="peer sr-only">
+            <span class="inline-block rounded-full border border-border-hairline px-4 py-1.5 text-label-md text-text-secondary transition-colors peer-checked:border-mint-vibrant peer-checked:bg-mint-vibrant/10 peer-checked:font-semibold peer-checked:text-ink">{{$p}}</span>
+          </label>
+          {{end}}
+          <input name="percents" value="{{if .IsCustom}}{{.Percents}}{{end}}" placeholder="{{.L.T "orgupd.custom_placeholder"}}" class="!w-48 rounded-full">
+        </div>
+        <p class="muted mb-0 mt-2 text-body-sm">{{.L.T "orgupd.percents_hint"}}</p>
         <button type="submit" class="btn mt-4"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "orgupd.save_basic"}}</button>
 
         {{if .PlanWaves}}
         <div class="mt-5 border-t border-border-soft pt-4">
           <h3 class="mt-0 mb-2 text-label-xs-caps uppercase text-text-tertiary">{{.L.T "orgupd.plan_preview"}}</h3>
-          <div class="flex flex-col gap-2">
-            {{range $i, $w := .PlanWaves}}
-            <div class="flex items-center gap-3 rounded-md border {{if eq $i 0}}border-mint-vibrant/40 bg-mint-vibrant/5{{else}}border-border-soft{{end}} px-3 py-2">
-              <span class="tag {{if eq $i 0}}ok{{end}} shrink-0">{{$w.Label}}{{if $w.Manual}} <span class="material-symbols-outlined msz-14" title="{{$.L.T "rollout.require_approval"}}">how_to_reg</span>{{end}}</span>
-              <span class="min-w-0 flex-1 truncate text-body-sm text-text-tertiary" title="{{$w.Groups}}">{{$w.Groups}}</span>
-              <span class="shrink-0 text-label-md text-ink">{{$w.Devices}} {{$.L.T "orgupd.wave_devices"}}{{if $i}} · {{$w.Share}}%{{end}}</span>
-            </div>
-            {{end}}
+          <div class="overflow-x-auto rounded-md border border-border-soft">
+            <table class="w-full border-collapse text-left">
+              <thead>
+                <tr class="border-b border-border-soft bg-surface-bright text-label-xs-caps uppercase text-text-tertiary">
+                  <th class="px-3 py-2 font-semibold">{{.L.T "orgupd.col_wave"}}</th>
+                  <th class="px-3 py-2 font-semibold">{{.L.T "orgupd.col_groups"}}</th>
+                  <th class="px-3 py-2 text-right font-semibold">{{.L.T "orgupd.wave_devices"}}</th>
+                  <th class="px-3 py-2 text-right font-semibold">{{.L.T "orgupd.col_share"}}</th>
+                </tr>
+              </thead>
+              <tbody class="text-body-sm">
+                {{range $i, $w := .PlanWaves}}
+                <tr class="{{if eq $i 0}}bg-mint-vibrant/5{{end}} border-b border-border-soft last:border-b-0">
+                  <td class="whitespace-nowrap px-3 py-2 font-medium text-ink">{{$w.Label}}{{if $w.Manual}} <span class="material-symbols-outlined msz-14 align-middle text-mint-deep" title="{{$.L.T "rollout.require_approval"}}">how_to_reg</span>{{end}}</td>
+                  <td class="max-w-xs truncate px-3 py-2 text-text-tertiary" title="{{$w.Groups}}">{{$w.Groups}}</td>
+                  <td class="whitespace-nowrap px-3 py-2 text-right text-ink">{{$w.Devices}}</td>
+                  <td class="whitespace-nowrap px-3 py-2 text-right">
+                    {{if $i}}<span class="inline-flex items-center gap-2"><span class="inline-block h-1.5 w-16 overflow-hidden rounded-full bg-surface-container"><span class="block h-full rounded-full bg-mint-vibrant" style="width: {{$w.Share}}%"></span></span><span class="text-ink">{{$w.Share}}%</span></span>{{else}}<span class="text-text-tertiary">—</span>{{end}}
+                  </td>
+                </tr>
+                {{end}}
+              </tbody>
+            </table>
           </div>
           <p class="muted mb-0 mt-2 text-body-sm">{{.L.T "orgupd.derived_hint"}}</p>
         </div>

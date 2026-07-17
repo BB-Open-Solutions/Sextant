@@ -163,8 +163,17 @@ func (s *Server) orgUpdatesPage(w http.ResponseWriter, r *http.Request, v view) 
 			}
 			shares = append(shares, strconv.Itoa(row.Share))
 		}
-		data["Percents"] = strings.Join(shares, ", ")
+		cur := strings.Join(shares, ", ")
+		data["Percents"] = cur
+		custom := true
+		for _, pr := range percentPresets {
+			if pr == cur {
+				custom = false
+			}
+		}
+		data["IsCustom"] = custom
 	}
+	data["Presets"] = percentPresets
 	if f.Assurance != nil {
 		data["RequireFourEyes"] = f.Assurance.RequireFourEyes
 		data["RequireChangeRequest"] = f.Assurance.RequireChangeRequest
@@ -187,7 +196,11 @@ func (s *Server) postUpdatesPolicy(w http.ResponseWriter, r *http.Request, v vie
 	if _, ok := f.Groups[test]; !ok {
 		return fmt.Errorf("unknown test group %q", test)
 	}
-	percents, err := parsePercents(r.FormValue("percents"))
+	raw := strings.TrimSpace(r.FormValue("percents"))
+	if raw == "" {
+		raw = r.FormValue("percentsPreset")
+	}
+	percents, err := parsePercents(raw)
 	if err != nil {
 		return err
 	}
@@ -248,6 +261,10 @@ func rolloutPlanData(f *fleet.Fleet) map[string]any {
 		"PlanNames": planNames, "PlanApproval": planApproval, "PlanMax": planMax,
 	}
 }
+
+// percentPresets are the ladder shapes offered as one-click chips; a free
+// field covers everything else.
+var percentPresets = []string{"10, 30, 60", "10, 20, 30, 40", "25, 75"}
 
 // parsePercents reads the ladder shape ("10, 30, 60"): the share of the
 // fleet each wave after the test wave receives. Empty means one 100% wave.
