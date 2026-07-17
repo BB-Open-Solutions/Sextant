@@ -28,6 +28,16 @@ func (s *Server) rolloutMonitorPage(w http.ResponseWriter, r *http.Request, v vi
 	active := st != nil && st.Status == rollout.Active
 	paused := st != nil && st.Status == rollout.Paused
 	waves := waveCols(f, st, ringStatus, active)
+	// Name the stragglers of the active wave: the devices behind the
+	// percentages, with a reason each. Active wave only - history is the
+	// audit trail's job, not this page's.
+	if st != nil {
+		for i := range waves {
+			if waves[i].Active {
+				waves[i].Stragglers = s.svc.Rollouts.Stragglers(r.Context(), waves[i].Group, st.Target)
+			}
+		}
+	}
 	data := map[string]any{
 		"Title": "Rollout", "Nav": "updates",
 		"Waves":   waves,

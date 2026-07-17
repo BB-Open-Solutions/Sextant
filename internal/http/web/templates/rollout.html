@@ -55,7 +55,23 @@
         <span class="shrink-0 text-label-md {{if .Active}}font-semibold text-mint-deep{{else}}text-text-tertiary{{end}}">{{.Status}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>
       </div>
       <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
+      {{if .NowKey}}
+      <div class="mt-2 flex items-start gap-2 text-body-sm text-text-secondary">
+        <span class="material-symbols-outlined msz-16 mt-0.5 text-mint-deep">assistant_direction</span>
+        <span><span class="font-medium text-ink">{{$.L.T "wizard.now_label"}}</span> {{$.L.T .NowKey}}</span>
+      </div>
+      {{end}}
       {{if .Await}}<p class="mb-0 mt-2 text-body-sm text-status-warn">{{$.L.T "updates.await_hint"}}</p>{{end}}
+      {{if .Stragglers}}
+      <details class="mt-2">
+        <summary class="cursor-pointer text-body-sm text-text-secondary">{{len .Stragglers}} {{$.L.T "rollout.stragglers"}}</summary>
+        <ul class="mb-0 mt-2 flex list-none flex-col gap-1">
+          {{range .Stragglers}}
+          <li class="flex items-center gap-2 text-body-sm"><a href="/devices/{{.Tag}}" class="font-mono text-secondary">{{.Tag}}</a><span class="text-text-tertiary">{{.Reason}}</span></li>
+          {{end}}
+        </ul>
+      </details>
+      {{end}}
     </div>
     {{end}}
   </div>

@@ -28,6 +28,28 @@ type waveCol struct {
 	OnTarget int
 	Total    int
 	BarClass string
+	// NowKey is the catalog key of the plain-language line for the wave's
+	// state; Stragglers names the devices behind its percentages (filled by
+	// the monitoring page for the active wave).
+	NowKey     string
+	Stragglers []rollout.Straggler
+}
+
+// nowKeyForWave maps the wave's display status to its guidance line.
+func nowKeyForWave(status string) string {
+	switch status {
+	case "Deploying":
+		return "rollout.now_deploying"
+	case "Soaking":
+		return "rollout.now_soaking"
+	case "Awaiting approval":
+		return "rollout.now_await"
+	case "Queued":
+		return "rollout.now_queued"
+	case "Complete":
+		return "rollout.now_complete"
+	}
+	return ""
 }
 
 // waveCols renders the plan's rings against the run state for display -
@@ -63,6 +85,7 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 		default:
 			col.Status = "Queued"
 		}
+		col.NowKey = nowKeyForWave(col.Status)
 		waves = append(waves, col)
 	}
 	return waves

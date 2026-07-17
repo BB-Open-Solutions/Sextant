@@ -412,6 +412,29 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 	return &act, st, nil
 }
 
+// stragglerSource is the optional extension of ConvergenceSource that can
+// name the devices behind a wave's percentages. The postgres adapter has it;
+// test fakes need not.
+type stragglerSource interface {
+	RingStragglers(ctx context.Context, group, target string) ([]rollout.Straggler, error)
+}
+
+// Stragglers names the devices keeping a group's wave under 100% for the
+// given target. Empty (never an error) when the convergence source cannot
+// break its numbers down per device.
+func (s *RolloutService) Stragglers(ctx context.Context, group, target string) []rollout.Straggler {
+	src, ok := s.conv.(stragglerSource)
+	if !ok {
+		return nil
+	}
+	out, err := src.RingStragglers(ctx, group, target)
+	if err != nil {
+		s.log.Warn("straggler lookup failed", "group", group, "err", err)
+		return nil
+	}
+	return out
+}
+
 // Pause freezes an active run (delivery-process §7.6): the engine skips a
 // non-active run entirely, so nothing promotes, widens or moves branches
 // until Resume. Distinct from a halt: no failure, just an operator's hold.

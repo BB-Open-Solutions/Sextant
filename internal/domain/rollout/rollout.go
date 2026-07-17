@@ -183,6 +183,14 @@ type RingStatus struct {
 	GroupTotal int
 }
 
+// Straggler is one device that keeps a wave from 100%: not on the target,
+// or on it but unhealthy. The wave promotes past them at its threshold;
+// this is the visible list of who stayed behind and why.
+type Straggler struct {
+	Tag    string `json:"tag"`
+	Reason string `json:"reason"`
+}
+
 // ActionKind is what the engine wants done next.
 type ActionKind string
 

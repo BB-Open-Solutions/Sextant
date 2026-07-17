@@ -157,6 +157,53 @@ func (s *Store) GetFacts(ctx context.Context, tenant, tag string) ([]byte, time.
 	return facts, at, true, nil
 }
 
+// RingStragglers lists the devices holding a ring under 100%: never seen,
+// off-target, offline on target, or erroring - with a short reason each.
+// Capped: the list informs an operator, it is not an inventory export.
+func (c *Convergence) RingStragglers(ctx context.Context, group, target string) ([]rollout.Straggler, error) {
+	tags := c.Tags(group)
+	if len(tags) == 0 {
+		return nil, nil
+	}
+	now := time.Now
+	if c.Now != nil {
+		now = c.Now
+	}
+	cutoff := now().Add(-observed.OnlineWindow)
+	rows, err := c.store.pool.Query(ctx, `
+		SELECT t.tag,
+			CASE
+				WHEN d.tag IS NULL THEN 'never seen'
+				WHEN d.revision <> $3 THEN 'not on target yet'
+				WHEN d.last_seen < $4 THEN 'offline'
+				WHEN d.error <> '' THEN 'error: ' || left(d.error, 120)
+				ELSE 'phase ' || d.phase
+			END
+		FROM unnest($2::text[]) AS t(tag)
+		LEFT JOIN device_status d ON d.tenant = $1 AND d.tag = t.tag
+		WHERE d.tag IS NULL
+			OR d.revision <> $3
+			OR d.last_seen < $4
+			OR d.error <> ''
+			OR (d.phase <> '' AND d.phase <> 'running')
+		ORDER BY t.tag
+		LIMIT 20`,
+		c.tenant, tags, target, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []rollout.Straggler
+	for rows.Next() {
+		var st rollout.Straggler
+		if err := rows.Scan(&st.Tag, &st.Reason); err != nil {
+			return nil, err
+		}
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
+
 // Convergence builds a ports.ConvergenceSource for one tenant. tags lists
 // the devices of a ring's group (from the config plane); the aggregate runs
 // in SQL - application code never iterates devices.
