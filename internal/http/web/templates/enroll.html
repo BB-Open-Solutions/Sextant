@@ -15,7 +15,12 @@
         {{$sel := .Station}}{{range .Stations}}<option value="{{.}}" {{if eq . $sel}}selected{{end}}>{{.}}</option>{{end}}
       </select>
     </div>
-    <button type="submit"><span class="material-symbols-outlined msz-18">arrow_forward</span>{{.L.T "common.continue"}}</button>
+    {{/* Mirror the select's label column (invisible label) so the button's
+         vertical centre matches the select exactly, whatever the theme's
+         control heights are. */}}
+    <div class="flex flex-col gap-1"><label class="invisible" aria-hidden="true">.</label>
+      <button type="submit" class="h-full"><span class="material-symbols-outlined msz-18">arrow_forward</span>{{.L.T "common.continue"}}</button>
+    </div>
   </form>
   {{else}}
   <p class="muted mb-0">{{.L.T "enroll.no_stations_pre"}} <a href="/station">{{.L.T "station.title"}}</a> {{.L.T "enroll.no_stations_post"}}</p>
