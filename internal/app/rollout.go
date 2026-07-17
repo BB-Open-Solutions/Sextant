@@ -271,8 +271,10 @@ func (s *RolloutService) cohortFixup(rs rollout.RingStatus, group string) rollou
 	return rs
 }
 
-// Cancel stops the active run. Pins already committed stay (config is
-// truth); the operator decides how to proceed.
+// Cancel stops a run that is not finished yet - active, paused OR halted:
+// a halted run is exactly the one an operator wants to clear before rolling
+// out a fixed release. Pins already committed stay (config is truth); the
+// operator decides how to proceed.
 func (s *RolloutService) Cancel(ctx context.Context) (*rollout.State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -280,8 +282,8 @@ func (s *RolloutService) Cancel(ctx context.Context) (*rollout.State, error) {
 	if err != nil {
 		return nil, err
 	}
-	if st == nil || st.Status != rollout.Active {
-		return nil, fmt.Errorf("no active rollout")
+	if st == nil || (st.Status != rollout.Active && st.Status != rollout.Paused && st.Status != rollout.Halted) {
+		return nil, fmt.Errorf("no rollout to cancel")
 	}
 	st.Status = rollout.Cancelled
 	st.Updated = s.clock.Now()

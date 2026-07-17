@@ -134,8 +134,8 @@
       <nav class="flex flex-wrap items-center gap-4" aria-label="{{.L.T "footer.aria_resources"}}">
         {{if .CanOrgView}}<a href="/audit" class="transition-colors hover:text-ink">{{.L.T "footer.audit"}}</a>{{end}}
         <a href="/status" class="transition-colors hover:text-ink">{{.L.T "footer.status"}}</a>
-        <a href="https://docs.sextant.bb-open.com" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">{{.L.T "footer.docs"}}</a>
-        <a href="https://bb-open.com/en/contact" target="_blank" rel="noreferrer noopener" class="transition-colors hover:text-ink">{{.L.T "footer.support"}}</a>
+        {{/* Support and documentation already live bottom-left in the
+             sidebar; repeating them here doubled every screen's footer. */}}
       </nav>
     </footer>
 
