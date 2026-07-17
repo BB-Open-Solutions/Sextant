@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/incident"
 )
 
@@ -118,6 +119,32 @@ func (s *Server) compliancePage(w http.ResponseWriter, r *http.Request, v view) 
 	}
 	sort.Strings(classes)
 
+	// Every risk acceptance in one place (comply-or-explain, ADR 0007):
+	// accepting a control is a compliance decision, so it is managed HERE,
+	// not scattered over the settings editor (Bram, 17 jul).
+	type acceptanceRow struct{ Scope, Key, Reason string }
+	var acceptances []acceptanceRow
+	scopes := []string{"org"}
+	for g := range f.Groups {
+		scopes = append(scopes, "group:"+g)
+	}
+	for d := range f.Devices {
+		scopes = append(scopes, "device:"+d)
+	}
+	sort.Strings(scopes[1:])
+	for _, sc := range scopes {
+		if acc, _ := f.AcceptancesAt(sc); acc != nil {
+			keys := make([]string, 0, len(acc))
+			for k := range acc {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				acceptances = append(acceptances, acceptanceRow{Scope: sc, Key: k, Reason: acc[k]})
+			}
+		}
+	}
+
 	s.render(w, "compliance", map[string]any{
 		"Title": "Compliance", "Nav": "compliance",
 		"Rows":     rows,
@@ -125,7 +152,10 @@ func (s *Server) compliancePage(w http.ResponseWriter, r *http.Request, v view) 
 		"Total": counts["critical"] + counts["warning"] + counts["ok"],
 		"Q":     qy.Get("q"), "FClass": fClass, "FGroup": fGroup, "FStatus": fStatus,
 		"Groups": groups, "Classes": classes,
-		"Policies": policyExposure(f, byTag),
+		"Acceptances":  acceptances,
+		"AcceptScopes": scopes,
+		"CanAccept":    v.roleAt("org").Meets(identity.Owner),
+		"Policies":     policyExposure(f, byTag),
 	}, v)
 }
 

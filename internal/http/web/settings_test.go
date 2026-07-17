@@ -259,10 +259,15 @@ func TestSettingsPageDeviceScopeRendersResolvedAndRegistry(t *testing.T) {
 		t.Fatalf("status = %d\n%s", resp.StatusCode, body)
 	}
 	page := string(body)
-	for _, want := range []string{"cosmic", "vpn-key", "approved by CISO"} {
+	for _, want := range []string{"cosmic", "vpn-key"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("device-scope page missing %q", want)
 		}
+	}
+	// Risk acceptances moved to the compliance page (Bram, 17 jul): the
+	// settings editor must NOT render them anymore.
+	if strings.Contains(page, "approved by CISO") {
+		t.Error("settings page still renders risk acceptances")
 	}
 }
 

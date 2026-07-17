@@ -88,4 +88,36 @@
     {{end}}
   </table>
 </section>
+
+<!-- Risk acceptances (comply-or-explain, ADR 0007): managed HERE - accepting
+     a control is a compliance decision. Interim form until the four-colour
+     accept-on-finding flow lands (task #71). -->
+<section class="mt-8 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
+  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-status-warn">gpp_maybe</span>{{.L.T "settings.risk_acceptances_title"}}</h2>
+  <p class="muted mb-4">{{.L.T "settings.risk_acceptances_help"}}</p>
+  {{if .Acceptances}}
+  <table class="mb-4">
+    <tr><th>{{.L.T "common.scope"}}</th><th>{{.L.T "settings.col_control"}}</th><th>{{.L.T "settings.justification"}}</th>{{if .CanAccept}}<th></th>{{end}}</tr>
+    {{$ := .}}
+    {{range .Acceptances}}
+    <tr>
+      <td class="font-mono text-text-secondary">{{.Scope}}</td>
+      <td class="font-mono">{{.Key}}</td>
+      <td class="text-text-secondary">{{.Reason}}</td>
+      {{if $.CanAccept}}<td class="text-right"><form method="post" action="/acceptances/clear" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{.Scope}}"><input type="hidden" name="key" value="{{.Key}}"><button type="submit" class="quiet">{{$.L.T "common.withdraw"}}</button></form></td>{{end}}
+    </tr>
+    {{end}}
+  </table>
+  {{else}}<p class="muted mb-4">{{.L.T "settings.no_acceptances"}}</p>{{end}}
+  {{if .CanAccept}}
+  <form method="post" action="/acceptances" class="!items-end gap-3">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <div class="flex flex-col gap-1"><label>{{.L.T "common.scope"}}</label>
+      <select name="scope">{{range .AcceptScopes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
+    <div class="flex flex-col gap-1"><label>{{.L.T "settings.control_key_label"}}</label><input name="key" placeholder="{{.L.T "common.eg"}} secureboot.enable" required class="font-mono"></div>
+    <div class="flex flex-1 flex-col gap-1"><label>{{.L.T "settings.justification"}}</label><input name="reason" placeholder="{{.L.T "settings.justification_placeholder"}}" required class="w-full"></div>
+    <button type="submit">{{.L.T "settings.accept_risk"}}</button>
+  </form>
+  {{end}}
+</section>
 {{end}}

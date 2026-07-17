@@ -30,7 +30,9 @@ func TestCompliancePageRenders(t *testing.T) {
 	resp2, _ := client().Get(ts.URL + "/compliance?status=critical")
 	body2, _ := io.ReadAll(resp2.Body)
 	resp2.Body.Close()
-	if strings.Contains(string(body2), "lt-1") {
+	// The acceptances section legitimately names device scopes on every
+	// render; only the device ROWS (with their device links) must be gone.
+	if strings.Contains(string(body2), `href="/devices/lt-1"`) {
 		t.Error("critical filter still lists a to-spec device")
 	}
 }

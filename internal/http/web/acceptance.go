@@ -2,7 +2,6 @@ package web
 
 import (
 	"net/http"
-	"net/url"
 	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
@@ -27,7 +26,7 @@ func (s *Server) postAcceptance(w http.ResponseWriter, r *http.Request, v view) 
 		"acceptance: accept "+key+" at "+scope); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
+	http.Redirect(w, r, "/compliance", http.StatusSeeOther)
 	return nil
 }
 
@@ -43,6 +42,6 @@ func (s *Server) postAcceptanceClear(w http.ResponseWriter, r *http.Request, v v
 		"acceptance: withdraw "+key+" at "+scope); err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
+	http.Redirect(w, r, "/compliance", http.StatusSeeOther)
 	return nil
 }
