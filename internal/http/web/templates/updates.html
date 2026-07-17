@@ -43,6 +43,11 @@
       {{end}}
     </div>
   </div>
+  {{if or .Active .Paused}}
+  {{range .Waves}}{{if .Active}}
+  <div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
+  {{end}}{{end}}
+  {{end}}
 </section>
 {{else}}
 <section class="mb-8 rounded-lg border border-dashed border-border-soft bg-canvas p-6 text-center">
