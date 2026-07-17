@@ -40,9 +40,8 @@ func (s Status) NeedsProvisioning() bool {
 //   - No EFI at all (the posture-aware agent reports no Secure Boot state but
 //     does report TPM2): Secure Boot is impossible - the job completes at
 //     install even when the config asks for it.
-//   - No TPM2 chip ("absent"), or a config that wires no TPM2 unlock (the
-//     agent reports "present" only when /etc/crypttab lacks a tpm2-device
-//     entry): the ceremony ends after Secure Boot.
+//   - No TPM2 chip ("absent"), or a config that does not want the TPM2
+//     unlock (wantTPM2 false): the ceremony ends after Secure Boot.
 func Advance(current Status, sb observed.SBState, tpm2 observed.TPM2State, ack string, wantSB, wantTPM2 bool) (to Status, message string, ok bool) {
 	switch ack {
 	case observed.AckSBEnrollFailed:
@@ -87,10 +86,13 @@ func Advance(current Status, sb observed.SBState, tpm2 observed.TPM2State, ack s
 		if !wantTPM2 {
 			return Done, "", true
 		}
-		switch tpm2 {
-		case observed.TPM2Absent, observed.TPM2Present:
-			return Done, "", true // no chip, or no TPM2 unlock configured
+		if tpm2 == observed.TPM2Absent {
+			return Done, "", true // wanted, but no chip: skip with reason
 		}
+		// Chip present and the config wants the unlock: wait for the
+		// executor's tpm2-enrolled ack. ("Present" is NOT read as "not
+		// configured" - the agent cannot see the initrd's crypttab, so
+		// the resolved config is the only wish that counts.)
 	case TPM2Enrolled:
 		// The device rebooted after sealing and still boots enforcing: the
 		// ceremony held end-to-end.

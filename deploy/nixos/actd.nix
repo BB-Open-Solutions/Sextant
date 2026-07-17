@@ -151,18 +151,26 @@ let
             echo "sextant-actd: sbctl enroll-keys failed" >&2
             writeAck sb-enroll-failed
           fi
-        elif [ "$sb" = "1" ] && [ -e /dev/tpmrm0 ] && [ -e "$keyfile" ] \
-            && grep -q "tpm2-device" /etc/crypttab 2>/dev/null; then
-          # Secure Boot enforcing, a TPM2 present, the config wires a TPM2
-          # unlock and the enrol key is still staged: seal the LUKS keyslot
-          # to PCR 7 (the Secure Boot state). The passphrase keyslot stays
-          # as break-glass. The staged key is shredded either way - it is
-          # single-purpose material.
+        elif [ "$sb" = "1" ] && [ -e /dev/tpmrm0 ] && [ -e "$keyfile" ]; then
+          # Secure Boot enforcing, a TPM2 present and the enrol key still
+          # staged: seal the LUKS keyslot to PCR 7 (the Secure Boot state).
+          # The passphrase keyslot stays as break-glass; the staged key is
+          # shredded either way - single-purpose material.
+          #
+          # Deliberately NOT guarded on /etc/crypttab: on NixOS with a
+          # systemd initrd that file exists only INSIDE the initrd, so the
+          # check silently skipped every enrolment. Whether the config
+          # WANTS the tpm2 unlock is the console's call (it gates the
+          # ceremony on the resolved settings); if it ever mis-sends, the
+          # worst case is an unused keyslot behind Secure Boot.
           echo "sextant-actd: Secure Boot enforcing - sealing LUKS to the TPM2 (PCR 7)"
           dev="$(blkid -t TYPE=crypto_LUKS -o device | head -n1)"
           if [ -n "$dev" ] && systemd-cryptenroll --unlock-key-file="$keyfile" \
                --tpm2-device=auto --tpm2-pcrs=7 "$dev"; then
             shred -u "$keyfile" 2>/dev/null || rm -f "$keyfile"
+            # The stamp is the agent's posture source for "enrolled" - the
+            # LUKS header itself is root-only, out of the agent's reach.
+            touch /var/lib/sextant-agent/tpm2-enrolled
             writeAck tpm2-enrolled
             systemctl reboot || true
           else

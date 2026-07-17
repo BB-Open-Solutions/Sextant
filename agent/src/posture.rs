@@ -69,31 +69,24 @@ fn read_efi_bool(dir: &Path, name: &str) -> Option<bool> {
     None
 }
 
-/// tpm2 classifies from device presence and LUKS binding:
+/// tpm2 classifies from device presence and the executor's enrolment stamp:
 ///   no TPM resource manager device      -> absent
-///   present and crypttab names tpm2      -> enrolled
-///   present, no binding                  -> present
+///   present and the seal stamp exists    -> enrolled
+///   present, no stamp                    -> present
+///
+/// The stamp (written by sextant-actd after a successful systemd-cryptenroll)
+/// replaced an /etc/crypttab check: on NixOS with a systemd initrd that file
+/// only exists INSIDE the initrd, never on the running system, so the old
+/// probe could neither see a wired tpm2 unlock nor a completed enrolment.
 fn tpm2(root: &Path) -> &'static str {
     let present = root.join("dev/tpmrm0").exists() || root.join("sys/class/tpm/tpm0").exists();
     if !present {
         return "absent";
     }
-    if crypttab_has_tpm2(&root.join("etc/crypttab")) {
+    if root.join("var/lib/sextant-agent/tpm2-enrolled").exists() {
         "enrolled"
     } else {
         "present"
-    }
-}
-
-/// crypttab_has_tpm2 reports whether any LUKS mapping opts into a tpm2
-/// unlock (systemd's `tpm2-device=` option in /etc/crypttab).
-fn crypttab_has_tpm2(path: &Path) -> bool {
-    match std::fs::read_to_string(path) {
-        Ok(s) => s.lines().any(|l| {
-            let l = l.trim();
-            !l.starts_with('#') && l.contains("tpm2-device")
-        }),
-        Err(_) => false,
     }
 }
 
@@ -179,17 +172,8 @@ mod tests {
 
         let f = Fixture::new("tpm-enrolled");
         f.write("dev/tpmrm0", b"");
-        f.write(
-            "etc/crypttab",
-            b"# comment\nluks UUID=x none tpm2-device=auto,tpm2-pcrs=7\n",
-        );
+        f.write("var/lib/sextant-agent/tpm2-enrolled", b"");
         assert_eq!(tpm2(&f.root), "enrolled");
-
-        // A commented tpm2 line does not count as enrolled.
-        let f = Fixture::new("tpm-commented");
-        f.write("dev/tpmrm0", b"");
-        f.write("etc/crypttab", b"# tpm2-device=auto\nluks UUID=x none\n");
-        assert_eq!(tpm2(&f.root), "present");
     }
 
     #[test]

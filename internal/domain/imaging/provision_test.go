@@ -46,7 +46,8 @@ func TestAdvanceCeremony(t *testing.T) {
 		{"non-EFI machine skips it all", Installed, observed.SBUnknown, observed.TPM2Absent, "", true, true, Done, true, false},
 		{"old agent, no posture: wait", Installed, observed.SBUnknown, observed.TPM2Unknown, "", true, true, Installed, false, false},
 		{"no TPM2 chip after SB", SBEnrolled, observed.SBEnforcing, observed.TPM2Absent, "", true, true, Done, true, false},
-		{"no TPM2 unlock configured", SBEnrolled, observed.SBEnforcing, observed.TPM2Present, "", true, true, Done, true, false},
+		{"chip present, wanted: wait for the executor", SBEnrolled, observed.SBEnforcing, observed.TPM2Present, "", true, true, SBEnrolled, false, false},
+		{"chip present, not wanted", SBEnrolled, observed.SBEnforcing, observed.TPM2Present, "", true, false, Done, true, false},
 		{"pre-enrolled hardware", Installed, observed.SBEnforcing, observed.TPM2Enrolled, "", true, true, SBEnrolled, true, false},
 
 		// Executor failures halt the job with a reason.
