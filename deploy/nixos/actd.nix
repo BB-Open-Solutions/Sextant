@@ -47,6 +47,7 @@ let
       pkgs.findutils
       pkgs.gawk
       pkgs.gnugrep
+      pkgs.e2fsprogs # chattr: strip the kernel's immutable flag off efivars
     ];
     # The wipe gates (armWipe, allowUnlockedWipe, poweroffAfterWipe) are
     # resolved at build time into DIFFERENT emitted bash, rather than compared
@@ -133,6 +134,16 @@ let
           # sandbox (ProtectSystem=strict + explicit ReadWritePaths) is the
           # containment here, and stacking the two risks a refused write to
           # a path systemd allows.
+          #
+          # The kernel marks efivars immutable (+i) against accidental rm;
+          # sbctl refuses to write through it ("file is immutable"). Strip
+          # the flag on exactly the Secure Boot variables the enrolment
+          # writes - standard practice, and setup mode is the deliberate
+          # moment for it.
+          for v in /sys/firmware/efi/efivars/PK-* /sys/firmware/efi/efivars/KEK-* \
+                   /sys/firmware/efi/efivars/db-* /sys/firmware/efi/efivars/dbx-*; do
+            [ -e "$v" ] && chattr -i "$v" 2>/dev/null || true
+          done
           if sbctl --disable-landlock enroll-keys --microsoft; then
             writeAck sb-enrolled
             systemctl reboot || true
