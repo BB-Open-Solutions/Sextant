@@ -39,14 +39,19 @@ func (s *Server) rolloutMonitorPage(w http.ResponseWriter, r *http.Request, v vi
 			}
 		}
 	}
+	terminal := st != nil && (st.Status == rollout.Cancelled || st.Status == rollout.Completed)
 	data := map[string]any{
 		"Title": "Rollout", "Nav": "updates",
-		"Waves":   waves,
-		"State":   st,
-		"Active":  active,
-		"Paused":  paused,
-		"HasPlan": f.Rollout != nil && len(f.Rollout.Rings) > 0,
-		"CanOwn":  v.roleAt("org").Meets(identity.Owner),
+		"Waves":  waves,
+		"State":  st,
+		"Active": active,
+		"Paused": paused,
+		// A finished run is history: the page shows what happened but offers
+		// no steering, and points at the overview to start a fresh one.
+		"Terminal":  terminal,
+		"Steerable": st != nil && !terminal,
+		"HasPlan":   f.Rollout != nil && len(f.Rollout.Rings) > 0,
+		"CanOwn":    v.roleAt("org").Meets(identity.Owner),
 	}
 	s.render(w, "rollout", data, v)
 }

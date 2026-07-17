@@ -222,6 +222,23 @@ func TestUpdatesRunControlsPauseResumeCancel(t *testing.T) {
 		t.Fatalf("cancel = %d", code)
 	}
 	assertStatus(rollout.Cancelled)
+
+	// A cancelled run is history: the monitor says so, offers no steering
+	// controls, and points back at the overview for a fresh start.
+	code, page := getPage(t, ts, "/updates/rollout")
+	if code != 200 {
+		t.Fatalf("monitor after cancel = %d", code)
+	}
+	for _, want := range []string{"This rollout has ended", "Stopped"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("terminal monitor missing %q", want)
+		}
+	}
+	for _, forms := range []string{`action="/rollout/cancel"`, `action="/rollout/approve"`, `action="/rollout/pause"`} {
+		if strings.Contains(page, forms) {
+			t.Errorf("terminal monitor still offers %s", forms)
+		}
+	}
 }
 
 func TestPipelineAndRolloutRedirectToUpdates(t *testing.T) {

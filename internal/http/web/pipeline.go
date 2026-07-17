@@ -69,10 +69,23 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 		}
 		col.BarClass = barBucket(col.OnTarget, col.Total)
 		switch {
-		case !active:
+		case st == nil:
 			col.Status = "Planned"
-		case i < st.Ring:
-			col.Status = "Complete"
+		case !active && st.Status != rollout.Halted && st.Status != rollout.Paused &&
+			st.Status != rollout.Cancelled && st.Status != rollout.Completed:
+			col.Status = "Planned"
+		case st.Status == rollout.Completed || i < st.Ring:
+			col.Status = "Rolled out"
+		case i == st.Ring && st.Status == rollout.Halted:
+			// The run stopped ON this wave: say so instead of a meaningless
+			// "Planned" (the halt reason renders in the status line above).
+			col.Status = "Halted here"
+		case i == st.Ring && st.Status == rollout.Cancelled:
+			col.Status = "Stopped here"
+		case st.Status == rollout.Halted || st.Status == rollout.Cancelled:
+			col.Status = "Not started"
+		case i == st.Ring && st.Status == rollout.Paused:
+			col.Status = "Paused"
 		case i == st.Ring:
 			col.Active = true
 			converged := col.Total > 0 && col.OnTarget >= col.Total

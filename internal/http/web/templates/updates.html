@@ -60,7 +60,7 @@
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="flex flex-col gap-1"><label>{{.L.T "changes.id_label"}}</label><input name="id" placeholder="{{.L.T "changes.slug_placeholder"}}" required pattern="[a-z0-9][a-z0-9-]*"></div>
     <div class="flex flex-1 flex-col gap-1"><label>{{.L.T "changes.title_label"}}</label><input name="title" placeholder="{{.L.T "changes.title_placeholder"}}" required class="w-full"></div>
-    <button type="submit">{{.L.T "changes.open_button"}}</button>
+    <div class="flex flex-col gap-1"><label class="invisible" aria-hidden="true">.</label><button type="submit">{{.L.T "changes.open_button"}}</button></div>
   </form>
 </section>
 {{end}}

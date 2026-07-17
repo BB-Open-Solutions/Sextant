@@ -25,11 +25,15 @@
       {{else if eq $st "paused"}}<span class="tag"><span class="material-symbols-outlined msz-14">pause</span>{{.L.T "updates.state_paused"}}</span>
       {{else if eq $st "halted"}}<span class="tag bad"><span class="material-symbols-outlined msz-14">report</span>{{.L.T "updates.state_halted"}}</span>
       {{else if eq $st "completed"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{.L.T "updates.state_completed"}}</span>
+      {{else if eq $st "cancelled"}}<span class="tag"><span class="material-symbols-outlined msz-14">block</span>{{.L.T "updates.state_cancelled"}}</span>
       {{else}}<span class="tag">{{$st}}</span>{{end}}
       <span class="font-mono text-code-inline text-text-tertiary">{{short .State.Target}}</span>
       {{with .State.Reason}}<span class="text-body-sm text-text-secondary">{{.}}</span>{{end}}
     </div>
-    {{if .CanOwn}}
+    {{if .Terminal}}
+    <p class="mb-0 mt-3 text-body-sm text-text-secondary">{{.L.T "updates.terminal_hint"}} <a href="/updates" class="text-secondary">{{.L.T "updates.back_to_overview"}}</a></p>
+    {{end}}
+    {{if and .CanOwn .Steerable}}
     <div class="mt-4 flex flex-wrap items-center gap-2">
       <form method="post" action="/rollout/approve" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">done_all</span>{{.L.T "page.pipeline.approve_wave"}}</button></form>
       {{if .Paused}}
@@ -46,7 +50,7 @@
   <div class="flex flex-col gap-3">
     {{$ := .}}
     {{range .Waves}}
-    <div class="rounded-lg border {{if .Active}}border-mint-vibrant{{else}}border-border-hairline{{end}} bg-canvas p-4 shadow-sm">
+    <div class="rounded-lg border {{if .Active}}border-mint-vibrant{{else}}border-border-hairline{{end}} bg-canvas p-4 shadow-sm{{if $.Terminal}} opacity-70{{end}}">
       <div class="mb-2 flex items-center justify-between gap-3">
         <div class="flex min-w-0 items-center gap-2">
           <span class="truncate font-medium text-ink">{{.Label}}</span>
