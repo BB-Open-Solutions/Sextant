@@ -37,6 +37,19 @@
   {{if not .Rows}}
   <p class="muted p-6">{{.L.T "enroll.pxe_empty"}}</p>
   {{else if .CanEnroll}}
+  <!-- Pre-flight: the ONE firmware visit per device, done BEFORE PXE. With
+       this state set, the entire security ceremony after dispatch runs
+       hands-off: install signs the boot chain, the executor enrols the keys
+       in setup mode and seals the disk to the TPM2 - no BIOS visit later. -->
+  <div class="mx-6 mt-6 rounded-md border border-border-soft bg-surface-container-low p-4">
+    <div class="mb-2 flex items-center gap-2 text-label-md font-medium text-ink"><span class="material-symbols-outlined msz-16 text-mint-deep">checklist</span>{{.L.T "enroll.preflight_title"}}</div>
+    <ol class="mb-1 ml-4 flex list-decimal flex-col gap-1 text-body-sm text-text-secondary">
+      <li>{{.L.T "enroll.preflight_1"}}</li>
+      <li>{{.L.T "enroll.preflight_2"}}</li>
+      <li>{{.L.T "enroll.preflight_3"}}</li>
+    </ol>
+    <p class="mb-0 text-label-md text-text-tertiary">{{.L.T "enroll.preflight_hint"}}</p>
+  </div>
   <form method="post" action="/enroll/{{.Station}}/batch" class="!flex-col !items-stretch gap-4 p-6">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <p class="mb-0 text-body-sm text-text-secondary">{{.L.T "enroll.batch_desc"}}</p>
