@@ -13,6 +13,12 @@ are on, and continue. If no station is listed, none is registered yet - see
 
 ## Step 2: batch-dispatch the discovered devices
 
+**Pre-flight (one firmware visit per device, before PXE):** enable the
+Security Chip (TPM2) and clear it once; enable Secure Boot AND reset it to
+setup mode (clears the factory keys). With that state set, everything after
+Dispatch runs hands-off - signed install, key enrolment, TPM2 sealing,
+verification - with no BIOS visit afterwards.
+
 PXE-boot the target devices; they appear as discovered rows (MAC, vendor,
 model, disk size) under the chosen station. Imaging is **batch-only** by
 design - one audited pass images a whole rack rather than one device at a
