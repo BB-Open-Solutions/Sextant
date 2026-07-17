@@ -168,17 +168,13 @@ func (s *Server) orgUpdatesPage(w http.ResponseWriter, r *http.Request, v view) 
 			}
 			shares = append(shares, strconv.Itoa(row.Share))
 		}
-		cur := strings.Join(shares, ", ")
-		data["Percents"] = cur
-		custom := true
-		for _, pr := range percentPresets {
-			if pr == cur {
-				custom = false
-			}
-		}
-		data["IsCustom"] = custom
+		data["Percents"] = strings.Join(shares, ", ")
 	}
-	data["Presets"] = percentPresets
+	// Autofill the ladder field with a sensible example when nothing is
+	// configured yet - the operator edits numbers, never starts from blank.
+	if data["Percents"] == nil || data["Percents"] == "" {
+		data["Percents"] = "10, 30, 60"
+	}
 	if f.Assurance != nil {
 		data["RequireFourEyes"] = f.Assurance.RequireFourEyes
 		data["RequireChangeRequest"] = f.Assurance.RequireChangeRequest
@@ -201,11 +197,7 @@ func (s *Server) postUpdatesPolicy(w http.ResponseWriter, r *http.Request, v vie
 	if _, ok := f.Groups[test]; !ok {
 		return fmt.Errorf("unknown test group %q", test)
 	}
-	raw := strings.TrimSpace(r.FormValue("percents"))
-	if raw == "" {
-		raw = r.FormValue("percentsPreset")
-	}
-	percents, err := parsePercents(raw)
+	percents, err := parsePercents(r.FormValue("percents"))
 	if err != nil {
 		return err
 	}
@@ -267,13 +259,9 @@ func rolloutPlanData(f *fleet.Fleet) map[string]any {
 	}
 }
 
-// percentPresets are the ladder shapes offered as one-click chips; a free
-// field covers everything else.
-var percentPresets = []string{"10, 30, 60", "10, 20, 30, 40", "25, 75"}
-
 // parsePercents reads the ladder shape ("10, 30, 60"): the share of the
-// fleet each wave after the test wave receives. Empty means one 100% wave.
-// Values are proportions - they need not sum to exactly 100.
+// fleet each wave after the test wave receives. Free-form within three
+// rules: 1 to 5 waves, whole percentages, adding up to exactly 100.
 func parsePercents(raw string) ([]int, error) {
 	fields := strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == ' ' || r == '-' || r == '/'
@@ -281,16 +269,21 @@ func parsePercents(raw string) ([]int, error) {
 	if len(fields) == 0 {
 		return []int{100}, nil
 	}
-	if len(fields) > 10 {
-		return nil, fmt.Errorf("at most 10 waves")
+	if len(fields) > 5 {
+		return nil, fmt.Errorf("at most 5 waves")
 	}
 	out := make([]int, 0, len(fields))
+	sum := 0
 	for _, fld := range fields {
 		n, err := strconv.Atoi(fld)
 		if err != nil || n < 1 || n > 100 {
 			return nil, fmt.Errorf("wave percentages must be whole numbers 1-100 (got %q)", fld)
 		}
 		out = append(out, n)
+		sum += n
+	}
+	if sum != 100 {
+		return nil, fmt.Errorf("wave percentages must add up to 100 (these add up to %d)", sum)
 	}
 	return out, nil
 }

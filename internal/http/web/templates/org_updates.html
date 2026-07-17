@@ -27,21 +27,9 @@
       <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
         <h2 class="mt-0 mb-1 flex items-center gap-2 text-label-md font-bold text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-body-sm text-canvas">2</span>{{.L.T "orgupd.ladder_title"}}</h2>
         <p class="muted mb-4">{{.L.T "orgupd.ladder_desc"}}</p>
-        <label class="mb-2 block">{{.L.T "orgupd.percents_label"}}</label>
-        <!-- Preset chips: radios styled as pills; "custom" reveals the free
-             field. The server prefers a non-empty custom value (percents)
-             over the chosen preset (percentsPreset). -->
-        <div class="flex flex-wrap items-center gap-2">
-          {{$preset := .Percents}}
-          {{range $p := .Presets}}
-          <label class="cursor-pointer !normal-case !tracking-normal">
-            <input type="radio" name="percentsPreset" value="{{$p}}" {{if eq $p $preset}}checked{{end}} class="peer sr-only">
-            <span class="inline-block rounded-full border border-border-hairline px-4 py-1.5 text-label-md text-text-secondary transition-colors peer-checked:border-mint-vibrant peer-checked:bg-mint-vibrant/10 peer-checked:font-semibold peer-checked:text-ink">{{$p}}</span>
-          </label>
-          {{end}}
-          <input name="percents" value="{{if .IsCustom}}{{.Percents}}{{end}}" placeholder="{{.L.T "orgupd.custom_placeholder"}}" class="!w-48 rounded-full">
-        </div>
-        <p class="muted mb-0 mt-2 text-body-sm">{{.L.T "orgupd.percents_hint"}}</p>
+        <div class="flex max-w-md flex-col gap-1"><label>{{.L.T "orgupd.percents_label"}}</label>
+          <input name="percents" value="{{.Percents}}" required>
+          <p class="muted mb-0 mt-1 text-body-sm">{{.L.T "orgupd.percents_hint"}}</p></div>
         <button type="submit" class="btn mt-4"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "orgupd.save_basic"}}</button>
 
         {{if .PlanWaves}}

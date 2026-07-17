@@ -17,6 +17,9 @@ func TestParsePercents(t *testing.T) {
 		{"10-20-30-40", []int{10, 20, 30, 40}, false},
 		{"0, 100", nil, true},
 		{"tien", nil, true},
+		{"50, 40", nil, true},                 // sums to 90, not 100
+		{"10, 10, 20, 20, 20, 20", nil, true}, // six waves
+		{"100", []int{100}, false},
 	}
 	for _, c := range cases {
 		got, err := parsePercents(c.in)
