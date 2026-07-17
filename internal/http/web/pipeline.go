@@ -36,6 +36,11 @@ type waveCol struct {
 	// Groups backs the straggler lookup for the wave (a percentage wave
 	// spans several groups).
 	Groups []string
+	// StatusKey is the catalog key of the translated status label; Kind
+	// drives the timeline dot (done / active / blocked / paused / await /
+	// idle).
+	StatusKey string
+	Kind      string
 }
 
 // nowKeyForWave maps the wave's display status to its guidance line.
@@ -102,9 +107,36 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 			col.Status = "Queued"
 		}
 		col.NowKey = nowKeyForWave(col.Status)
+		col.StatusKey, col.Kind = statusMeta(col.Status)
 		waves = append(waves, col)
 	}
 	return waves
+}
+
+// statusMeta maps a wave's internal status to its translated label key and
+// its timeline-dot kind.
+func statusMeta(status string) (key, kind string) {
+	switch status {
+	case "Rolled out", "Complete":
+		return "rollout.st_done", "done"
+	case "Deploying":
+		return "rollout.st_deploying", "active"
+	case "Soaking":
+		return "rollout.st_soaking", "active"
+	case "Awaiting approval":
+		return "rollout.st_await", "await"
+	case "Paused":
+		return "rollout.st_paused", "paused"
+	case "Halted here":
+		return "rollout.st_halted", "blocked"
+	case "Stopped here":
+		return "rollout.st_stopped", "blocked"
+	case "Not started":
+		return "rollout.st_notstarted", "idle"
+	case "Queued":
+		return "rollout.st_queued", "idle"
+	}
+	return "rollout.st_planned", "idle"
 }
 
 // barBucket rounds a fraction to the nearest 5% for a CSP-safe width class.

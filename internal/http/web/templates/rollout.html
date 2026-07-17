@@ -46,38 +46,55 @@
     {{end}}
   </div>
 
-  <!-- One card per wave: progress, state, the active one highlighted. -->
-  <div class="flex flex-col gap-3">
+  <!-- Vertical timeline: one node per wave, a connector line through the
+       dots, the active wave's card highlighted (wizard idiom). -->
+  <div class="relative">
+    <div class="absolute bottom-5 left-5 top-5 w-px bg-border-hairline" aria-hidden="true"></div>
     {{$ := .}}
+    <div class="flex flex-col gap-4">
     {{range .Waves}}
-    <div class="rounded-lg border {{if .Active}}border-mint-vibrant{{else}}border-border-hairline{{end}} bg-canvas p-4 shadow-sm{{if $.Terminal}} opacity-70{{end}}">
-      <div class="mb-2 flex items-center justify-between gap-3">
-        <div class="flex min-w-0 items-center gap-2">
-          <span class="truncate font-medium text-ink">{{.Label}}</span>
-          {{if .Manual}}<span class="tag">{{$.L.T "page.pipeline.manual_gate"}}</span>{{end}}
+    <div class="relative flex items-start gap-4">
+      <div class="z-10 mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-4 ring-canvas
+        {{if eq .Kind "done"}}bg-mint-vibrant text-ink
+        {{else if eq .Kind "active"}}bg-mint-vibrant/15 text-mint-deep ring-mint-vibrant/20
+        {{else if eq .Kind "await"}}bg-status-warn/15 text-status-warn
+        {{else if eq .Kind "paused"}}bg-surface-container-high text-ink
+        {{else if eq .Kind "blocked"}}bg-error-container text-on-error-container
+        {{else}}bg-surface-container text-text-tertiary{{end}}">
+        <span class="material-symbols-outlined msz-18{{if eq .Kind "active"}} animate-spin{{end}}">
+          {{- if eq .Kind "done"}}check{{else if eq .Kind "active"}}autorenew{{else if eq .Kind "await"}}how_to_reg{{else if eq .Kind "paused"}}pause{{else if eq .Kind "blocked"}}report{{else}}schedule{{end -}}
+        </span>
+      </div>
+      <div class="min-w-0 flex-1 rounded-lg border {{if .Active}}border-mint-vibrant shadow-md{{else}}border-border-hairline shadow-sm{{end}} bg-canvas p-4{{if or $.Terminal (eq .Kind "idle")}} opacity-70{{end}}">
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="truncate font-medium text-ink">{{.Label}}</span>
+            {{if .Manual}}<span class="tag">{{$.L.T "page.pipeline.manual_gate"}}</span>{{end}}
+          </div>
+          <span class="shrink-0 text-label-md {{if .Active}}font-semibold text-mint-deep{{else}}text-text-tertiary{{end}}">{{$.L.T .StatusKey}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>
         </div>
-        <span class="shrink-0 text-label-md {{if .Active}}font-semibold text-mint-deep{{else}}text-text-tertiary{{end}}">{{.Status}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>
+        <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
+        {{if .NowKey}}
+        <div class="mt-2 flex items-start gap-2 text-body-sm text-text-secondary">
+          <span class="material-symbols-outlined msz-16 mt-0.5 text-mint-deep">assistant_direction</span>
+          <span><span class="font-medium text-ink">{{$.L.T "wizard.now_label"}}</span> {{$.L.T .NowKey}}</span>
+        </div>
+        {{end}}
+        {{if .Await}}<p class="mb-0 mt-2 text-body-sm text-status-warn">{{$.L.T "updates.await_hint"}}</p>{{end}}
+        {{if .Stragglers}}
+        <details class="mt-2">
+          <summary class="cursor-pointer text-body-sm text-text-secondary">{{len .Stragglers}} {{$.L.T "rollout.stragglers"}}</summary>
+          <ul class="mb-0 mt-2 flex list-none flex-col gap-1">
+            {{range .Stragglers}}
+            <li class="flex items-center gap-2 text-body-sm"><a href="/devices/{{.Tag}}" class="font-mono text-secondary">{{.Tag}}</a><span class="text-text-tertiary">{{.Reason}}</span></li>
+            {{end}}
+          </ul>
+        </details>
+        {{end}}
       </div>
-      <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
-      {{if .NowKey}}
-      <div class="mt-2 flex items-start gap-2 text-body-sm text-text-secondary">
-        <span class="material-symbols-outlined msz-16 mt-0.5 text-mint-deep">assistant_direction</span>
-        <span><span class="font-medium text-ink">{{$.L.T "wizard.now_label"}}</span> {{$.L.T .NowKey}}</span>
-      </div>
-      {{end}}
-      {{if .Await}}<p class="mb-0 mt-2 text-body-sm text-status-warn">{{$.L.T "updates.await_hint"}}</p>{{end}}
-      {{if .Stragglers}}
-      <details class="mt-2">
-        <summary class="cursor-pointer text-body-sm text-text-secondary">{{len .Stragglers}} {{$.L.T "rollout.stragglers"}}</summary>
-        <ul class="mb-0 mt-2 flex list-none flex-col gap-1">
-          {{range .Stragglers}}
-          <li class="flex items-center gap-2 text-body-sm"><a href="/devices/{{.Tag}}" class="font-mono text-secondary">{{.Tag}}</a><span class="text-text-tertiary">{{.Reason}}</span></li>
-          {{end}}
-        </ul>
-      </details>
-      {{end}}
     </div>
     {{end}}
+    </div>
   </div>
   {{end}}
   </div><!-- /rollout-live -->

@@ -28,7 +28,7 @@
       {{else if .Active}}<span class="tag ok"><span class="material-symbols-outlined msz-14 animate-spin">autorenew</span>{{.L.T "updates.state_active"}}</span>
       {{else}}<span class="tag">{{.L.T "updates.state_idle"}}</span>{{end}}
       {{with .State}}<span class="truncate font-mono text-code-inline text-text-tertiary">{{short .Target}}</span>{{end}}
-      {{range .Waves}}{{if .Active}}<span class="truncate text-label-md text-text-secondary">{{.Label}} · {{.Status}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>{{end}}{{end}}
+      {{range .Waves}}{{if .Active}}<span class="truncate text-label-md text-text-secondary">{{.Label}} · {{$.L.T .StatusKey}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>{{end}}{{end}}
     </div>
     <div class="flex shrink-0 items-center gap-2">
       {{if or .Active .Paused}}
