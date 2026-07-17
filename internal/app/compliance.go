@@ -55,6 +55,8 @@ func (s *ComplianceService) Incidents(ctx context.Context) ([]incident.Incident,
 			o.Error = st.Error
 			o.Ack = st.Ack
 		}
+		o.DeployedRelease = s.cfg.ReleaseNumber(ctx, o.Deployed)
+		o.TargetRelease = s.cfg.ReleaseNumber(ctx, o.Target)
 		obs = append(obs, o)
 	}
 	return incident.Detect(obs, s.clock.Now()), nil

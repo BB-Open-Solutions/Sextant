@@ -176,6 +176,16 @@ func (s *RolloutService) FollowHead(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Only between runs: while a rollout is in flight (active, paused or
+	// halted) every ring branch belongs to the engine. Following HEAD here
+	// would release later waves early - main advances during a run (pin
+	// commits, unrelated merges) and unpromoted rings carry no pin yet, so
+	// their devices would leapfrog the staging entirely.
+	if st, err := s.store.Get(ctx); err != nil {
+		return err
+	} else if st != nil && (st.Status == rollout.Active || st.Status == rollout.Paused || st.Status == rollout.Halted) {
+		return nil
+	}
 	f := s.cfg.Fleet()
 	if f.Rollout == nil {
 		return nil

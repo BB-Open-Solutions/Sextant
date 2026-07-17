@@ -40,6 +40,10 @@ func (s *Server) rolloutMonitorPage(w http.ResponseWriter, r *http.Request, v vi
 		}
 	}
 	terminal := st != nil && (st.Status == rollout.Cancelled || st.Status == rollout.Completed)
+	targetRelease := 0
+	if st != nil {
+		targetRelease = s.svc.Config.ReleaseNumber(r.Context(), st.Target)
+	}
 	data := map[string]any{
 		"Title": "Rollout", "Nav": "updates",
 		"Waves":  waves,
@@ -48,10 +52,11 @@ func (s *Server) rolloutMonitorPage(w http.ResponseWriter, r *http.Request, v vi
 		"Paused": paused,
 		// A finished run is history: the page shows what happened but offers
 		// no steering, and points at the overview to start a fresh one.
-		"Terminal":  terminal,
-		"Steerable": st != nil && !terminal,
-		"HasPlan":   f.Rollout != nil && len(f.Rollout.Rings) > 0,
-		"CanOwn":    v.roleAt("org").Meets(identity.Owner),
+		"Terminal":      terminal,
+		"Steerable":     st != nil && !terminal,
+		"TargetRelease": targetRelease,
+		"HasPlan":       f.Rollout != nil && len(f.Rollout.Rings) > 0,
+		"CanOwn":        v.roleAt("org").Meets(identity.Owner),
 	}
 	s.render(w, "rollout", data, v)
 }

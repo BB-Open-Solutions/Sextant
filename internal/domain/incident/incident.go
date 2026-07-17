@@ -39,13 +39,18 @@ const (
 // config plane (the target revision its group is pinned to).
 type Observation struct {
 	Tag      string
-	Group    string    // primary group; "" means org-level
-	Deployed string    // revision the device reports running ("" = unknown)
-	Target   string    // revision it should run ("" = follows HEAD, not judged)
-	Online   bool      // checked in within the online window
-	LastSeen time.Time // zero = never
-	Error    string    // device-reported error ("" = none)
-	Ack      string    // last remote-action outcome
+	Group    string // primary group; "" means org-level
+	Deployed string // revision the device reports running ("" = unknown)
+	Target   string // revision it should run ("" = follows HEAD, not judged)
+	// DeployedRelease/TargetRelease are the human release numbers of those
+	// revisions (commit counts; 0 = unknown). With both known the Behind
+	// text can say "release 142, target 145" instead of two opaque shas.
+	DeployedRelease int
+	TargetRelease   int
+	Online          bool      // checked in within the online window
+	LastSeen        time.Time // zero = never
+	Error           string    // device-reported error ("" = none)
+	Ack             string    // last remote-action outcome
 }
 
 // Incident is one action item for one device.
@@ -96,8 +101,22 @@ func Detect(obs []Observation, now time.Time) []Incident {
 
 		// An online device on the wrong revision is drifting from its target.
 		if o.Online && o.Target != "" && o.Deployed != "" && o.Deployed != o.Target {
-			add(Behind, Warning, o.Tag+" is behind",
-				fmt.Sprintf("Running %s, target is %s.", short(o.Deployed), short(o.Target)),
+			detail := fmt.Sprintf("Running %s, target is %s.", short(o.Deployed), short(o.Target))
+			if o.DeployedRelease > 0 && o.TargetRelease > 0 {
+				diff := o.TargetRelease - o.DeployedRelease
+				switch {
+				case diff > 0:
+					detail = fmt.Sprintf("On release %d, target is release %d (%d behind).",
+						o.DeployedRelease, o.TargetRelease, diff)
+				case diff < 0:
+					// Ahead of its pin: it took a newer commit than the wave
+					// staged (or the pin is stale) - name that instead of
+					// pretending it is behind.
+					detail = fmt.Sprintf("On release %d, AHEAD of its release-%d target - check the pin.",
+						o.DeployedRelease, o.TargetRelease)
+				}
+			}
+			add(Behind, Warning, o.Tag+" is behind", detail,
 				"The update has not landed; check the rollout and the device logs.", time.Time{})
 		}
 

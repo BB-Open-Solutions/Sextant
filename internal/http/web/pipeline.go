@@ -178,6 +178,11 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 	waves := waveCols(f, st, ringStatus, active)
 
 	head := s.svc.Config.Head(r.Context())
+	headRelease := s.svc.Config.ReleaseNumber(r.Context(), head)
+	targetRelease := 0
+	if st != nil {
+		targetRelease = s.svc.Config.ReleaseNumber(r.Context(), st.Target)
+	}
 	data := map[string]any{
 		"Title": "Updates", "Nav": "updates",
 		"Draft": draft, "Building": building, "Ready": ready,
@@ -185,7 +190,7 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 		"State":   st,
 		"Active":  active,
 		"Paused":  paused,
-		"MainRev": head,
+		"MainRev": head, "MainRelease": headRelease, "TargetRelease": targetRelease,
 		"HasPlan": f.Rollout != nil && len(f.Rollout.Rings) > 0,
 		"CanEdit": v.roleAt("org").Meets(identity.Editor),
 		"CanOwn":  v.roleAt("org").Meets(identity.Owner),

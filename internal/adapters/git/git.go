@@ -293,6 +293,24 @@ func isNonFastForward(msg string) bool {
 		strings.Contains(m, "! [rejected]")
 }
 
+// CommitCount returns the number of commits reachable from rev - a
+// monotonic "release number" for lineage-ordered revisions on one branch.
+// Humans compare 142 vs 145 at a glance where two sha prefixes say nothing.
+func (r *Repo) CommitCount(ctx context.Context, rev string) (int, error) {
+	// #nosec G204 - fixed "git" binary; rev is passed as a discrete arg and
+	// "--" cannot help here (rev-list takes revs before paths), but a
+	// malformed rev simply fails to resolve.
+	out, err := exec.CommandContext(ctx, "git", "-C", r.dir, "rev-list", "--count", rev).Output()
+	if err != nil {
+		return 0, fmt.Errorf("git rev-list --count %s: %w", rev, err)
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 0, fmt.Errorf("git rev-list --count %s: %w", rev, err)
+	}
+	return n, nil
+}
+
 // Log implements ports.AuditLog: the newest limit commits, machine-parsed
 // with unit separators so subjects may contain anything but 0x1f/newline.
 func (r *Repo) Log(ctx context.Context, limit int) ([]ports.AuditEntry, error) {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -63,15 +64,37 @@ func TestFunnelMovesRingBranches(t *testing.T) {
 		}
 	}
 	shr("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "next")
+
+	// During the run, FollowHead is a no-op: main advanced (a pin commit,
+	// an unrelated merge) but the unpromoted fleet ring must NOT leapfrog
+	// its wave by following HEAD.
+	if err := rs.FollowHead(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if rev("rings/fleet") != head {
+		t.Fatalf("unpromoted ring left its position during the run: %s", rev("rings/fleet"))
+	}
+	if rev("rings/canary") != head {
+		t.Fatal("pinned ring moved off its target")
+	}
+
+	// Once the run is out of the way, idle rings follow HEAD again.
+	if _, err := rs.Cancel(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Cancel keeps pins (config is truth); clear the canary pin so the ring
+	// counts as idle again.
+	if err := svc.Apply(ctx, fleet.SetGroupPin("canary", ""), "unpin", ports.Author{}); err != nil {
+		t.Fatal(err)
+	}
+	// The unpin itself is a commit, so HEAD advanced again.
 	newHead := rev("HEAD")
 	if err := rs.FollowHead(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if rev("rings/fleet") != newHead {
-		t.Fatal("unpinned ring did not follow HEAD")
-	}
-	if rev("rings/canary") != head {
-		t.Fatal("pinned ring moved off its target")
+	if rev("rings/fleet") != newHead || rev("rings/canary") != newHead {
+		t.Fatalf("idle rings did not follow HEAD after the run: fleet=%s canary=%s want %s",
+			rev("rings/fleet"), rev("rings/canary"), newHead)
 	}
 	_ = conv
 	_ = clock

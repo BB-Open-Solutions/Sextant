@@ -41,6 +41,9 @@ type ConfigService struct {
 	// The PoC ran this unlocked - the race was real, this is the fix.
 	writeMu sync.Mutex
 
+	// relCache memoises revision -> release number (immutable once known).
+	relCache sync.Map
+
 	// snap is the copy-on-write read snapshot: the fleet document and its
 	// settings vocabulary (catalog.json, ADR 0005) from the same working
 	// tree state, swapped as ONE pointer so readers can never observe a
@@ -86,6 +89,32 @@ func (s *ConfigService) Head(ctx context.Context) string {
 		return ""
 	}
 	return rev
+}
+
+// ReleaseNumber maps a revision to its human release number: the count of
+// commits reachable from it. On one lineage that is monotonic, so "release
+// 142 vs 145" answers newer-or-older where sha prefixes cannot (Bram's
+// Intune/NetBird versioning ask). Zero when unknown; results are cached
+// because a revision's count never changes.
+func (s *ConfigService) ReleaseNumber(ctx context.Context, rev string) int {
+	if rev == "" {
+		return 0
+	}
+	if n, ok := s.relCache.Load(rev); ok {
+		return n.(int)
+	}
+	c, ok := s.repo.(interface {
+		CommitCount(context.Context, string) (int, error)
+	})
+	if !ok {
+		return 0
+	}
+	n, err := c.CommitCount(ctx, rev)
+	if err != nil {
+		return 0 // unknown rev (not fetched yet); do not cache failures
+	}
+	s.relCache.Store(rev, n)
+	return n
 }
 
 // Catalog returns the settings vocabulary snapshot (never nil).
