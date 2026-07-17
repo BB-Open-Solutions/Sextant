@@ -21,7 +21,7 @@ func (s *Server) changesPage(w http.ResponseWriter, r *http.Request, v view) {
 		groups = append(groups, g)
 	}
 	sort.Strings(groups)
-	data := map[string]any{"Title": "Changes", "Nav": "changes", "Changes": crs,
+	data := map[string]any{"Title": "Changes", "Nav": "updates", "Changes": crs,
 		"Groups":  groups,
 		"CanEdit": v.roleAt("org").Meets(identity.Editor)}
 	if err != nil {
@@ -43,7 +43,7 @@ func (s *Server) diffPage(w http.ResponseWriter, r *http.Request, v view) {
 		return
 	}
 	diff, err := s.svc.Changes.Diff(r.Context(), id)
-	data := map[string]any{"Title": "Diff " + id, "Nav": "changes",
+	data := map[string]any{"Title": "Diff " + id, "Nav": "updates",
 		"ID": id, "Change": cr, "Diff": diff}
 	if err != nil {
 		data["Error"] = err.Error()

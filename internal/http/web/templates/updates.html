@@ -14,6 +14,40 @@
 
 {{with .Error}}<div class="mb-4 rounded-lg border border-error/30 bg-error-container px-4 py-3 text-body-md text-on-error-container">{{.}}</div>{{end}}
 
+<!-- The running rollout, summarised: one line and a door to the monitoring
+     page (/updates/rollout). Configuration stays on this overview; watching
+     and steering live there. -->
+{{if .HasPlan}}
+<section class="mb-8 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex min-w-0 items-center gap-3">
+      {{if .Paused}}<span class="tag"><span class="material-symbols-outlined msz-14">pause</span>{{.L.T "updates.state_paused"}}</span>
+      {{else if .Active}}<span class="tag ok"><span class="material-symbols-outlined msz-14 animate-spin">autorenew</span>{{.L.T "updates.state_active"}}</span>
+      {{else}}<span class="tag">{{.L.T "updates.state_idle"}}</span>{{end}}
+      {{with .State}}<span class="truncate font-mono text-code-inline text-text-tertiary">{{short .Target}}</span>{{end}}
+      {{range .Waves}}{{if .Active}}<span class="truncate text-label-md text-text-secondary">{{.Label}} · {{.Status}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>{{end}}{{end}}
+    </div>
+    <div class="flex shrink-0 items-center gap-2">
+      {{if or .Active .Paused}}
+      <a href="/updates/rollout" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">monitoring</span>{{.L.T "updates.view_rollout"}}</a>
+      {{else if .CanOwn}}
+      <form method="post" action="/rollout" class="!m-0">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="target" value="{{.MainRev}}">
+        <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{short .MainRev}}</button>
+      </form>
+      <a href="/updates/rollout" class="btn quiet !py-1.5">{{.L.T "updates.view_rollout"}}</a>
+      {{end}}
+    </div>
+  </div>
+</section>
+{{else}}
+<section class="mb-8 rounded-lg border border-dashed border-border-soft bg-canvas p-6 text-center">
+  <p class="mb-1 text-body-md text-text-secondary">{{.L.T "page.pipeline.no_plan"}}</p>
+  <p class="muted mb-0">{{.L.T "page.pipeline.no_plan_hint"}}</p>
+</section>
+{{end}}
+
 {{if .CanEdit}}
 <!-- Open a change: stage edits on a fresh branch, right from the board. -->
 <section class="mb-8 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
@@ -29,7 +63,7 @@
 
 <!-- Step 1: review proposed changes -->
 <section class="mb-8">
-  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-label-xs-caps font-bold text-canvas">1</span>{{.L.T "page.pipeline.to_review"}}</h2>
+  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="material-symbols-outlined text-mint-deep">rule</span>{{.L.T "page.pipeline.to_review"}}</h2>
   {{if or .Ready .Draft .Building}}
   <div class="flex flex-col gap-3">
     {{$ := .}}
@@ -74,67 +108,10 @@
   {{end}}
 </section>
 
-<!-- Step 2: roll the current revision out to the fleet, in waves -->
-<section>
-  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-label-xs-caps font-bold text-canvas">2</span>{{.L.T "page.pipeline.roll_out"}}</h2>
-  {{if not .HasPlan}}
-  <div class="rounded-lg border border-dashed border-border-soft bg-canvas p-6 text-center">
-    <p class="mb-1 text-body-md text-text-secondary">{{.L.T "page.pipeline.no_plan"}}</p>
-    <p class="muted mb-3">{{.L.T "page.pipeline.no_plan_hint"}}</p>
-    {{if .CanOwn}}<a href="/rollout" class="btn"><span class="material-symbols-outlined msz-18">tune</span>{{.L.T "page.pipeline.set_procedure"}}</a>{{end}}
-  </div>
-  {{else}}
-  <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
-    {{if .Active}}
-    <div class="mb-4 flex items-center gap-2"><span class="material-symbols-outlined animate-spin text-mint-deep">autorenew</span><span class="font-semibold text-ink">{{.L.T "page.pipeline.active_rollout"}}</span>{{with .State}}<span class="font-mono text-code-inline text-text-tertiary">{{short .Target}}</span>{{end}}</div>
-    <div class="flex flex-col gap-2">
-      {{range .Waves}}
-      <div class="flex items-center gap-3 rounded-md border border-border-hairline p-3">
-        <span class="w-32 shrink-0 truncate text-label-md font-medium text-ink">{{.Label}}</span>
-        <div class="h-2 flex-1 overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
-        <span class="w-28 shrink-0 text-right text-label-md {{if .Active}}font-semibold text-mint-deep{{else}}text-text-tertiary{{end}}">{{.Status}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>
-      </div>
-      {{end}}
-    </div>
-    {{if .CanOwn}}
-    <div class="mt-4 flex items-center gap-2">
-      <form method="post" action="/rollout/approve" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">done_all</span>{{.L.T "page.pipeline.approve_wave"}}</button></form>
-      {{if .Paused}}
-      <form method="post" action="/rollout/resume" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">play_arrow</span>{{.L.T "page.pipeline.resume"}}</button></form>
-      {{else if .Active}}
-      <form method="post" action="/rollout/pause" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5"><span class="material-symbols-outlined msz-18">pause</span>{{.L.T "page.pipeline.pause"}}</button></form>
-      {{end}}
-      <form method="post" action="/rollout/cancel" class="!m-0" data-confirm="{{.L.T "page.pipeline.cancel"}}?"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5 !text-status-error">{{.L.T "page.pipeline.cancel"}}</button></form>
-    </div>
-    {{end}}
-    {{else}}
-    <p class="mb-4 text-body-md text-text-secondary">{{.L.T "page.pipeline.roll_out_hint"}}</p>
-    <div class="mb-4 flex flex-col gap-2">
-      {{$ := .}}
-      {{range .Waves}}
-      <div class="flex items-center gap-3 rounded-md border border-border-hairline p-3">
-        <span class="material-symbols-outlined msz-16 text-text-tertiary">group_work</span>
-        <span class="flex-1 text-label-md text-ink">{{.Label}}</span>
-        {{if .Manual}}<span class="tag">{{$.L.T "page.pipeline.manual_gate"}}</span>{{end}}
-      </div>
-      {{end}}
-    </div>
-    {{if .CanOwn}}
-    <form method="post" action="/rollout" class="!m-0">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <input type="hidden" name="target" value="{{.MainRev}}">
-      <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{short .MainRev}}</button>
-    </form>
-    {{end}}
-    {{end}}
-  </div>
-  {{end}}
-</section>
-
 <!-- Step 3: the rollout procedure (waves) and governance controls -->
 {{if .CanOwn}}
 <section class="mt-8">
-  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-label-xs-caps font-bold text-canvas">3</span>{{.L.T "page.pipeline.procedure"}}</h2>
+  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="material-symbols-outlined text-mint-deep">tune</span>{{.L.T "page.pipeline.procedure"}}</h2>
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
     <!-- Ring plan editor: which groups roll out in which order, with soak, health and an approval gate per wave. -->
     <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">

@@ -14,116 +14,27 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 )
 
-func (s *Server) rolloutPage(w http.ResponseWriter, r *http.Request, v view) {
-	// The plan enumerates rings and groups: org-wide read required.
+func (s *Server) rolloutMonitorPage(w http.ResponseWriter, r *http.Request, v view) {
+	// Pure status/monitoring of the running (or last) rollout - the second
+	// screen an operator keeps open during an update. Configuration lives on
+	// /updates; this page only watches and steers (approve/pause/resume/stop).
 	if err := s.requireWeb(v, "org", identity.Viewer); err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
 	f := s.svc.Config.Fleet()
-	data := map[string]any{"Title": "Rollout", "Nav": "rollout",
-		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
-		"HasRings": f.Rollout != nil && len(f.Rollout.Rings) > 0,
-		// A required-but-missing test wave: the start form then offers the
-		// owner an explicit skip (governance: instelbare test-flow).
-		"NeedsTestWaveSkip": f.Assurance != nil && f.Assurance.RequireTestWave && !f.Rollout.HasTestGate(),
-	}
-	for k, val := range rolloutPlanData(f) {
-		data[k] = val
-	}
-
-	// Plan ladder: the ordered waves with each wave's device count, so an
-	// operator sees the progression at a glance (e.g. Canary 1 -> Pilot 10 ->
-	// Phase 1 100 -> ...). The wave size is its group's active device count;
-	// tune it by sizing groups and ordering waves, and refine per wave with
-	// soak, health and an approval gate.
-	if f.Rollout != nil && len(f.Rollout.Rings) > 0 {
-		type ladderStep struct {
-			N             int
-			Name, Group   string
-			Devices       int
-			Soak, Healthy int
-			Approval      bool
-			Max           int // count-cap per cohort; 0 = whole group at once
-		}
-		ladder := make([]ladderStep, 0, len(f.Rollout.Rings))
-		for i, rr := range f.Rollout.Rings {
-			ladder = append(ladder, ladderStep{
-				N: i + 1, Name: rr.Label(), Group: rr.Group,
-				Devices: len(f.ActiveGroupDevices(rr.Group)),
-				Soak:    rr.SoakMinutes, Healthy: rr.MinHealthyPercent, Approval: rr.RequireApproval,
-				Max: rr.MaxDevices,
-			})
-		}
-		data["PlanLadder"] = ladder
-	}
-	st, ringStatus, err := s.svc.Rollouts.Status(r.Context())
-	if err != nil {
-		data["Error"] = err.Error()
-	}
-	if st != nil {
-		data["State"] = st
-		type ringRow struct {
-			Ring   fleet.RolloutRing
-			Status rollout.RingStatus
-			Label  string // observed phase: Complete | Deploying | Soaking | Awaiting approval | Queued
-			Active bool
-			Await  bool // active manual gate: soaked, needs operator sign-off
-		}
-		var rows []ringRow
-		total, onTarget := 0, 0
-		if f.Rollout != nil {
-			for i, rr := range f.Rollout.Rings {
-				row := ringRow{Ring: rr}
-				if i < len(ringStatus) {
-					row.Status = ringStatus[i]
-				}
-				total += row.Status.Total
-				onTarget += row.Status.OnTarget
-				switch {
-				case st.Status != rollout.Active:
-					row.Label = "Queued"
-				case i < st.Ring:
-					row.Label = "Complete"
-				case i == st.Ring:
-					row.Active = true
-					converged := row.Status.Total > 0 && row.Status.OnTarget >= row.Status.Total
-					_, approved := st.ApprovedAt[i]
-					_, building := st.BuildRequestedAt[i]
-					_, promoted := st.PromotedAt[i]
-					switch {
-					// Build-before-promote: the wave's release is being
-					// realised into the binary cache; promotion follows.
-					case building && !promoted:
-						row.Label = "Building"
-					case converged && rr.RequireApproval && !approved:
-						row.Label = "Awaiting approval"
-						row.Await = true
-					case converged:
-						row.Label = "Soaking"
-					default:
-						row.Label = "Deploying"
-					}
-				default:
-					row.Label = "Queued"
-				}
-				rows = append(rows, row)
-			}
-		}
-		data["Rings"] = rows
-		// Overall convergence bar: devices on the target across all rings,
-		// bucketed to the nearest 5% so the width is a static CSP-safe class
-		// (bar-w-0 .. bar-w-100) rather than an inline style.
-		data["TotalDevices"], data["TotalOnTarget"] = total, onTarget
-		bucket := 0
-		if total > 0 {
-			pct := (onTarget*100 + total/2) / total
-			bucket = ((pct + 2) / 5) * 5
-			if bucket > 100 {
-				bucket = 100
-			}
-		}
-		data["BarClass"] = fmt.Sprintf("bar-w-%d", bucket)
+	st, ringStatus, _ := s.svc.Rollouts.Status(r.Context())
+	active := st != nil && st.Status == rollout.Active
+	paused := st != nil && st.Status == rollout.Paused
+	waves := waveCols(f, st, ringStatus, active)
+	data := map[string]any{
+		"Title": "Rollout", "Nav": "updates",
+		"Waves":   waves,
+		"State":   st,
+		"Active":  active,
+		"Paused":  paused,
+		"HasPlan": f.Rollout != nil && len(f.Rollout.Rings) > 0,
+		"CanOwn":  v.roleAt("org").Meets(identity.Owner),
 	}
 	s.render(w, "rollout", data, v)
 }

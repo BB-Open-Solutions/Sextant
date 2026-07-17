@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 )
@@ -29,6 +30,44 @@ type waveCol struct {
 	BarClass string
 }
 
+// waveCols renders the plan's rings against the run state for display -
+// shared by the Updates overview and the rollout monitoring page.
+func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus, active bool) []waveCol {
+	var waves []waveCol
+	if f.Rollout == nil {
+		return nil
+	}
+	for i, rr := range f.Rollout.Rings {
+		col := waveCol{Index: i, Label: rr.Label(), Group: rr.Group, Manual: rr.RequireApproval}
+		if i < len(ringStatus) {
+			col.OnTarget, col.Total = ringStatus[i].OnTarget, ringStatus[i].Total
+		}
+		col.BarClass = barBucket(col.OnTarget, col.Total)
+		switch {
+		case !active:
+			col.Status = "Planned"
+		case i < st.Ring:
+			col.Status = "Complete"
+		case i == st.Ring:
+			col.Active = true
+			converged := col.Total > 0 && col.OnTarget >= col.Total
+			_, approved := st.ApprovedAt[i]
+			switch {
+			case converged && rr.RequireApproval && !approved:
+				col.Status, col.Await = "Awaiting approval", true
+			case converged:
+				col.Status = "Soaking"
+			default:
+				col.Status = "Deploying"
+			}
+		default:
+			col.Status = "Queued"
+		}
+		waves = append(waves, col)
+	}
+	return waves
+}
+
 // barBucket rounds a fraction to the nearest 5% for a CSP-safe width class.
 func barBucket(onTarget, total int) string {
 	bucket := 0
@@ -42,7 +81,7 @@ func barBucket(onTarget, total int) string {
 	return fmt.Sprintf("bar-w-%d", bucket)
 }
 
-func (s *Server) pipelinePage(w http.ResponseWriter, r *http.Request, v view) {
+func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 	if err := s.requireWeb(v, "org", identity.Viewer); err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -65,41 +104,11 @@ func (s *Server) pipelinePage(w http.ResponseWriter, r *http.Request, v view) {
 	active := st != nil && st.Status == rollout.Active
 	paused := st != nil && st.Status == rollout.Paused
 
-	var waves []waveCol
-	if f.Rollout != nil {
-		for i, rr := range f.Rollout.Rings {
-			col := waveCol{Index: i, Label: rr.Label(), Group: rr.Group, Manual: rr.RequireApproval}
-			if i < len(ringStatus) {
-				col.OnTarget, col.Total = ringStatus[i].OnTarget, ringStatus[i].Total
-			}
-			col.BarClass = barBucket(col.OnTarget, col.Total)
-			switch {
-			case !active:
-				col.Status = "Planned"
-			case i < st.Ring:
-				col.Status = "Complete"
-			case i == st.Ring:
-				col.Active = true
-				converged := col.Total > 0 && col.OnTarget >= col.Total
-				_, approved := st.ApprovedAt[i]
-				switch {
-				case converged && rr.RequireApproval && !approved:
-					col.Status, col.Await = "Awaiting approval", true
-				case converged:
-					col.Status = "Soaking"
-				default:
-					col.Status = "Deploying"
-				}
-			default:
-				col.Status = "Queued"
-			}
-			waves = append(waves, col)
-		}
-	}
+	waves := waveCols(f, st, ringStatus, active)
 
 	head := s.svc.Config.Head(r.Context())
 	data := map[string]any{
-		"Title": "Delivery", "Nav": "pipeline",
+		"Title": "Updates", "Nav": "updates",
 		"Draft": draft, "Building": building, "Ready": ready,
 		"Waves":   waves,
 		"State":   st,
@@ -125,5 +134,5 @@ func (s *Server) pipelinePage(w http.ResponseWriter, r *http.Request, v view) {
 	if listErr != nil {
 		data["Error"] = listErr.Error()
 	}
-	s.render(w, "pipeline", data, v)
+	s.render(w, "updates", data, v)
 }

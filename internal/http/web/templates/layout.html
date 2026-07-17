@@ -56,7 +56,7 @@
         <!-- One delivery journey: the board is the spine (propose -> review ->
              ready -> rolling out in waves). Changes and Rollout are drill-downs
              reached from the cards, not separate top-level items. -->
-        <li><a href="/pipeline" class="nav-link {{if or (eq $n "pipeline") (eq $n "changes") (eq $n "rollout") (eq $n "diff")}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">conveyor_belt</span>{{.L.T "nav.delivery"}}</a></li>
+        <li><a href="/updates" class="nav-link {{if eq $n "updates"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">conveyor_belt</span>{{.L.T "nav.delivery"}}</a></li>
       </ul>
       {{end}}
       <p class="nav-section">{{.L.T "layout.section_governance"}}</p>

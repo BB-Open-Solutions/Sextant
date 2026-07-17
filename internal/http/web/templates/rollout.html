@@ -1,142 +1,65 @@
 {{define "content"}}
-<div class="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-  <div>
-    <h1 class="mb-1 flex items-center gap-2">{{if .State}}<span class="material-symbols-outlined text-mint-deep">autorenew</span>{{.L.T "rollout.active_title"}}{{else}}{{.L.T "nav.rollout"}}{{end}}</h1>
-    {{if .State}}<p class="mb-0 flex items-center gap-2 text-body-md text-text-tertiary">{{.L.T "rollout.target_revision"}} <code class="rounded bg-surface-container px-2 py-0.5 text-ink">{{.State.Target}}</code></p>
-    {{else}}<p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "rollout.intro"}}</p>{{end}}
+<section class="flex flex-col gap-6" data-poll="rollout-live">
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center gap-2 text-label-md text-text-tertiary">
+      <a href="/updates" class="hover:text-ink">{{.L.T "nav.delivery"}}</a>
+      <span class="material-symbols-outlined msz-14">chevron_right</span>
+      <span class="text-ink">{{.L.T "updates.rollout_title"}}</span>
+    </div>
+    <h1 class="mb-0 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">monitoring</span>{{.L.T "updates.rollout_title"}}</h1>
+    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "updates.rollout_subtitle"}}</p>
   </div>
-  {{if and .State .CanOwn}}
-  <div class="flex shrink-0 gap-2">
-    <form class="inline" method="post" action="/rollout/tick"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet">{{.L.T "rollout.advance_now"}}</button></form>
-    <form class="inline" method="post" action="/rollout/cancel" data-confirm="Halt this rollout run?"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet !border-status-error/50 !text-status-error">{{.L.T "rollout.halt"}}</button></form>
+
+  <div id="rollout-live" class="flex flex-col gap-6">
+  {{if not .State}}
+  <div class="rounded-lg border border-dashed border-border-soft bg-canvas p-6 text-center">
+    <p class="mb-1 text-body-md text-text-secondary">{{.L.T "updates.no_run"}}</p>
+    <p class="muted mb-0"><a href="/updates" class="text-secondary">{{.L.T "updates.back_to_overview"}}</a></p>
+  </div>
+  {{else}}
+  <!-- Status line: what run, what state, why (a halt carries its reason). -->
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+    <div class="flex flex-wrap items-center gap-3">
+      {{$st := printf "%s" .State.Status}}
+      {{if eq $st "active"}}<span class="tag ok"><span class="material-symbols-outlined msz-14 animate-spin">autorenew</span>{{.L.T "updates.state_active"}}</span>
+      {{else if eq $st "paused"}}<span class="tag"><span class="material-symbols-outlined msz-14">pause</span>{{.L.T "updates.state_paused"}}</span>
+      {{else if eq $st "halted"}}<span class="tag bad"><span class="material-symbols-outlined msz-14">report</span>{{.L.T "updates.state_halted"}}</span>
+      {{else if eq $st "completed"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{.L.T "updates.state_completed"}}</span>
+      {{else}}<span class="tag">{{$st}}</span>{{end}}
+      <span class="font-mono text-code-inline text-text-tertiary">{{short .State.Target}}</span>
+      {{with .State.Reason}}<span class="text-body-sm text-text-secondary">{{.}}</span>{{end}}
+    </div>
+    {{if .CanOwn}}
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+      <form method="post" action="/rollout/approve" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">done_all</span>{{.L.T "page.pipeline.approve_wave"}}</button></form>
+      {{if .Paused}}
+      <form method="post" action="/rollout/resume" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn !py-1.5"><span class="material-symbols-outlined msz-18">play_arrow</span>{{.L.T "page.pipeline.resume"}}</button></form>
+      {{else if .Active}}
+      <form method="post" action="/rollout/pause" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5"><span class="material-symbols-outlined msz-18">pause</span>{{.L.T "page.pipeline.pause"}}</button></form>
+      {{end}}
+      <form method="post" action="/rollout/cancel" class="!m-0" data-confirm="{{.L.T "page.pipeline.cancel"}}?"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5 !text-status-error">{{.L.T "page.pipeline.cancel"}}</button></form>
+    </div>
+    {{end}}
+  </div>
+
+  <!-- One card per wave: progress, state, the active one highlighted. -->
+  <div class="flex flex-col gap-3">
+    {{$ := .}}
+    {{range .Waves}}
+    <div class="rounded-lg border {{if .Active}}border-mint-vibrant{{else}}border-border-hairline{{end}} bg-canvas p-4 shadow-sm">
+      <div class="mb-2 flex items-center justify-between gap-3">
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="truncate font-medium text-ink">{{.Label}}</span>
+          {{if .Manual}}<span class="tag">{{$.L.T "page.pipeline.manual_gate"}}</span>{{end}}
+        </div>
+        <span class="shrink-0 text-label-md {{if .Active}}font-semibold text-mint-deep{{else}}text-text-tertiary{{end}}">{{.Status}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>
+      </div>
+      <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
+      {{if .Await}}<p class="mb-0 mt-2 text-body-sm text-status-warn">{{$.L.T "updates.await_hint"}}</p>{{end}}
+    </div>
+    {{end}}
   </div>
   {{end}}
-</div>
-
-{{if .PlanLadder}}
-<!-- How the rollout flows: the ordered waves and their size -->
-<div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <div class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">stairs</span><h2 class="mt-0 mb-0 text-headline-sm">{{.L.T "rollout.how_ships_title"}}</h2></div>
-  <p class="mb-5 max-w-3xl text-body-sm text-text-tertiary">{{.L.T "rollout.how_ships_desc"}}</p>
-  <div class="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-stretch">
-    {{range .PlanLadder}}
-    <div class="flex items-center gap-3">
-      <div class="min-w-[9rem] rounded-lg border border-border-soft bg-surface-container-low p-4">
-        <div class="flex items-center gap-2">
-          <span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-label-xs-caps font-semibold text-canvas">{{.N}}</span>
-          <span class="font-medium text-ink">{{.Name}}</span>
-        </div>
-        <div class="mt-2 flex items-baseline gap-1"><span class="text-headline-sm font-bold text-ink">{{.Devices}}</span><span class="text-label-md text-text-tertiary">device{{if ne .Devices 1}}s{{end}}</span></div>
-        <div class="mt-1 font-mono text-label-xs-caps text-text-tertiary">{{.Group}}</div>
-        {{if .Max}}<div class="mt-1 text-label-xs-caps text-mint-deep">{{.Max}} {{$.L.T "rollout.at_a_time"}}</div>{{end}}
-        <div class="mt-2 flex flex-wrap gap-1">
-          {{if .Soak}}<span class="tag"><span class="material-symbols-outlined msz-14">schedule</span>{{.Soak}}m</span>{{end}}
-          <span class="tag">&gt;={{if .Healthy}}{{.Healthy}}{{else}}100{{end}}%</span>
-          {{if .Approval}}<span class="tag lock"><span class="material-symbols-outlined msz-14">how_to_reg</span>{{$.L.T "rollout.gate_badge"}}</span>{{end}}
-        </div>
-      </div>
-      <span class="material-symbols-outlined text-text-tertiary">arrow_forward</span>
-    </div>
-    {{end}}
-    <div class="flex items-center rounded-lg border border-dashed border-border-soft px-4 text-label-md text-text-tertiary">{{.L.T "rollout.all_remaining"}}</div>
-  </div>
-</div>
-{{end}}
-
-<div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
-  <!-- Left: progression + convergence -->
-  <div class="flex flex-col gap-6 xl:col-span-2">
-    {{if .State}}
-    <!-- Progression -->
-    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-      <div class="flex items-center justify-between">
-        <h2 class="mt-0 mb-0 text-headline-sm">{{.L.T "rollout.progression_title"}}</h2>
-        <span class="rounded bg-mint-vibrant/10 px-3 py-1 text-label-xs-caps uppercase text-mint-deep">{{.State.Status}}{{range .Rings}}{{if .Active}} | {{.Ring.Label}}{{end}}{{end}}</span>
-      </div>
-      <div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-surface-container-high">
-        <div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div>
-      </div>
-      <div class="mt-3 flex items-center justify-between text-body-sm text-text-tertiary">
-        <span><span class="font-mono text-ink">{{.TotalOnTarget}}</span> / <span class="font-mono">{{.TotalDevices}}</span> {{.L.T "rollout.devices_converged"}}</span>
-        {{with .State.Reason}}<span class="text-status-error">{{.}}</span>{{end}}
-      </div>
-    </div>
-
-    <!-- Convergence by ring -->
-    <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-      <div class="border-b border-border-hairline bg-surface px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold text-ink">{{.L.T "rollout.convergence_title"}}</h2></div>
-      <table>
-        <tr><th class="!px-6 uppercase tracking-wide">{{.L.T "rollout.th_wave"}}</th><th class="!px-6 uppercase tracking-wide">{{.L.T "rollout.th_gate"}}</th><th class="!px-6 uppercase tracking-wide">{{.L.T "rollout.th_on_target"}}</th><th class="!px-6 uppercase tracking-wide">{{.L.T "common.status"}}</th></tr>
-        {{$ := .}}
-        {{range $i, $r := .Rings}}
-        <tr class="{{if $r.Active}}bg-mint-vibrant/5{{end}} hover:bg-surface-bright transition-colors">
-          <td class="!px-6">
-            <span class="flex items-center gap-2 font-medium"><span class="flex h-5 w-5 items-center justify-center rounded-full text-label-xs-caps {{if eq $r.Label "Complete"}}bg-ink text-canvas{{else if $r.Active}}bg-mint-vibrant text-ink{{else}}bg-surface-container-highest text-text-tertiary{{end}}">{{$i}}</span>{{$r.Ring.Label}}</span>
-            <span class="ml-7 block text-label-md text-text-tertiary">{{$r.Ring.Group}}{{if $r.Ring.RequireApproval}} | <span class="material-symbols-outlined msz-14">how_to_reg</span>{{$.L.T "rollout.manual_gate"}}{{end}}</span>
-          </td>
-          <td class="!px-6 text-text-secondary">{{if $r.Ring.SoakMinutes}}{{$.L.T "rollout.soak_label"}} {{$r.Ring.SoakMinutes}}m | {{end}}&gt;= {{if $r.Ring.MinHealthyPercent}}{{$r.Ring.MinHealthyPercent}}{{else}}100{{end}}% {{$.L.T "rollout.healthy_label"}}</td>
-          <td class="!px-6 font-mono text-code-inline">{{$r.Status.OnTarget}}/{{$r.Status.Total}}</td>
-          <td class="!px-6">
-            {{if $r.Await}}<span class="flex items-center gap-2"><span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined msz-16">how_to_reg</span>{{$.L.T "rollout.awaiting_approval"}}</span>{{if $.CanOwn}}<form method="post" action="/rollout/approve" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="!py-1 !bg-mint-vibrant !text-ink">{{$.L.T "rollout.approve_promote"}}</button></form>{{end}}</span>
-            {{else if eq $r.Label "Complete"}}<span class="flex items-center gap-1 text-text-secondary"><span class="material-symbols-outlined msz-16">check_circle</span>{{$.L.T "rollout.complete_label"}}</span>
-            {{else if eq $r.Label "Deploying"}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined msz-16">sync</span>{{$.L.T "rollout.deploying_label"}}</span>
-            {{else if eq $r.Label "Soaking"}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined msz-16">schedule</span>{{$.L.T "rollout.soaking_label"}}</span>
-            {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="material-symbols-outlined msz-16">lock</span>{{$.L.T "rollout.queued_label"}}</span>{{end}}
-          </td>
-        </tr>
-        {{end}}
-      </table>
-    </div>
-    {{else}}
-    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-      <p class="muted mb-4">{{.L.T "rollout.no_run"}}{{if not .HasRings}} {{.L.T "rollout.configure_rings_first"}}{{end}}</p>
-      {{if and .CanOwn .HasRings}}
-      <form method="post" action="/rollout" class="!flex-col !items-stretch gap-3 sm:!flex-row sm:!items-end">
-        <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <div class="flex flex-col gap-1"><label>{{.L.T "rollout.target_revision"}}</label><input name="target" placeholder="{{.L.T "rollout.target_placeholder"}}" required></div>
-        <button type="submit">{{.L.T "rollout.start"}}</button>
-        {{if .NeedsTestWaveSkip}}
-        <label class="flex items-center gap-2 !normal-case !tracking-normal text-body-sm text-status-warn sm:pb-2"><input type="checkbox" name="skipTestWave" class="!w-auto">{{.L.T "rollout.skip_test_wave"}}</label>
-        {{end}}
-      </form>
-      {{end}}
-    </div>
-    {{end}}
-  </div>
-
-  <!-- Right: ring plan editor -->
-  <div>
-    {{if .CanOwn}}
-    <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-      <h2 class="mt-0 mb-1 text-headline-sm">{{.L.T "rollout.wave_plan_title"}}</h2>
-      <p class="muted mb-4">{{.L.T "rollout.wave_plan_desc"}}</p>
-      <form method="post" action="/rollout/plan" class="!block">
-        <input type="hidden" name="csrf" value="{{.CSRF}}">
-        {{$ := .}}
-        <div class="flex flex-col gap-3">
-        {{range $i := .RingRows}}
-        <div class="rounded-md border border-border-soft p-3">
-          <div class="mb-2 flex items-center justify-between"><span class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "rollout.wave_n_label"}} {{$i}}</span></div>
-          <div class="flex flex-col gap-2">
-            <input name="name{{$i}}" placeholder="{{$.L.T "rollout.wave_name_placeholder"}}" value="{{index $.PlanNames $i}}">
-            <select name="group{{$i}}">
-              <option value="">{{$.L.T "rollout.unused_wave"}}</option>
-              {{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}
-            </select>
-            <div class="flex gap-2">
-              <input name="soak{{$i}}" type="number" min="0" placeholder="{{$.L.T "rollout.soak_placeholder"}}" value="{{index $.PlanSoaks $i}}" class="w-full">
-              <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="{{$.L.T "rollout.min_healthy_placeholder"}}" value="{{index $.PlanHealthy $i}}" class="w-full">
-              <input name="maxDevices{{$i}}" type="number" min="0" placeholder="{{$.L.T "rollout.max_at_once_placeholder"}}" value="{{index $.PlanMax $i}}" class="w-full" title="{{$.L.T "rollout.max_at_once_title"}}">
-            </div>
-            <label class="flex items-center gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="approval{{$i}}" value="1" {{if index $.PlanApproval $i}}checked{{end}} class="!w-auto">{{$.L.T "rollout.require_approval"}}</label>
-          </div>
-        </div>
-        {{end}}
-        </div>
-        <button type="submit" class="mt-4 w-full">{{.L.T "rollout.save_plan"}}</button>
-      </form>
-    </div>
-    {{end}}
-  </div>
-</div>
+  </div><!-- /rollout-live -->
+</section>
 {{end}}
