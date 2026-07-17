@@ -160,8 +160,8 @@ func (s *Store) GetFacts(ctx context.Context, tenant, tag string) ([]byte, time.
 // RingStragglers lists the devices holding a ring under 100%: never seen,
 // off-target, offline on target, or erroring - with a short reason each.
 // Capped: the list informs an operator, it is not an inventory export.
-func (c *Convergence) RingStragglers(ctx context.Context, group, target string) ([]rollout.Straggler, error) {
-	tags := c.Tags(group)
+func (c *Convergence) RingStragglers(ctx context.Context, groups []string, target string) ([]rollout.Straggler, error) {
+	tags := c.groupTags(groups)
 	if len(tags) == 0 {
 		return nil, nil
 	}
@@ -216,14 +216,24 @@ type Convergence struct {
 	Now func() time.Time
 }
 
+// groupTags flattens a wave's groups to one tag list (groups are disjoint by
+// plan validation, so no dedup is needed).
+func (c *Convergence) groupTags(groups []string) []string {
+	tags := make([]string, 0, len(groups))
+	for _, g := range groups {
+		tags = append(tags, c.Tags(g)...)
+	}
+	return tags
+}
+
 // NewConvergence wires the convergence source.
 func (s *Store) NewConvergence(tenant string, tags func(group string) []string) *Convergence {
 	return &Convergence{store: s, tenant: tenant, Tags: tags}
 }
 
 // RingStatus implements ports.ConvergenceSource with one aggregate query.
-func (c *Convergence) RingStatus(ctx context.Context, group, target string) (rollout.RingStatus, error) {
-	tags := c.Tags(group)
+func (c *Convergence) RingStatus(ctx context.Context, groups []string, target string) (rollout.RingStatus, error) {
+	tags := c.groupTags(groups)
 	if len(tags) == 0 {
 		return rollout.RingStatus{}, nil
 	}

@@ -505,6 +505,6 @@ func (f builderFunc) Build(ctx context.Context, repoDir string, hosts []string) 
 // cannot silently advance without real convergence data.
 type noConvergence struct{}
 
-func (noConvergence) RingStatus(context.Context, string, string) (rollout.RingStatus, error) {
+func (noConvergence) RingStatus(context.Context, []string, string) (rollout.RingStatus, error) {
 	return rollout.RingStatus{}, fmt.Errorf("observed plane not configured, convergence unknown: %w", ports.ErrUnavailable)
 }

@@ -191,7 +191,7 @@ func TestConvergenceAggregate(t *testing.T) {
 	})
 	conv.Now = func() time.Time { return now }
 
-	rs, err := conv.RingStatus(ctx, "ring0", "v2")
+	rs, err := conv.RingStatus(ctx, []string{"ring0"}, "v2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestConvergenceAggregate(t *testing.T) {
 	}
 
 	// Empty group: zero status, no error.
-	rs, err = conv.RingStatus(ctx, "ghost", "v2")
+	rs, err = conv.RingStatus(ctx, []string{"ghost"}, "v2")
 	if err != nil || rs.Total != 0 {
 		t.Fatalf("empty ring = %+v, %v", rs, err)
 	}

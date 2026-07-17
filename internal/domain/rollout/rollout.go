@@ -7,6 +7,7 @@ package rollout
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -15,7 +16,11 @@ import (
 // broader test group); later waves are production phases.
 type Ring struct {
 	// Group is the device group this wave pins.
-	Group string `json:"group"`
+	Group string `json:"group,omitempty"`
+	// Groups lists the wave's groups when it spans more than one (a
+	// percentage wave). Exactly one of Group/Groups is set; GroupList
+	// unifies the two forms.
+	Groups []string `json:"groups,omitempty"`
 	// Name is an operator-facing label for the wave ("Canary", "Test",
 	// "Phase 1"). Empty falls back to the group name in the UI.
 	Name string `json:"name,omitempty"`
@@ -40,12 +45,23 @@ type Ring struct {
 	MaxDevices int `json:"maxDevices,omitempty"`
 }
 
-// Label is the wave's display name (its Name, or the group if unnamed).
+// GroupList returns the wave's groups regardless of which form was stored.
+func (r Ring) GroupList() []string {
+	if len(r.Groups) > 0 {
+		return r.Groups
+	}
+	if r.Group != "" {
+		return []string{r.Group}
+	}
+	return nil
+}
+
+// Label is the wave's display name (its Name, or its groups if unnamed).
 func (r Ring) Label() string {
 	if r.Name != "" {
 		return r.Name
 	}
-	return r.Group
+	return strings.Join(r.GroupList(), ", ")
 }
 
 func (r Ring) minHealthy() int {

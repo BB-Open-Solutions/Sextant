@@ -7,6 +7,7 @@ package fleet
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Version is the fleet.json schema version this domain reads and writes.
@@ -257,22 +258,37 @@ type RolloutPolicy struct {
 
 // RolloutRing mirrors rollout.Ring in the config document.
 type RolloutRing struct {
-	Group             string `json:"group"`
-	Name              string `json:"name,omitempty"` // wave label (Canary, Test, Phase 1)
-	SoakMinutes       int    `json:"soakMinutes,omitempty"`
-	MinHealthyPercent int    `json:"minHealthyPercent,omitempty"`
-	RequireApproval   bool   `json:"requireApproval,omitempty"` // manual promotion gate
+	Group string `json:"group,omitempty"`
+	// Groups lists the device groups this wave covers when it spans more
+	// than one - a percentage wave derived from the org ladder. Exactly one
+	// of Group/Groups is set; GroupList unifies the two forms.
+	Groups            []string `json:"groups,omitempty"`
+	Name              string   `json:"name,omitempty"` // wave label (Canary, Test, Phase 1)
+	SoakMinutes       int      `json:"soakMinutes,omitempty"`
+	MinHealthyPercent int      `json:"minHealthyPercent,omitempty"`
+	RequireApproval   bool     `json:"requireApproval,omitempty"` // manual promotion gate
 	// MaxDevices caps how many of the group's devices receive the target at
 	// once (count-capped canary, ADR 0013); 0 releases the whole group.
 	MaxDevices int `json:"maxDevices,omitempty"`
 }
 
-// Label is the wave's display name (its Name, or the group if unnamed).
+// GroupList returns the wave's groups regardless of which form was stored.
+func (r RolloutRing) GroupList() []string {
+	if len(r.Groups) > 0 {
+		return r.Groups
+	}
+	if r.Group != "" {
+		return []string{r.Group}
+	}
+	return nil
+}
+
+// Label is the wave's display name (its Name, or its groups if unnamed).
 func (r RolloutRing) Label() string {
 	if r.Name != "" {
 		return r.Name
 	}
-	return r.Group
+	return strings.Join(r.GroupList(), ", ")
 }
 
 // AccessBinding mirrors identity.Binding in the config document.

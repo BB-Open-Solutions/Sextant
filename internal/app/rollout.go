@@ -73,7 +73,10 @@ func (s *RolloutService) ensureRingBuilt(ctx context.Context, st *rollout.State,
 	if s.builder == nil {
 		return true
 	}
-	hosts := s.cfg.Fleet().ActiveGroupDevices(ring.Group)
+	var hosts []string
+	for _, g := range ring.GroupList() {
+		hosts = append(hosts, s.cfg.Fleet().ActiveGroupDevices(g)...)
+	}
 	if len(hosts) == 0 {
 		return true // nothing will pull the release; nothing to build
 	}
@@ -95,7 +98,7 @@ func (s *RolloutService) ensureRingBuilt(ctx context.Context, st *rollout.State,
 	default: // building
 		if _, seen := st.BuildRequestedAt[st.Ring]; !seen {
 			st.BuildRequestedAt[st.Ring] = now
-			s.log.Info("release build started", "ring", st.Ring, "group", ring.Group, "target", st.Target)
+			s.log.Info("release build started", "ring", st.Ring, "wave", ring.Label(), "target", st.Target)
 		}
 		return false
 	}
@@ -150,13 +153,15 @@ func (s *RolloutService) releaseCohort(ctx context.Context, ring rollout.Ring, a
 		return nil
 	}
 	f := s.cfg.Fleet()
-	active := f.ActiveGroupDevices(ring.Group)
-	released := len(f.ReleasedGroupDevices(ring.Group))
-	next := ring.NextRelease(len(active), released)
-	for _, tag := range active[released:next] {
-		msg := fmt.Sprintf("rollout: release %s into wave %s cohort", tag, ring.Group)
-		if err := s.cfg.Apply(ctx, fleet.SetDevicePin(tag, ring.Group), msg, author, tag); err != nil {
-			return fmt.Errorf("cohort release of %s failed: %w", tag, err)
+	for _, g := range ring.GroupList() {
+		active := f.ActiveGroupDevices(g)
+		released := len(f.ReleasedGroupDevices(g))
+		next := ring.NextRelease(len(active), released)
+		for _, tag := range active[released:next] {
+			msg := fmt.Sprintf("rollout: release %s into wave %s cohort", tag, g)
+			if err := s.cfg.Apply(ctx, fleet.SetDevicePin(tag, g), msg, author, tag); err != nil {
+				return fmt.Errorf("cohort release of %s failed: %w", tag, err)
+			}
 		}
 	}
 	return nil
@@ -180,12 +185,14 @@ func (s *RolloutService) FollowHead(ctx context.Context) error {
 		return err
 	}
 	for _, ring := range f.Rollout.Rings {
-		g, ok := f.Groups[ring.Group]
-		if !ok || g.Pin != "" {
-			continue // pinned: the engine owns this ref via promotions
-		}
-		if err := s.moveRingRef(ctx, ring.Group, head); err != nil {
-			return err
+		for _, name := range ring.GroupList() {
+			g, ok := f.Groups[name]
+			if !ok || g.Pin != "" {
+				continue // pinned: the engine owns this ref via promotions
+			}
+			if err := s.moveRingRef(ctx, name, head); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -199,11 +206,13 @@ func (s *RolloutService) rings() ([]rollout.Ring, error) {
 	}
 	out := make([]rollout.Ring, 0, len(f.Rollout.Rings))
 	for _, r := range f.Rollout.Rings {
-		if _, ok := f.Groups[r.Group]; !ok {
-			return nil, fmt.Errorf("rollout ring names unknown group %q", r.Group)
+		for _, g := range r.GroupList() {
+			if _, ok := f.Groups[g]; !ok {
+				return nil, fmt.Errorf("rollout ring names unknown group %q", g)
+			}
 		}
 		out = append(out, rollout.Ring{
-			Group: r.Group, Name: r.Name, SoakMinutes: r.SoakMinutes,
+			Group: r.Group, Groups: r.Groups, Name: r.Name, SoakMinutes: r.SoakMinutes,
 			MinHealthyPercent: r.MinHealthyPercent, RequireApproval: r.RequireApproval,
 			MaxDevices: r.MaxDevices,
 		})
@@ -247,12 +256,12 @@ func (s *RolloutService) Status(ctx context.Context) (*rollout.State, []rollout.
 	}
 	statuses := make([]rollout.RingStatus, len(rings))
 	for i, r := range rings {
-		rs, err := s.conv.RingStatus(ctx, r.Group, st.Target)
+		rs, err := s.conv.RingStatus(ctx, r.GroupList(), st.Target)
 		if err != nil {
 			return st, nil, err
 		}
 		if _, promoted := st.PromotedAt[i]; promoted {
-			rs = s.cohortFixup(rs, r.Group)
+			rs = s.cohortFixup(rs, r)
 		}
 		statuses[i] = rs
 	}
@@ -265,9 +274,13 @@ func (s *RolloutService) Status(ctx context.Context) (*rollout.State, []rollout.
 // GroupTotal is the whole active group - otherwise a count-capped wave that
 // released only part of its group reads as "N/N on target" with no group
 // total, looking complete when it is not.
-func (s *RolloutService) cohortFixup(rs rollout.RingStatus, group string) rollout.RingStatus {
+func (s *RolloutService) cohortFixup(rs rollout.RingStatus, ring rollout.Ring) rollout.RingStatus {
 	rs.Released = rs.Total
-	rs.GroupTotal = len(s.cfg.Fleet().ActiveGroupDevices(group))
+	total := 0
+	for _, g := range ring.GroupList() {
+		total += len(s.cfg.Fleet().ActiveGroupDevices(g))
+	}
+	rs.GroupTotal = total
 	return rs
 }
 
@@ -330,12 +343,12 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 	now := s.clock.Now()
 	rs := rollout.RingStatus{}
 	if _, promoted := st.PromotedAt[st.Ring]; promoted && st.Ring < len(rings) {
-		if rs, err = s.conv.RingStatus(ctx, rings[st.Ring].Group, st.Target); err != nil {
+		if rs, err = s.conv.RingStatus(ctx, rings[st.Ring].GroupList(), st.Target); err != nil {
 			return nil, st, err
 		}
 		// Cohort accounting (ADR 0013), so Decide knows whether a capped wave
 		// still has devices to widen into.
-		rs = s.cohortFixup(rs, rings[st.Ring].Group)
+		rs = s.cohortFixup(rs, rings[st.Ring])
 	}
 
 	act := rollout.Decide(rings, st, rs, now)
@@ -353,13 +366,15 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 				"status", string(st.Status))
 			return &act, st, nil
 		}
-		msg := fmt.Sprintf("rollout: pin ring %d (%s) to %s", st.Ring, ring.Group, st.Target)
 		author := ports.Author{Name: "sextant-rollout", Email: "rollout@sextant"}
 		// Group pin: the audit record + the marker FollowHead uses to leave this
 		// ring's branch alone while the engine owns it (capped or not).
-		if err := s.cfg.Apply(ctx, fleet.SetGroupPin(ring.Group, st.Target), msg, author,
-			AffectedHosts(s.cfg.Fleet(), "group:"+ring.Group)...); err != nil {
-			return &act, st, fmt.Errorf("pin commit failed: %w", err)
+		for _, g := range ring.GroupList() {
+			msg := fmt.Sprintf("rollout: pin ring %d (%s) to %s", st.Ring, g, st.Target)
+			if err := s.cfg.Apply(ctx, fleet.SetGroupPin(g, st.Target), msg, author,
+				AffectedHosts(s.cfg.Fleet(), "group:"+g)...); err != nil {
+				return &act, st, fmt.Errorf("pin commit failed: %w", err)
+			}
 		}
 		// Count-capped canary (ADR 0013): release only the first cohort onto
 		// the ring; uncapped waves release the whole group via the branch move.
@@ -369,8 +384,10 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 		// The funnel (ADR 0011): move the ring's branch so its released devices
 		// actually receive the target. Pin commit first (audit), then ref.
 		if s.refs != nil {
-			if err := s.moveRingRef(ctx, ring.Group, st.Target); err != nil {
-				return &act, st, fmt.Errorf("ring branch move failed: %w", err)
+			for _, g := range ring.GroupList() {
+				if err := s.moveRingRef(ctx, g, st.Target); err != nil {
+					return &act, st, fmt.Errorf("ring branch move failed: %w", err)
+				}
 			}
 		}
 		st.PromotedAt[st.Ring] = now
@@ -416,20 +433,20 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 // name the devices behind a wave's percentages. The postgres adapter has it;
 // test fakes need not.
 type stragglerSource interface {
-	RingStragglers(ctx context.Context, group, target string) ([]rollout.Straggler, error)
+	RingStragglers(ctx context.Context, groups []string, target string) ([]rollout.Straggler, error)
 }
 
 // Stragglers names the devices keeping a group's wave under 100% for the
 // given target. Empty (never an error) when the convergence source cannot
 // break its numbers down per device.
-func (s *RolloutService) Stragglers(ctx context.Context, group, target string) []rollout.Straggler {
+func (s *RolloutService) Stragglers(ctx context.Context, groups []string, target string) []rollout.Straggler {
 	src, ok := s.conv.(stragglerSource)
 	if !ok {
 		return nil
 	}
-	out, err := src.RingStragglers(ctx, group, target)
+	out, err := src.RingStragglers(ctx, groups, target)
 	if err != nil {
-		s.log.Warn("straggler lookup failed", "group", group, "err", err)
+		s.log.Warn("straggler lookup failed", "groups", groups, "err", err)
 		return nil
 	}
 	return out

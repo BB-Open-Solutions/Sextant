@@ -33,6 +33,9 @@ type waveCol struct {
 	// the monitoring page for the active wave).
 	NowKey     string
 	Stragglers []rollout.Straggler
+	// Groups backs the straggler lookup for the wave (a percentage wave
+	// spans several groups).
+	Groups []string
 }
 
 // nowKeyForWave maps the wave's display status to its guidance line.
@@ -60,7 +63,7 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 		return nil
 	}
 	for i, rr := range f.Rollout.Rings {
-		col := waveCol{Index: i, Label: rr.Label(), Group: rr.Group, Manual: rr.RequireApproval}
+		col := waveCol{Index: i, Label: rr.Label(), Groups: rr.GroupList(), Manual: rr.RequireApproval}
 		if i < len(ringStatus) {
 			col.OnTarget, col.Total = ringStatus[i].OnTarget, ringStatus[i].Total
 		}

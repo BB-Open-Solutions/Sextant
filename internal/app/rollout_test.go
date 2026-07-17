@@ -34,10 +34,17 @@ func (f *fakeConvergence) set(group string, rs rollout.RingStatus) {
 	f.m[group] = rs
 }
 
-func (f *fakeConvergence) RingStatus(_ context.Context, group, _ string) (rollout.RingStatus, error) {
+func (f *fakeConvergence) RingStatus(_ context.Context, groups []string, _ string) (rollout.RingStatus, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.m[group], nil
+	var sum rollout.RingStatus
+	for _, g := range groups {
+		rs := f.m[g]
+		sum.Total += rs.Total
+		sum.OnTarget += rs.OnTarget
+		sum.Healthy += rs.Healthy
+	}
+	return sum, nil
 }
 
 const rolloutFleet = `{

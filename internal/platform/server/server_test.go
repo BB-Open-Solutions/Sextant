@@ -17,7 +17,7 @@ func discard() *slog.Logger {
 
 func TestServeAndCleanShutdown(t *testing.T) {
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprint(w, "hello")
+		_, _ = fmt.Fprint(w, "hello")
 	})
 	srv := New("127.0.0.1:0", h, discard(), Options{ShutdownGrace: 2 * time.Second})
 

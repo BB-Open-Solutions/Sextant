@@ -32,7 +32,7 @@ type RolloutStore interface {
 // plane exists a source may report zero data, which the engine treats as
 // "no devices".
 type ConvergenceSource interface {
-	RingStatus(ctx context.Context, group, target string) (rollout.RingStatus, error)
+	RingStatus(ctx context.Context, groups []string, target string) (rollout.RingStatus, error)
 }
 
 // StatusStore persists device check-ins, namespaced by tenant. Upserts are

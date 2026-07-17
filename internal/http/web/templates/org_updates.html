@@ -12,26 +12,44 @@
 
   {{with .Error}}<div class="rounded-lg border border-error/30 bg-error-container px-4 py-3 text-body-md text-on-error-container">{{.}}</div>{{end}}
 
-  <!-- The simple form: pick the test group, the rest derives. -->
-  <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
-    <h2 class="mt-0 mb-1 text-label-md font-bold text-ink">{{.L.T "orgupd.basic_title"}}</h2>
-    <p class="muted mb-4">{{.L.T "orgupd.basic_desc"}}</p>
-    <form method="post" action="/org/updates/policy" class="!flex-col !items-stretch gap-3 sm:!flex-row sm:!items-end">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <div class="flex flex-1 flex-col gap-1"><label>{{.L.T "orgupd.testgroup_label"}}</label>
-        <select name="testgroup" required class="w-full"><option value="" disabled {{if not .TestGroup}}selected{{end}}>{{.L.T "common.select"}}</option>{{range .AllGroups}}<option value="{{.}}" {{if eq . $.TestGroup}}selected{{end}}>{{.}}</option>{{end}}</select></div>
-      <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "orgupd.save_basic"}}</button>
-    </form>
-    {{if .Waves}}
-    <div class="mt-4 flex flex-wrap items-center gap-2">
-      {{range $i, $w := .Waves}}
-      {{if $i}}<span class="material-symbols-outlined msz-14 text-border-hairline">arrow_forward</span>{{end}}
-      <span class="tag {{if eq $i 0}}ok{{end}}">{{$w.Label}}{{if $w.Manual}} <span class="material-symbols-outlined msz-14">how_to_reg</span>{{end}}</span>
-      {{end}}
+  <!-- The two org choices (delivery-process §8): test devices + ladder shape.
+       Everything else about a rollout is an opinionated default. -->
+  <form method="post" action="/org/updates/policy" class="!block">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <div class="flex flex-col gap-6">
+      <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+        <h2 class="mt-0 mb-1 flex items-center gap-2 text-label-md font-bold text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-body-sm text-canvas">1</span>{{.L.T "orgupd.testgroup_label"}}</h2>
+        <p class="muted mb-4">{{.L.T "orgupd.testgroup_desc"}}</p>
+        <div class="flex max-w-md flex-col gap-1"><label>{{.L.T "common.group"}}</label>
+          <select name="testgroup" required class="w-full"><option value="" disabled {{if not .TestGroup}}selected{{end}}>{{.L.T "common.select"}}</option>{{range .AllGroups}}<option value="{{.}}" {{if eq . $.TestGroup}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+      </div>
+
+      <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+        <h2 class="mt-0 mb-1 flex items-center gap-2 text-label-md font-bold text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-body-sm text-canvas">2</span>{{.L.T "orgupd.ladder_title"}}</h2>
+        <p class="muted mb-4">{{.L.T "orgupd.ladder_desc"}}</p>
+        <div class="flex max-w-md flex-col gap-1"><label>{{.L.T "orgupd.percents_label"}}</label>
+          <input name="percents" value="{{.Percents}}" placeholder="10, 30, 60">
+          <p class="muted mb-0 mt-1 text-body-sm">{{.L.T "orgupd.percents_hint"}}</p></div>
+        <button type="submit" class="btn mt-4"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "orgupd.save_basic"}}</button>
+
+        {{if .PlanWaves}}
+        <div class="mt-5 border-t border-border-soft pt-4">
+          <h3 class="mt-0 mb-2 text-label-xs-caps uppercase text-text-tertiary">{{.L.T "orgupd.plan_preview"}}</h3>
+          <div class="flex flex-col gap-2">
+            {{range $i, $w := .PlanWaves}}
+            <div class="flex items-center gap-3 rounded-md border {{if eq $i 0}}border-mint-vibrant/40 bg-mint-vibrant/5{{else}}border-border-soft{{end}} px-3 py-2">
+              <span class="tag {{if eq $i 0}}ok{{end}} shrink-0">{{$w.Label}}{{if $w.Manual}} <span class="material-symbols-outlined msz-14" title="{{$.L.T "rollout.require_approval"}}">how_to_reg</span>{{end}}</span>
+              <span class="min-w-0 flex-1 truncate text-body-sm text-text-tertiary" title="{{$w.Groups}}">{{$w.Groups}}</span>
+              <span class="shrink-0 text-label-md text-ink">{{$w.Devices}} {{$.L.T "orgupd.wave_devices"}}{{if $i}} · {{$w.Share}}%{{end}}</span>
+            </div>
+            {{end}}
+          </div>
+          <p class="muted mb-0 mt-2 text-body-sm">{{.L.T "orgupd.derived_hint"}}</p>
+        </div>
+        {{end}}
+      </div>
     </div>
-    <p class="muted mb-0 mt-2 text-body-sm">{{.L.T "orgupd.derived_hint"}}</p>
-    {{end}}
-  </div>
+  </form>
 
   <!-- Governance: how strict the review is before a change takes effect. -->
   <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
@@ -34,7 +35,7 @@ func (s *Server) rolloutMonitorPage(w http.ResponseWriter, r *http.Request, v vi
 	if st != nil {
 		for i := range waves {
 			if waves[i].Active {
-				waves[i].Stragglers = s.svc.Rollouts.Stragglers(r.Context(), waves[i].Group, st.Target)
+				waves[i].Stragglers = s.svc.Rollouts.Stragglers(r.Context(), waves[i].Groups, st.Target)
 			}
 		}
 	}
@@ -153,9 +154,16 @@ func (s *Server) orgUpdatesPage(w http.ResponseWriter, r *http.Request, v view) 
 	}
 	if f.Rollout != nil && len(f.Rollout.Rings) > 0 {
 		data["TestGroup"] = f.Rollout.Rings[0].Group
-		st, ringStatus, _ := s.svc.Rollouts.Status(r.Context())
-		active := st != nil && st.Status == rollout.Active
-		data["Waves"] = waveCols(f, st, ringStatus, active)
+		rows := planWaveRows(f)
+		data["PlanWaves"] = rows
+		shares := make([]string, 0, len(rows))
+		for i, row := range rows {
+			if i == 0 {
+				continue // the test wave is outside the percentage ladder
+			}
+			shares = append(shares, strconv.Itoa(row.Share))
+		}
+		data["Percents"] = strings.Join(shares, ", ")
 	}
 	if f.Assurance != nil {
 		data["RequireFourEyes"] = f.Assurance.RequireFourEyes
@@ -179,29 +187,11 @@ func (s *Server) postUpdatesPolicy(w http.ResponseWriter, r *http.Request, v vie
 	if _, ok := f.Groups[test]; !ok {
 		return fmt.Errorf("unknown test group %q", test)
 	}
-	plan := &fleet.RolloutPolicy{Rings: []fleet.RolloutRing{{
-		Group: test, Name: "Testgroep", RequireApproval: true, SoakMinutes: 60,
-	}}}
-	type gs struct {
-		name string
-		n    int
+	percents, err := parsePercents(r.FormValue("percents"))
+	if err != nil {
+		return err
 	}
-	var rest []gs
-	for g := range f.Groups {
-		if g == test {
-			continue
-		}
-		rest = append(rest, gs{g, len(f.ActiveGroupDevices(g))})
-	}
-	sort.Slice(rest, func(i, j int) bool {
-		if rest[i].n != rest[j].n {
-			return rest[i].n < rest[j].n
-		}
-		return rest[i].name < rest[j].name
-	})
-	for _, g := range rest {
-		plan.Rings = append(plan.Rings, fleet.RolloutRing{Group: g.name, SoakMinutes: 30})
-	}
+	plan := derivePlan(f, test, percents)
 	if err := s.applyGated(r, v, fleet.SetRolloutPlan(plan), "rollout: derive plan from test group "+test); err != nil {
 		return err
 	}
@@ -229,7 +219,7 @@ func rolloutPlanData(f *fleet.Fleet) map[string]any {
 	planMax := make([]string, ringRows)
 	if f.Rollout != nil {
 		for i, ring := range f.Rollout.Rings {
-			planGroups[i] = ring.Group
+			planGroups[i] = strings.Join(ring.GroupList(), ", ")
 			planNames[i] = ring.Name
 			planApproval[i] = ring.RequireApproval
 			if ring.SoakMinutes > 0 {
@@ -257,4 +247,125 @@ func rolloutPlanData(f *fleet.Fleet) map[string]any {
 		"PlanGroups": planGroups, "PlanSoaks": planSoaks, "PlanHealthy": planHealthy,
 		"PlanNames": planNames, "PlanApproval": planApproval, "PlanMax": planMax,
 	}
+}
+
+// parsePercents reads the ladder shape ("10, 30, 60"): the share of the
+// fleet each wave after the test wave receives. Empty means one 100% wave.
+// Values are proportions - they need not sum to exactly 100.
+func parsePercents(raw string) ([]int, error) {
+	fields := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '-' || r == '/'
+	})
+	if len(fields) == 0 {
+		return []int{100}, nil
+	}
+	if len(fields) > 10 {
+		return nil, fmt.Errorf("at most 10 waves")
+	}
+	out := make([]int, 0, len(fields))
+	for _, fld := range fields {
+		n, err := strconv.Atoi(fld)
+		if err != nil || n < 1 || n > 100 {
+			return nil, fmt.Errorf("wave percentages must be whole numbers 1-100 (got %q)", fld)
+		}
+		out = append(out, n)
+	}
+	return out, nil
+}
+
+// derivePlan turns the org's two choices (test group + ladder shape) into a
+// full wave plan: the test wave first (manual sign-off, structural per
+// delivery-process 4), then percentage waves. Groups are the engine's release
+// unit, so each percentage wave takes whole groups, smallest first, until the
+// wave's cumulative share of the fleet is reached - actual shares therefore
+// approximate the requested ones at group granularity.
+func derivePlan(f *fleet.Fleet, test string, percents []int) *fleet.RolloutPolicy {
+	plan := &fleet.RolloutPolicy{Rings: []fleet.RolloutRing{{
+		Group: test, Name: "Testgroep", RequireApproval: true, SoakMinutes: 60,
+	}}}
+	type gs struct {
+		name string
+		n    int
+	}
+	var rest []gs
+	total := 0
+	for g := range f.Groups {
+		if g == test {
+			continue
+		}
+		n := len(f.ActiveGroupDevices(g))
+		rest = append(rest, gs{g, n})
+		total += n
+	}
+	sort.Slice(rest, func(i, j int) bool {
+		if rest[i].n != rest[j].n {
+			return rest[i].n < rest[j].n
+		}
+		return rest[i].name < rest[j].name
+	})
+	sum := 0
+	for _, p := range percents {
+		sum += p
+	}
+	covered, gi := 0, 0
+	for wi, p := range percents {
+		if gi >= len(rest) {
+			break
+		}
+		// Cumulative device target for this wave, in whole devices.
+		cumShare := 0
+		for _, q := range percents[:wi+1] {
+			cumShare += q
+		}
+		target := total * cumShare / sum
+		ring := fleet.RolloutRing{Name: fmt.Sprintf("Wave %d · %d%%", wi+1, p), SoakMinutes: 30}
+		for gi < len(rest) && (covered < target || wi == len(percents)-1) {
+			ring.Groups = append(ring.Groups, rest[gi].name)
+			covered += rest[gi].n
+			gi++
+		}
+		if len(ring.Groups) == 0 {
+			continue // fleet too small for this many waves
+		}
+		plan.Rings = append(plan.Rings, ring)
+	}
+	return plan
+}
+
+// planWaveRows renders the configured plan for the policy page preview: per
+// wave its label, groups and device count plus the wave's real share.
+type planWaveRow struct {
+	Label   string
+	Groups  string
+	Devices int
+	Share   int // percent of the post-test fleet
+	Manual  bool
+}
+
+func planWaveRows(f *fleet.Fleet) []planWaveRow {
+	if f.Rollout == nil {
+		return nil
+	}
+	total := 0
+	counts := make([]int, len(f.Rollout.Rings))
+	for i, ring := range f.Rollout.Rings {
+		for _, g := range ring.GroupList() {
+			counts[i] += len(f.ActiveGroupDevices(g))
+		}
+		if i > 0 { // the test wave is outside the percentage fleet
+			total += counts[i]
+		}
+	}
+	rows := make([]planWaveRow, 0, len(f.Rollout.Rings))
+	for i, ring := range f.Rollout.Rings {
+		row := planWaveRow{
+			Label: ring.Label(), Groups: strings.Join(ring.GroupList(), ", "),
+			Devices: counts[i], Manual: ring.RequireApproval,
+		}
+		if i > 0 && total > 0 {
+			row.Share = counts[i] * 100 / total
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }

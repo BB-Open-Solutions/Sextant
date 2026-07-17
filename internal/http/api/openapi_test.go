@@ -24,7 +24,7 @@ func (allowBuilder) Build(context.Context, string, []string) error { return nil 
 
 type zeroConv struct{}
 
-func (zeroConv) RingStatus(context.Context, string, string) (rollout.RingStatus, error) {
+func (zeroConv) RingStatus(context.Context, []string, string) (rollout.RingStatus, error) {
 	return rollout.RingStatus{}, nil
 }
 

@@ -147,13 +147,19 @@ func SetRolloutPlan(p *RolloutPolicy) Mutation {
 		}
 		seen := map[string]bool{}
 		for i, ring := range p.Rings {
-			if _, ok := f.Groups[ring.Group]; !ok {
-				return fmt.Errorf("ring %d: unknown group %q", i, ring.Group)
+			gl := ring.GroupList()
+			if len(gl) == 0 {
+				return fmt.Errorf("ring %d: no group named", i)
 			}
-			if seen[ring.Group] {
-				return fmt.Errorf("ring %d: group %q is already in an earlier wave (a group belongs to one wave, since a device follows one ring). For a staged rollout within a group - e.g. 10 first, then the rest after soak - set that wave's \"max at once\" cap instead of adding the group again", i, ring.Group)
+			for _, g := range gl {
+				if _, ok := f.Groups[g]; !ok {
+					return fmt.Errorf("ring %d: unknown group %q", i, g)
+				}
+				if seen[g] {
+					return fmt.Errorf("ring %d: group %q is already in an earlier wave (a group belongs to one wave, since a device follows one ring). For a staged rollout within a group - e.g. 10 first, then the rest after soak - set that wave's \"max at once\" cap instead of adding the group again", i, g)
+				}
+				seen[g] = true
 			}
-			seen[ring.Group] = true
 			if ring.SoakMinutes < 0 {
 				return fmt.Errorf("ring %d: negative soak", i)
 			}
