@@ -205,16 +205,63 @@ func (r *Repo) Sync(ctx context.Context) error {
 	if r.remote == "" {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, netTimeout)
-	defer cancel()
-	if out, err := exec.CommandContext(ctx, "git", "-C", r.dir, "fetch", r.remote).CombinedOutput(); err != nil {
-		return fmt.Errorf("git fetch: %s", strings.TrimSpace(string(out)))
+	if msg, err := r.runNet(ctx, "fetch", r.remote); err != nil {
+		return fmt.Errorf("git fetch: %s", msg)
 	}
-	ref := r.remote + "/" + r.branch(ctx)
-	if out, err := exec.CommandContext(ctx, "git", "-C", r.dir, "reset", "--hard", ref).CombinedOutput(); err != nil {
+	rctx, cancel := context.WithTimeout(ctx, netTimeout)
+	defer cancel()
+	ref := r.remote + "/" + r.branch(rctx)
+	if out, err := exec.CommandContext(rctx, "git", "-C", r.dir, "reset", "--hard", ref).CombinedOutput(); err != nil {
 		return fmt.Errorf("git reset --hard %s: %s", ref, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// runNet runs one git network command, retrying twice on transient network
+// hiccups (a DNS blip mid-save must not read as a hard failure to the
+// operator). Non-transient errors return immediately with their message.
+func (r *Repo) runNet(ctx context.Context, args ...string) (string, error) {
+	var msg string
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return msg, err
+			case <-time.After(time.Duration(attempt) * 500 * time.Millisecond):
+			}
+		}
+		actx, cancel := context.WithTimeout(ctx, netTimeout)
+		out, e := exec.CommandContext(actx, "git", append([]string{"-C", r.dir}, args...)...).CombinedOutput()
+		cancel()
+		if e == nil {
+			return "", nil
+		}
+		msg, err = strings.TrimSpace(string(out)), e
+		if !isTransientNet(msg) {
+			return msg, err
+		}
+	}
+	return msg, err
+}
+
+// isTransientNet classifies one-off network failures worth a quick retry.
+func isTransientNet(msg string) bool {
+	m := strings.ToLower(msg)
+	for _, s := range []string{
+		"could not resolve host",
+		"temporary failure in name resolution",
+		"connection refused",
+		"connection reset",
+		"connection timed out",
+		"operation timed out",
+		"early eof",
+	} {
+		if strings.Contains(m, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // Push implements ports.ConfigRepo. A push rejected because the remote
@@ -224,14 +271,13 @@ func (r *Repo) Push(ctx context.Context) error {
 	if r.remote == "" {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, netTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "git", "-C", r.dir,
-		"push", r.remote, "HEAD:"+r.branch(ctx)).CombinedOutput()
+	bctx, cancel := context.WithTimeout(ctx, netTimeout)
+	branch := r.branch(bctx)
+	cancel()
+	msg, err := r.runNet(ctx, "push", r.remote, "HEAD:"+branch)
 	if err == nil {
 		return nil
 	}
-	msg := strings.TrimSpace(string(out))
 	if isNonFastForward(msg) {
 		return fmt.Errorf("git push: %s: %w", msg, ports.ErrConflict)
 	}
@@ -311,9 +357,8 @@ func (r *Repo) PushRef(ctx context.Context, name string) error {
 	ref := "refs/heads/" + name
 	// "--" stops the repository/refspec pair from being misread as flags
 	// (mirrors Commit's "git add --").
-	if out, err := exec.CommandContext(ctx, "git", "-C", r.dir,
-		"push", "--force", "--", r.remote, ref+":"+ref).CombinedOutput(); err != nil {
-		return fmt.Errorf("git push ref %s: %s", name, strings.TrimSpace(string(out)))
+	if msg, err := r.runNet(ctx, "push", "--force", "--", r.remote, ref+":"+ref); err != nil {
+		return fmt.Errorf("git push ref %s: %s", name, msg)
 	}
 	return nil
 }
