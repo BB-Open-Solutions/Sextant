@@ -177,6 +177,10 @@ func (a *API) postSetting(w http.ResponseWriter, r *http.Request) error {
 	// API cannot bypass change-request governance, catalog membership, typing
 	// or secret-reference integrity. The value arrives already typed from JSON;
 	// render it to the string the catalog entry parses and validates.
+	if err := app.GuardBrickingSettings(r.Context(), a.cfg, a.inv, in.Scope,
+		[]app.SettingChange{{Key: in.Key, RawValue: fmt.Sprint(in.Value)}}); err != nil {
+		return reject(err)
+	}
 	if err := a.cfg.SetSetting(r.Context(), in.Scope, in.Key,
 		fmt.Sprint(in.Value), in.Enforce, author(r)); err != nil {
 		return settingErr(err)
@@ -195,6 +199,10 @@ func (a *API) deleteSetting(w http.ResponseWriter, r *http.Request) error {
 	}
 	if err := a.require(r, in.Scope, identity.Editor); err != nil {
 		return err
+	}
+	if err := app.GuardBrickingSettings(r.Context(), a.cfg, a.inv, in.Scope,
+		[]app.SettingChange{{Key: in.Key, Clear: true}}); err != nil {
+		return reject(err)
 	}
 	// Same ConfigService entry point as the console, so a clear is subject to
 	// the same change-request governance and affected-host scoping as a set.

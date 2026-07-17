@@ -22,7 +22,7 @@ func newMemStatus() *memStatus { return &memStatus{m: map[string]observed.Device
 func (s *memStatus) Upsert(_ context.Context, _ string, c observed.CheckIn, _ time.Time) (bool, error) {
 	prev, existed := s.m[c.Tag]
 	ackChanged := !existed || prev.Ack != c.Ack
-	s.m[c.Tag] = observed.DeviceStatus{Tag: c.Tag, Ack: c.Ack}
+	s.m[c.Tag] = observed.DeviceStatus{Tag: c.Tag, Ack: c.Ack, SB: c.SB, TPM2: c.TPM2}
 	return ackChanged, nil
 }
 func (s *memStatus) Get(_ context.Context, _, tag string) (observed.DeviceStatus, bool, error) {

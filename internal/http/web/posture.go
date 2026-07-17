@@ -131,6 +131,14 @@ func (s *Server) postDevicePosture(w http.ResponseWriter, r *http.Request, v vie
 	default:
 		return fmt.Errorf("unknown posture action")
 	}
+	// The disable path is exactly the brick the guard exists for: firmware
+	// first, config second (see app.GuardBrickingSettings).
+	if b, isBool := val.(bool); isBool && key == keySecureBoot && !b {
+		if err := app.GuardBrickingSettings(r.Context(), s.svc.Config, s.svc.Inventory, ref,
+			[]app.SettingChange{{Key: key, RawValue: "false"}}); err != nil {
+			return err
+		}
+	}
 	msg := fmt.Sprintf("posture: %s at %s", what, ref)
 	if err := s.applyGated(r, v, fleet.SetScopeSetting(ref, key, val),
 		msg, app.AffectedHosts(s.svc.Config.Fleet(), ref)...); err != nil {

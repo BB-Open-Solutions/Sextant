@@ -239,6 +239,11 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 		}
 	}
 	if len(changes) > 0 {
+		// Brick guard: never let a save disable Secure Boot for a device
+		// whose firmware still enforces it (settings_guard.go).
+		if err := app.GuardBrickingSettings(r.Context(), s.svc.Config, s.svc.Inventory, scope, changes); err != nil {
+			return err
+		}
 		// Grace-window save: the change-request governance check fires in
 		// milliseconds (well inside the window), so ErrChangeRequestRequired
 		// still stages inline below; only the nix validation can detach.
