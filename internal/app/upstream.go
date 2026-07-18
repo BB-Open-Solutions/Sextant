@@ -31,6 +31,28 @@ type UpstreamService struct {
 	notifier Notifier
 	audience []string
 	log      *slog.Logger
+
+	// Delivery (phase two, optional): with these set, a staged CR also gets
+	// its CONTENT - the runner computes the flake.lock pinning the input to
+	// the new head, EditFile commits it on the branch and Submit proves the
+	// branch with the ordinary build gate. Without them the CR stays an
+	// empty draft for a human to fill.
+	bump      func(ctx context.Context, input string) ([]byte, string, error)
+	editFile  func(ctx context.Context, id, path string, content []byte, msg string, a ports.Author) error
+	submit    func(ctx context.Context, id string) (change.CR, error)
+	inputName string
+}
+
+// WithDelivery arms phase two: computing and staging the flake bump inside
+// the CR, then submitting it through the build gate.
+func (s *UpstreamService) WithDelivery(
+	bump func(context.Context, string) ([]byte, string, error),
+	editFile func(context.Context, string, string, []byte, string, ports.Author) error,
+	submit func(context.Context, string) (change.CR, error),
+	inputName string) *UpstreamService {
+	s.bump, s.editFile, s.submit = bump, editFile, submit
+	s.inputName = inputName
+	return s
 }
 
 // NewUpstreamService wires the upstream watcher.
@@ -83,6 +105,7 @@ func (s *UpstreamService) CheckOnce(ctx context.Context) error {
 		s.log.Info("core update CR not opened", "id", id, "reason", err)
 	} else {
 		s.log.Info("core update staged", "id", id, "rev", head)
+		s.deliver(ctx, id, author)
 		if s.notifier != nil {
 			for _, g := range s.audience {
 				_ = s.notifier.Emit(ctx, notify.Notification{
@@ -95,6 +118,37 @@ func (s *UpstreamService) CheckOnce(ctx context.Context) error {
 		}
 	}
 	return s.seen.PutUpstream(ctx, head)
+}
+
+// deliver fills the staged CR (phase two): runner computes the lock, the
+// change branch records it, Submit proves it. Best-effort - a failure leaves
+// a draft CR plus a log line, never a broken watcher.
+func (s *UpstreamService) deliver(ctx context.Context, id string, author ports.Author) {
+	if s.bump == nil || s.editFile == nil || s.submit == nil {
+		return
+	}
+	lock, rev, err := s.bump(ctx, s.inputName)
+	if err != nil {
+		s.log.Warn("core bump failed; CR left as draft", "id", id, "err", err)
+		return
+	}
+	msg := "core: pin " + s.inputName + " to " + shortRev(rev)
+	if err := s.editFile(ctx, id, "flake.lock", lock, msg, author); err != nil {
+		s.log.Warn("staging flake.lock failed; CR left as draft", "id", id, "err", err)
+		return
+	}
+	if _, err := s.submit(ctx, id); err != nil {
+		s.log.Warn("core CR submit failed; review it by hand", "id", id, "err", err)
+		return
+	}
+	s.log.Info("core update ready for review", "id", id, "rev", rev)
+}
+
+func shortRev(rev string) string {
+	if len(rev) > 12 {
+		return rev[:12]
+	}
+	return rev
 }
 
 // Run polls on an interval until ctx ends. Errors are logged, not fatal: a

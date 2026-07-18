@@ -142,6 +142,41 @@ func (s *ChangeService) List(ctx context.Context) ([]change.CR, error) {
 	return s.store.List(ctx)
 }
 
+// EditFile stages one raw file on the change branch - the flake-bump path,
+// where the gate-runner computed the content and the branch-wide Submit
+// build is the proof (no per-edit gate applies to a lock file). The change
+// is marked whole-fleet: a core bump touches every device.
+func (s *ChangeService) EditFile(ctx context.Context, id, path string, content []byte, msg string, a ports.Author) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cr, err := s.mustGet(ctx, id)
+	if err != nil {
+		return err
+	}
+	if cr.Status != change.Draft && cr.Status != change.Failed {
+		return fmt.Errorf("change %q is %s; only draft or failed changes accept edits", id, cr.Status)
+	}
+	wt, err := s.ensureWorktree(ctx, cr)
+	if err != nil {
+		return err
+	}
+	if err := wt.WriteFile(path, content); err != nil {
+		return err
+	}
+	if err := wt.Commit(ctx, msg, a, path); err != nil {
+		return err
+	}
+	cr.RecordHosts(nil) // whole fleet
+	if cr.Status == change.Failed {
+		if err := cr.Transition(change.Draft, s.clock.Now()); err != nil {
+			return err
+		}
+		cr.Error = ""
+	}
+	cr.Updated = s.clock.Now()
+	return s.store.Put(ctx, cr)
+}
+
 // Edit applies a gated mutation on the change's branch (never on main).
 // Only drafts and failed changes (being reworked) accept edits.
 func (s *ChangeService) Edit(ctx context.Context, id string, mut fleet.Mutation, msg string, a ports.Author, hosts ...string) error {

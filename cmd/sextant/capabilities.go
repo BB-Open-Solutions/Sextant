@@ -278,6 +278,11 @@ func (d *deps) buildConfigPlane() error {
 	if cfg.UpstreamRepo != "" {
 		up := app.NewUpstreamService(cfg.UpstreamRepo, git.RemoteHead, d.changes.Open,
 			st.Upstream(), log).WithNotifier(d.notify, cfg.OwnerGroups)
+		// Phase two needs the runner's nix: only a remote gate can compute
+		// the flake bump. With an in-process gate the CR stays a draft.
+		if rg, ok := gate.(*gateadapter.RemoteGate); ok {
+			up.WithDelivery(rg.BumpInput, d.changes.EditFile, d.changes.Submit, "dawo")
+		}
 		d.background(func() { up.Run(d.ctx, 30*time.Minute) })
 		log.Info("upstream watcher started", "repo", redactRemote(cfg.UpstreamRepo))
 	}

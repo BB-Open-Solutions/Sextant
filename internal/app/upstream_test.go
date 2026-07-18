@@ -85,3 +85,72 @@ func TestUpstreamWatcherSurvivesExistingCR(t *testing.T) {
 		t.Fatalf("existing CR did not mark the revision as handled: %q", seen.rev)
 	}
 }
+
+func TestUpstreamDeliveryStagesLockAndSubmits(t *testing.T) {
+	head := "2222222222222222222222222222222222222222"
+	var edited, submitted []string
+	svc := NewUpstreamService("https://example/core.git",
+		func(context.Context, string) (string, error) { return head, nil },
+		func(_ context.Context, id, _ string, _ ports.Author) (change.CR, error) {
+			return change.CR{ID: id}, nil
+		},
+		&memUpstream{rev: "old"}, slog.New(slog.NewTextHandler(io.Discard, nil))).
+		WithDelivery(
+			func(_ context.Context, input string) ([]byte, string, error) {
+				if input != "dawo" {
+					t.Fatalf("bumped input %q", input)
+				}
+				return []byte(`{"nodes":{}}`), head, nil
+			},
+			func(_ context.Context, id, path string, _ []byte, _ string, _ ports.Author) error {
+				edited = append(edited, id+"|"+path)
+				return nil
+			},
+			func(_ context.Context, id string) (change.CR, error) {
+				submitted = append(submitted, id)
+				return change.CR{ID: id}, nil
+			},
+			"dawo")
+
+	if err := svc.CheckOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(edited) != 1 || edited[0] != "core-222222222222|flake.lock" {
+		t.Fatalf("edited = %v", edited)
+	}
+	if len(submitted) != 1 || submitted[0] != "core-222222222222" {
+		t.Fatalf("submitted = %v", submitted)
+	}
+}
+
+func TestUpstreamDeliveryBumpFailureLeavesDraft(t *testing.T) {
+	var submitted []string
+	svc := NewUpstreamService("https://example/core.git",
+		func(context.Context, string) (string, error) {
+			return "3333333333333333333333333333333333333333", nil
+		},
+		func(_ context.Context, id, _ string, _ ports.Author) (change.CR, error) {
+			return change.CR{ID: id}, nil
+		},
+		&memUpstream{rev: "old"}, slog.New(slog.NewTextHandler(io.Discard, nil))).
+		WithDelivery(
+			func(context.Context, string) ([]byte, string, error) {
+				return nil, "", fmt.Errorf("runner down")
+			},
+			func(context.Context, string, string, []byte, string, ports.Author) error {
+				t.Fatal("editFile called after failed bump")
+				return nil
+			},
+			func(_ context.Context, id string) (change.CR, error) {
+				submitted = append(submitted, id)
+				return change.CR{}, nil
+			},
+			"dawo")
+
+	if err := svc.CheckOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(submitted) != 0 {
+		t.Fatalf("submitted after failed bump: %v", submitted)
+	}
+}

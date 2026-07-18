@@ -139,6 +139,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /validate", srv.handleValidate)
 	mux.HandleFunc("POST /build", srv.handleBuild)
+	mux.HandleFunc("POST /bump", srv.handleBump)
 	mux.HandleFunc("GET /cache/", srv.handleCache)
 	mux.Handle("GET /healthz", checks.Liveness())
 	mux.Handle("GET /readyz", checks.Readiness())
