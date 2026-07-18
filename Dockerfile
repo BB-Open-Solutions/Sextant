@@ -14,7 +14,8 @@ COPY vendor/ vendor/
 COPY cmd/ cmd/
 COPY internal/ internal/
 RUN CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/sextant ./cmd/sextant \
- && CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/sxctl ./cmd/sxctl
+ && CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/sxctl ./cmd/sxctl \
+ && CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/fleetsim ./cmd/fleetsim
 
 # Runtime stage: non-root, tini as PID 1, git for the config plane.
 FROM docker.io/library/alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
@@ -22,6 +23,9 @@ RUN apk add --no-cache tini git ca-certificates \
  && adduser -D -u 65532 sextant
 COPY --from=build /out/sextant /usr/local/bin/sextant
 COPY --from=build /out/sxctl /usr/local/bin/sxctl
+# fleetsim drives a simulated fleet against a (demo) console; the demo
+# instance runs it as a sidecar deployment from this same image.
+COPY --from=build /out/fleetsim /usr/local/bin/fleetsim
 USER 65532:65532
 EXPOSE 8080
 ENTRYPOINT ["/sbin/tini", "--", "sextant"]

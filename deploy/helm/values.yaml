@@ -138,3 +138,9 @@ certManager:
 resources:
   requests: { cpu: 50m, memory: 128Mi }
   limits: { cpu: "1", memory: 512Mi }
+
+# The simulated fleet (demo instances only): fleetsim as a sidecar deployment
+# against this release's own console. Keep off anywhere real devices report.
+simulator:
+  enabled: false
+  interval: 30s

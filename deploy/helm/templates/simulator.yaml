@@ -1,0 +1,53 @@
+{{- if .Values.simulator.enabled }}
+# The simulated fleet (demo instances only): fleetsim from the console image
+# drives N fake agents against this release's own service, following the
+# overlay's rings/<group> branches like comin would. Never enable this next
+# to real devices - the demo namespace tracks its own overlay branch.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-fleetsim
+  labels: { app: {{ .Release.Name }}-fleetsim }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: {{ .Release.Name }}-fleetsim }
+  template:
+    metadata:
+      labels: { app: {{ .Release.Name }}-fleetsim }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: fleetsim
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          # Clone the fleet document first: fleetsim needs the tags+groups it
+          # simulates, from the same branch this console serves.
+          args:
+            - |
+              set -eu
+              git clone -q --depth 1 --branch {{ .Values.gitRemote.branch }} {{ .Values.gitRemote.url }} /tmp/overlay
+              exec fleetsim -url http://{{ .Release.Name }}:80 \
+                -token "$SEXTANT_CHECKIN_TOKEN" \
+                -repo {{ .Values.gitRemote.url }} \
+                -fleet /tmp/overlay/fleet.json \
+                -interval {{ .Values.simulator.interval | default "30s" }}
+          envFrom:
+            - secretRef: { name: {{ .Values.secretName }} }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: false
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
