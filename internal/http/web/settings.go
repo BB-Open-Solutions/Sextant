@@ -30,6 +30,31 @@ type settingRow struct {
 	Resolved    string // device scope only: effective value after the chain
 	Source      string // device scope only: which scope/policy won
 	Suggestions []string
+	// RequiresKey names the enable this option depends on (the "<prefix>.
+	// enable" convention: timesync.options.servers needs timesync.enable);
+	// RequiresOff marks it currently off at this scope's best knowledge, so
+	// the editor can say "takes effect once X is on" instead of the value
+	// being silently inert (product-stability principle: inert is fine,
+	// invisible is not).
+	RequiresKey string
+	RequiresOff bool
+}
+
+// requiresOf finds the enable an option depends on: the longest dotted
+// prefix q of key for which q+".enable" is a catalog option. Convention
+// over metadata - the exported module tree already encodes the relation.
+func requiresOf(cat *fleet.Catalog, key string) string {
+	if strings.HasSuffix(key, ".enable") {
+		return ""
+	}
+	parts := strings.Split(key, ".")
+	for i := len(parts) - 1; i >= 1; i-- {
+		q := strings.Join(parts[:i], ".") + ".enable"
+		if _, ok := cat.Lookup(q); ok {
+			return q
+		}
+	}
+	return ""
 }
 
 // textSuggestions seeds a <datalist> of known-good values for a handful of
@@ -50,6 +75,26 @@ var textSuggestions = map[string][]string{
 	"diskUnlock.tpm2.device": {
 		"crypted-main",
 	},
+}
+
+// effectiveBool is this scope's best knowledge of a boolean option: the
+// value set here, else the device-resolved value (device scope only), else
+// the catalog default. Org/group scopes cannot see a deeper override, which
+// only makes the hint conservative, never wrong-and-silent.
+func effectiveBool(cat *fleet.Catalog, own map[string]any, resolved map[string]fleet.Resolution, key string) bool {
+	if v, ok := own[key]; ok {
+		b, _ := v.(bool)
+		return b
+	}
+	if res, ok := resolved[key]; ok {
+		b, _ := res.Value.(bool)
+		return b
+	}
+	if e, ok := cat.Lookup(key); ok {
+		b, _ := e.Default.(bool)
+		return b
+	}
+	return false
 }
 
 // settingSection groups rows per catalog category.
@@ -94,6 +139,10 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 				continue
 			}
 			row := settingRow{Entry: e, Enforced: locked[e.Name], Suggestions: textSuggestions[e.Name]}
+			if req := requiresOf(cat, e.Name); req != "" {
+				row.RequiresKey = req
+				row.RequiresOff = !effectiveBool(cat, own, resolved, req)
+			}
 			if val, has := own[e.Name]; has {
 				row.Set, row.Value = true, renderValue(val)
 				row.Lines = valueLines(val)
