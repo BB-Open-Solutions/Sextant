@@ -66,6 +66,24 @@
     </div>
   </form>
 
+  <!-- Step 3: per-group maintenance window (comin only switches inside it). -->
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+    <h2 class="mt-0 mb-1 flex items-center gap-2 text-label-md font-bold text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-body-sm text-canvas">3</span>{{.L.T "orgupd.window_title"}}</h2>
+    <p class="muted mb-4">{{.L.T "orgupd.window_desc"}}</p>
+    <div class="flex flex-col divide-y divide-border-soft">
+      {{range .Windows}}
+      <form method="post" action="/org/updates/window" class="!m-0 flex flex-wrap items-center gap-3 py-2.5">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="group" value="{{.Group}}">
+        <span class="w-40 truncate font-medium text-ink">{{.Group}}</span>
+        <input name="window" value="{{.Window}}" placeholder="{{$.L.T "orgupd.window_placeholder"}}" pattern="([01]?\d|2[0-3]):[0-5]\d-([01]?\d|2[0-3]):[0-5]\d" class="!w-40 font-mono">
+        {{if not .Window}}<span class="text-body-sm text-text-tertiary">{{$.L.T "orgupd.window_always"}}</span>{{end}}
+        <button type="submit" class="btn quiet !py-1">{{$.L.T "common.save"}}</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+
   <!-- Governance: how strict the review is before a change takes effect. -->
   <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
     <h2 class="mt-0 mb-1 text-label-md font-bold text-ink">{{.L.T "page.pipeline.governance"}}</h2>

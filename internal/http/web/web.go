@@ -134,6 +134,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/updates", s.updatesPage)
 	get("/org/updates", s.orgUpdatesPage)
 	post("/org/updates/policy", s.postUpdatesPolicy)
+	post("/org/updates/window", s.postGroupWindow)
 	get("/updates/rollout", s.rolloutMonitorPage)
 	// The old names live on as redirects; the WORD pipeline left the UI.
 	get("/pipeline", func(w http.ResponseWriter, r *http.Request, _ view) {

@@ -332,3 +332,34 @@ func TestExpeditedRunShortensSoakNotEvidence(t *testing.T) {
 		t.Error("expedited run lost the test wave's sign-off gate")
 	}
 }
+
+func TestMaintenanceWindowCard(t *testing.T) {
+	ts, cfg, _ := newUpdatesConsole(t)
+
+	if code := postForm(t, ts, "/org/updates/window", url.Values{
+		"group": {"mid"}, "window": {"22:00-06:00"},
+	}); code != 303 {
+		t.Fatalf("set window = %d", code)
+	}
+	if v, _ := cfg.Fleet().Groups["mid"].Settings["updates.maintenanceWindow"].(string); v != "22:00-06:00" {
+		t.Fatalf("window not stored: %q", v)
+	}
+	// The card echoes it back.
+	if _, page := getPage(t, ts, "/org/updates"); !strings.Contains(page, "22:00-06:00") {
+		t.Error("card does not show the stored window")
+	}
+	// Bad format refused; empty clears.
+	if code := postForm(t, ts, "/org/updates/window", url.Values{
+		"group": {"mid"}, "window": {"altijd"},
+	}); code != 400 {
+		t.Errorf("bad format = %d, want 400", code)
+	}
+	if code := postForm(t, ts, "/org/updates/window", url.Values{
+		"group": {"mid"}, "window": {""},
+	}); code != 303 {
+		t.Fatalf("clear = %d", code)
+	}
+	if _, has := cfg.Fleet().Groups["mid"].Settings["updates.maintenanceWindow"]; has {
+		t.Error("empty save did not clear the window")
+	}
+}

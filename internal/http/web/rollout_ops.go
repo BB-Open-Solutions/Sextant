@@ -7,6 +7,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -189,6 +190,22 @@ func (s *Server) orgUpdatesPage(w http.ResponseWriter, r *http.Request, v view) 
 	if data["Percents"] == nil || data["Percents"] == "" {
 		data["Percents"] = "10, 30, 60"
 	}
+	windows := make([]groupWindow, 0, len(f.Groups))
+	{
+		names := make([]string, 0, len(f.Groups))
+		for g := range f.Groups {
+			names = append(names, g)
+		}
+		sort.Strings(names)
+		for _, g := range names {
+			w := groupWindow{Group: g}
+			if v, ok := f.Groups[g].Settings["updates.maintenanceWindow"].(string); ok {
+				w.Window = v
+			}
+			windows = append(windows, w)
+		}
+	}
+	data["Windows"] = windows
 	if f.Assurance != nil {
 		data["RequireFourEyes"] = f.Assurance.RequireFourEyes
 		data["RequireChangeRequest"] = f.Assurance.RequireChangeRequest
@@ -398,4 +415,46 @@ func planWaveRows(f *fleet.Fleet) []planWaveRow {
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// groupWindow is one row of the maintenance-window card.
+type groupWindow struct {
+	Group  string
+	Window string // "HH:MM-HH:MM", empty = always
+}
+
+// windowRe validates a maintenance window; overnight ranges (22:00-06:00)
+// are legitimate, so no ordering check.
+var windowRe = regexp.MustCompile(`^([01]?\d|2[0-3]):[0-5]\d-([01]?\d|2[0-3]):[0-5]\d$`)
+
+// postGroupWindow saves one group's updates.maintenanceWindow - a dedicated
+// path so the card cannot drag the rest of the scope's settings along the
+// way the batch editor would. Empty clears (back to "always").
+func (s *Server) postGroupWindow(w http.ResponseWriter, r *http.Request, v view) error {
+	group := strings.TrimSpace(r.FormValue("group"))
+	if err := s.requireWeb(v, "group:"+group, identity.Editor); err != nil {
+		return err
+	}
+	f := s.svc.Config.Fleet()
+	if _, ok := f.Groups[group]; !ok {
+		return fmt.Errorf("unknown group %q", group)
+	}
+	window := strings.TrimSpace(r.FormValue("window"))
+	if window != "" && !windowRe.MatchString(window) {
+		return fmt.Errorf("maintenance window must be HH:MM-HH:MM (e.g. 22:00-06:00), or empty for always")
+	}
+	scope := "group:" + group
+	var mut fleet.Mutation
+	msg := "updates: maintenance window " + group + " = " + window
+	if window == "" {
+		mut = fleet.ClearScopeSetting(scope, "updates.maintenanceWindow")
+		msg = "updates: maintenance window " + group + " cleared (always)"
+	} else {
+		mut = fleet.SetScopeSetting(scope, "updates.maintenanceWindow", window)
+	}
+	if err := s.applyGated(r, v, mut, msg); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/org/updates", http.StatusSeeOther)
+	return nil
 }
