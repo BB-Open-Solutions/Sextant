@@ -1,0 +1,22 @@
+[
+  {
+    "name": "laptop",
+    "label": "Laptop workplace",
+    "description": "Recommended starting point for staff laptops: GNOME desktop, office apps, secure boot and a conservative SSH limit. Apply it, then override anything per group or device.",
+    "class": "laptop",
+    "settings": {
+      "desktop": "gnome",
+      "apps.office": true,
+      "secureboot": true,
+      "ssh.maxAuthTries": 3
+    }
+  },
+  {
+    "name": "baseline",
+    "label": "Fleet baseline",
+    "description": "Settings every device should start from, whatever its kind.",
+    "settings": {
+      "ssh.maxAuthTries": 3
+    }
+  }
+]

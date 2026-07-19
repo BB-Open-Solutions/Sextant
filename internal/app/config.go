@@ -52,12 +52,14 @@ type ConfigService struct {
 	snap atomic.Pointer[configSnapshot]
 }
 
-// configSnapshot pairs the fleet document with the catalog and hardware
-// profiles it shipped with (same working-tree revision).
+// configSnapshot pairs the fleet document with the catalog, hardware
+// profiles and settings profiles it shipped with (same working-tree
+// revision).
 type configSnapshot struct {
 	fleet    *fleet.Fleet
 	catalog  *fleet.Catalog
 	hardware *fleet.HardwareProfiles
+	profiles *fleet.Profiles
 }
 
 // NewConfigService loads the initial snapshot and returns the service.
@@ -125,6 +127,9 @@ func (s *ConfigService) HardwareProfiles() *fleet.HardwareProfiles {
 	return s.snap.Load().hardware
 }
 
+// Profiles returns the recommended-settings profile snapshot (never nil).
+func (s *ConfigService) Profiles() *fleet.Profiles { return s.snap.Load().profiles }
+
 // Snapshot returns fleet and catalog from the same revision. Handlers that
 // join the two must use this, not separate Fleet()/Catalog() calls, or a
 // concurrent reload could hand them mismatched halves.
@@ -165,7 +170,17 @@ func (s *ConfigService) reload() error {
 	if err != nil {
 		return err
 	}
-	s.snap.Store(&configSnapshot{fleet: f, catalog: cat, hardware: hw})
+	// profiles.json too: an overlay without recommended-settings profiles is
+	// valid, the console simply offers none.
+	praw, err := s.repo.ReadFile(fleet.ProfilesFile)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	prof, err := fleet.ParseProfiles(praw)
+	if err != nil {
+		return err
+	}
+	s.snap.Store(&configSnapshot{fleet: f, catalog: cat, hardware: hw, profiles: prof})
 	return nil
 }
 
@@ -238,10 +253,10 @@ func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg s
 	if err != nil {
 		return err
 	}
-	// A write only touches fleet.json; the catalog and hardware profiles ride
-	// along unchanged (they are separate overlay files).
+	// A write only touches fleet.json; the catalog, hardware profiles and
+	// settings profiles ride along unchanged (separate overlay files).
 	prev := s.snap.Load()
-	s.snap.Store(&configSnapshot{fleet: f, catalog: prev.catalog, hardware: prev.hardware})
+	s.snap.Store(&configSnapshot{fleet: f, catalog: prev.catalog, hardware: prev.hardware, profiles: prev.profiles})
 	return nil
 }
 

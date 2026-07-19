@@ -218,6 +218,11 @@ type Policy struct {
 	Description string         `json:"description,omitempty"`
 	Settings    map[string]any `json:"settings"`
 	Enforced    []string       `json:"enforced,omitempty"`
+	// Profile records which overlay profile this policy was instantiated
+	// from, as name@hash ("laptop@1a2b3c4d"); empty for hand-made policies.
+	// The console compares the hash against the overlay's current profile
+	// to surface drift. Provenance only - resolution ignores it.
+	Profile string `json:"profile,omitempty"`
 }
 
 // Assignment binds one policy to one scope target, optionally narrowed by a
