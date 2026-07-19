@@ -7,11 +7,14 @@
 {{if .CanEdit}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
   <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>{{.L.T "changes.open_title"}}</h2>
-  <form method="post" action="/changes" class="!items-end">
+  {{/* items-stretch + flex-1 on the button: the button fills the column
+       below the mirrored invisible label, matching the inputs' height (see
+       enroll.html for why h-full/items-end leave it out of line). */}}
+  <form method="post" action="/changes" class="!items-stretch">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="flex flex-col gap-1"><label>{{.L.T "changes.id_label"}}</label><input name="id" placeholder="{{.L.T "changes.slug_placeholder"}}" required pattern="[a-z0-9][a-z0-9-]*"></div>
     <div class="flex flex-1 flex-col gap-1"><label>{{.L.T "changes.title_label"}}</label><input name="title" placeholder="{{.L.T "changes.title_placeholder"}}" required class="w-full"></div>
-    <div class="flex flex-col gap-1"><label class="invisible" aria-hidden="true">.</label><button type="submit">{{.L.T "changes.open_button"}}</button></div>
+    <div class="flex flex-col gap-1"><label class="invisible" aria-hidden="true">.</label><button type="submit" class="flex-1">{{.L.T "changes.open_button"}}</button></div>
   </form>
 </div>
 {{end}}

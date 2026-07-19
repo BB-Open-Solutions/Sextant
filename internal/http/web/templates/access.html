@@ -16,7 +16,10 @@
         <tr><th class="!px-6 uppercase tracking-wide">{{.L.T "common.idp_group"}}</th><th class="!px-6 uppercase tracking-wide">{{.L.T "common.role"}}</th><th class="!px-6 uppercase tracking-wide">{{.L.T "common.scope"}}</th><th class="!px-6"></th></tr>
         {{range .Bindings}}
         <tr class="group hover:bg-surface-bright transition-colors">
-          <td class="!px-6 font-mono text-code-inline">{{.Group}}</td>
+          {{/* Same .tag idiom as the profile page's IdP-groups list: mono
+               13px next to the 14px role chip read as two different type
+               systems in one row. */}}
+          <td class="!px-6"><span class="tag">{{.Group}}</span></td>
           <td class="!px-6"><span class="role {{.Role}}"><span class="material-symbols-outlined msz-16">{{if eq .Role "owner"}}shield_person{{else if eq .Role "editor"}}build{{else}}visibility{{end}}</span>{{.Role}}</span></td>
           <td class="!px-6"><code class="text-text-secondary">{{.Scope}}</code></td>
           <td class="!px-6 text-right">{{if $.CanOwn}}

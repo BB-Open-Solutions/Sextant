@@ -8,18 +8,22 @@
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
   <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">1</span>{{.L.T "enroll.step1_title"}}</h2>
   {{if .Stations}}
-  <form method="get" action="/enroll" class="!items-end gap-3">
+  {{/* items-stretch (not the form default items-end): both label+field
+       columns stretch to the row height, and the button (flex-1 under a
+       mirrored invisible label) fills the remainder - exactly the select's
+       height, whatever the theme's control metrics are. h-full does not
+       work here: the column's height is content-driven, so a percentage
+       height resolves to auto and the button stays its natural (shorter)
+       height, sitting visibly out of line with the select. */}}
+  <form method="get" action="/enroll" class="!items-stretch gap-3">
     <div class="flex flex-col gap-1"><label>{{.L.T "station.station_label"}}</label>
       <select name="station" class="min-w-64">
         <option value="">{{.L.T "enroll.select_station"}}</option>
         {{$sel := .Station}}{{range .Stations}}<option value="{{.}}" {{if eq . $sel}}selected{{end}}>{{.}}</option>{{end}}
       </select>
     </div>
-    {{/* Mirror the select's label column (invisible label) so the button's
-         vertical centre matches the select exactly, whatever the theme's
-         control heights are. */}}
     <div class="flex flex-col gap-1"><label class="invisible" aria-hidden="true">.</label>
-      <button type="submit" class="h-full"><span class="material-symbols-outlined msz-18">arrow_forward</span>{{.L.T "common.continue"}}</button>
+      <button type="submit" class="flex-1"><span class="material-symbols-outlined msz-18">arrow_forward</span>{{.L.T "common.continue"}}</button>
     </div>
   </form>
   {{else}}
