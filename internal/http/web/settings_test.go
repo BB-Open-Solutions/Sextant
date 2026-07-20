@@ -35,6 +35,8 @@ const seedCatalog = `[
   {"name":"apps.licenseRef","type":"string","description":"App license key","secret":true},
   {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true},
   {"name":"timesync.enable","type":"boolean","description":"Time sync","default":false},
+  {"name":"netbird.enable","type":"boolean","description":"Join the mesh","default":false},
+  {"name":"netbird.managementUrl","type":"string","description":"Management server URL"},
   {"name":"timesync.servers","type":"string","description":"NTP servers"}
 ]`
 
@@ -161,10 +163,11 @@ func TestSettingsPostSetEnforceClear(t *testing.T) {
 		t.Fatalf("after set: own=%v enforced=%v", own, enforced)
 	}
 
-	// The organisation root has no inherit control: sliding the boolean off (no
-	// b:) means default, so it clears and unenforces - org never writes an
-	// explicit false.
-	post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"}})
+	// The organisation root has no inherit control: sliding the boolean off
+	// (an explicit empty v:) means default, so it clears and unenforces - org
+	// never writes an explicit false. The field must be PRESENT: an absent
+	// key belongs to another form (the integrations cards) and is untouched.
+	post(url.Values{"scope": {"org"}, "v:desktop": {"plasma"}, "v:apps.office": {""}})
 	own, enforced, _ = cfg.Fleet().ScopeSettings("org")
 	if _, has := own["apps.office"]; has || len(enforced) != 0 {
 		t.Fatalf("after off at org: own=%v enforced=%v", own, enforced)
@@ -356,7 +359,7 @@ func TestRequireChangeRequestBlocksDirectSetting(t *testing.T) {
 
 	// A direct setting edit is now refused (must go through a change).
 	resp, _ = c.PostForm(ts.URL+"/settings", url.Values{
-		"csrf": {"dev-csrf"}, "scope": {"org"}, "key": {"desktop"}, "action": {"set"}, "value": {"gnome"}})
+		"csrf": {"dev-csrf"}, "scope": {"org"}, "v:desktop": {"gnome"}})
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode == 303 {

@@ -24,6 +24,54 @@
         {{$.L.T "page.integrations.not_published_pre"}} <code>{{.Prefix}}*</code> {{$.L.T "page.integrations.not_published_post"}}
       </div>
       {{else}}
+      {{if $.CanEdit}}
+      {{/* One form per integration: every row posts v:<key>, one Save
+           commits the card as a single audited change. The batch handler
+           only diffs keys present in the form, so this card can never
+           clear settings that live on other pages. */}}
+      <form method="post" action="/settings" data-dirty-form class="!block">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="scope" value="org">
+        <div class="flex flex-col divide-y divide-border-soft">
+          {{range .Rows}}
+          {{$set := .Set}}{{$val := .Value}}{{$sl := slug .Entry.Name}}
+          <div class="py-3">
+            <div class="mb-1 flex items-center gap-2">
+              {{if .Entry.Label}}<span class="font-medium text-ink">{{.Entry.Label}}</span>
+              <span class="font-mono text-code-inline text-text-tertiary">{{.Entry.Name}}</span>
+              {{else}}<span class="font-mono text-code-inline font-medium text-ink">{{.Entry.Name}}</span>{{end}}
+              {{if .Entry.Secret}}<span class="tag lock"><span class="material-symbols-outlined msz-14">key</span>{{$.L.T "page.integrations.secret_tag"}}</span>{{end}}
+              {{if .Entry.RiskClass}}<span class="tag bad">{{.Entry.RiskClass}} {{$.L.T "page.integrations.risk_suffix"}}</span>{{end}}
+            </div>
+            <div class="mb-2 text-body-sm text-text-tertiary">{{.Entry.Description}}</div>
+            {{if eq .Entry.Widget "toggle"}}
+              {{/* Same segmented slider as the settings editor's org scope:
+                   Off means unset (the option's default), On writes true. */}}
+              <div class="inline-flex items-center rounded-full border border-border-hairline bg-surface-container-low p-0.5 text-label-md">
+                <input type="radio" name="v:{{.Entry.Name}}" id="if-{{$sl}}" value="" {{if not (and $set (eq $val "true"))}}checked{{end}} class="peer/off sr-only">
+                <input type="radio" name="v:{{.Entry.Name}}" id="in-{{$sl}}" value="true" {{if and $set (eq $val "true")}}checked{{end}} class="peer/on sr-only">
+                <label for="if-{{$sl}}" class="cursor-pointer rounded-full px-3 py-1 font-medium text-text-secondary peer-checked/off:bg-status-error peer-checked/off:text-white">{{$.L.T "common.off"}}</label>
+                <label for="in-{{$sl}}" class="cursor-pointer rounded-full px-3 py-1 font-medium text-text-secondary peer-checked/on:bg-mint-vibrant peer-checked/on:text-ink">{{$.L.T "common.on"}}</label>
+              </div>
+            {{else if eq .Entry.Widget "select"}}
+              <select name="v:{{.Entry.Name}}" class="w-full"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "page.integrations.inherit"}}</option>{{range .Entry.Options}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+            {{else if eq .Entry.Widget "secret"}}
+              {{if $.SecretRefs}}<span class="flex w-full items-center gap-2"><select name="v:{{.Entry.Name}}" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "page.integrations.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "page.integrations.register_title"}}">{{$.L.T "common.add"}}</a></span>
+              {{else}}<span class="text-body-sm text-text-tertiary">{{$.L.T "page.integrations.no_secrets"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "page.integrations.register_one"}}</a></span>{{end}}
+            {{else if eq .Entry.Widget "number"}}
+              <input type="number" name="v:{{.Entry.Name}}" value="{{if $set}}{{$val}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="w-full">
+            {{else}}
+              <input name="v:{{.Entry.Name}}" value="{{if $set}}{{$val}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="w-full">
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+        <div class="mt-3 flex items-center justify-between border-t border-border-soft pt-3">
+          <a href="/settings?scope=org" class="inline-flex items-center gap-1 text-label-md text-secondary">{{$.L.T "page.integrations.open_editor"}} <span class="material-symbols-outlined msz-14">arrow_forward</span></a>
+          <button type="submit"><span class="material-symbols-outlined msz-18">save</span>{{$.L.T "common.save"}}</button>
+        </div>
+      </form>
+      {{else}}
       <div class="flex flex-col divide-y divide-border-soft">
         {{range .Rows}}
         <div class="py-3">
@@ -32,37 +80,12 @@
             <span class="font-mono text-code-inline text-text-tertiary">{{.Entry.Name}}</span>
             {{else}}<span class="font-mono text-code-inline font-medium text-ink">{{.Entry.Name}}</span>{{end}}
             {{if .Entry.Secret}}<span class="tag lock"><span class="material-symbols-outlined msz-14">key</span>{{$.L.T "page.integrations.secret_tag"}}</span>{{end}}
-            {{if .Entry.RiskClass}}<span class="tag bad">{{.Entry.RiskClass}} {{$.L.T "page.integrations.risk_suffix"}}</span>{{end}}
           </div>
-          <div class="mb-2 text-body-sm text-text-tertiary">{{.Entry.Description}}</div>
-          {{if $.CanEdit}}
-          <form method="post" action="/settings" class="!flex-row !flex-wrap !items-end gap-2">
-            <input type="hidden" name="csrf" value="{{$.CSRF}}">
-            <input type="hidden" name="scope" value="org">
-            <input type="hidden" name="key" value="{{.Entry.Name}}">
-            {{$set := .Set}}{{$val := .Value}}
-            {{if eq .Entry.Widget "toggle"}}
-              <select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}} disabled>{{$.L.T "page.integrations.inherit"}}</option><option value="true" {{if and $set (eq $val "true")}}selected{{end}}>true</option><option value="false" {{if and $set (eq $val "false")}}selected{{end}}>false</option></select>
-            {{else if eq .Entry.Widget "select"}}
-              <select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}} disabled>{{$.L.T "page.integrations.inherit"}}</option>{{range .Entry.Options}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select>
-            {{else if eq .Entry.Widget "secret"}}
-              {{if $.SecretRefs}}<select name="value" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "page.integrations.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{slug .Entry.Name}}" class="text-label-md text-secondary whitespace-nowrap" title="{{$.L.T "page.integrations.register_title"}}">{{$.L.T "common.add"}}</a>
-              {{else}}<span class="min-w-0 flex-1 text-body-sm text-text-tertiary">{{$.L.T "page.integrations.no_secrets"}} <a href="/secrets?name={{slug .Entry.Name}}" class="text-secondary">{{$.L.T "page.integrations.register_one"}}</a></span>{{end}}
-            {{else if eq .Entry.Widget "number"}}
-              <input type="number" name="value" value="{{if .Set}}{{.Value}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="min-w-0 flex-1">
-            {{else}}
-              <input name="value" value="{{if .Set}}{{.Value}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="min-w-0 flex-1">
-            {{end}}
-            <button type="submit" name="action" value="set" class="shrink-0">{{$.L.T "common.save"}}</button>
-            {{if .Set}}<button type="submit" name="action" value="clear" class="quiet shrink-0" formnovalidate>{{$.L.T "page.integrations.clear"}}</button>{{end}}
-          </form>
-          {{else}}
           <div class="text-body-sm">{{if .Set}}<code>{{.Value}}</code>{{else}}<span class="muted">{{$.L.T "page.integrations.not_set"}}</span>{{end}}</div>
-          {{end}}
         </div>
         {{end}}
       </div>
-      <a href="/settings?scope=org" class="mt-1 inline-flex items-center gap-1 text-label-md text-secondary">{{$.L.T "page.integrations.open_editor"}} <span class="material-symbols-outlined msz-14">arrow_forward</span></a>
+      {{end}}
       {{end}}
     </div>
   </div>

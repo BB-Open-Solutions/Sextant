@@ -262,7 +262,18 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 
 	var changes []app.SettingChange
 	for _, e := range cat.Entries {
-		submitted := strings.TrimSpace(r.FormValue("v:" + e.Name))
+		// Only keys PRESENT in the form take part in the diff: the settings
+		// page resubmits every row, but a per-card form (the integrations
+		// page) posts just its own keys - an absent field means "not on this
+		// form", never "clear the value".
+		vals, present := r.PostForm["v:"+e.Name]
+		if !present {
+			continue
+		}
+		submitted := ""
+		if len(vals) > 0 {
+			submitted = strings.TrimSpace(vals[0])
+		}
 		enf := r.FormValue("e:"+e.Name) != ""
 		curVal, curSet := own[e.Name]
 		curStr := ""
