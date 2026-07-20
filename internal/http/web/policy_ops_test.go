@@ -93,3 +93,59 @@ func TestPolicyEditorFlow(t *testing.T) {
 		t.Fatalf("injection = %d, want 400", resp.StatusCode)
 	}
 }
+
+func TestProfileApplyFlow(t *testing.T) {
+	ts, cfg := newConsole(t)
+	post := func(path string, form url.Values) *http.Response {
+		t.Helper()
+		form.Set("csrf", "dev-csrf")
+		resp, err := client().PostForm(ts.URL+path, form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+
+	// The page offers the overlay's profile.
+	resp, _ := client().Get(ts.URL + "/policies")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(body), "Laptop workplace") {
+		t.Fatal("profile card missing from /policies")
+	}
+
+	// Apply: one mutation yields policy + class filter + org assignment.
+	if resp := post("/policies/profiles/laptop/apply", url.Values{}); resp.StatusCode != 303 {
+		t.Fatalf("apply = %d", resp.StatusCode)
+	}
+	f := cfg.Fleet()
+	pol, ok := f.Policies["laptop"]
+	if !ok || !strings.HasPrefix(pol.Profile, "laptop@") {
+		t.Fatalf("policy = %+v", pol)
+	}
+	if pol.Settings["desktop"] != "gnome" || pol.Settings["apps.office"] != true {
+		t.Fatalf("settings = %+v", pol.Settings)
+	}
+	if _, ok := f.Filters["class-laptop"]; !ok {
+		t.Fatalf("filters = %+v", f.Filters)
+	}
+	if len(f.Assignments) != 1 || f.Assignments[0].Target != "org" ||
+		f.Assignments[0].Filter != "class-laptop" {
+		t.Fatalf("assignments = %+v", f.Assignments)
+	}
+
+	// A hand edit through the policy editor must keep the provenance stamp.
+	if resp := post("/policies", url.Values{"id": {"laptop"},
+		"settings": {"desktop = plasma"}}); resp.StatusCode != 303 {
+		t.Fatalf("edit = %d", resp.StatusCode)
+	}
+	if got := cfg.Fleet().Policies["laptop"]; got.Profile != pol.Profile {
+		t.Fatalf("provenance lost on edit: %q", got.Profile)
+	}
+
+	// Unknown profile is a client error, not a crash.
+	if resp := post("/policies/profiles/nope/apply", url.Values{}); resp.StatusCode != 400 {
+		t.Fatalf("unknown profile = %d, want 400", resp.StatusCode)
+	}
+}

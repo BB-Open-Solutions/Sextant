@@ -73,8 +73,35 @@ func (s *Server) postPolicyPut(w http.ResponseWriter, r *http.Request, v view) e
 	}
 	p := fleet.Policy{Description: strings.TrimSpace(r.FormValue("description")),
 		Settings: settings, Enforced: enforced}
+	// A form edit must not strip what the form does not carry: the label and
+	// the profile provenance survive hand edits, so the console keeps
+	// comparing an edited policy against its source profile.
+	if prev, ok := s.svc.Config.Fleet().Policies[id]; ok {
+		p.Name, p.Profile = prev.Name, prev.Profile
+	}
 	if err := s.applyGated(r, v, fleet.PutPolicy(id, p),
 		"policies: put "+id); err != nil {
+		return err
+	}
+	http.Redirect(w, r, "/policies", http.StatusSeeOther)
+	return nil
+}
+
+// postProfileApply instantiates an overlay profile as a regular policy plus
+// class filter and org assignment (fleet.ApplyProfile). Re-applying is the
+// drift-repair path: it refreshes the policy to the profile's current
+// content and touches nothing else.
+func (s *Server) postProfileApply(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	name := r.PathValue("name")
+	p, ok := s.svc.Config.Profiles().Get(name)
+	if !ok {
+		return fmt.Errorf("unknown profile %q", name)
+	}
+	if err := s.applyGated(r, v, fleet.ApplyProfile(p),
+		"policies: apply profile "+p.Provenance()); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/policies", http.StatusSeeOther)

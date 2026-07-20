@@ -35,6 +35,11 @@ const seedCatalog = `[
   {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true}
 ]`
 
+const seedProfiles = `[
+  {"name":"laptop","label":"Laptop workplace","class":"laptop",
+   "settings":{"desktop":"gnome","apps.office":true}}
+]`
+
 // newConsole builds the console over a real temp git repo seeded with
 // fleet.json + catalog.json, dev sessions, allow-all gate.
 func newConsole(t *testing.T) (*httptest.Server, *app.ConfigService) {
@@ -56,7 +61,8 @@ func newConsoleWithGate(t *testing.T, gate ports.Gate) (*httptest.Server, *app.C
 		}
 	}
 	run("init", "-q", "-b", "main")
-	for name, body := range map[string]string{"fleet.json": seedFleet, "catalog.json": seedCatalog} {
+	for name, body := range map[string]string{"fleet.json": seedFleet,
+		"catalog.json": seedCatalog, "profiles.json": seedProfiles} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}

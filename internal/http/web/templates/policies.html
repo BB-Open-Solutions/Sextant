@@ -7,6 +7,41 @@
   {{if .CanOwn}}<div class="flex shrink-0 gap-2"><a href="#create-filter" class="btn quiet"><span class="material-symbols-outlined msz-18">add</span>{{.L.T "policies.create_filter"}}</a><a href="#create-policy" class="btn !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">add_circle</span>{{.L.T "policies.create_policy"}}</a></div>{{end}}
 </div>
 
+{{if .Profiles}}
+<!-- Recommended profiles from the overlay: curated starting points that
+     instantiate as regular policies (class filter + org assignment), so
+     everything stays overridable afterwards. -->
+<section class="mb-8">
+  <h2 class="mb-1 flex items-center gap-2 text-headline-sm text-ink"><span class="material-symbols-outlined text-mint-deep">magic_button</span>{{.L.T "policies.profiles_title"}}</h2>
+  <p class="mb-3 max-w-2xl text-body-md text-text-tertiary">{{.L.T "policies.profiles_intro"}}</p>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    {{$ := .}}
+    {{range .Profiles}}
+    <div class="flex flex-col rounded-lg border border-border-hairline bg-canvas shadow-sm">
+      <div class="flex items-center justify-between gap-2 px-4 py-3">
+        <span class="min-w-0 truncate font-semibold text-ink">{{if .Label}}{{.Label}}{{else}}{{.Name}}{{end}}</span>
+        {{if .Class}}<span class="tag">{{.Class}}</span>{{else}}<span class="tag">{{$.L.T "policies.profile_fleetwide"}}</span>{{end}}
+      </div>
+      {{with .Description}}<p class="mb-0 px-4 text-body-sm text-text-secondary">{{.}}</p>{{end}}
+      <pre class="m-4 mb-3 overflow-x-auto rounded-md bg-surface-code p-3 font-mono text-code-inline text-mint-soft">{{.SettingsText}}</pre>
+      <div class="mt-auto flex items-center justify-between gap-2 border-t border-border-hairline px-4 py-3">
+        {{if eq .State "current"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check</span>{{$.L.T "policies.profile_current"}}</span>
+        {{else if eq .State "reapply"}}<span class="tag"><span class="material-symbols-outlined msz-14">update</span>{{$.L.T "policies.profile_drift"}}</span>
+        {{else if eq .State "conflict"}}<span class="text-body-sm text-text-tertiary">{{$.L.T "policies.profile_conflict"}}</span>
+        {{else}}<span></span>{{end}}
+        {{if and $.CanOwn (ne .State "conflict") (ne .State "current")}}
+        <form method="post" action="/policies/profiles/{{.Name}}/apply" class="!m-0">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <button type="submit" class="btn !py-1.5">{{if eq .State "reapply"}}{{$.L.T "policies.profile_reapply"}}{{else}}{{$.L.T "policies.profile_apply"}}{{end}}</button>
+        </form>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
   <!-- Policy cards -->
   <div class="flex flex-col gap-6 xl:col-span-2">
@@ -15,7 +50,10 @@
     <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
       <div class="flex items-center justify-between px-5 py-4">
         <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-deep">policy</span>{{.ID}}</h2>
+        <div class="flex items-center gap-2">
+        {{if .Profile}}{{if .Drift}}<span class="tag"><span class="material-symbols-outlined msz-14">update</span>{{$.L.T "policies.from_profile"}} {{.Profile}} · {{$.L.T "policies.profile_drift"}}</span>{{else}}<span class="tag ok"><span class="material-symbols-outlined msz-14">magic_button</span>{{$.L.T "policies.from_profile"}} {{.Profile}}</span>{{end}}{{end}}
         {{if .Enforced}}<span class="tag lock"><span class="material-symbols-outlined msz-14">lock</span>{{len .Enforced}} {{$.L.T "common.locked"}}</span>{{end}}
+        </div>
       </div>
       {{with .Description}}<p class="mb-0 px-5 text-body-md text-text-tertiary">{{.}}</p>{{end}}
       <!-- Payload configuration -->
