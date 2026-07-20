@@ -48,7 +48,7 @@ func enforcedSet(list []string) map[string]bool {
 // second can outrank a deeper group listed first. This is intentional and
 // matches the nix twin (nix/resolve.nix scopePositions) - see
 // TestResolve_CrossHierarchyGroupOrderDecidesTies for the pinned behavior.
-func (f *Fleet) scopePositions(tag string) (map[string]int, int) {
+func (f *Fleet) scopePositions(tag string) map[string]int {
 	pos := map[string]int{"org": 0}
 	next := 1
 	d := f.Devices[tag]
@@ -61,14 +61,13 @@ func (f *Fleet) scopePositions(tag string) (map[string]int, int) {
 			}
 		}
 	}
-	devPos := next
-	pos["device"] = devPos
-	return pos, devPos
+	pos["device"] = next
+	return pos
 }
 
 // chainFor compiles the full contributor list for a device.
 func (f *Fleet) chainFor(tag string) []contributor {
-	pos, _ := f.scopePositions(tag)
+	pos := f.scopePositions(tag)
 	d := f.Devices[tag]
 
 	var chain []contributor

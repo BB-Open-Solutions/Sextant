@@ -199,8 +199,15 @@ func TestParity_FilterOperators(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := policyFleet(t)
+			// Seed the filter directly: PutFilter validates exact group names
+			// on console writes, but a document can also arrive via git with
+			// a group that no longer exists ("ghost") - resolve-time parity
+			// with the nix twin must hold for that document too.
+			if f.Filters == nil {
+				f.Filters = map[string]Filter{}
+			}
+			f.Filters["f"] = Filter{Rules: []FilterRule{tc.rule}}
 			apply(t, f,
-				PutFilter("f", Filter{Rules: []FilterRule{tc.rule}}),
 				PutPolicy("tag", Policy{Settings: map[string]any{"tagged": true}}),
 				Assign(Assignment{Policy: "tag", Target: "org", Filter: "f"}),
 			)

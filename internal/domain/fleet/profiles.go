@@ -112,12 +112,13 @@ func (ps *Profiles) Len() int { return len(ps.order) }
 // ApplyProfile instantiates a profile as a regular policy plus (when the
 // profile names a class) a class filter and an org-wide assignment.
 // Re-applying refreshes the policy to the profile's current content - the
-// drift-repair path. A hand-made policy occupying the profile's id is never
-// clobbered, an existing filter of the derived name is never overwritten
-// (it may be hand-tuned), and an assignment already in place is kept.
+// drift-repair path - while keeping a locally edited display name or
+// description (cosmetic, an admin's own words). A hand-made policy
+// occupying the profile's id is never clobbered.
 func ApplyProfile(p Profile) Mutation {
 	return func(f *Fleet) error {
-		if ex, ok := f.Policies[p.Name]; ok && !strings.HasPrefix(ex.Profile, p.Name+"@") {
+		prev, refresh := f.Policies[p.Name]
+		if refresh && !strings.HasPrefix(prev.Profile, p.Name+"@") {
 			return fmt.Errorf("policy %q exists and did not come from profile %q; rename or remove it first", p.Name, p.Name)
 		}
 		pol := Policy{
@@ -126,25 +127,67 @@ func ApplyProfile(p Profile) Mutation {
 			Settings:    maps.Clone(p.Settings),
 			Profile:     p.Provenance(),
 		}
+		if refresh {
+			if prev.Name != "" {
+				pol.Name = prev.Name
+			}
+			if prev.Description != "" {
+				pol.Description = prev.Description
+			}
+		}
 		if err := PutPolicy(p.Name, pol)(f); err != nil {
 			return err
 		}
 		filter := ""
 		if p.Class != "" {
 			filter = "class-" + p.Class
-			if _, ok := f.Filters[filter]; !ok {
+			if ex, ok := f.Filters[filter]; ok {
+				// Reusing a same-named filter is only safe when it still means
+				// what the name says: exactly this one class. Anything else
+				// would silently mis-scope the profile.
+				if len(ex.Rules) != 1 || ex.Rules[0].Attr != AttrClass ||
+					ex.Rules[0].Op != OpEq || ex.Rules[0].Value != p.Class {
+					return fmt.Errorf("filter %q exists but does not select class %q; rename or remove it first", filter, p.Class)
+				}
+			} else {
 				fl := Filter{Rules: []FilterRule{{Attr: AttrClass, Op: OpEq, Value: p.Class}}}
 				if err := PutFilter(filter, fl)(f); err != nil {
 					return err
 				}
 			}
 		}
-		a := Assignment{Policy: p.Name, Target: "org", Filter: filter}
+		// Reconcile: a profile whose class changed between versions must not
+		// keep applying through its previous class filter - drop this
+		// policy's org assignments on other class-* filters before adding
+		// the current one, or drift-repair silently widens scope.
+		kept := f.Assignments[:0]
+		exists := false
 		for _, ex := range f.Assignments {
-			if ex.Policy == a.Policy && ex.Target == a.Target && ex.Filter == a.Filter {
-				return nil
+			stale := ex.Policy == p.Name && ex.Target == "org" &&
+				strings.HasPrefix(ex.Filter, "class-") && ex.Filter != filter
+			if stale {
+				continue
 			}
+			if ex.Policy == p.Name && ex.Target == "org" && ex.Filter == filter {
+				exists = true
+			}
+			kept = append(kept, ex)
 		}
-		return Assign(a)(f)
+		f.Assignments = kept
+		if exists {
+			return nil
+		}
+		return Assign(Assignment{Policy: p.Name, Target: "org", Filter: filter})(f)
 	}
+}
+
+// SettingsMatch reports whether a policy's settings still equal a profile's
+// recommendation, comparing canonical JSON so an int written by the settings
+// parser equals the float the profiles file decoded to. This is the local
+// half of drift detection: the provenance stamp only moves when the OVERLAY
+// changes, so a console-side edit must be caught by content, not by stamp.
+func (p Profile) SettingsMatch(settings map[string]any) bool {
+	a, _ := json.Marshal(p.Settings)
+	b, _ := json.Marshal(settings)
+	return string(a) == string(b)
 }

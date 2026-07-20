@@ -27,12 +27,13 @@
       <div class="mt-auto flex items-center justify-between gap-2 border-t border-border-hairline px-4 py-3">
         {{if eq .State "current"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check</span>{{$.L.T "policies.profile_current"}}</span>
         {{else if eq .State "reapply"}}<span class="tag"><span class="material-symbols-outlined msz-14">update</span>{{$.L.T "policies.profile_drift"}}</span>
+        {{else if eq .State "edited"}}<span class="tag"><span class="material-symbols-outlined msz-14">edit</span>{{$.L.T "policies.profile_edited"}}</span>
         {{else if eq .State "conflict"}}<span class="text-body-sm text-text-tertiary">{{$.L.T "policies.profile_conflict"}}</span>
         {{else}}<span></span>{{end}}
         {{if and $.CanOwn (ne .State "conflict") (ne .State "current")}}
         <form method="post" action="/policies/profiles/{{.Name}}/apply" class="!m-0">
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <button type="submit" class="btn !py-1.5">{{if eq .State "reapply"}}{{$.L.T "policies.profile_reapply"}}{{else}}{{$.L.T "policies.profile_apply"}}{{end}}</button>
+          <button type="submit" class="btn !py-1.5">{{if eq .State "reapply"}}{{$.L.T "policies.profile_reapply"}}{{else if eq .State "edited"}}{{$.L.T "policies.profile_restore"}}{{else}}{{$.L.T "policies.profile_apply"}}{{end}}</button>
         </form>
         {{end}}
       </div>
@@ -51,7 +52,7 @@
       <div class="flex items-center justify-between px-5 py-4">
         <h2 class="mt-0 mb-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-deep">policy</span>{{.ID}}</h2>
         <div class="flex items-center gap-2">
-        {{if .Profile}}{{if .Drift}}<span class="tag"><span class="material-symbols-outlined msz-14">update</span>{{$.L.T "policies.from_profile"}} {{.Profile}} · {{$.L.T "policies.profile_drift"}}</span>{{else}}<span class="tag ok"><span class="material-symbols-outlined msz-14">magic_button</span>{{$.L.T "policies.from_profile"}} {{.Profile}}</span>{{end}}{{end}}
+        {{if .Profile}}{{if .Drift}}<span class="tag"><span class="material-symbols-outlined msz-14">update</span>{{$.L.T "policies.from_profile"}} {{.Profile}} · {{$.L.T "policies.profile_drift"}}</span>{{else if .Edited}}<span class="tag"><span class="material-symbols-outlined msz-14">edit</span>{{$.L.T "policies.from_profile"}} {{.Profile}} · {{$.L.T "policies.profile_edited"}}</span>{{else}}<span class="tag ok"><span class="material-symbols-outlined msz-14">magic_button</span>{{$.L.T "policies.from_profile"}} {{.Profile}}</span>{{end}}{{end}}
         {{if .Enforced}}<span class="tag lock"><span class="material-symbols-outlined msz-14">lock</span>{{len .Enforced}} {{$.L.T "common.locked"}}</span>{{end}}
         </div>
       </div>
@@ -63,7 +64,7 @@
         {{range $k, $v := .Settings}}
         <div class="flex items-center justify-between gap-4 py-1">
           <span class="text-mint-soft">{{$k}}</span>
-          <span class="flex items-center gap-1 text-canvas/70">{{printf "%v" $v}}{{if contains $enf $k}}<span class="material-symbols-outlined msz-14 text-mint-vibrant" title="{{$.L.T "policies.enforced_tooltip"}}">lock</span>{{end}}</span>
+          <span class="flex items-center gap-1 text-canvas/70">{{renderValue $v}}{{if contains $enf $k}}<span class="material-symbols-outlined msz-14 text-mint-vibrant" title="{{$.L.T "policies.enforced_tooltip"}}">lock</span>{{end}}</span>
         </div>
         {{else}}
         <div class="text-text-tertiary">{{$.L.T "policies.no_settings"}}</div>
@@ -71,7 +72,7 @@
       </div>
       <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border-hairline px-5 py-3">
         <div class="flex flex-wrap items-center gap-1">
-          {{range .Assignments}}<span class="tag">{{.Target}}{{with .Filter}} | {{.}}{{end}}</span>{{else}}<span class="muted">{{$.L.T "policies.unassigned"}}</span>{{end}}
+          {{range .Assignments}}<span class="tag {{if not .Devices}}bad{{end}}" {{if not .Devices}}title="{{$.L.T "policies.assignment_zero_hint"}}"{{end}}>{{.Target}}{{with .Filter}} | {{.}}{{end}} · {{.Devices}} {{$.L.T "policies.devices_suffix"}}</span>{{else}}<span class="muted">{{$.L.T "policies.unassigned"}}</span>{{end}}
         </div>
         {{if $.CanOwn}}
         <details class="relative">

@@ -249,6 +249,18 @@ func RemoveGroup(name string) Mutation {
 				return fmt.Errorf("group %q still carries an access binding for %q", name, b.Group)
 			}
 		}
+		// A filter rule naming this group would dangle and silently match
+		// nothing (filters fail closed) - refuse, like the assignment check.
+		for id, fl := range f.Filters {
+			for _, r := range fl.Rules {
+				if r.Attr != AttrGroup {
+					continue
+				}
+				if r.Value == name || slices.Contains(r.Values, name) {
+					return fmt.Errorf("group %q is still referenced by filter %q", name, id)
+				}
+			}
+		}
 		if f.Rollout != nil {
 			for _, ring := range f.Rollout.Rings {
 				if ring.Group == name {

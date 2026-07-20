@@ -13,23 +13,32 @@ import (
 func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 	profiles := s.svc.Config.Profiles()
+	// arow is one assignment with its live reach, so a filter that excludes
+	// the whole target reads "0 devices" instead of silently applying to
+	// nothing.
+	type arow struct {
+		fleet.Assignment
+		Devices int
+	}
 	type prow struct {
 		ID, Description string
 		Settings        map[string]any
 		SettingsText    string // editable key = value form
 		Enforced        []string
 		EnforcedText    string
-		Assignments     []fleet.Assignment
+		Assignments     []arow
 		Profile         string // source profile name, "" for hand-made
 		Drift           bool   // the overlay's profile moved past this stamp
+		Edited          bool   // settings hand-edited since the apply (stamp
+		// only moves with the overlay, so local divergence is content-checked)
 	}
 	rows := make([]prow, 0, len(f.Policies))
 	for _, id := range sortedKeys(f.Policies) {
 		p := f.Policies[id]
-		var asn []fleet.Assignment
+		var asn []arow
 		for _, a := range f.Assignments {
 			if a.Policy == id {
-				asn = append(asn, a)
+				asn = append(asn, arow{Assignment: a, Devices: len(f.AssignmentDevices(a))})
 			}
 		}
 		var lines []string
@@ -44,17 +53,20 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 			row.Profile = name
 			if src, has := profiles.Get(name); has {
 				row.Drift = src.Provenance() != p.Profile
+				row.Edited = !row.Drift && !src.SettingsMatch(p.Settings)
 			}
 		}
 		rows = append(rows, row)
 	}
 	// The overlay's recommended profiles, each with its instantiation state:
 	// apply (never instantiated), reapply (drifted behind the overlay),
-	// current (matches), or conflict (a hand-made policy owns the id).
+	// edited (settings hand-changed since the apply - the stamp cannot see
+	// this, only content comparison can), current (matches), or conflict
+	// (a hand-made policy owns the id).
 	type profileRow struct {
 		fleet.Profile
 		SettingsText string
-		State        string // "apply" | "current" | "reapply" | "conflict"
+		State        string // "apply" | "current" | "reapply" | "edited" | "conflict"
 	}
 	prof := make([]profileRow, 0, profiles.Len())
 	for _, p := range profiles.All() {
@@ -67,10 +79,12 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 			switch {
 			case !strings.HasPrefix(pol.Profile, p.Name+"@"):
 				state = "conflict"
-			case pol.Profile == p.Provenance():
-				state = "current"
-			default:
+			case pol.Profile != p.Provenance():
 				state = "reapply"
+			case !p.SettingsMatch(pol.Settings):
+				state = "edited"
+			default:
+				state = "current"
 			}
 		}
 		prof = append(prof, profileRow{Profile: p,

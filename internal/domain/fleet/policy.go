@@ -34,6 +34,32 @@ func PutPolicy(id string, p Policy) Mutation {
 	}
 }
 
+// AssignmentDevices returns the active devices an assignment currently
+// reaches (target scope plus filter), sorted. This is the editor's
+// reality check: an assignment whose class filter excludes its whole
+// target is a silent no-op unless the count makes it visible.
+func (f *Fleet) AssignmentDevices(a Assignment) []string {
+	var out []string
+	for tag, d := range f.Devices {
+		if d.State == DeviceRetired {
+			continue
+		}
+		pos := f.scopePositions(tag)
+		if _, applies := assignmentPosition(pos, a.Target, tag); !applies {
+			continue
+		}
+		if a.Filter != "" {
+			fl, ok := f.Filters[a.Filter]
+			if !ok || !f.matchesFilter(fl, tag) {
+				continue
+			}
+		}
+		out = append(out, tag)
+	}
+	slices.Sort(out)
+	return out
+}
+
 // DeletePolicy removes a policy; refused while any assignment references it.
 func DeletePolicy(id string) Mutation {
 	return func(f *Fleet) error {
@@ -98,6 +124,26 @@ func PutFilter(id string, fl Filter) Mutation {
 		}
 		if err := ValidateFilter(fl); err != nil {
 			return fmt.Errorf("filter %q: %w", id, err)
+		}
+		// Exact group rules (eq/in) must name real groups: groups are
+		// first-class (unlike class/hardware values, which may legitimately
+		// precede the devices that carry them), so a typo here is always a
+		// mistake that would silently match nothing. ne/prefix values are
+		// patterns, not names - they stay free. Resolution itself still
+		// fails closed on unknown groups: a document edited outside the
+		// console keeps its semantics, this only guards console writes.
+		for _, r := range fl.Rules {
+			if r.Attr != AttrGroup || (r.Op != OpEq && r.Op != OpIn) {
+				continue
+			}
+			for _, g := range append([]string{r.Value}, r.Values...) {
+				if g == "" {
+					continue
+				}
+				if _, ok := f.Groups[g]; !ok {
+					return fmt.Errorf("filter %q: unknown group %q", id, g)
+				}
+			}
 		}
 		if f.Filters == nil {
 			f.Filters = map[string]Filter{}

@@ -225,3 +225,42 @@ func TestDanglingReferencesFailClosed(t *testing.T) {
 		t.Fatalf("dangling assignment applied: %v", r)
 	}
 }
+
+func TestAssignmentDevicesReach(t *testing.T) {
+	f := &Fleet{
+		Groups: map[string]Group{"pilot": {}},
+		Devices: map[string]Device{
+			"lt-1": {Class: "laptop", Groups: []string{"pilot"}},
+			"sv-1": {Class: "server", Groups: []string{"pilot"}},
+			"rt-1": {Class: "laptop", Groups: []string{"pilot"}, State: DeviceRetired},
+		},
+		Policies: map[string]Policy{"p": {Settings: map[string]any{"a": 1}}},
+		Filters: map[string]Filter{"laptops": {Rules: []FilterRule{
+			{Attr: AttrClass, Op: OpEq, Value: "laptop"}}}},
+	}
+	// Org-wide with class filter: the laptop, not the server or the retired.
+	got := f.AssignmentDevices(Assignment{Policy: "p", Target: "org", Filter: "laptops"})
+	if len(got) != 1 || got[0] != "lt-1" {
+		t.Fatalf("filtered reach = %v", got)
+	}
+	// A filter excluding the whole target is a visible zero, not an error.
+	if got := f.AssignmentDevices(Assignment{Policy: "p", Target: "device:sv-1", Filter: "laptops"}); len(got) != 0 {
+		t.Fatalf("zero reach = %v", got)
+	}
+	// Missing filter fails closed, like resolution.
+	if got := f.AssignmentDevices(Assignment{Policy: "p", Target: "org", Filter: "ghost"}); len(got) != 0 {
+		t.Fatalf("dangling filter reach = %v", got)
+	}
+}
+
+func TestPutFilterValidatesGroupValues(t *testing.T) {
+	f := &Fleet{Groups: map[string]Group{"pilot": {}}}
+	bad := Filter{Rules: []FilterRule{{Attr: AttrGroup, Op: OpEq, Value: "pilto"}}}
+	if err := PutFilter("typo", bad)(f); err == nil {
+		t.Fatal("expected refusal for unknown group")
+	}
+	ok := Filter{Rules: []FilterRule{{Attr: AttrGroup, Op: OpIn, Values: []string{"pilot"}}}}
+	if err := PutFilter("real", ok)(f); err != nil {
+		t.Fatalf("valid group refused: %v", err)
+	}
+}

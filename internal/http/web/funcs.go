@@ -20,6 +20,10 @@ func templateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"list":      func(items ...any) []any { return items },
 		"hasPrefix": strings.HasPrefix,
+		// renderValue renders a setting value the one canonical way (the
+		// policy editor's key = value syntax), so a card and its edit form
+		// never show the same value differently.
+		"renderValue": renderValue,
 		// macKey turns a MAC into a form-field-safe key (no colons) so a batch's
 		// per-device CMDB-name input can be addressed as name-<macKey>.
 		"macKey": macKey,

@@ -136,20 +136,21 @@ func TestApplyProfileRefusesHandMadeCollision(t *testing.T) {
 	}
 }
 
-func TestApplyProfileKeepsHandTunedFilter(t *testing.T) {
+func TestApplyProfileRefusesHandTunedFilter(t *testing.T) {
 	f := testFleet()
-	// An operator already narrowed class-laptop further; applying the
-	// profile must reuse, never overwrite, that filter.
+	// An operator narrowed class-laptop beyond its name's meaning. Binding
+	// the profile through it would silently cover fewer devices than the
+	// profile promises - refuse, and never touch the operator's filter.
 	f.Filters = map[string]Filter{"class-laptop": {Rules: []FilterRule{
 		{Attr: AttrClass, Op: OpEq, Value: "laptop"},
 		{Attr: AttrGroup, Op: OpEq, Value: "zaanstad"},
 	}}}
 	p := Profile{Name: "laptop", Class: "laptop", Settings: map[string]any{"a": 1}}
-	if err := ApplyProfile(p)(f); err != nil {
-		t.Fatal(err)
+	if err := ApplyProfile(p)(f); err == nil {
+		t.Fatal("expected refusal over narrowed filter")
 	}
 	if len(f.Filters["class-laptop"].Rules) != 2 {
-		t.Fatalf("hand-tuned filter overwritten: %+v", f.Filters["class-laptop"])
+		t.Fatalf("operator filter touched: %+v", f.Filters["class-laptop"])
 	}
 }
 
@@ -164,5 +165,86 @@ func TestApplyProfileClasslessSkipsFilter(t *testing.T) {
 	}
 	if f.Assignments[0].Filter != "" {
 		t.Fatalf("assignment should be unfiltered: %+v", f.Assignments[0])
+	}
+}
+
+func TestApplyProfileClassChangeReconcilesAssignments(t *testing.T) {
+	f := testFleet()
+	p := Profile{Name: "laptop", Class: "laptop", Settings: map[string]any{"a": 1}}
+	if err := ApplyProfile(p)(f); err != nil {
+		t.Fatal(err)
+	}
+	// The overlay narrows the profile to a different class: re-apply must
+	// move the assignment, not add a second one through the old filter.
+	f.Devices["srv-1"] = Device{Class: "server", Groups: []string{"zaanstad"}}
+	p.Class = "server"
+	if err := ApplyProfile(p)(f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Assignments) != 1 || f.Assignments[0].Filter != "class-server" {
+		t.Fatalf("stale class assignment survived: %+v", f.Assignments)
+	}
+}
+
+func TestApplyProfileRefusesWrongSameNamedFilter(t *testing.T) {
+	f := testFleet()
+	// A filter named like the derived one but meaning something else must
+	// refuse, not silently mis-scope the profile.
+	f.Filters = map[string]Filter{"class-laptop": {Rules: []FilterRule{
+		{Attr: AttrGroup, Op: OpEq, Value: "zaanstad"},
+	}}}
+	p := Profile{Name: "laptop", Class: "laptop", Settings: map[string]any{"a": 1}}
+	if err := ApplyProfile(p)(f); err == nil {
+		t.Fatal("expected refusal over mismatched filter")
+	}
+}
+
+func TestApplyProfileKeepsLocalWording(t *testing.T) {
+	f := testFleet()
+	p := Profile{Name: "laptop", Label: "Laptop", Description: "profile words",
+		Settings: map[string]any{"a": 1}}
+	if err := ApplyProfile(p)(f); err != nil {
+		t.Fatal(err)
+	}
+	pol := f.Policies["laptop"]
+	pol.Name, pol.Description = "Our laptops", "our words"
+	f.Policies["laptop"] = pol
+	p.Settings = map[string]any{"a": 2}
+	if err := ApplyProfile(p)(f); err != nil {
+		t.Fatal(err)
+	}
+	got := f.Policies["laptop"]
+	if got.Name != "Our laptops" || got.Description != "our words" {
+		t.Fatalf("local wording lost on re-apply: %+v", got)
+	}
+	if got.Settings["a"] != 2 {
+		t.Fatalf("settings not refreshed: %+v", got.Settings)
+	}
+}
+
+func TestProfileSettingsMatch(t *testing.T) {
+	p := Profile{Name: "laptop", Settings: map[string]any{"n": float64(3), "s": "x"}}
+	// The settings parser writes an int where JSON decoded a float; canonical
+	// JSON makes them equal.
+	if !p.SettingsMatch(map[string]any{"n": 3, "s": "x"}) {
+		t.Fatal("int/float should compare equal via canonical JSON")
+	}
+	if p.SettingsMatch(map[string]any{"n": 4, "s": "x"}) {
+		t.Fatal("changed value should not match")
+	}
+}
+
+func TestRemoveGroupRefusedWhileFilterReferences(t *testing.T) {
+	f := testFleet()
+	f.Groups["empty"] = Group{}
+	f.Filters = map[string]Filter{"by-group": {Rules: []FilterRule{
+		{Attr: AttrGroup, Op: OpIn, Values: []string{"empty"}},
+	}}}
+	if err := RemoveGroup("empty")(f); err == nil {
+		t.Fatal("expected refusal while a filter references the group")
+	}
+	delete(f.Filters, "by-group")
+	if err := RemoveGroup("empty")(f); err != nil {
+		t.Fatalf("clean remove failed: %v", err)
 	}
 }
