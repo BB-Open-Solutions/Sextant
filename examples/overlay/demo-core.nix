@@ -4,18 +4,20 @@
 { config, lib, pkgs, ... }:
 {
   options.dawo = {
+    # label (appended like riskClass) is the human name the console leads
+    # with; the dotted path stays as the technical identity.
     desktop = lib.mkOption {
       type = lib.types.enum [ "plasma" "gnome" ];
       default = "plasma";
       description = "Desktop environment for this device.";
-    };
+    } // { label = "Desktop environment"; };
     # riskClass (appended after mkOption) surfaces as a warning badge in
     # the console settings editor.
     secureboot = lib.mkOption {
       type = lib.types.bool;
       default = false;
       description = "Enforce Secure Boot with machine-owned keys.";
-    } // { riskClass = "high"; };
+    } // { riskClass = "high"; label = "Secure Boot"; };
     apps.office = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -30,7 +32,7 @@
       type = lib.types.ints.positive;
       default = 3;
       description = "Maximum SSH authentication attempts per connection.";
-    };
+    } // { label = "SSH login attempts"; };
   };
 
   config = {

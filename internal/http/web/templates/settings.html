@@ -83,8 +83,12 @@
       <div class="flex flex-wrap items-start gap-x-4 gap-y-3">
         <!-- Identity: key + type pill + risk, then description -->
         <div class="min-w-0 flex-1">
+          <!-- A labelled option leads with its human name; the dotted path
+               stays as the small technical identity next to it. -->
           <div class="flex flex-wrap items-center gap-2">
-            <span class="break-all font-mono font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Name}}</span>
+            {{if $row.Entry.Label}}<span class="break-words font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Label}}</span>
+            <span class="break-all font-mono text-code-inline text-text-tertiary">{{$row.Entry.Name}}</span>
+            {{else}}<span class="break-all font-mono font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Name}}</span>{{end}}
             <span class="rounded-full bg-surface-container px-2 py-0.5 text-label-xs-caps capitalize text-text-tertiary">{{$row.Entry.Type}}</span>
             {{if $risk}}<span class="tag bad">{{$risk}} {{$.L.T "settings.risk_suffix"}}</span>{{end}}
           </div>

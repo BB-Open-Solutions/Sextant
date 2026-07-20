@@ -31,7 +31,7 @@ const seedFleet = `{
 const seedCatalog = `[
   {"name":"apps.office","type":"boolean","description":"Office suite","default":false,"riskClass":"high"},
   {"name":"apps.retries","type":"positive integer","description":"Retries","default":0},
-  {"name":"desktop","type":"string","description":"Desktop environment","default":"kde"},
+  {"name":"desktop","type":"string","description":"Desktop environment","default":"kde","label":"Bureaublad"},
   {"name":"apps.licenseRef","type":"string","description":"App license key","secret":true},
   {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true},
   {"name":"timesync.enable","type":"boolean","description":"Time sync","default":false},
@@ -406,5 +406,24 @@ func TestDependentFieldGreysWhileEnableOff(t *testing.T) {
 	page = get()
 	if regexp.MustCompile(`name="v:timesync\.servers" disabled`).MatchString(page) {
 		t.Error("servers control still disabled after enabling timesync")
+	}
+}
+
+// TestSettingsShowsHumanLabel: a labelled option leads with its human name;
+// the dotted path stays visible as the technical identity.
+func TestSettingsShowsHumanLabel(t *testing.T) {
+	ts, _ := newConsole(t)
+	resp, err := client().Get(ts.URL + "/settings?scope=org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	page := string(body)
+	if !strings.Contains(page, "Bureaublad") {
+		t.Error("label missing")
+	}
+	if !strings.Contains(page, "desktop") {
+		t.Error("dotted path no longer visible")
 	}
 }

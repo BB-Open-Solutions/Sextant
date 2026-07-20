@@ -20,6 +20,11 @@ const CatalogFile = "catalog.json"
 type CatalogEntry struct {
 	// Name is the dotted option path under dawo. (e.g. "apps.office").
 	Name string `json:"name"`
+	// Label is the optional human name the console shows instead of the raw
+	// dotted path ("LUKS mapper" for diskUnlock.tpm2.device); the path stays
+	// visible as the technical identity. Authored in the overlay via the
+	// `// { label = "..."; }` annotation - Name remains the API key.
+	Label string `json:"label,omitempty"`
 	// Type is the nix type description ("boolean", "string", "one of ...",
 	// "positive integer", ...). Widget derives it.
 	Type string `json:"type"`
@@ -65,6 +70,15 @@ func (e CatalogEntry) AppliesTo(class string) bool {
 		}
 	}
 	return false
+}
+
+// DisplayName is what the console leads with: the human label when the
+// overlay authored one, else the dotted path.
+func (e CatalogEntry) DisplayName() string {
+	if e.Label != "" {
+		return e.Label
+	}
+	return e.Name
 }
 
 // DefaultString renders the declared default for display; empty when none.

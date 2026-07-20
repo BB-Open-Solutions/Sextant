@@ -14,12 +14,14 @@
     {
         "default": "plasma",
         "description": "Desktop environment for this device.",
+        "label": "Desktop environment",
         "name": "desktop",
         "type": "one of \"plasma\", \"gnome\""
     },
     {
         "default": false,
         "description": "Enforce Secure Boot with machine-owned keys.",
+        "label": "Secure Boot",
         "name": "secureboot",
         "riskClass": "high",
         "type": "boolean"
@@ -27,6 +29,7 @@
     {
         "default": 3,
         "description": "Maximum SSH authentication attempts per connection.",
+        "label": "SSH login attempts",
         "name": "ssh.maxAuthTries",
         "type": "positive integer, meaning >0"
     }

@@ -59,6 +59,11 @@ let
   # as a secret-ref picker (the value is a secret name, never the material).
   secret = opt:
     if (opt.secret or false) then { secret = true; } else { };
+  # label: an option annotated `// { label = "LUKS mapper"; }` shows that
+  # human name in the console instead of the raw dotted path (which stays
+  # visible as the technical identity - Name remains the API key).
+  label = opt:
+    if (opt.label or "") != "" then { label = opt.label; } else { };
   walk = prefix: opts:
     lib.concatLists (lib.mapAttrsToList
       (name: v:
@@ -74,7 +79,7 @@ let
               if lib.isString v.description
               then v.description
               else v.description.text or "";
-          } // plainDefault v // riskClass v // secret v)
+          } // plainDefault v // riskClass v // secret v // label v)
         else if lib.isAttrs v then walk path v
         else [ ])
       opts);

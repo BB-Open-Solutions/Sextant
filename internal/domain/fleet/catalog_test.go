@@ -171,3 +171,21 @@ func TestCatalogParseValue(t *testing.T) {
 		t.Errorf("text = %v", got)
 	}
 }
+
+func TestCatalogLabel(t *testing.T) {
+	cat, err := ParseCatalog([]byte(`[
+	  {"name":"diskUnlock.tpm2.device","type":"string","description":"d","label":"LUKS mapper"},
+	  {"name":"hostname","type":"string","description":"d"}
+	]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, _ := cat.Lookup("diskUnlock.tpm2.device")
+	if e.DisplayName() != "LUKS mapper" {
+		t.Fatalf("DisplayName = %q", e.DisplayName())
+	}
+	p, _ := cat.Lookup("hostname")
+	if p.DisplayName() != "hostname" {
+		t.Fatalf("unlabelled DisplayName = %q", p.DisplayName())
+	}
+}

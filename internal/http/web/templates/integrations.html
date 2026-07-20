@@ -28,7 +28,9 @@
         {{range .Rows}}
         <div class="py-3">
           <div class="mb-1 flex items-center gap-2">
-            <span class="font-mono text-code-inline font-medium text-ink">{{.Entry.Name}}</span>
+            {{if .Entry.Label}}<span class="font-medium text-ink">{{.Entry.Label}}</span>
+            <span class="font-mono text-code-inline text-text-tertiary">{{.Entry.Name}}</span>
+            {{else}}<span class="font-mono text-code-inline font-medium text-ink">{{.Entry.Name}}</span>{{end}}
             {{if .Entry.Secret}}<span class="tag lock"><span class="material-symbols-outlined msz-14">key</span>{{$.L.T "page.integrations.secret_tag"}}</span>{{end}}
             {{if .Entry.RiskClass}}<span class="tag bad">{{.Entry.RiskClass}} {{$.L.T "page.integrations.risk_suffix"}}</span>{{end}}
           </div>
