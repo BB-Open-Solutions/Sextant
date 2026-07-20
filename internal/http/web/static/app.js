@@ -239,3 +239,27 @@ document.addEventListener("click", function (e) {
     });
   });
 })();
+
+(function () {
+  // Dependent settings follow their enable live: a value column carrying
+  // data-requires="v:<enable key>" greys out and disables its controls while
+  // that enable's toggle reads off. The server renders the initial state;
+  // this only tracks edits before the save round-trip. "Inherit" falls back
+  // to data-requires-inherited (the enable's value ignoring the own edit,
+  // computed server-side - the client cannot resolve the scope chain).
+  function apply(col, on) {
+    col.classList.toggle("opacity-50", !on);
+    col.querySelectorAll("input, select, textarea").forEach(function (c) {
+      c.disabled = !on;
+    });
+  }
+  document.addEventListener("change", function (e) {
+    var t = e.target;
+    if (!t || !t.name || t.type !== "radio") return;
+    document.querySelectorAll('[data-requires="' + t.name + '"]').forEach(function (col) {
+      var on = t.value === "true";
+      if (t.value === "") on = col.getAttribute("data-requires-inherited") === "true";
+      apply(col, on);
+    });
+  });
+})();

@@ -95,8 +95,11 @@
         {{$vn := printf "v:%s" $row.Entry.Name}}
         <!-- Value column: one fixed width so controls line up across every row;
              the provenance (modified/inherits + default + effective) sits right
-             underneath the control. -->
-        <div class="w-full shrink-0 sm:w-72">
+             underneath the control. A dependent field greys out (and its
+             control disables) while its enable is off - the NTP-servers
+             idiom; data-requires lets app.js follow the enable's toggle live,
+             the server-rendered state is authoritative without JS. -->
+        <div class="w-full shrink-0 sm:w-72{{if $row.RequiresOff}} opacity-50{{end}}"{{if $row.RequiresKey}} data-requires="v:{{$row.RequiresKey}}" data-requires-inherited="{{$row.RequiresInherited}}"{{end}}>
           {{if eq $row.Entry.Widget "toggle"}}
             <!-- A rounded pill segmented slider that carries all states in one v:
                  radio field (no JS): group/device get Inherit | Off | On (inherit
@@ -119,20 +122,20 @@
               {{end}}
             </div>
           {{else if eq $row.Entry.Widget "select"}}
-            <select name="{{$vn}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$inhWord}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+            <select name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$inhWord}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
           {{else if eq $row.Entry.Widget "secret"}}
-            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="{{$vn}}" class="{{$ctl}} w-full min-w-0 flex-1 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
+            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} class="{{$ctl}} w-full min-w-0 flex-1 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
             {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
           {{else if eq $row.Entry.Widget "number"}}
-            <input type="number" name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
+            <input type="number" name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
           {{else if eq $row.Entry.Widget "code"}}
-            <textarea name="{{$vn}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md {{if $set}}!border-mint-vibrant{{end}}" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{$row.Lines}}{{end}}</textarea>
+            <textarea name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} rows="3" spellcheck="false" class="w-full font-mono text-code-md {{if $set}}!border-mint-vibrant{{end}}" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{$row.Lines}}{{end}}</textarea>
           {{else if $row.Suggestions}}
             {{$listId := printf "sugg-%s" $sl}}
-            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" list="{{$listId}}">
+            <input name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" list="{{$listId}}">
             <datalist id="{{$listId}}">{{range $row.Suggestions}}<option value="{{.}}">{{end}}</datalist>
           {{else}}
-            <input name="{{$vn}}" value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
+            <input name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
           {{end}}
           <!-- Provenance, directly under the control -->
           <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-xs-caps">

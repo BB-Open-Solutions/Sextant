@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -32,7 +33,9 @@ const seedCatalog = `[
   {"name":"apps.retries","type":"positive integer","description":"Retries","default":0},
   {"name":"desktop","type":"string","description":"Desktop environment","default":"kde"},
   {"name":"apps.licenseRef","type":"string","description":"App license key","secret":true},
-  {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true}
+  {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true},
+  {"name":"timesync.enable","type":"boolean","description":"Time sync","default":false},
+  {"name":"timesync.servers","type":"string","description":"NTP servers"}
 ]`
 
 const seedProfiles = `[
@@ -361,5 +364,47 @@ func TestRequireChangeRequestBlocksDirectSetting(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "change-request required") {
 		t.Fatalf("expected change-request message, got %d\n%s", resp.StatusCode, body)
+	}
+}
+
+// TestDependentFieldGreysWhileEnableOff proves the NTP-servers idiom end to
+// end: with timesync.enable off (its default) the servers control renders
+// disabled inside a greyed value column carrying the data-requires hook;
+// turning the enable on at this scope frees it on the next render.
+func TestDependentFieldGreysWhileEnableOff(t *testing.T) {
+	ts, _ := newConsole(t)
+	get := func() string {
+		t.Helper()
+		resp, err := client().Get(ts.URL + "/settings?scope=org")
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return string(b)
+	}
+	page := get()
+	col := regexp.MustCompile(`(?s)<div class="[^"]*opacity-50"[^>]*data-requires="v:timesync\.enable"[^>]*>.*?name="v:timesync\.servers"[^>]*>`).FindString(page)
+	if col == "" {
+		t.Fatalf("no greyed data-requires column around timesync.servers")
+	}
+	if !strings.Contains(col, `name="v:timesync.servers" disabled`) {
+		t.Errorf("servers control not disabled while enable is off: %s", col)
+	}
+
+	// Turn the enable on; the dependent field frees up.
+	form := url.Values{"scope": {"org"}, "csrf": {"dev-csrf"},
+		"v:timesync.enable": {"true"}}
+	resp, err := client().PostForm(ts.URL+"/settings", form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 303 {
+		t.Fatalf("enable save = %d", resp.StatusCode)
+	}
+	page = get()
+	if regexp.MustCompile(`name="v:timesync\.servers" disabled`).MatchString(page) {
+		t.Error("servers control still disabled after enabling timesync")
 	}
 }

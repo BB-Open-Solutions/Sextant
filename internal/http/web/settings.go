@@ -33,11 +33,15 @@ type settingRow struct {
 	// RequiresKey names the enable this option depends on (the "<prefix>.
 	// enable" convention: timesync.options.servers needs timesync.enable);
 	// RequiresOff marks it currently off at this scope's best knowledge, so
-	// the editor can say "takes effect once X is on" instead of the value
-	// being silently inert (product-stability principle: inert is fine,
-	// invisible is not).
-	RequiresKey string
-	RequiresOff bool
+	// the editor greys the control and says "takes effect once X is on"
+	// instead of the value being silently inert (product-stability
+	// principle: inert is fine, invisible is not). RequiresInherited is the
+	// enable's value with any own edit ignored - the state the dependent
+	// field falls back to when the editor puts the enable on "inherit"
+	// (app.js re-greys live without a save round-trip).
+	RequiresKey       string
+	RequiresOff       bool
+	RequiresInherited bool
 }
 
 // requiresOf finds the enable an option depends on: the longest dotted
@@ -142,6 +146,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 			if req := requiresOf(cat, e.Name); req != "" {
 				row.RequiresKey = req
 				row.RequiresOff = !effectiveBool(cat, own, resolved, req)
+				row.RequiresInherited = effectiveBool(cat, nil, resolved, req)
 			}
 			if val, has := own[e.Name]; has {
 				row.Set, row.Value = true, renderValue(val)
