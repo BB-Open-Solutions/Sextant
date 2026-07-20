@@ -18,7 +18,7 @@
           <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">devices</span>{{.L.T "groups.legend_devices"}}</span>
           <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">vpn_key</span>{{.L.T "groups.legend_idp"}}</span>
         </div>
-        {{if .CanOrgOwn}}<label for="gc-toggle" title="{{.L.T "groups.create"}}" class="flex cursor-pointer items-center justify-center rounded-full border border-border-hairline p-1 text-text-tertiary transition-colors hover:border-ink hover:bg-canvas hover:text-ink"><span class="material-symbols-outlined msz-18">add</span></label>{{end}}
+        {{if .CanOrgOwn}}<label for="gc-toggle" title="{{.L.T "groups.create"}}" aria-label="{{.L.T "groups.create"}}" class="flex cursor-pointer items-center justify-center rounded-full border border-border-hairline p-1 text-text-tertiary transition-colors hover:border-ink hover:bg-canvas hover:text-ink"><span class="material-symbols-outlined msz-18">add</span></label>{{end}}
       </div>
     </div>
     <div class="flex-1 overflow-y-auto p-2">
@@ -93,7 +93,7 @@
               <span class="text-label-md text-text-tertiary">{{$.L.T "groups.allowed_classes_hint"}}</span>
               <button type="submit" class="quiet mt-2 self-start">{{$.L.T "common.save"}}</button>
             </form>
-            <form method="post" action="/groups/{{.Name}}/remove" class="!block" data-confirm="Remove group {{.Name}}?">
+            <form method="post" action="/groups/{{.Name}}/remove" class="!block" data-confirm="{{$.L.T "groups.remove_confirm_pre"}} {{.Name}}{{$.L.T "groups.remove_confirm_post"}}">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="quiet w-full justify-center !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-16">delete</span>{{$.L.T "groups.remove_group"}}</button>
             </form>
           </div>

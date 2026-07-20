@@ -39,7 +39,7 @@
     <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-canvas text-label-xs-caps">2</span>{{.L.T "enroll.devices_on"}} {{.Station}}</h2>
     <div class="flex items-center gap-2">
       <span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len .Rows}} {{.L.T "enroll.on_pxe"}}</span>
-      <a href="/enroll?station={{.Station}}" title="{{.L.T "enroll.refresh"}}" class="btn !border-0 !bg-transparent !p-1.5 text-text-tertiary hover:text-ink"><span class="material-symbols-outlined msz-18">refresh</span></a>
+      <a href="/enroll?station={{.Station}}" title="{{.L.T "enroll.refresh"}}" aria-label="{{.L.T "enroll.refresh"}}" class="btn !border-0 !bg-transparent !p-1.5 text-text-tertiary hover:text-ink"><span class="material-symbols-outlined msz-18">refresh</span></a>
     </div>
   </div>
 
@@ -85,7 +85,7 @@
         <div class="flex items-center gap-2">
           <label class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "enroll.cmdb_name"}}</label>
           <input name="name-{{macKey .Dev.MAC}}" placeholder="{{$.L.T "common.eg"}} kiosk-04" pattern="[a-z0-9][a-z0-9-]*" class="font-mono md:w-56">
-          <button type="submit" formaction="/enroll/{{$.Station}}/discovered/{{.Dev.MAC}}/remove" formnovalidate data-confirm="{{$.L.T "enroll.remove_confirm"}} {{.Dev.MAC}}?" title="{{$.L.T "common.remove"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary transition hover:!text-status-error"><span class="material-symbols-outlined msz-18">delete</span></button>
+          <button type="submit" formaction="/enroll/{{$.Station}}/discovered/{{.Dev.MAC}}/remove" formnovalidate data-confirm="{{$.L.T "enroll.remove_confirm"}} {{.Dev.MAC}}?" title="{{$.L.T "common.remove"}}" aria-label="{{$.L.T "common.remove"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary transition hover:!text-status-error"><span class="material-symbols-outlined msz-18">delete</span></button>
         </div>
       </div>
       {{end}}
@@ -139,7 +139,7 @@
       </td>
       <td class="text-right !px-6">
         {{if or (eq (printf "%s" .Status) "pending") (eq (printf "%s" .Status) "failed")}}
-        <form method="post" action="/enroll/{{$st}}/jobs/{{.MAC}}/cancel" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="{{$.L.T "enroll.cancel_job_title"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-18">cancel</span></button></form>
+        <form method="post" action="/enroll/{{$st}}/jobs/{{.MAC}}/cancel" class="inline"><input type="hidden" name="csrf" value="{{$csrf}}"><button type="submit" title="{{$.L.T "enroll.cancel_job_title"}}" aria-label="{{$.L.T "enroll.cancel_job_title"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-18">cancel</span></button></form>
         {{else}}<span class="muted">-</span>{{end}}
       </td>
     </tr>

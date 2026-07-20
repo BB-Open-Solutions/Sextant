@@ -54,14 +54,14 @@
       <td>{{range .Groups}}<span class="tag">{{.}}</span> {{end}}</td>
       <td>
         {{if eq .Status "critical"}}<span class="tag bad">{{$.L.T "page.overview.critical"}}</span>
-        {{else if eq .Status "warning"}}<span class="tag" style=""><span class="material-symbols-outlined msz-14">warning</span>{{$.L.T "page.overview.warning"}}</span>
+        {{else if eq .Status "warning"}}<span class="tag warn"><span class="material-symbols-outlined msz-14">warning</span>{{$.L.T "page.overview.warning"}}</span>
         {{else}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "page.overview.to_spec"}}</span>{{end}}
       </td>
       <td>{{if .Issues}}{{range .Issues}}<span class="block text-body-sm text-ink">{{.Title}}</span><span class="block text-body-sm text-text-tertiary">{{.Detail}}</span>{{end}}{{else}}<span class="muted">—</span>{{end}}</td>
       <td>{{if .Issues}}{{range .Issues}}{{with .Action}}<span class="block text-body-sm text-text-secondary">{{.}}</span>{{end}}{{end}}{{else}}<span class="muted">—</span>{{end}}</td>
     </tr>
     {{else}}
-    <tr><td colspan="4" class="muted">{{.L.T "page.compliance.empty"}}</td></tr>
+    <tr><td colspan="5" class="muted">{{.L.T "page.compliance.empty"}}</td></tr>
     {{end}}
   </table>
 </section>

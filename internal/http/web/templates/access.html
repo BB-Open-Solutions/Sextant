@@ -27,7 +27,7 @@
               <input type="hidden" name="csrf" value="{{$.CSRF}}">
               <input type="hidden" name="group" value="{{.Group}}">
               <input type="hidden" name="scope" value="{{.Scope}}">
-              <button type="submit" title="{{$.L.T "common.revoke"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-20">delete</span></button>
+              <button type="submit" title="{{$.L.T "common.revoke"}}" aria-label="{{$.L.T "common.revoke"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition-opacity hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-20">delete</span></button>
             </form>{{end}}</td>
         </tr>
         {{else}}

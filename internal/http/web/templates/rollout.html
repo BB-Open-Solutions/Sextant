@@ -27,7 +27,7 @@
       {{else if eq $st "completed"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{.L.T "updates.state_completed"}}</span>
       {{else if eq $st "cancelled"}}<span class="tag"><span class="material-symbols-outlined msz-14">block</span>{{.L.T "updates.state_cancelled"}}</span>
       {{else}}<span class="tag">{{$st}}</span>{{end}}
-      {{with .TargetRelease}}<span class="text-label-md font-semibold text-ink">Release {{.}}</span>{{end}}
+      {{with .TargetRelease}}<span class="text-label-md font-semibold text-ink">{{$.L.T "common.release"}} {{.}}</span>{{end}}
       <span class="font-mono text-code-inline text-text-tertiary">{{short .State.Target}}</span>
       {{with .State.ChangeTitle}}<span class="text-body-sm text-text-secondary"><span class="material-symbols-outlined msz-14 align-middle text-mint-deep">local_shipping</span> {{$.L.T "updates.delivering"}} {{.}}</span>{{end}}
       {{with .State.Reason}}<span class="text-body-sm text-text-secondary">{{.}}</span>{{end}}

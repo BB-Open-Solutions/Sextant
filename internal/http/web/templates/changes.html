@@ -55,7 +55,7 @@
         <form class="inline" method="post" action="/changes/{{.ID}}/submit"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="!py-1.5">{{$.L.T "changes.build"}}</button></form>
         {{end}}
         {{if eq .Status "ready"}}<form class="inline" method="post" action="/changes/{{.ID}}/merge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="!py-1.5 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-16">merge</span>{{$.L.T "changes.merge"}}</button></form>{{end}}
-        {{if .Open}}<form class="inline" method="post" action="/changes/{{.ID}}/abandon" data-confirm="Abandon {{.ID}}?"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="quiet !py-1.5">{{$.L.T "changes.abandon"}}</button></form>{{end}}
+        {{if .Open}}<form class="inline" method="post" action="/changes/{{.ID}}/abandon" data-confirm="{{$.L.T "changes.abandon_confirm_pre"}} {{.ID}}{{$.L.T "changes.abandon_confirm_post"}}"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="quiet !py-1.5">{{$.L.T "changes.abandon"}}</button></form>{{end}}
         {{end}}
       </div>
     </div>

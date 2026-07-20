@@ -82,6 +82,7 @@
   .tag.ok { @apply bg-secondary-container text-on-secondary-container; }
   .tag.bad { @apply bg-error-container text-on-error-container; }
   .tag.lock { @apply bg-tertiary-container text-canvas; }
+  .tag.warn { @apply bg-status-warn/10 text-status-warn border border-status-warn/30; }
   .tag.viewer { @apply bg-mint-vibrant/10 text-mint-deep border border-mint-vibrant/30; }
 
   /* Role: plain coloured text with a small icon - no pill. */

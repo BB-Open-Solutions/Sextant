@@ -13,7 +13,7 @@
   <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
     <dl class="mb-0 flex flex-col gap-2 text-body-md">
       <div class="flex items-center gap-2"><dt class="w-32 shrink-0 text-text-tertiary">{{.L.T "rollout.target_revision"}}</dt>
-        <dd class="mb-0 flex items-center gap-2">{{if .TargetRelease}}<span class="font-semibold text-ink">Release {{.TargetRelease}}</span>{{end}}<span class="font-mono text-code-inline text-text-tertiary">{{short .Target}}</span></dd></div>
+        <dd class="mb-0 flex items-center gap-2">{{if .TargetRelease}}<span class="font-semibold text-ink">{{.L.T "common.release"}} {{.TargetRelease}}</span>{{end}}<span class="font-mono text-code-inline text-text-tertiary">{{short .Target}}</span></dd></div>
       <div class="flex items-center gap-2"><dt class="w-32 shrink-0 text-text-tertiary">{{.L.T "updates.scope_label"}}</dt>
         <dd class="mb-0 text-ink">{{if .ScopeFleet}}{{.L.T "updates.scope_fleet"}}{{else}}{{.L.T "updates.scope_only"}} {{.Scope}}{{end}}</dd></div>
       <div class="flex items-center gap-2"><dt class="w-32 shrink-0 text-text-tertiary">{{.L.T "rollout.confirm_testgate_label"}}</dt>

@@ -27,7 +27,7 @@
       {{if .Paused}}<span class="tag"><span class="material-symbols-outlined msz-14">pause</span>{{.L.T "updates.state_paused"}}</span>
       {{else if .Active}}<span class="tag ok"><span class="material-symbols-outlined msz-14 animate-spin">autorenew</span>{{.L.T "updates.state_active"}}</span>
       {{else}}<span class="tag">{{.L.T "updates.state_idle"}}</span>{{end}}
-      {{with .TargetRelease}}<span class="text-label-md font-semibold text-ink">Release {{.}}</span>{{end}}
+      {{with .TargetRelease}}<span class="text-label-md font-semibold text-ink">{{$.L.T "common.release"}} {{.}}</span>{{end}}
       {{with .State}}<span class="truncate font-mono text-code-inline text-text-tertiary">{{short .Target}}</span>{{end}}
       {{if .Delivering}}<span class="truncate text-label-md text-ink"><span class="material-symbols-outlined msz-14 align-middle text-mint-deep">local_shipping</span> {{.L.T "updates.delivering"}} {{.DeliveringTitle}}</span>{{end}}
       {{range .Waves}}{{if .Active}}<span class="truncate text-label-md text-text-secondary">{{.Label}} · {{$.L.T .StatusKey}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>{{end}}{{end}}
@@ -52,7 +52,7 @@
           </label>
           <span class="text-body-sm text-text-tertiary">{{.L.T "updates.expedited_hint_short"}}</span>
         </div>
-        <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{if .MainRelease}}Release {{.MainRelease}}{{else}}{{short .MainRev}}{{end}}</button>
+        <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{if .MainRelease}}{{.L.T "common.release"}} {{.MainRelease}}{{else}}{{short .MainRev}}{{end}}</button>
       </form>
       <a href="/updates/rollout" class="btn quiet !py-1.5">{{.L.T "updates.view_rollout"}}</a>
       {{end}}
