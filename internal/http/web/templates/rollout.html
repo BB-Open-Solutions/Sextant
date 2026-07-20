@@ -43,7 +43,7 @@
       {{else if .Active}}
       <form method="post" action="/rollout/pause" class="!m-0"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5"><span class="material-symbols-outlined msz-18">pause</span>{{.L.T "page.pipeline.pause"}}</button></form>
       {{end}}
-      <form method="post" action="/rollout/cancel" class="!m-0" data-confirm="{{.L.T "page.pipeline.cancel"}}?"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5 !text-status-error">{{.L.T "page.pipeline.cancel"}}</button></form>
+      <form method="post" action="/rollout/cancel" class="!m-0" data-confirm="{{.L.T "page.pipeline.cancel_confirm"}}"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn quiet !py-1.5 !text-status-error">{{.L.T "page.pipeline.cancel"}}</button></form>
     </div>
     {{end}}
   </div>
@@ -76,6 +76,7 @@
           <span class="shrink-0 text-label-md {{if .Active}}font-semibold text-mint-deep{{else}}text-text-tertiary{{end}}">{{$.L.T .StatusKey}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>
         </div>
         <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
+        <p class="mb-0 mt-2 text-body-sm text-text-tertiary">{{$.L.T "rollout.gates_label"}} {{$.L.T "rollout.soak_label"}} {{.SoakMinutes}} &middot; {{$.L.T "rollout.healthy_label"}} {{.MinHealthyPercent}}%{{if .MaxDevices}} &middot; {{$.L.T "rollout.max_label"}} {{.MaxDevices}}{{end}}</p>
         {{if .NowKey}}
         <div class="mt-2 flex items-start gap-2 text-body-sm text-text-secondary">
           <span class="material-symbols-outlined msz-16 mt-0.5 text-mint-deep">assistant_direction</span>

@@ -41,13 +41,17 @@
         <input type="hidden" name="target" value="{{.MainRev}}">
         <!-- Scope: a fleet-wide update walks the whole ladder; a scoped
              change gets the test wave plus just its group. -->
-        <select name="scope" class="!w-auto" title="{{.L.T "updates.scope_label"}}">
-          <option value="">{{.L.T "updates.scope_fleet"}}</option>
+        <select name="scope" class="!w-auto" required aria-label="{{.L.T "updates.scope_label"}}">
+          <option value="" disabled selected>{{.L.T "updates.scope_placeholder"}}</option>
+          <option value="*">{{.L.T "updates.scope_fleet"}}</option>
           {{range .AllGroups}}<option value="{{.}}">{{$.L.T "updates.scope_only"}} {{.}}</option>{{end}}
         </select>
-        <label class="flex items-center gap-1.5 !normal-case !tracking-normal text-label-md text-text-secondary" title="{{.L.T "updates.expedited_hint"}}">
-          <input type="checkbox" name="expedited" value="1" class="!w-auto">{{.L.T "updates.expedited"}}
-        </label>
+        <div class="flex flex-col gap-0.5">
+          <label class="flex items-center gap-1.5 !normal-case !tracking-normal text-label-md text-text-secondary">
+            <input type="checkbox" name="expedited" value="1" class="!w-auto">{{.L.T "updates.expedited"}}
+          </label>
+          <span class="text-body-sm text-text-tertiary">{{.L.T "updates.expedited_hint_short"}}</span>
+        </div>
         <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{if .MainRelease}}Release {{.MainRelease}}{{else}}{{short .MainRev}}{{end}}</button>
       </form>
       <a href="/updates/rollout" class="btn quiet !py-1.5">{{.L.T "updates.view_rollout"}}</a>

@@ -1,0 +1,40 @@
+{{define "content"}}
+<section class="mx-auto flex max-w-xl flex-col gap-6">
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center gap-2 text-label-md text-text-tertiary">
+      <a href="/org/updates" class="hover:text-ink">{{.L.T "orgupd.title"}}</a>
+      <span class="material-symbols-outlined msz-14">chevron_right</span>
+      <span class="text-ink">{{.L.T "orgupd.confirm_weaken_title"}}</span>
+    </div>
+    <h1 class="mb-0 flex items-center gap-2"><span class="material-symbols-outlined text-status-warn">warning</span>{{.L.T "orgupd.confirm_weaken_title"}}</h1>
+    <p class="mb-0 max-w-xl text-body-md text-text-tertiary">{{.L.T "orgupd.confirm_weaken_subtitle"}}</p>
+  </div>
+
+  <div class="rounded-lg border border-status-warn/40 bg-status-warn/5 p-5">
+    <ul class="mb-0 flex list-none flex-col gap-3">
+      {{range .Weakened}}
+      <li class="flex items-start gap-2">
+        <span class="material-symbols-outlined msz-18 mt-0.5 text-status-warn">remove_circle</span>
+        <span>
+          {{if eq . "fourEyes"}}<span class="block font-medium text-ink">{{$.L.T "access.four_eyes_label"}}</span><span class="block text-body-sm text-text-tertiary">{{$.L.T "access.four_eyes_desc"}}</span>
+          {{else if eq . "changeRequest"}}<span class="block font-medium text-ink">{{$.L.T "access.require_change_label"}}</span><span class="block text-body-sm text-text-tertiary">{{$.L.T "access.require_change_desc"}}</span>
+          {{else if eq . "testWave"}}<span class="block font-medium text-ink">{{$.L.T "access.require_testwave_label"}}</span><span class="block text-body-sm text-text-tertiary">{{$.L.T "access.require_testwave_desc"}}</span>
+          {{end}}
+        </span>
+      </li>
+      {{end}}
+    </ul>
+  </div>
+
+  <form method="post" action="/assurance" class="!flex-row !items-center gap-3">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{if .RequireFourEyes}}<input type="hidden" name="requireFourEyes" value="1">{{end}}
+    {{if .RequireChangeRequest}}<input type="hidden" name="requireChangeRequest" value="1">{{end}}
+    {{if .RequireTestWave}}<input type="hidden" name="requireTestWave" value="1">{{end}}
+    {{if .ManualRolloutOnly}}<input type="hidden" name="manualRolloutOnly" value="1">{{end}}
+    <input type="hidden" name="confirmed" value="1">
+    <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">remove_circle</span>{{.L.T "orgupd.confirm_weaken_button"}}</button>
+    <a href="/org/updates" class="btn quiet">{{.L.T "common.cancel"}}</a>
+  </form>
+</section>
+{{end}}

@@ -1,0 +1,33 @@
+{{define "content"}}
+<section class="mx-auto flex max-w-xl flex-col gap-6">
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center gap-2 text-label-md text-text-tertiary">
+      <a href="/updates" class="hover:text-ink">{{.L.T "nav.delivery"}}</a>
+      <span class="material-symbols-outlined msz-14">chevron_right</span>
+      <span class="text-ink">{{.L.T "changes.merge_confirm_title"}}</span>
+    </div>
+    <h1 class="mb-0 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">check</span>{{.L.T "changes.merge_confirm_title"}}</h1>
+    <p class="mb-0 max-w-xl text-body-md text-text-tertiary">{{.ChangeTitle}}</p>
+  </div>
+
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+    <dl class="mb-0 flex flex-col gap-2 text-body-md">
+      <div class="flex items-start gap-2"><dt class="w-32 shrink-0 text-text-tertiary">{{.L.T "changes.merge_confirm_effect_label"}}</dt>
+        <dd class="mb-0 text-ink">{{if .ManualRolloutOnly}}{{.L.T "changes.merge_confirm_effect_manual"}}{{else}}{{.L.T "changes.merge_confirm_effect_auto"}}{{end}}</dd></div>
+      {{if not .ManualRolloutOnly}}
+      <div class="flex items-start gap-2"><dt class="w-32 shrink-0 text-text-tertiary">{{.L.T "updates.scope_label"}}</dt>
+        <dd class="mb-0 text-ink">{{if .ScopeFleet}}{{.L.T "updates.scope_fleet"}}{{else}}{{range $i, $g := .Groups}}{{if $i}}, {{end}}{{$g}}{{end}}{{end}}</dd></div>
+      <div class="flex items-start gap-2"><dt class="w-32 shrink-0 text-text-tertiary">{{.L.T "rollout.confirm_testgate_label"}}</dt>
+        <dd class="mb-0 text-ink">{{if .TestGated}}{{.L.T "rollout.confirm_testgate_yes"}}{{else}}{{.L.T "rollout.confirm_testgate_no"}}{{end}}</dd></div>
+      {{end}}
+    </dl>
+  </div>
+
+  <form method="post" action="/changes/{{.ID}}/merge" class="!flex-row !items-center gap-3">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="confirmed" value="1">
+    <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">check</span>{{.L.T "page.pipeline.approve"}}</button>
+    <a href="/updates" class="btn quiet">{{.L.T "common.cancel"}}</a>
+  </form>
+</section>
+{{end}}

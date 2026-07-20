@@ -73,16 +73,33 @@ func (s *Server) auditEvidence(w http.ResponseWriter, r *http.Request, v view) {
 
 // postAssurance saves the organisation's approval controls (org Owner): the
 // instelbare governance flows - four-eyes, require-change-request, and
-// require-test-wave.
+// require-test-wave. Weakening any of the three deserves friction (fix E):
+// unchecking one that is currently ON renders a confirmation naming exactly
+// what is being removed, before it saves. Enabling a control, or a form that
+// changes nothing about them, saves directly as before.
 func (s *Server) postAssurance(w http.ResponseWriter, r *http.Request, v view) error {
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
+	f := s.svc.Config.Fleet()
 	a := fleet.Assurance{
 		RequireFourEyes:      r.FormValue("requireFourEyes") != "",
 		RequireChangeRequest: r.FormValue("requireChangeRequest") != "",
 		RequireTestWave:      r.FormValue("requireTestWave") != "",
 		ManualRolloutOnly:    r.FormValue("manualRolloutOnly") != "",
+	}
+	weakened := weakenedProtections(f.Assurance, a)
+	if len(weakened) > 0 && r.FormValue("confirmed") != "1" {
+		data := map[string]any{
+			"Title": "Confirm governance change", "Nav": "org",
+			"Weakened":             weakened,
+			"RequireFourEyes":      a.RequireFourEyes,
+			"RequireChangeRequest": a.RequireChangeRequest,
+			"RequireTestWave":      a.RequireTestWave,
+			"ManualRolloutOnly":    a.ManualRolloutOnly,
+		}
+		s.render(w, "assurance_confirm", data, v)
+		return nil
 	}
 	msg := fmt.Sprintf("assurance: four-eyes=%v change-request=%v test-wave=%v",
 		a.RequireFourEyes, a.RequireChangeRequest, a.RequireTestWave)
@@ -91,4 +108,27 @@ func (s *Server) postAssurance(w http.ResponseWriter, r *http.Request, v view) e
 	}
 	http.Redirect(w, r, "/org/updates", http.StatusSeeOther)
 	return nil
+}
+
+// weakenedProtections lists which of the three togglable governance
+// protections (four-eyes, require-change-request, require-test-wave) the
+// submitted form turns OFF relative to the currently saved state. A nil
+// current Assurance means nothing is enabled yet, so nothing can be
+// weakened. ManualRolloutOnly is deliberately excluded: it is not one of the
+// three review controls fix E guards.
+func weakenedProtections(cur *fleet.Assurance, next fleet.Assurance) []string {
+	if cur == nil {
+		return nil
+	}
+	var out []string
+	if cur.RequireFourEyes && !next.RequireFourEyes {
+		out = append(out, "fourEyes")
+	}
+	if cur.RequireChangeRequest && !next.RequireChangeRequest {
+		out = append(out, "changeRequest")
+	}
+	if cur.RequireTestWave && !next.RequireTestWave {
+		out = append(out, "testWave")
+	}
+	return out
 }

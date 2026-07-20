@@ -1,0 +1,66 @@
+{{define "content"}}
+<section class="mx-auto flex max-w-2xl flex-col gap-6">
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center gap-2 text-label-md text-text-tertiary">
+      <a href="/updates" class="hover:text-ink">{{.L.T "nav.delivery"}}</a>
+      <span class="material-symbols-outlined msz-14">chevron_right</span>
+      <span class="text-ink">{{.L.T "rollout.confirm_title"}}</span>
+    </div>
+    <h1 class="mb-0 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">rocket_launch</span>{{.L.T "rollout.confirm_title"}}</h1>
+    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "rollout.confirm_subtitle"}}</p>
+  </div>
+
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+    <dl class="mb-0 flex flex-col gap-2 text-body-md">
+      <div class="flex items-center gap-2"><dt class="w-32 shrink-0 text-text-tertiary">{{.L.T "rollout.target_revision"}}</dt>
+        <dd class="mb-0 flex items-center gap-2">{{if .TargetRelease}}<span class="font-semibold text-ink">Release {{.TargetRelease}}</span>{{end}}<span class="font-mono text-code-inline text-text-tertiary">{{short .Target}}</span></dd></div>
+      <div class="flex items-center gap-2"><dt class="w-32 shrink-0 text-text-tertiary">{{.L.T "updates.scope_label"}}</dt>
+        <dd class="mb-0 text-ink">{{if .ScopeFleet}}{{.L.T "updates.scope_fleet"}}{{else}}{{.L.T "updates.scope_only"}} {{.Scope}}{{end}}</dd></div>
+      <div class="flex items-center gap-2"><dt class="w-32 shrink-0 text-text-tertiary">{{.L.T "rollout.confirm_testgate_label"}}</dt>
+        <dd class="mb-0 text-ink">{{if .TestGated}}{{.L.T "rollout.confirm_testgate_yes"}}{{else}}{{.L.T "rollout.confirm_testgate_no"}}{{end}}</dd></div>
+    </dl>
+  </div>
+
+  {{if .Expedited}}
+  <div class="rounded-lg border border-status-warn/40 bg-status-warn/5 p-5">
+    <h2 class="mt-0 mb-1 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 text-status-warn">warning</span>{{.L.T "updates.expedited"}}</h2>
+    <p class="muted mb-0">{{.L.T "updates.expedited_hint"}}</p>
+  </div>
+  {{end}}
+
+  <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+    <h2 class="mt-0 mb-3 text-label-md font-bold text-ink">{{.L.T "orgupd.plan_preview"}}</h2>
+    <div class="overflow-x-auto rounded-md border border-border-soft">
+      <table class="w-full border-collapse text-left">
+        <thead>
+          <tr class="border-b border-border-soft bg-surface-bright text-label-xs-caps uppercase text-text-tertiary">
+            <th class="px-3 py-2 font-semibold">{{.L.T "orgupd.col_wave"}}</th>
+            <th class="px-3 py-2 font-semibold">{{.L.T "orgupd.col_groups"}}</th>
+            <th class="px-3 py-2 text-right font-semibold">{{.L.T "orgupd.wave_devices"}}</th>
+          </tr>
+        </thead>
+        <tbody class="text-body-sm">
+          {{range $i, $w := .PlanWaves}}
+          <tr class="{{if eq $i 0}}bg-mint-vibrant/5{{end}} border-b border-border-soft last:border-b-0">
+            <td class="whitespace-nowrap px-3 py-2 font-medium text-ink">{{$w.Label}}{{if $w.Manual}} <span class="material-symbols-outlined msz-14 align-middle text-mint-deep" title="{{$.L.T "rollout.require_approval"}}">how_to_reg</span>{{end}}</td>
+            <td class="max-w-xs truncate px-3 py-2 text-text-tertiary" title="{{$w.Groups}}">{{$w.Groups}}</td>
+            <td class="whitespace-nowrap px-3 py-2 text-right text-ink">{{$w.Devices}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <form method="post" action="/rollout" class="!flex-row !items-center gap-3">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="target" value="{{.Target}}">
+    <input type="hidden" name="scope" value="{{.Scope}}">
+    {{if .Expedited}}<input type="hidden" name="expedited" value="1">{{end}}
+    {{if .SkipTestWave}}<input type="hidden" name="skipTestWave" value="1">{{end}}
+    <input type="hidden" name="confirmed" value="1">
+    <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "rollout.start"}}</button>
+    <a href="/updates" class="btn quiet">{{.L.T "common.cancel"}}</a>
+  </form>
+</section>
+{{end}}

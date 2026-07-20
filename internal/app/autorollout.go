@@ -60,6 +60,13 @@ func WireAutoRollout(changes *ChangeService, rollouts *RolloutService,
 	})
 }
 
+// DeliveryGroups is deliveryGroups exported for the console: the merge
+// confirmation page (fix B) needs to preview the exact scope a merge will
+// deliver to before the operator commits.
+func DeliveryGroups(f *fleet.Fleet, hosts []string) []string {
+	return deliveryGroups(f, hosts)
+}
+
 // deliveryGroups is the blast radius as groups: each touched host's primary
 // group, deduplicated and sorted (deterministic wave content).
 func deliveryGroups(f *fleet.Fleet, hosts []string) []string {

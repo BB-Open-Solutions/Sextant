@@ -41,6 +41,13 @@ type waveCol struct {
 	// idle).
 	StatusKey string
 	Kind      string
+	// SoakMinutes/MinHealthyPercent/MaxDevices are the wave's promotion
+	// gates (fix G): what an operator watching the monitor is waiting on.
+	// MinHealthyPercent is pre-defaulted to 95 here (rollout.Ring.minHealthy
+	// is unexported) so the template never has to know the zero-means-95 rule.
+	SoakMinutes       int
+	MinHealthyPercent int
+	MaxDevices        int
 }
 
 // nowKeyForWave maps the wave's display status to its guidance line.
@@ -75,6 +82,8 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 			rings = append(rings, rollout.Ring{
 				Group: r.Group, Groups: r.Groups, Name: r.Name,
 				RequireApproval: r.RequireApproval,
+				SoakMinutes:     r.SoakMinutes, MinHealthyPercent: r.MinHealthyPercent,
+				MaxDevices: r.MaxDevices,
 			})
 		}
 	}
@@ -83,6 +92,12 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 	}
 	for i, rr := range rings {
 		col := waveCol{Index: i, Label: rr.Label(), Groups: rr.GroupList(), Manual: rr.RequireApproval}
+		col.SoakMinutes = rr.SoakMinutes
+		col.MinHealthyPercent = rr.MinHealthyPercent
+		if col.MinHealthyPercent <= 0 {
+			col.MinHealthyPercent = 95 // rollout.Ring's zero-means-95 default (unexported there)
+		}
+		col.MaxDevices = rr.MaxDevices
 		if i < len(ringStatus) {
 			col.OnTarget, col.Total = ringStatus[i].OnTarget, ringStatus[i].Total
 		}

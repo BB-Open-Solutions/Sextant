@@ -188,7 +188,7 @@ func TestUpdatesRunControlsPauseResumeCancel(t *testing.T) {
 	}); code != 303 {
 		t.Fatalf("derive = %d", code)
 	}
-	if code := postForm(t, ts, "/rollout", url.Values{"target": {"deadbeef"}}); code != 303 {
+	if code := postForm(t, ts, "/rollout", url.Values{"target": {"deadbeef"}, "confirmed": {"1"}}); code != 303 {
 		t.Fatalf("start = %d", code)
 	}
 
@@ -265,7 +265,7 @@ func TestScopedRolloutSnapshotsItsOwnPlan(t *testing.T) {
 	}
 	// A change scoped to one group: test wave plus just that group.
 	if code := postForm(t, ts, "/rollout", url.Values{
-		"target": {"cafebabe"}, "scope": {"mid"},
+		"target": {"cafebabe"}, "scope": {"mid"}, "confirmed": {"1"},
 	}); code != 303 {
 		t.Fatalf("scoped start = %d", code)
 	}
@@ -314,7 +314,7 @@ func TestExpeditedRunShortensSoakNotEvidence(t *testing.T) {
 		t.Fatalf("derive = %d", code)
 	}
 	if code := postForm(t, ts, "/rollout", url.Values{
-		"target": {"feedf00d"}, "expedited": {"1"},
+		"target": {"feedf00d"}, "expedited": {"1"}, "confirmed": {"1"},
 	}); code != 303 {
 		t.Fatalf("expedited start = %d", code)
 	}
@@ -330,6 +330,142 @@ func TestExpeditedRunShortensSoakNotEvidence(t *testing.T) {
 	// Urgency never skips evidence: the test wave keeps its manual gate.
 	if !st.Rings[0].RequireApproval {
 		t.Error("expedited run lost the test wave's sign-off gate")
+	}
+}
+
+// TestRolloutStartRequiresConfirmation proves fix A: the bare POST /rollout
+// (no confirmed=1) renders a summary instead of starting anything, and only
+// confirmed=1 actually starts the run.
+func TestRolloutStartRequiresConfirmation(t *testing.T) {
+	ts, _, rolloutSvc := newUpdatesConsole(t)
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"50, 50"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+
+	code, page := postFormBody(t, ts, "/rollout", url.Values{
+		"target": {"deadbeef"}, "scope": {"*"}, "expedited": {"1"},
+	})
+	if code != 200 {
+		t.Fatalf("unconfirmed start = %d", code)
+	}
+	for _, want := range []string{"Confirm rollout", "deadbeef", "Whole fleet", "Wave 1", "Expedited"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("confirm page missing %q", want)
+		}
+	}
+	if st, _, err := rolloutSvc.Status(context.Background()); err != nil || st != nil {
+		t.Fatalf("unconfirmed POST must not start a run: %+v (%v)", st, err)
+	}
+
+	// confirmed=1 re-posts the same fields and actually starts the run.
+	if code := postForm(t, ts, "/rollout", url.Values{
+		"target": {"deadbeef"}, "scope": {"*"}, "expedited": {"1"}, "confirmed": {"1"},
+	}); code != 303 {
+		t.Fatalf("confirmed start = %d", code)
+	}
+	st, _, err := rolloutSvc.Status(context.Background())
+	if err != nil || st == nil {
+		t.Fatalf("status: %v (%v)", st, err)
+	}
+	if st.Target != "deadbeef" {
+		t.Errorf("target = %q, want deadbeef", st.Target)
+	}
+}
+
+// TestRolloutStartScopedPreviewMatchesWhatRuns proves the confirmation page
+// (fix A) shows the SCOPED plan (test wave + one group) it will actually
+// run, not the org-wide default, when a group is chosen.
+func TestRolloutStartScopedPreviewMatchesWhatRuns(t *testing.T) {
+	ts, _, _ := newUpdatesConsole(t)
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"50, 50"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+	code, page := postFormBody(t, ts, "/rollout", url.Values{
+		"target": {"cafebabe"}, "scope": {"mid"},
+	})
+	if code != 200 {
+		t.Fatalf("unconfirmed scoped start = %d", code)
+	}
+	if !strings.Contains(page, "Only mid") && !strings.Contains(page, "mid") {
+		t.Errorf("scoped confirm page does not name the scope group: %s", page)
+	}
+	// A full-ladder wave that is NOT part of the scoped plan (e.g. "tiny",
+	// which only appears if the whole ladder renders) must not leak in.
+	if strings.Contains(page, "tiny") {
+		t.Errorf("scoped confirm page leaked an unrelated wave's group: %s", page)
+	}
+}
+
+// TestRolloutMonitorShowsWaveGates proves fix G: each wave card on the
+// monitor names its promotion gates (soak minutes, min healthy %), so an
+// operator sees what an in-progress wave is waiting on.
+func TestRolloutMonitorShowsWaveGates(t *testing.T) {
+	ts, _, _ := newUpdatesConsole(t)
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"50, 50"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+	if code := postForm(t, ts, "/rollout", url.Values{
+		"target": {"deadbeef"}, "confirmed": {"1"},
+	}); code != 303 {
+		t.Fatalf("start = %d", code)
+	}
+	code, page := getPage(t, ts, "/updates/rollout")
+	if code != 200 {
+		t.Fatalf("monitor = %d", code)
+	}
+	// The test wave's derived soak is 60 minutes; percentage waves default to
+	// 30. Every wave without an explicit healthy threshold shows the 95%
+	// default (rollout.Ring's zero-means-95 rule).
+	for _, want := range []string{"Gates:", "Soak (min)", "60", "30", "Min healthy %", "95%"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("monitor missing gates content %q", want)
+		}
+	}
+}
+
+// TestUpdatesScopeSelectForcesAChoice proves fix D: the scope select opens on
+// a disabled placeholder (no silent fleet-wide default) and is required, with
+// fleet-wide as an explicit, separately-selectable option.
+func TestUpdatesScopeSelectForcesAChoice(t *testing.T) {
+	ts, _, _ := newUpdatesConsole(t)
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"100"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+	code, page := getPage(t, ts, "/updates")
+	if code != 200 {
+		t.Fatalf("updates = %d", code)
+	}
+	if !strings.Contains(page, `<select name="scope" class="!w-auto" required`) {
+		t.Error("scope select is not marked required")
+	}
+	if !strings.Contains(page, `<option value="" disabled selected>`) {
+		t.Error("scope select has no disabled placeholder option")
+	}
+	if !strings.Contains(page, `<option value="*">`) {
+		t.Error("fleet-wide is no longer an explicit, separately-selectable option")
+	}
+}
+
+// TestUpdatesExpeditedHintIsAlwaysVisible proves fix C: the expedited
+// checkbox's explanation is a visible line, not only a hover title.
+func TestUpdatesExpeditedHintIsAlwaysVisible(t *testing.T) {
+	ts, _, _ := newUpdatesConsole(t)
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"100"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+	_, page := getPage(t, ts, "/updates")
+	if !strings.Contains(page, "Security-fix pace") || !strings.Contains(page, "shrinks every wave") {
+		t.Error("expedited checkbox lost its always-visible short hint")
 	}
 }
 
@@ -361,5 +497,36 @@ func TestMaintenanceWindowCard(t *testing.T) {
 	}
 	if _, has := cfg.Fleet().Groups["mid"].Settings["updates.maintenanceWindow"]; has {
 		t.Error("empty save did not clear the window")
+	}
+}
+
+// TestRolloutStartRefusesEmptyScope proves the nothing-deployable guard: a
+// scope whose waves cover zero active devices is refused outright instead of
+// rendering a confirmation page for a no-op run.
+func TestRolloutStartRefusesEmptyScope(t *testing.T) {
+	ts, _, _ := newUpdatesConsole(t)
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"50, 50"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+	// An org group without devices exists (created via the console).
+	if code := postForm(t, ts, "/groups", url.Values{"name": {"empty"}}); code != 303 {
+		t.Fatalf("create group = %d", code)
+	}
+	// Scoping to it: test wave has 1 device, the scope wave 0 - that still
+	// updates something, so it confirms. Retire the test device first so the
+	// whole plan is empty.
+	if code := postForm(t, ts, "/devices/t-1/retire", url.Values{}); code != 303 {
+		t.Fatalf("retire = %d", code)
+	}
+	code, page := postFormBody(t, ts, "/rollout", url.Values{
+		"target": {"cafebabe"}, "scope": {"empty"},
+	})
+	if code != 400 {
+		t.Fatalf("empty-scope start = %d, want 400 (page: %.200s)", code, page)
+	}
+	if !strings.Contains(page, "nothing to roll out") {
+		t.Errorf("refusal does not explain itself: %.300s", page)
 	}
 }

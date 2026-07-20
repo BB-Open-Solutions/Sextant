@@ -63,33 +63,112 @@ func (s *Server) rolloutMonitorPage(w http.ResponseWriter, r *http.Request, v vi
 	s.render(w, "rollout", data, v)
 }
 
+// postRolloutStart starts a rollout - or, without confirmed=1, renders a
+// confirmation summary instead (fix A): a wave plan review is the whole
+// point of the wave model, so the button that fires it must not be a single
+// unguarded click. The governance check (test-wave requirement) is enforced
+// on every POST, confirmed or not - there is nothing to confirm about a plan
+// the org's own policy refuses to run.
 func (s *Server) postRolloutStart(w http.ResponseWriter, r *http.Request, v view) error {
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
-	// Governance: when a test wave is required, refuse a plan without a gated
-	// test wave unless this owner explicitly skips it ("hoeft niet").
 	f := s.svc.Config.Fleet()
-	if f.Assurance != nil && f.Assurance.RequireTestWave && !f.Rollout.HasTestGate() {
-		if r.FormValue("skipTestWave") == "" {
-			return fmt.Errorf("a gated test wave is required: add a wave with manual approval on the plan, or check 'skip test wave' to proceed without one")
+	target := strings.TrimSpace(r.FormValue("target"))
+	if target == "" {
+		return fmt.Errorf("rollout needs a target revision")
+	}
+	scope := normalizeScope(r.FormValue("scope"))
+	expedited := r.FormValue("expedited") == "1"
+	skipTestWave := r.FormValue("skipTestWave") != ""
+	needsTestWave := f.Assurance != nil && f.Assurance.RequireTestWave && !f.Rollout.HasTestGate()
+	if needsTestWave && !skipTestWave {
+		return fmt.Errorf("a gated test wave is required: add a wave with manual approval on the plan, or check 'skip test wave' to proceed without one")
+	}
+
+	rows, err := rolloutPreview(f, scope)
+	if err != nil {
+		return err
+	}
+
+	if r.FormValue("confirmed") != "1" {
+		data := map[string]any{
+			"Title": "Confirm rollout", "Nav": "updates",
+			"Target": target, "TargetRelease": s.svc.Config.ReleaseNumber(r.Context(), target),
+			"Scope": scope, "ScopeFleet": scope == "",
+			"PlanWaves":    rows,
+			"TestGated":    len(rows) > 0 && rows[0].Manual,
+			"Expedited":    expedited,
+			"SkipTestWave": skipTestWave,
 		}
+		s.render(w, "rollout_confirm", data, v)
+		return nil
+	}
+
+	if needsTestWave {
 		s.log.Warn("rollout started without the required test wave (owner skip)",
-			"by", v.User.Subject, "target", r.FormValue("target"))
+			"by", v.User.Subject, "target", target)
 	}
-	opts := app.StartOpts{Expedited: r.FormValue("expedited") == "1"}
-	if sc := strings.TrimSpace(r.FormValue("scope")); sc != "" {
-		opts.Groups = []string{sc}
+	opts := app.StartOpts{Expedited: expedited}
+	if scope != "" {
+		opts.Groups = []string{scope}
 	}
-	if opts.Expedited {
+	if expedited {
 		s.log.Warn("expedited rollout started (short soak, full evidence)",
-			"by", v.User.Subject, "target", r.FormValue("target"))
+			"by", v.User.Subject, "target", target)
 	}
-	if _, err := s.svc.Rollouts.StartWith(r.Context(), r.FormValue("target"), opts, webAuthor(v)); err != nil {
+	if _, err := s.svc.Rollouts.StartWith(r.Context(), target, opts, webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/updates/rollout", http.StatusSeeOther)
 	return nil
+}
+
+// normalizeScope maps the scope select's explicit fleet-wide sentinel ("*",
+// fix D - a real select value is needed once the placeholder claims "") back
+// onto the internal empty-string convention ("no group restriction"); a bare
+// empty value (no selection, e.g. a raw API POST) is treated the same way
+// for backward compatibility.
+func normalizeScope(raw string) string {
+	sc := strings.TrimSpace(raw)
+	if sc == "*" {
+		return ""
+	}
+	return sc
+}
+
+// rolloutPreview computes the exact wave plan postRolloutStart would run for
+// this scope - mirroring RolloutService.StartWith's own test-wave narrowing -
+// so the confirmation page (fix A) shows the operator the REAL plan, not the
+// org-wide default, when the run is scoped to one group.
+func rolloutPreview(f *fleet.Fleet, scope string) ([]planWaveRow, error) {
+	if f.Rollout == nil || len(f.Rollout.Rings) == 0 {
+		return nil, fmt.Errorf("no wave plan configured; set one up under Update policy first")
+	}
+	rings := f.Rollout.Rings
+	if scope != "" {
+		if _, ok := f.Groups[scope]; !ok {
+			return nil, fmt.Errorf("unknown scope group %q", scope)
+		}
+		test := rings[0]
+		if len(test.GroupList()) == 1 && test.GroupList()[0] == scope {
+			// The scope IS the test group: one wave suffices.
+			rings = []fleet.RolloutRing{test}
+		} else {
+			rings = []fleet.RolloutRing{test, {Groups: []string{scope}, SoakMinutes: 30}}
+		}
+	}
+	rows := waveRowsFor(f, rings)
+	// An all-zero plan must not reach the confirmation page: confirming a
+	// rollout over zero devices reads as "fleet-wide" while updating nothing.
+	any := false
+	for _, r := range rows {
+		any = any || r.Devices > 0
+	}
+	if !any {
+		return nil, fmt.Errorf("no active devices in this scope; nothing to roll out")
+	}
+	return rows, nil
 }
 
 func (s *Server) postRolloutTick(w http.ResponseWriter, r *http.Request, v view) error {
@@ -393,9 +472,17 @@ func planWaveRows(f *fleet.Fleet) []planWaveRow {
 	if f.Rollout == nil {
 		return nil
 	}
+	return waveRowsFor(f, f.Rollout.Rings)
+}
+
+// waveRowsFor renders any ring slice as preview rows: shared by the org
+// policy page's plan preview and the rollout confirmation page's scoped
+// preview (fix A), so both compute wave device counts and shares the same
+// way.
+func waveRowsFor(f *fleet.Fleet, rings []fleet.RolloutRing) []planWaveRow {
 	total := 0
-	counts := make([]int, len(f.Rollout.Rings))
-	for i, ring := range f.Rollout.Rings {
+	counts := make([]int, len(rings))
+	for i, ring := range rings {
 		for _, g := range ring.GroupList() {
 			counts[i] += len(f.ActiveGroupDevices(g))
 		}
@@ -403,8 +490,8 @@ func planWaveRows(f *fleet.Fleet) []planWaveRow {
 			total += counts[i]
 		}
 	}
-	rows := make([]planWaveRow, 0, len(f.Rollout.Rings))
-	for i, ring := range f.Rollout.Rings {
+	rows := make([]planWaveRow, 0, len(rings))
+	for i, ring := range rings {
 		row := planWaveRow{
 			Label: ring.Label(), Groups: strings.Join(ring.GroupList(), ", "),
 			Devices: counts[i], Manual: ring.RequireApproval,

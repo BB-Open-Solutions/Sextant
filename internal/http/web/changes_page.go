@@ -2,9 +2,11 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sort"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
 
@@ -81,13 +83,51 @@ func (s *Server) postChangeSubmit(w http.ResponseWriter, r *http.Request, v view
 	return nil
 }
 
+// postChangeMerge approves a change - or, without confirmed=1, renders a
+// confirmation summary instead (fix B): "Approve" both merges AND
+// immediately starts delivery (the "saving IS rolling out" model), so a
+// single unguarded click is not enough for what it actually does. The
+// four-eyes/author segregation-of-duties check stays exactly where it was -
+// inside Changes.Merge, run only on the confirmed POST that actually merges.
 func (s *Server) postChangeMerge(w http.ResponseWriter, r *http.Request, v view) error {
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
+	id := r.PathValue("id")
+	if r.FormValue("confirmed") != "1" {
+		cr, ok, err := s.svc.Changes.Get(r.Context(), id)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("change %q not found", id)
+		}
+		f := s.svc.Config.Fleet()
+		manualOnly := f.Assurance != nil && f.Assurance.ManualRolloutOnly
+		var groups []string
+		nothingDeployable := false
+		if !cr.WholeFleet {
+			groups = app.DeliveryGroups(f, cr.Hosts)
+			// Mirrors WireAutoRollout: a recorded blast radius that maps to no
+			// device group means auto-rollout will not start a run at all -
+			// distinct from WholeFleet, so the confirmation must not claim
+			// "whole fleet" for a merge that actually delivers to nobody.
+			nothingDeployable = len(groups) == 0
+		}
+		data := map[string]any{
+			"Title": "Confirm merge", "Nav": "updates",
+			"ID": id, "ChangeTitle": cr.Title,
+			"ManualRolloutOnly": manualOnly,
+			"ScopeFleet":        cr.WholeFleet,
+			"NothingDeployable": nothingDeployable,
+			"Groups":            groups,
+			"TestGated":         f.Rollout.HasTestGate(),
+		}
+		s.render(w, "merge_confirm", data, v)
+		return nil
+	}
 	// The merge re-validates the merged result through the nix gate before
 	// committing - same grace-window treatment as any gated write.
-	id := r.PathValue("id")
 	author := webAuthor(v)
 	if err := s.runGated(r, v, "change "+id+" merged", func(ctx context.Context) error {
 		_, err := s.svc.Changes.Merge(ctx, id, author)

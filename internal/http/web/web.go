@@ -86,7 +86,7 @@ func (s *Server) SetOrgName(name string) {
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
 	funcs := templateFuncs()
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "org_updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "org_updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error", "rollout_confirm", "merge_confirm", "assurance_confirm"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -180,6 +180,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/settings", s.postSetting)
 	post("/policies", s.postPolicyPut)
 	post("/policies/{id}/delete", s.postPolicyDelete)
+	post("/policies/profiles/{name}/apply", s.postProfileApply)
 	post("/assignments", s.postAssignmentAdd)
 	post("/assignments/delete", s.postAssignmentDelete)
 	post("/filters", s.postFilterPut)
