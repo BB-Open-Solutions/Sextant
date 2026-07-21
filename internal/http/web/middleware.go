@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"net/http"
@@ -159,14 +160,23 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 	// device credentials); no browser or intermediary may cache them, or
 	// the back button re-renders a secret after its cookie is consumed.
 	w.Header().Set("Cache-Control", "no-store")
+	// Render to a buffer first: executing straight into the ResponseWriter
+	// turns a template error into a 200 with silently truncated HTML (the
+	// status is committed by the first byte). A page-sized copy is nothing
+	// next to shipping a broken page as success - that hid a real render
+	// bug on the device page for weeks.
+	var buf bytes.Buffer
+	if err := s.tmpl[name].ExecuteTemplate(&buf, "layout", data); err != nil {
+		s.log.Error("template render failed", "page", name, "err", err)
+		http.Error(w, "page failed to render; this is a bug - check the console logs", http.StatusInternalServerError)
+		return
+	}
 	// An error page renders a themed body but must keep its 4xx status; set it
 	// after the headers, before the body.
 	if st, ok := data["__status"].(int); ok {
 		w.WriteHeader(st)
 	}
-	if err := s.tmpl[name].ExecuteTemplate(w, "layout", data); err != nil {
-		s.log.Error("template render failed", "page", name, "err", err)
-	}
+	_, _ = buf.WriteTo(w)
 }
 
 func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {

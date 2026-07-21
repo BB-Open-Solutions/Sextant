@@ -5,6 +5,7 @@ package web
 // cohesive.
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -27,7 +28,7 @@ func (s *Server) rolloutMonitorPage(w http.ResponseWriter, r *http.Request, v vi
 		return
 	}
 	f := s.svc.Config.Fleet()
-	st, ringStatus, _ := s.svc.Rollouts.Status(r.Context())
+	st, ringStatus := s.rolloutStatus(r.Context())
 	active := st != nil && st.Status == rollout.Active
 	paused := st != nil && st.Status == rollout.Paused
 	waves := waveCols(f, st, ringStatus, active)
@@ -544,4 +545,15 @@ func (s *Server) postGroupWindow(w http.ResponseWriter, r *http.Request, v view)
 	}
 	http.Redirect(w, r, "/org/updates", http.StatusSeeOther)
 	return nil
+}
+
+// rolloutStatus is the nil-safe read for the status pages: a console wired
+// without a RolloutService (simulators, minimal tests) renders the idle
+// plan instead of panicking.
+func (s *Server) rolloutStatus(ctx context.Context) (*rollout.State, []rollout.RingStatus) {
+	if s.svc.Rollouts == nil {
+		return nil, nil
+	}
+	st, rs, _ := s.svc.Rollouts.Status(ctx)
+	return st, rs
 }

@@ -204,7 +204,7 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
-	crs, listErr := s.svc.Changes.List(r.Context())
+	crs, listErr := s.changeList(r.Context())
 	var draft, building, ready []change.CR
 	for _, cr := range crs {
 		switch cr.Status {
@@ -218,7 +218,7 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 	}
 
 	f := s.svc.Config.Fleet()
-	st, ringStatus, _ := s.svc.Rollouts.Status(r.Context())
+	st, ringStatus := s.rolloutStatus(r.Context())
 	active := st != nil && st.Status == rollout.Active
 	paused := st != nil && st.Status == rollout.Paused
 

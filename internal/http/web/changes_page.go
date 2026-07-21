@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
 
@@ -16,7 +17,7 @@ func (s *Server) changesPage(w http.ResponseWriter, r *http.Request, v view) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
-	crs, err := s.svc.Changes.List(r.Context())
+	crs, err := s.changeList(r.Context())
 	f := s.svc.Config.Fleet()
 	groups := make([]string, 0, len(f.Groups))
 	for g := range f.Groups {
@@ -148,4 +149,14 @@ func (s *Server) postChangeAbandon(w http.ResponseWriter, r *http.Request, v vie
 	}
 	http.Redirect(w, r, "/updates", http.StatusSeeOther)
 	return nil
+}
+
+// changeList is the nil-safe read of the change queue: a console wired
+// without a ChangeService (simulators, minimal tests) renders an empty
+// board instead of panicking on the nil service.
+func (s *Server) changeList(ctx context.Context) ([]change.CR, error) {
+	if s.svc.Changes == nil {
+		return nil, nil
+	}
+	return s.svc.Changes.List(ctx)
 }
