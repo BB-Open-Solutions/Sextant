@@ -32,6 +32,7 @@ type waveCol struct {
 	// measure against, with the absent named separately.
 	Absent   int
 	Present  int
+	Healthy  int
 	BarClass string
 	// NowKey is the catalog key of the plain-language line for the wave's
 	// state; Stragglers names the devices behind its percentages (filled by
@@ -107,7 +108,7 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 		col.MaxDevices = rr.MaxDevices
 		if i < len(ringStatus) {
 			col.OnTarget, col.Total = ringStatus[i].OnTarget, ringStatus[i].Total
-			col.Absent = ringStatus[i].Absent
+			col.Absent, col.Healthy = ringStatus[i].Absent, ringStatus[i].Healthy
 		}
 		col.Present = col.Total - col.Absent
 		col.BarClass = barBucket(col.OnTarget, col.Present)
@@ -131,7 +132,10 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 			col.Status = "Paused"
 		case i == st.Ring:
 			col.Active = true
-			converged := col.Present > 0 && col.OnTarget >= col.Present
+			// Same rule as the engine's Converged (healthy share of the
+			// present cohort), so the board and the engine never disagree
+			// about which phase a wave is in.
+			converged := col.Present > 0 && col.Healthy*100/col.Present >= col.MinHealthyPercent
 			_, approved := st.ApprovedAt[i]
 			_, promoted := st.PromotedAt[i]
 			_, building := st.BuildRequestedAt[i]

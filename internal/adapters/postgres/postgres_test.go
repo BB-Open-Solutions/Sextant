@@ -195,8 +195,11 @@ func TestConvergenceAggregate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rs.Total != 5 || rs.OnTarget != 3 || rs.Healthy != 1 {
-		t.Fatalf("ring = %+v, want total 5 onTarget 3 healthy 1", rs)
+	// Broken counts only r-2 (recent, real error): r-3 dozed past the online
+	// window ON the target and must read as quiet, never as a bad release.
+	// r-5 has no row at all: absent, out of the promotion denominator.
+	if rs.Total != 5 || rs.OnTarget != 3 || rs.Healthy != 1 || rs.Broken != 1 || rs.Absent != 1 {
+		t.Fatalf("ring = %+v, want total 5 onTarget 3 healthy 1 broken 1 absent 1", rs)
 	}
 
 	// Empty group: zero status, no error.

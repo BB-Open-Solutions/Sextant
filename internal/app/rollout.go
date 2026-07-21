@@ -133,13 +133,18 @@ func (s *RolloutService) moveRingRef(ctx context.Context, group, rev string) err
 	if err != nil {
 		return err
 	}
-	if !changed {
-		return nil
-	}
+	// Push even when the LOCAL ref already matched: an earlier tick that set
+	// the ref and then failed its push (expired credentials) leaves local ==
+	// target while the remote still points at the old release - skipping the
+	// push here would mark the ring promoted without any device ever being
+	// offered it. The force-push is idempotent; sending it every promotion
+	// is cheap insurance.
 	if err := s.refs.PushRef(ctx, RingBranch(group)); err != nil {
 		return err
 	}
-	s.log.Info("ring branch moved", "branch", RingBranch(group), "rev", rev)
+	if changed {
+		s.log.Info("ring branch moved", "branch", RingBranch(group), "rev", rev)
+	}
 	return nil
 }
 

@@ -43,6 +43,8 @@ func (f *fakeConvergence) RingStatus(_ context.Context, groups []string, _ strin
 		sum.Total += rs.Total
 		sum.OnTarget += rs.OnTarget
 		sum.Healthy += rs.Healthy
+		sum.Broken += rs.Broken
+		sum.Absent += rs.Absent
 	}
 	return sum, nil
 }
@@ -272,7 +274,7 @@ func TestRolloutHaltsOnUnhealthyRing(t *testing.T) {
 		t.Fatal("want promote")
 	}
 	// Canary device converged but unhealthy: default gate is 100%.
-	conv.set("canary", rollout.RingStatus{Total: 1, OnTarget: 1, Healthy: 0})
+	conv.set("canary", rollout.RingStatus{Total: 1, OnTarget: 1, Healthy: 0, Broken: 1})
 	if k := tick(t, rs); k != rollout.Halt {
 		t.Fatal("want halt")
 	}

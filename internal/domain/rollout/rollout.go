@@ -92,16 +92,16 @@ func (r Ring) Converged(rs RingStatus) bool {
 }
 
 // TooBroken reports whether the wave can no longer reach its threshold on
-// merit: the PRESENT devices that converged and turned out UNHEALTHY already
-// exceed the failure budget (100 - threshold). That is a bad release, not a
-// slow one - the run halts instead of waiting forever.
+// merit: the devices that converged and turned out demonstrably UNWELL
+// (rs.Broken - erroring or stuck, not merely quiet) already exceed the
+// failure budget (100 - threshold). That is a bad release, not a slow one -
+// the run halts instead of waiting forever.
 func (r Ring) TooBroken(rs RingStatus) bool {
 	p := rs.Present()
 	if p == 0 {
 		return false
 	}
-	broken := rs.OnTarget - rs.Healthy
-	return broken*100/p > 100-r.minHealthy()
+	return rs.Broken*100/p > 100-r.minHealthy()
 }
 
 // NextRelease is how many devices should be released after widening one
@@ -213,6 +213,12 @@ type RingStatus struct {
 	Total    int // devices in the ring's CURRENT released cohort
 	OnTarget int // PRESENT cohort devices reporting the target revision
 	Healthy  int // present devices on target and healthy (recent, no errors)
+	// Broken counts present devices that reached the target and are
+	// DEMONSTRABLY unwell: recently seen with an error or a stuck phase.
+	// It is a separate count, not OnTarget-Healthy - those two are filtered
+	// over different recency windows, and their difference would brand an
+	// on-target laptop that dozed off for ten minutes as a bad release.
+	Broken int
 	// Absent counts cohort devices silent beyond the absent window (or never
 	// seen): shut laptops, holidays. They leave the promotion denominator -
 	// the wave proves itself on the devices that are actually there, and the
@@ -292,7 +298,7 @@ func Decide(rings []Ring, s *State, ringStatus RingStatus, now time.Time) Action
 	if ring.TooBroken(ringStatus) {
 		return Action{Kind: Halt, Reason: fmt.Sprintf(
 			"ring %d (%s): %d device(s) unhealthy on target exceeds the %d%% failure budget",
-			s.Ring, ring.Group, ringStatus.OnTarget-ringStatus.Healthy, 100-ring.minHealthy())}
+			s.Ring, ring.Group, ringStatus.Broken, 100-ring.minHealthy())}
 	}
 
 	// Still short of the success threshold? Keep converging; the devices

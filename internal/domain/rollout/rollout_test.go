@@ -35,7 +35,7 @@ func TestHaltOnUnhealthy(t *testing.T) {
 	s.PromotedAt[0] = t0
 	// 1 of 5 devices unhealthy on target = 20%, over the 5% failure budget
 	// of the default 95% gate: a bad release halts rather than waits.
-	act := Decide(rings, s, RingStatus{Total: 5, OnTarget: 4, Healthy: 3}, t0.Add(time.Minute))
+	act := Decide(rings, s, RingStatus{Total: 5, OnTarget: 4, Healthy: 3, Broken: 1}, t0.Add(time.Minute))
 	if act.Kind != Halt {
 		t.Fatalf("act = %+v, want halt", act)
 	}
@@ -252,14 +252,34 @@ func TestConvergedIgnoresAbsentDevices(t *testing.T) {
 
 func TestTooBrokenUsesPresentDenominator(t *testing.T) {
 	r := Ring{Group: "g"} // default 95%: failure budget 5%
-	// 10 total, 8 absent, 2 present: one broken present device = 50% of the
-	// present population - far past the budget, halt.
-	rs := RingStatus{Total: 10, Absent: 8, OnTarget: 2, Healthy: 1}
+	// 10 total, 8 absent, 2 present: one demonstrably broken present device
+	// = 50% of the present population - far past the budget, halt.
+	rs := RingStatus{Total: 10, Absent: 8, OnTarget: 2, Healthy: 1, Broken: 1}
 	if !r.TooBroken(rs) {
 		t.Fatal("broken share of the present population must trigger")
 	}
 	// Entirely absent cohort can never be "too broken".
 	if (Ring{Group: "g"}).TooBroken(RingStatus{Total: 5, Absent: 5}) {
 		t.Fatal("absent cohort is not broken, just away")
+	}
+}
+
+// TestTooBrokenIgnoresDozingOnTarget pins the window seam: a device that
+// reached the target and then went quiet for a few minutes sits in OnTarget
+// but not in Healthy - it is asleep, not broken, and must not trip the
+// failure budget. Only demonstrated failure (Broken) counts.
+func TestTooBrokenIgnoresDozingOnTarget(t *testing.T) {
+	r := Ring{Group: "g"}
+	// 4 present: 3 on target, 1 healthy right now, 2 merely quiet, 1 with a
+	// real error. Broken=1 of 4 = 25% > 5%: halts on the REAL failure...
+	rs := RingStatus{Total: 4, OnTarget: 3, Healthy: 1, Broken: 1}
+	if !r.TooBroken(rs) {
+		t.Fatal("a real error past the budget must halt")
+	}
+	// ...but with no demonstrated failure, dozing on-target devices alone
+	// must never read as a bad release.
+	rs.Broken = 0
+	if r.TooBroken(rs) {
+		t.Fatal("quiet on-target devices are asleep, not broken")
 	}
 }

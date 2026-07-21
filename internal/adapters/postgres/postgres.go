@@ -256,6 +256,10 @@ func (c *Convergence) RingStatus(ctx context.Context, groups []string, target st
 	// laptop, not a blocker - it catches up on its next check-in). A device
 	// with no observed row at all is absent by the same rule.
 	rs.Total = len(tags)
+	// Broken is its own count (recently seen on target WITH an error or a
+	// stuck phase), never OnTarget-Healthy: those two are filtered over
+	// different recency windows, and their difference would count an
+	// on-target device that dozed past the online window as a bad release.
 	err := c.store.pool.QueryRow(ctx, `
 		SELECT
 			COUNT(*) FILTER (WHERE last_seen >= $5),
@@ -263,10 +267,13 @@ func (c *Convergence) RingStatus(ctx context.Context, groups []string, target st
 			COUNT(*) FILTER (WHERE revision = $3
 				AND last_seen >= $4
 				AND (phase = '' OR phase = 'running')
-				AND error = '')
+				AND error = ''),
+			COUNT(*) FILTER (WHERE revision = $3
+				AND last_seen >= $4
+				AND (error <> '' OR (phase <> '' AND phase <> 'running')))
 		FROM device_status
 		WHERE tenant = $1 AND tag = ANY($2)`,
-		c.tenant, tags, target, cutoff, absentCutoff).Scan(&present, &rs.OnTarget, &rs.Healthy)
+		c.tenant, tags, target, cutoff, absentCutoff).Scan(&present, &rs.OnTarget, &rs.Healthy, &rs.Broken)
 	if err != nil {
 		return rollout.RingStatus{}, err
 	}
