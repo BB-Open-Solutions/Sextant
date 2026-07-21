@@ -111,13 +111,18 @@ spec:
           secret:
             secretName: {{ .Values.gateRunner.cache.keySecret }}
             items: [{ key: key, path: key }]
-        # The cache itself is deliberately ephemeral (node disk, capped): a
-        # binary cache is derived state - a pod restart clears it and the next
-        # EnsureBuilt republishes on demand. Durable/central storage (S3) is
-        # the enterprise tier, not a PVC on a space-constrained node.
+        # The cache is derived state - ephemeral by default (a pod restart
+        # clears it, EnsureBuilt republishes on demand). cache.persistent
+        # keeps it on a PVC instead: a full system image takes hours to
+        # rebuild and every console release restarts this pod. Durable
+        # central storage (S3) is the enterprise tier.
         - name: cache
+          {{- if .Values.gateRunner.cache.persistent }}
+          persistentVolumeClaim: { claimName: {{ .Release.Name }}-gate-cache }
+          {{- else }}
           emptyDir:
             sizeLimit: {{ .Values.gateRunner.cache.sizeLimit }}
+          {{- end }}
         {{- end }}
         - name: data
           {{- if .Values.gateRunner.persistence.enabled }}
@@ -182,4 +187,21 @@ spec:
       secretName: {{ .Release.Name }}-cache-tls
   {{- end }}
 {{- end }}
+{{- end }}
+
+{{- if and .Values.gateRunner.enabled .Values.gateRunner.cache.keySecret .Values.gateRunner.cache.persistent }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-gate-cache
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: [ReadWriteOnce] # strategy Recreate: one gate pod at a time
+  {{- with .Values.gateRunner.cache.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.gateRunner.cache.sizeLimit }}
 {{- end }}

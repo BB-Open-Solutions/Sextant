@@ -60,6 +60,13 @@ gateRunner:
     # Node-disk cap for the ephemeral cache volume (emptyDir). The cache is
     # derived state: a pod restart clears it and builds republish on demand.
     sizeLimit: 20Gi
+    # persistent: keep the release cache across pod restarts on a PVC.
+    # Rebuilding a full system image takes hours, and every console release
+    # restarts the gate pod - for a single-node/on-prem install a PVC is the
+    # difference between an instant wave and a two-hour await-build. Central
+    # durable storage (S3) remains the enterprise tier.
+    persistent: false
+    storageClass: ""
   # The nix store is baked into the image (chowned to the runtime uid); a
   # volume over /nix would hide it, so only the overlay clone is persisted.
   # First eval per pod re-fetches nixpkgs to the ephemeral layer.
