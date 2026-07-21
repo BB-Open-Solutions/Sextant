@@ -58,7 +58,7 @@
         </div>
         <div class="flex flex-col gap-1">
           <label>{{.L.T "common.scope"}}</label>
-          <select name="scope"><option value="org">org</option>{{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
+          <select name="scope"><option value="org">{{.L.T "common.scope_org"}}</option>{{range .Groups}}<option value="group:{{.}}">{{$.L.T "common.scope_group_prefix"}} {{.}}</option>{{end}}</select>
         </div>
         <button type="submit" class="w-full">{{.L.T "access.stage_binding"}}</button>
       </form>

@@ -115,7 +115,7 @@
       <form method="post" action="/assignments" class="!flex-col !items-stretch gap-3">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <select name="policy" required><option value="" disabled selected>{{.L.T "policies.policy_option"}}</option>{{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-        <select name="target" required><option value="org">org</option>{{range .Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
+        <select name="target" required><option value="org">{{.L.T "common.scope_org"}}</option>{{range .Groups}}<option value="group:{{.}}">{{$.L.T "common.scope_group_prefix"}} {{.}}</option>{{end}}</select>
         <select name="filter"><option value="">{{.L.T "policies.no_filter_option"}}</option>{{range .FilterIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
         <input name="priority" type="number" placeholder="{{.L.T "policies.priority_placeholder"}}">
         <button type="submit" class="w-full">{{.L.T "policies.add_assignment"}}</button>

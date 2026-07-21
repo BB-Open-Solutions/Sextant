@@ -48,7 +48,7 @@
               <tbody class="text-body-sm">
                 {{range $i, $w := .PlanWaves}}
                 <tr class="{{if eq $i 0}}bg-mint-vibrant/5{{end}} border-b border-border-soft last:border-b-0">
-                  <td class="whitespace-nowrap px-3 py-2 font-medium text-ink">{{$w.Label}}{{if $w.Manual}} <span class="material-symbols-outlined msz-14 align-middle text-mint-deep" title="{{$.L.T "rollout.require_approval"}}">how_to_reg</span>{{end}}</td>
+                  <td class="whitespace-nowrap px-3 py-2 font-medium text-ink">{{$w.Label}}{{if $w.Manual}} <span class="inline-flex items-center gap-1 rounded-full border border-mint-deep/30 bg-mint-vibrant/10 px-2 py-0.5 text-label-xs-caps normal-case text-mint-deep" title="{{$.L.T "rollout.require_approval"}}"><span class="material-symbols-outlined msz-14">how_to_reg</span>{{$.L.T "rollout.manual_gate_chip"}}</span>{{end}}</td>
                   <td class="max-w-xs truncate px-3 py-2 text-text-tertiary" title="{{$w.Groups}}">{{$w.Groups}}</td>
                   <td class="whitespace-nowrap px-3 py-2 text-right text-ink">{{$w.Devices}}</td>
                   <td class="whitespace-nowrap px-3 py-2 text-right">

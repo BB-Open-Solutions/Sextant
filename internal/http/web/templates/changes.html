@@ -31,7 +31,7 @@
       <div class="min-w-0">
         <div class="flex items-center gap-2">
           <span class="font-mono text-code-inline text-text-tertiary">{{.ID}}</span>
-          <span class="tag {{if eq .Status "ready"}}ok{{else if eq .Status "failed"}}bad{{else if eq .Status "merged"}}ok{{else if eq .Status "building"}}lock{{end}}">{{.Status}}</span>
+          <span class="tag {{if eq .Status "ready"}}ok{{else if eq .Status "failed"}}bad{{else if eq .Status "merged"}}ok{{else if eq .Status "building"}}lock{{end}}">{{if eq .Status "draft"}}{{$.L.T "page.pipeline.draft"}}{{else if eq .Status "building"}}{{$.L.T "page.pipeline.building"}}{{else if eq .Status "failed"}}{{$.L.T "page.pipeline.failed"}}{{else if eq .Status "ready"}}{{$.L.T "page.pipeline.ready"}}{{else if eq .Status "merged"}}{{$.L.T "changes.status_merged"}}{{else if eq .Status "abandoned"}}{{$.L.T "changes.status_abandoned"}}{{else}}{{.Status}}{{end}}</span>
         </div>
         <div class="mt-1 text-body-md font-medium text-ink">{{.Title}}</div>
         <div class="mt-1 flex items-center gap-2 text-label-md text-text-tertiary"><span class="material-symbols-outlined msz-14">person</span>{{.Author}} | {{$.L.Time .Updated}}</div>
@@ -45,7 +45,7 @@
           <summary class="btn quiet !py-1.5 cursor-pointer list-none">{{$.L.T "changes.stage_edit"}}</summary>
           <form method="post" action="/changes/{{.ID}}/edits" class="!absolute right-0 z-10 mt-2 w-64 !flex-col !items-stretch gap-2 rounded-md border border-border-soft bg-canvas p-3 shadow-lg">
             <input type="hidden" name="csrf" value="{{$.CSRF}}">
-            <select name="scope"><option value="org">org</option>{{range $.Groups}}<option value="group:{{.}}">group:{{.}}</option>{{end}}</select>
+            <select name="scope"><option value="org">{{$.L.T "common.scope_org"}}</option>{{range $.Groups}}<option value="group:{{.}}">{{$.L.T "common.scope_group_prefix"}} {{.}}</option>{{end}}</select>
             <input name="key" placeholder="{{$.L.T "changes.setting_key_placeholder"}}" required>
             <input name="value" placeholder="{{$.L.T "changes.value_placeholder"}}">
             <label class="flex items-center gap-1 !normal-case !tracking-normal text-label-md"><input type="checkbox" name="clear" value="1" class="!w-auto"> {{$.L.T "changes.clear_instead"}}</label>

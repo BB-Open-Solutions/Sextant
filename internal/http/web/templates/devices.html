@@ -52,7 +52,10 @@
         <td>
           {{if .HasStatus}}
             {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}
-            <span class="font-mono text-text-tertiary">{{.Revision}}</span>
+            {{/* Release number leads (cheap: relCache-backed, deduped per page in
+                 devices_page.go); the raw hash moves to the hover title, or shows
+                 short when the release number is not yet known. */}}
+            {{if .Revision}}{{if .Release}}<span class="text-text-tertiary" title="{{.Revision}}">{{$.L.T "common.release"}} {{.Release}}</span>{{else}}<span class="font-mono text-text-tertiary">{{short .Revision}}</span>{{end}}{{end}}
           {{else}}<span class="muted">{{$.L.T "common.never_seen"}}</span>{{end}}
         </td>
         <td>{{if .Reported}}<span class="flex items-center gap-3 whitespace-nowrap font-mono text-label-md text-text-secondary"><span title="{{$.L.T "page.overview.cap_cpu"}}"><span class="material-symbols-outlined msz-14 align-middle text-text-tertiary">memory</span> {{.CPU}}%</span><span title="{{$.L.T "page.overview.cap_ram"}}"><span class="material-symbols-outlined msz-14 align-middle text-text-tertiary">memory_alt</span> {{.RAM}}%</span><span title="{{$.L.T "page.overview.cap_disk"}}"><span class="material-symbols-outlined msz-14 align-middle text-text-tertiary">hard_drive</span> {{.Disk}}%</span></span>{{else}}<span class="muted">—</span>{{end}}</td>

@@ -18,8 +18,16 @@ type diffLine struct {
 // without a data field.
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
-		"list":      func(items ...any) []any { return items },
-		"hasPrefix": strings.HasPrefix,
+		"list":       func(items ...any) []any { return items },
+		"hasPrefix":  strings.HasPrefix,
+		"trimPrefix": strings.TrimPrefix,
+		// policyName extracts the policy id from a resolved-setting provenance
+		// string ("policy:<id>@<scope>"), so the device page can show "Policy:
+		// baseline" instead of the raw "policy:baseline@org" the domain emits.
+		"policyName": func(s string) string {
+			name, _, _ := strings.Cut(strings.TrimPrefix(s, "policy:"), "@")
+			return name
+		},
 		// renderValue renders a setting value the one canonical way (the
 		// policy editor's key = value syntax), so a card and its edit form
 		// never show the same value differently.

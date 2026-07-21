@@ -81,7 +81,16 @@
           <tr class="group hover:bg-surface-bright transition-colors">
             <td class="font-mono text-code-inline text-ink">{{.Key}}</td>
             <td><code>{{printf "%v" .Value}}</code></td>
-            <td><span class="inline-flex items-center gap-1 rounded border border-border-soft bg-surface-container px-2 py-0.5 text-label-md font-medium text-text-secondary"><span class="material-symbols-outlined msz-14 text-text-tertiary">{{if hasPrefix .Source "device"}}devices{{else if hasPrefix .Source "group"}}group_work{{else if hasPrefix .Source "policy"}}policy{{else}}corporate_fare{{end}}</span>{{.Source}}</span></td>
+            {{/* .Source is fleet.Source (a struct with a String() method), not a
+                 string - text/template does not auto-convert a Stringer when a
+                 function parameter expects string, so evaluate .Source.String
+                 once into $src (fixes a latent bug: the pre-existing icon-only
+                 hasPrefix calls below had the same issue). Raw values are "org",
+                 "device", "group:<name>" or "policy:<id>@<scope>"; the policy
+                 case drops "@<scope>" - the policy id is what an admin acts on,
+                 and the row already names the setting it produced. */}}
+            {{$src := .Source.String}}
+            <td><span class="inline-flex items-center gap-1 rounded border border-border-soft bg-surface-container px-2 py-0.5 text-label-md font-medium text-text-secondary"><span class="material-symbols-outlined msz-14 text-text-tertiary">{{if hasPrefix $src "device"}}devices{{else if hasPrefix $src "group"}}group_work{{else if hasPrefix $src "policy"}}policy{{else}}corporate_fare{{end}}</span>{{if hasPrefix $src "org"}}{{$.L.T "common.scope_org"}}{{else if hasPrefix $src "device"}}{{$.L.T "common.device"}}{{else if hasPrefix $src "group:"}}{{$.L.T "common.scope_group_prefix"}} {{trimPrefix $src "group:"}}{{else if hasPrefix $src "policy:"}}{{$.L.T "device.source_policy_prefix"}} {{policyName $src}}{{else}}{{$src}}{{end}}</span></td>
             <td class="text-center">{{if .Enforced}}<span class="material-symbols-outlined msz-18 text-mint-deep" title="{{$.L.T "device.locked_title"}}">lock</span>{{else}}<span class="material-symbols-outlined msz-18 text-text-tertiary" title="{{$.L.T "device.overridable_title"}}">lock_open</span>{{end}}</td>
           </tr>
           {{else}}

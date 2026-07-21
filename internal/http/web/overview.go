@@ -36,12 +36,21 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 	online := 0
 	type attention struct{ Kind, Detail string }
 	var attn []attention
+	// Revision -> release number, for the activity table: dedupe first so a
+	// fleet on one release costs one ReleaseNumber call, not one per device
+	// (relCache also memoises per revision, but this avoids even the map hit).
+	releases := map[string]int{}
 	for _, st := range status {
 		if st.Online {
 			online++
 		}
 		if st.Error != "" {
 			attn = append(attn, attention{"device error", st.Tag + ": " + st.Error})
+		}
+		if st.Revision != "" {
+			if _, ok := releases[st.Revision]; !ok {
+				releases[st.Revision] = s.svc.Config.ReleaseNumber(r.Context(), st.Revision)
+			}
 		}
 	}
 	openChanges := 0
@@ -133,6 +142,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 		"Attention":   attn,
 		"Approvals":   approvals,
 		"Status":      status,
+		"Releases":    releases,
 		"CanEnroll":   v.roleAt("org").Meets(identity.Editor),
 	}, v)
 }

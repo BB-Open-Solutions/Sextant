@@ -50,6 +50,10 @@ func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request, v view) {
 		"Title": "Enrollment", "Nav": "enroll",
 		"Stations":  stations,
 		"CanEnroll": v.roleAt("org").Meets(identity.Editor),
+		// CanOwn gates the empty-state link to /station: registering a station
+		// needs Owner (station.go), so a non-owner should not be pointed at a
+		// page they cannot act on.
+		"CanOwn": v.roleAt("org").Meets(identity.Owner),
 	}
 
 	station := strings.TrimSpace(r.URL.Query().Get("station"))

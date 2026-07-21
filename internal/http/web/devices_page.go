@@ -74,6 +74,22 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 	hi := min(lo+perPage, total)
 	rows = rows[lo:hi]
 
+	// Release numbers for the visible page only, deduped per revision: cheap
+	// via ConfigService's relCache, but no reason to look up more than what
+	// renders. Unknown (0) leaves the row to fall back to the short hash.
+	relSeen := map[string]int{}
+	for i := range rows {
+		if rows[i].Revision == "" {
+			continue
+		}
+		rel, ok := relSeen[rows[i].Revision]
+		if !ok {
+			rel = s.svc.Config.ReleaseNumber(r.Context(), rows[i].Revision)
+			relSeen[rows[i].Revision] = rel
+		}
+		rows[i].Release = rel
+	}
+
 	// The pager links re-carry every filter/sort control.
 	baseQ := url.Values{}
 	for _, k := range []string{"q", "class", "group", "status", "sort", "dir"} {
@@ -119,8 +135,11 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 // deviceRow is one row of the device fleet table.
 type deviceRow struct {
 	Tag, Class, Hardware, AssignedUser, Revision string
-	Groups                                       []string
-	HasStatus, Online                            bool
+	// Release is the human release number for Revision (0 = unknown; the
+	// template falls back to the short hash), set after pagination.
+	Release           int
+	Groups            []string
+	HasStatus, Online bool
 	// Reported is set when the device sent a live usage reading; CPU/RAM/Disk
 	// are its used-percentages for the compact per-device resource column.
 	Reported       bool
