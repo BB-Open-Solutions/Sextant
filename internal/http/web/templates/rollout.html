@@ -73,7 +73,7 @@
             <span class="truncate font-medium text-ink">{{.Label}}</span>
             {{if .Manual}}<span class="tag">{{$.L.T "page.pipeline.manual_gate"}}</span>{{end}}
           </div>
-          <span class="shrink-0 text-label-md {{if .Active}}font-semibold text-mint-deep{{else}}text-text-tertiary{{end}}">{{$.L.T .StatusKey}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>
+          <span class="shrink-0 text-label-md {{if .Active}}font-semibold text-mint-deep{{else}}text-text-tertiary{{end}}">{{$.L.T .StatusKey}}{{if .Total}} ({{.OnTarget}}/{{.Present}}{{if .Absent}} · {{.Absent}} {{$.L.T "rollout.away"}}{{end}}){{end}}</span>
         </div>
         <div class="h-2 w-full overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>
         <p class="mb-0 mt-2 text-body-sm text-text-tertiary">{{$.L.T "rollout.gates_label"}} {{$.L.T "rollout.soak_label"}} {{.SoakMinutes}} &middot; {{$.L.T "rollout.healthy_label"}} {{.MinHealthyPercent}}%{{if .MaxDevices}} &middot; {{$.L.T "rollout.max_label"}} {{.MaxDevices}}{{end}}</p>

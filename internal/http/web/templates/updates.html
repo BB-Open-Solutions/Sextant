@@ -30,7 +30,7 @@
       {{with .TargetRelease}}<span class="text-label-md font-semibold text-ink">{{$.L.T "common.release"}} {{.}}</span>{{end}}
       {{with .State}}<span class="truncate font-mono text-code-inline text-text-tertiary">{{short .Target}}</span>{{end}}
       {{if .Delivering}}<span class="truncate text-label-md text-ink"><span class="material-symbols-outlined msz-14 align-middle text-mint-deep">local_shipping</span> {{.L.T "updates.delivering"}} {{.DeliveringTitle}}</span>{{end}}
-      {{range .Waves}}{{if .Active}}<span class="truncate text-label-md text-text-secondary">{{.Label}} · {{$.L.T .StatusKey}}{{if .Total}} ({{.OnTarget}}/{{.Total}}){{end}}</span>{{end}}{{end}}
+      {{range .Waves}}{{if .Active}}<span class="truncate text-label-md text-text-secondary">{{.Label}} · {{$.L.T .StatusKey}}{{if .Total}} ({{.OnTarget}}/{{.Present}}{{if .Absent}} · {{.Absent}} {{$.L.T "rollout.away"}}{{end}}){{end}}</span>{{end}}{{end}}
     </div>
     <div class="flex shrink-0 items-center gap-2">
       {{if or .Active .Paused}}

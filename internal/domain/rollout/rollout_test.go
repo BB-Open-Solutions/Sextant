@@ -226,3 +226,40 @@ func TestPausedRunDecidesNothing(t *testing.T) {
 		t.Fatalf("act = %+v, want inert done/paused", act)
 	}
 }
+
+func TestConvergedIgnoresAbsentDevices(t *testing.T) {
+	r := Ring{Group: "g"} // default 95%
+	// 10 devices, 4 shut laptops (holiday): the wave proves itself on the
+	// 6 present; all 6 healthy = converged despite the absentees.
+	rs := RingStatus{Total: 10, Absent: 4, OnTarget: 6, Healthy: 6}
+	if !r.Converged(rs) {
+		t.Fatal("absent devices must not hold the wave")
+	}
+	// One of the present is unhealthy: 5/6 = 83% < 95, not converged.
+	rs.Healthy = 5
+	if r.Converged(rs) {
+		t.Fatal("present unhealthy devices still count")
+	}
+	// Entire cohort absent: nothing proven, never converges.
+	all := RingStatus{Total: 3, Absent: 3}
+	if r.Converged(all) {
+		t.Fatal("an entirely absent cohort proves nothing")
+	}
+	if all.Present() != 0 {
+		t.Fatalf("present = %d", all.Present())
+	}
+}
+
+func TestTooBrokenUsesPresentDenominator(t *testing.T) {
+	r := Ring{Group: "g"} // default 95%: failure budget 5%
+	// 10 total, 8 absent, 2 present: one broken present device = 50% of the
+	// present population - far past the budget, halt.
+	rs := RingStatus{Total: 10, Absent: 8, OnTarget: 2, Healthy: 1}
+	if !r.TooBroken(rs) {
+		t.Fatal("broken share of the present population must trigger")
+	}
+	// Entirely absent cohort can never be "too broken".
+	if (Ring{Group: "g"}).TooBroken(RingStatus{Total: 5, Absent: 5}) {
+		t.Fatal("absent cohort is not broken, just away")
+	}
+}

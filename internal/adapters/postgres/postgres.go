@@ -170,10 +170,14 @@ func (c *Convergence) RingStragglers(ctx context.Context, groups []string, targe
 		now = c.Now
 	}
 	cutoff := now().Add(-observed.OnlineWindow)
+	absentCutoff := now().Add(-observed.AbsentWindow)
+	// Absent devices (silent beyond the absent window, or never seen) do not
+	// hold the wave - say so, instead of a reason that reads like a blocker.
 	rows, err := c.store.pool.Query(ctx, `
 		SELECT t.tag,
 			CASE
-				WHEN d.tag IS NULL THEN 'never seen'
+				WHEN d.tag IS NULL THEN 'not seen yet; joins on first check-in'
+				WHEN d.last_seen < $5 THEN 'away; catches up on next check-in'
 				WHEN d.revision <> $3 THEN 'not on target yet'
 				WHEN d.last_seen < $4 THEN 'offline'
 				WHEN d.error <> '' THEN 'error: ' || left(d.error, 120)
@@ -188,7 +192,7 @@ func (c *Convergence) RingStragglers(ctx context.Context, groups []string, targe
 			OR (d.phase <> '' AND d.phase <> 'running')
 		ORDER BY t.tag
 		LIMIT 20`,
-		c.tenant, tags, target, cutoff)
+		c.tenant, tags, target, cutoff, absentCutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -242,23 +246,30 @@ func (c *Convergence) RingStatus(ctx context.Context, groups []string, target st
 		now = c.Now
 	}
 	cutoff := now().Add(-observed.OnlineWindow)
+	absentCutoff := now().Add(-observed.AbsentWindow)
 
 	var rs rollout.RingStatus
+	var present int
 	// Total counts the ring's devices (config is truth for membership);
-	// on-target and healthy come from observed rows.
+	// on-target and healthy come from observed rows, counted over the
+	// PRESENT population only (silent beyond the absent window = a shut
+	// laptop, not a blocker - it catches up on its next check-in). A device
+	// with no observed row at all is absent by the same rule.
 	rs.Total = len(tags)
 	err := c.store.pool.QueryRow(ctx, `
 		SELECT
-			COUNT(*) FILTER (WHERE revision = $3),
+			COUNT(*) FILTER (WHERE last_seen >= $5),
+			COUNT(*) FILTER (WHERE revision = $3 AND last_seen >= $5),
 			COUNT(*) FILTER (WHERE revision = $3
 				AND last_seen >= $4
 				AND (phase = '' OR phase = 'running')
 				AND error = '')
 		FROM device_status
 		WHERE tenant = $1 AND tag = ANY($2)`,
-		c.tenant, tags, target, cutoff).Scan(&rs.OnTarget, &rs.Healthy)
+		c.tenant, tags, target, cutoff, absentCutoff).Scan(&present, &rs.OnTarget, &rs.Healthy)
 	if err != nil {
 		return rollout.RingStatus{}, err
 	}
+	rs.Absent = rs.Total - present
 	return rs, nil
 }

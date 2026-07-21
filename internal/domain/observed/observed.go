@@ -152,6 +152,14 @@ type DeviceStatus struct {
 // online. Devices check in about every minute; three missed beats = offline.
 const OnlineWindow = 3 * time.Minute
 
+// AbsentWindow is how long a device must have been silent before a rollout
+// stops WAITING for it. A laptop can be shut for days or a week (holiday) -
+// normal life, not a failure - so an absent device leaves the promotion
+// denominator and catches up on its next check-in (the ring branch already
+// points at the release). Distinct from OnlineWindow: minutes of silence
+// make a device unhealthy, only prolonged silence makes it absent.
+const AbsentWindow = time.Hour
+
 // Online reports whether the device checked in recently.
 func (s DeviceStatus) Online(now time.Time) bool {
 	return !s.LastSeen.IsZero() && now.Sub(s.LastSeen) <= OnlineWindow

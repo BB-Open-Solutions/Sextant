@@ -71,23 +71,37 @@ func (r Ring) minHealthy() int {
 	return r.MinHealthyPercent
 }
 
+// Present is the promotion denominator: the cohort minus its absent
+// devices. Absence (a laptop shut for days) is normal life, so the wave
+// proves itself on the devices that are actually there; the absent catch
+// up on their next check-in.
+func (rs RingStatus) Present() int {
+	if p := rs.Total - rs.Absent; p > 0 {
+		return p
+	}
+	return 0
+}
+
 // Converged reports whether the wave meets its success threshold: enough of
-// the cohort is healthy on the target. The remainder are stragglers - the
-// wave moves on, they stay visible.
+// the PRESENT cohort is healthy on the target. The remainder are stragglers
+// - the wave moves on, they stay visible. An entirely absent cohort proves
+// nothing and never converges; the run waits (or the operator cancels).
 func (r Ring) Converged(rs RingStatus) bool {
-	return rs.Total > 0 && rs.Healthy*100/rs.Total >= r.minHealthy()
+	p := rs.Present()
+	return p > 0 && rs.Healthy*100/p >= r.minHealthy()
 }
 
 // TooBroken reports whether the wave can no longer reach its threshold on
-// merit: the devices that converged and turned out UNHEALTHY already exceed
-// the failure budget (100 - threshold). That is a bad release, not a slow
-// one - the run halts instead of waiting forever.
+// merit: the PRESENT devices that converged and turned out UNHEALTHY already
+// exceed the failure budget (100 - threshold). That is a bad release, not a
+// slow one - the run halts instead of waiting forever.
 func (r Ring) TooBroken(rs RingStatus) bool {
-	if rs.Total == 0 {
+	p := rs.Present()
+	if p == 0 {
 		return false
 	}
 	broken := rs.OnTarget - rs.Healthy
-	return broken*100/rs.Total > 100-r.minHealthy()
+	return broken*100/p > 100-r.minHealthy()
 }
 
 // NextRelease is how many devices should be released after widening one
@@ -197,8 +211,14 @@ func (s *State) Normalize() {
 // plane): device totals for the ring's group on the target revision.
 type RingStatus struct {
 	Total    int // devices in the ring's CURRENT released cohort
-	OnTarget int // cohort devices reporting the target revision
-	Healthy  int // cohort devices on target and healthy (checked in recently, no errors)
+	OnTarget int // PRESENT cohort devices reporting the target revision
+	Healthy  int // present devices on target and healthy (recent, no errors)
+	// Absent counts cohort devices silent beyond the absent window (or never
+	// seen): shut laptops, holidays. They leave the promotion denominator -
+	// the wave proves itself on the devices that are actually there, and the
+	// absent catch up on their next check-in since the ring branch already
+	// carries the release. They stay visible as stragglers.
+	Absent int
 	// Released and GroupTotal drive a count-capped canary (ADR 0013): Released
 	// is how many of the group have been released so far (== Total), GroupTotal
 	// the whole group. When a capped wave's cohort is healthy and soaked but

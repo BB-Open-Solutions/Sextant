@@ -27,6 +27,11 @@ type waveCol struct {
 	Manual   bool
 	OnTarget int
 	Total    int
+	// Absent devices (silent beyond the absent window) leave the promotion
+	// denominator; Present = Total - Absent is what the bar and the counts
+	// measure against, with the absent named separately.
+	Absent   int
+	Present  int
 	BarClass string
 	// NowKey is the catalog key of the plain-language line for the wave's
 	// state; Stragglers names the devices behind its percentages (filled by
@@ -100,8 +105,10 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 		col.MaxDevices = rr.MaxDevices
 		if i < len(ringStatus) {
 			col.OnTarget, col.Total = ringStatus[i].OnTarget, ringStatus[i].Total
+			col.Absent = ringStatus[i].Absent
 		}
-		col.BarClass = barBucket(col.OnTarget, col.Total)
+		col.Present = col.Total - col.Absent
+		col.BarClass = barBucket(col.OnTarget, col.Present)
 		switch {
 		case st == nil:
 			col.Status = "Planned"
@@ -122,7 +129,7 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 			col.Status = "Paused"
 		case i == st.Ring:
 			col.Active = true
-			converged := col.Total > 0 && col.OnTarget >= col.Total
+			converged := col.Present > 0 && col.OnTarget >= col.Present
 			_, approved := st.ApprovedAt[i]
 			switch {
 			case converged && rr.RequireApproval && !approved:
