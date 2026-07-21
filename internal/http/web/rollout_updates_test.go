@@ -38,6 +38,14 @@ const ladderSeed = `{
   }
 }`
 
+// stubCacheBuilder reports every build as still running, pinning the engine
+// in the await-build phase.
+type stubCacheBuilder struct{}
+
+func (stubCacheBuilder) EnsureBuilt(context.Context, string, []string) (ports.BuildState, error) {
+	return ports.BuildState{Phase: ports.BuildBuilding}, nil
+}
+
 type stubConvergence struct{ rs rollout.RingStatus }
 
 func (c *stubConvergence) RingStatus(context.Context, []string, string) (rollout.RingStatus, error) {
@@ -528,5 +536,32 @@ func TestRolloutStartRefusesEmptyScope(t *testing.T) {
 	}
 	if !strings.Contains(page, "nothing to roll out") {
 		t.Errorf("refusal does not explain itself: %.300s", page)
+	}
+}
+
+// TestMonitorShowsBuildingPhase: while build-before-promote fills the cache
+// (BuildRequestedAt set, ring not yet promoted) the wave says so instead of
+// "Deploying" - devices have not been offered the release yet.
+func TestMonitorShowsBuildingPhase(t *testing.T) {
+	ts, _, rolloutSvc := newUpdatesConsole(t)
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"50, 50"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+	if code := postForm(t, ts, "/rollout", url.Values{
+		"target": {"deadbeef"}, "scope": {"*"}, "confirmed": {"1"},
+	}); code != 303 {
+		t.Fatalf("start = %d", code)
+	}
+	// A builder that never finishes puts the engine in the await-build
+	// phase on the next tick (build-before-promote, real flow).
+	rolloutSvc.WithCacheBuilder(stubCacheBuilder{})
+	if code := postForm(t, ts, "/rollout/tick", url.Values{}); code != 303 {
+		t.Fatalf("tick = %d", code)
+	}
+	_, page := getPage(t, ts, "/updates/rollout")
+	if !strings.Contains(page, "Building release") {
+		t.Fatalf("building phase not shown: %.400s", page)
 	}
 }

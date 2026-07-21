@@ -58,6 +58,8 @@ type waveCol struct {
 // nowKeyForWave maps the wave's display status to its guidance line.
 func nowKeyForWave(status string) string {
 	switch status {
+	case "Building":
+		return "rollout.now_building"
 	case "Deploying":
 		return "rollout.now_deploying"
 	case "Soaking":
@@ -131,7 +133,14 @@ func waveCols(f *fleet.Fleet, st *rollout.State, ringStatus []rollout.RingStatus
 			col.Active = true
 			converged := col.Present > 0 && col.OnTarget >= col.Present
 			_, approved := st.ApprovedAt[i]
+			_, promoted := st.PromotedAt[i]
+			_, building := st.BuildRequestedAt[i]
 			switch {
+			// Build-before-promote: the branch has not moved yet, the cache
+			// is being filled. Saying "Deploying" here reads as devices being
+			// busy while they have not even been offered the release.
+			case building && !promoted:
+				col.Status = "Building"
 			case converged && rr.RequireApproval && !approved:
 				col.Status, col.Await = "Awaiting approval", true
 			case converged:
@@ -155,6 +164,8 @@ func statusMeta(status string) (key, kind string) {
 	switch status {
 	case "Rolled out", "Complete":
 		return "rollout.st_done", "done"
+	case "Building":
+		return "rollout.st_building", "active"
 	case "Deploying":
 		return "rollout.st_deploying", "active"
 	case "Soaking":
