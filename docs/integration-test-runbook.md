@@ -30,10 +30,22 @@ netbird-router/exit nodig) of (b) LDAPS publiek met strikte bind-policy.
 Daarna: identity.enable + provider ldap + ldapUri + searchBase + bindDN +
 bindSecret (agenix) op de groep; bewijs = LDAP-user kan inloggen op t495s.
 
+**Aanbeveling (21 jul): (a) over de mesh — en die keuze dekt fase 3
+meteen mee.** LDAP (1636) en Wazuh (1514/1515) zijn allebei
+cluster-interne TCP-diensten die devices moeten bereiken; publiek
+exposen betekent twee keer een TCP-ingress + bind-policy onderhouden,
+de mesh maakt beide een intern adres. Benodigd: een netbird
+routing-peer in het cluster (subnet-route naar de service-CIDR of twee
+service-IP's), eenmalig. Zelfde soevereiniteitslijn als de rest: niets
+extra aan het publieke internet.
+
 ## Fase 3 — Wazuh
-Manager bestaat nog niet: eerst `apps/wazuh` in bb-open-platform-v2 (of
-VPS), dan wazuh.enable + manager-adres + enrollmentSecret per groep;
-bewijs = agent meldt zich in de Wazuh-console, agentGroup per groep klopt.
+Manager bestaat nog niet: eerst `apps/wazuh` in bb-open-platform-v2, dan
+wazuh.enable + manager-adres (mesh-adres, zie fase 2) + enrollmentSecret
+per groep; bewijs = agent meldt zich in de Wazuh-console, agentGroup per
+groep klopt. Minimale eerste stap: alleen wazuh-manager (enrollment
+1515 + agent-verkeer 1514) zonder indexer/dashboard - genoeg voor het
+enrollment-bewijs; de volledige stack is een latere platform-klus.
 
 ## Fase 4 — Zitadel-rollen
 Console-kant: met een dawo-support-account (Editor) en een dawo-beheer-
