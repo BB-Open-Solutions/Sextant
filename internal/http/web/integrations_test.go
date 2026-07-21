@@ -70,3 +70,52 @@ func TestIntegrationCardSavesAsOneForm(t *testing.T) {
 		t.Fatalf("unrelated org setting clobbered: %v", own)
 	}
 }
+
+// TestIntegrationScopeSelector: the integrations page configures at a chosen
+// scope - a group first, then widen. Group saves land on the group, org
+// settings stay untouched, and the toggle offers the inherit state there.
+func TestIntegrationScopeSelector(t *testing.T) {
+	ts, cfg := newConsole(t)
+	c := client()
+
+	resp, _ := c.Get(ts.URL + "/integrations?scope=group:pilot")
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("group scope = %d", resp.StatusCode)
+	}
+	page := string(body)
+	if !strings.Contains(page, `value="group:pilot" selected`) {
+		t.Fatal("scope selector does not show the group")
+	}
+	if !strings.Contains(page, `id="ii-netbird-enable"`) {
+		t.Fatal("group scope should offer the inherit state on toggles")
+	}
+
+	resp, err := c.PostForm(ts.URL+"/settings", url.Values{
+		"csrf": {"dev-csrf"}, "scope": {"group:pilot"},
+		"v:netbird.enable": {"true"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 303 {
+		t.Fatalf("group save = %d", resp.StatusCode)
+	}
+	own, _, _ := cfg.Fleet().ScopeSettings("group:pilot")
+	if own["netbird.enable"] != true {
+		t.Fatalf("group value not saved: %v", own)
+	}
+	orgOwn, _, _ := cfg.Fleet().ScopeSettings("org")
+	if _, has := orgOwn["netbird.enable"]; has {
+		t.Fatalf("org polluted by group save: %v", orgOwn)
+	}
+
+	// Unknown scope 404s.
+	resp, _ = c.Get(ts.URL + "/integrations?scope=group:ghost")
+	resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Fatalf("ghost scope = %d", resp.StatusCode)
+	}
+}

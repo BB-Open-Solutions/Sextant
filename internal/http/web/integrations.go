@@ -46,15 +46,25 @@ func isIntegrationSetting(key string) bool {
 	return false
 }
 
-// integrationsPage renders one card per integration. Org Viewer to see; the
-// set-forms post to the settings editor, which enforces org Editor.
+// integrationsPage renders one card per integration, at a chosen scope
+// (?scope=org|group:<name>, default org - an integration is often wanted for
+// one group first, then widened). Viewer at the scope to see; the card forms
+// post to the settings editor, which enforces Editor at the scope.
 func (s *Server) integrationsPage(w http.ResponseWriter, r *http.Request, v view) {
-	if err := s.requireWeb(v, "org", identity.Viewer); err != nil {
+	scope := r.URL.Query().Get("scope")
+	if scope == "" {
+		scope = "org"
+	}
+	if err := s.requireWeb(v, scope, identity.Viewer); err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
 	f, cat := s.svc.Config.Snapshot()
-	own, _, _ := f.ScopeSettings("org")
+	own, _, err := f.ScopeSettings(scope)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
 
 	type optRow struct {
 		Entry fleet.CatalogEntry
@@ -90,10 +100,27 @@ func (s *Server) integrationsPage(w http.ResponseWriter, r *http.Request, v view
 	}
 	sort.Strings(secretRefs)
 
+	// Scope drill-down: the groups this user may view, for the selector.
+	groups := make([]string, 0, len(f.Groups))
+	for g := range f.Groups {
+		if v.canView("group:" + g) {
+			groups = append(groups, g)
+		}
+	}
+	sort.Strings(groups)
+	selGroup, _ := strings.CutPrefix(scope, "group:")
+	if scope == "org" {
+		selGroup = ""
+	}
+
 	s.render(w, "integrations", map[string]any{
 		"Title": "Integrations", "Nav": "integrations",
 		"Cards":      cards,
 		"SecretRefs": secretRefs,
-		"CanEdit":    v.roleAt("org").Meets(identity.Editor),
+		"Scope":      scope,
+		"SelGroup":   selGroup,
+		"Groups":     groups,
+		"IsOrg":      scope == "org",
+		"CanEdit":    v.roleAt(scope).Meets(identity.Editor),
 	}, v)
 }
