@@ -5,35 +5,7 @@
     <h1 class="mb-1">{{.L.T "settings.title"}}</h1>
     <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "settings.scope_help_pre"}} <strong>{{.L.T "common.enforce"}}</strong> {{.L.T "settings.scope_help_post"}}</p>
   </div>
-  <!-- The ONE scope indicator: the selector both chooses and shows what is
-       being edited (the active segment is black). No separate "you are
-       editing" line or cascade explainer repeating it. -->
-  {{$scope := .Scope}}
-  <div class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border-hairline bg-canvas p-1 text-label-md shadow-sm">
-    <span class="pl-2 pr-1 text-text-tertiary">{{.L.T "common.scope"}}</span>
-    <a href="/settings?scope=org" data-scope-link class="inline-flex items-center gap-1 rounded-md px-3 py-1.5 transition-colors {{if eq $scope "org"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}"><span class="material-symbols-outlined msz-16">domain</span>{{.OrgName}}</a>
-    <span class="material-symbols-outlined msz-16 text-text-tertiary">chevron_right</span>
-    <form method="get" action="/settings" class="!m-0 !inline-flex !border-0 !p-0 !shadow-none">
-      <label class="inline-flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors {{if hasPrefix $scope "group:"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}">
-        <span class="material-symbols-outlined msz-16">group_work</span>
-        <select name="scope" data-scope-select data-current="{{$scope}}" class="!border-0 !bg-transparent !p-0 !pr-4 focus:!ring-0 {{if hasPrefix $scope "group:"}}!text-canvas{{end}}">
-          <option value="org" {{if not .SelGroup}}selected{{end}}>{{.L.T "settings.all_groups"}}</option>
-          {{range .Groups}}<option value="group:{{.}}" {{if eq $.SelGroup .}}selected{{end}}>{{.}}</option>{{end}}
-        </select>
-      </label>
-    </form>
-    <span class="material-symbols-outlined msz-16 text-text-tertiary">chevron_right</span>
-    <form method="get" action="/settings" class="!m-0 !inline-flex !border-0 !p-0 !shadow-none">
-      {{$devAll := "org"}}{{if .SelGroup}}{{$devAll = printf "group:%s" .SelGroup}}{{end}}
-      <label class="inline-flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors {{if .IsDevice}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}">
-        <span class="material-symbols-outlined msz-16">desktop_windows</span>
-        <select name="scope" data-scope-select data-current="{{$scope}}" class="!border-0 !bg-transparent !p-0 !pr-4 focus:!ring-0 {{if .IsDevice}}!text-canvas{{end}}">
-          <option value="{{$devAll}}" {{if not .IsDevice}}selected{{end}}>{{.L.T "settings.all_devices"}}</option>
-          {{range .Devices}}<option value="device:{{.}}" {{if eq $scope (printf "device:%s" .)}}selected{{end}}>{{.}}</option>{{end}}
-        </select>
-      </label>
-    </form>
-  </div>
+  {{template "scopePicker" .}}
 </div>
 
 {{if .Empty}}

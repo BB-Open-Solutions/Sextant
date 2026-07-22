@@ -52,8 +52,9 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		if name, _, ok := strings.Cut(p.Profile, "@"); ok {
 			row.Profile = name
 			if src, has := profiles.Get(name); has {
-				row.Drift = src.Provenance() != p.Profile
-				row.Edited = !row.Drift && !src.SettingsMatch(p.Settings)
+				st := profileState(p, src)
+				row.Drift = st == "reapply"
+				row.Edited = st == "edited"
 			}
 		}
 		rows = append(rows, row)
@@ -76,16 +77,7 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		}
 		state := "apply"
 		if pol, ok := f.Policies[p.Name]; ok {
-			switch {
-			case !strings.HasPrefix(pol.Profile, p.Name+"@"):
-				state = "conflict"
-			case pol.Profile != p.Provenance():
-				state = "reapply"
-			case !p.SettingsMatch(pol.Settings):
-				state = "edited"
-			default:
-				state = "current"
-			}
+			state = profileState(pol, p)
 		}
 		prof = append(prof, profileRow{Profile: p,
 			SettingsText: strings.Join(lines, "\n"), State: state})
@@ -147,4 +139,24 @@ func filterValueSuggestions(f *fleet.Fleet) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// profileState classifies a policy against its source profile: "" (hand-made
+// or no matching profile), "current", "reapply" (the overlay's profile moved
+// past the stamp), "edited" (settings hand-changed since the apply - the
+// stamp cannot see this, only content comparison can), or "conflict" (a
+// hand-made policy occupies the profile's id). The single source of truth
+// for drift, consumed by the policy rows and the profile cards alike.
+func profileState(pol fleet.Policy, src fleet.Profile) string {
+	if !strings.HasPrefix(pol.Profile, src.Name+"@") {
+		return "conflict"
+	}
+	switch {
+	case pol.Profile != src.Provenance():
+		return "reapply"
+	case !src.SettingsMatch(pol.Settings):
+		return "edited"
+	default:
+		return "current"
+	}
 }

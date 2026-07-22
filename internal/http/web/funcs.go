@@ -103,21 +103,9 @@ func templateFuncs() template.FuncMap {
 		// barW buckets a 0..100 percentage to the nearest 5 and returns a
 		// static width class (bar-w-0..bar-w-100, defined in app.css),
 		// avoiding inline style="width:N%" which the CSP forbids - same
-		// pattern as indent above and pipeline.go's barBucket for the
-		// on-target convergence bars.
-		"barW": func(pct int) string {
-			if pct < 0 {
-				pct = 0
-			}
-			if pct > 100 {
-				pct = 100
-			}
-			bucket := ((pct + 2) / 5) * 5
-			if bucket > 100 {
-				bucket = 100
-			}
-			return fmt.Sprintf("bar-w-%d", bucket)
-		},
+		// pattern as indent above; barBucket (pipeline.go) feeds fractions
+		// through the same helper.
+		"barW": barClass,
 	}
 }
 
@@ -145,4 +133,18 @@ func initials(name string) string {
 		return "?"
 	}
 	return b.String()
+}
+
+// barClass maps a 0..100 percentage onto its nearest-5% CSP-safe width
+// class (bar-w-0..bar-w-100, app.css). The one place the bucketing rule
+// lives - template bars and convergence bars must round identically.
+func barClass(pct int) string {
+	if pct < 0 {
+		pct = 0
+	}
+	bucket := ((pct + 2) / 5) * 5
+	if bucket > 100 {
+		bucket = 100
+	}
+	return fmt.Sprintf("bar-w-%d", bucket)
 }

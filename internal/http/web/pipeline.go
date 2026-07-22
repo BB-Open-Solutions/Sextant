@@ -1,7 +1,6 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
@@ -192,15 +191,10 @@ func statusMeta(status string) (key, kind string) {
 
 // barBucket rounds a fraction to the nearest 5% for a CSP-safe width class.
 func barBucket(onTarget, total int) string {
-	bucket := 0
-	if total > 0 {
-		pct := (onTarget*100 + total/2) / total
-		bucket = ((pct + 2) / 5) * 5
-		if bucket > 100 {
-			bucket = 100
-		}
+	if total <= 0 {
+		return barClass(0)
 	}
-	return fmt.Sprintf("bar-w-%d", bucket)
+	return barClass((onTarget*100 + total/2) / total)
 }
 
 func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {

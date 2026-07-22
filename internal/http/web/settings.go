@@ -221,7 +221,8 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	}
 
 	s.render(w, "settings", map[string]any{
-		"Title": "Settings", "Nav": "settings",
+		"PickerBase": "/settings",
+		"Title":      "Settings", "Nav": "settings",
 		"Scope": scope, "ScopeLabel": scopeLabel(scope),
 		"Groups": groups, "Devices": devices, "SelGroup": selGroup, "Sections": sections,
 		"SecretRefs": secretRefs,

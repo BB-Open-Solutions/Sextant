@@ -115,6 +115,7 @@ func (s *Server) integrationsPage(w http.ResponseWriter, r *http.Request, v view
 
 	s.render(w, "integrations", map[string]any{
 		"Title": "Integrations", "Nav": "integrations",
+		"PickerBase": "/integrations",
 		"Cards":      cards,
 		"SecretRefs": secretRefs,
 		"Scope":      scope,
