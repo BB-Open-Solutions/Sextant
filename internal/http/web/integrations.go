@@ -31,6 +31,8 @@ var knownIntegrations = []integration{
 		"Device login against your directory (SSSD/LDAP): domain, server and a bind secret.", "identity."},
 	{"wazuh", "Wazuh SIEM", "security",
 		"Endpoint security agent reporting to a Wazuh manager.", "wazuh."},
+	{"openbao", "OpenBao vault", "encrypted",
+		"Central secret store (open-source Vault). Devices fetch named secrets over the API; rotation needs no configuration change.", "openbao."},
 }
 
 // isIntegrationSetting reports whether a catalog key belongs to an
