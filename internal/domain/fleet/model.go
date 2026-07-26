@@ -6,7 +6,6 @@ package fleet
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 )
 
@@ -307,17 +306,12 @@ type AccessBinding struct {
 	Scope string `json:"scope"`
 }
 
-// Decode parses a fleet document. It rejects unknown schema versions so an
-// old binary never silently misreads a newer document.
+// Decode parses a fleet document, upgrading an older schema version forward
+// to the current Version (see migrate.go) so a schema bump never bricks an
+// existing overlay. A document newer than this build is rejected: an old
+// binary must not silently misread a future document.
 func Decode(b []byte) (*Fleet, error) {
-	var f Fleet
-	if err := json.Unmarshal(b, &f); err != nil {
-		return nil, fmt.Errorf("parse fleet document: %w", err)
-	}
-	if f.Version != Version {
-		return nil, fmt.Errorf("fleet document version %d, this build supports %d", f.Version, Version)
-	}
-	return &f, nil
+	return decode(b, migrations)
 }
 
 // Encode serializes the fleet document deterministically (indented, stable
