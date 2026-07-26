@@ -177,10 +177,18 @@ The destructive path is split so no single compromise erases a device:
    unless the device is already locked or `force` is set, and refuses
    retired devices (`intent.go:19,27-30`). Arming requires **org
    Owner** (`internal/http/api/intent.go:24-25`).
+6. **Replay guard** (design 0004, implemented): the wipe intent carries
+   a stateless server-signed nonce + timestamp
+   (`internal/http/api/intent_nonce.go`); the agent acts only when fresh
+   (< 15 min) and echoes the nonce, which the server verifies before
+   recording the outcome. A replayed or forged wipe response/ack cannot
+   trigger or masquerade as a real erase. Stateless (HMAC, no stored
+   nonce) so it holds across replicas.
 
 So an unauthorised wipe needs all of: org-Owner authority to arm + the
-audited commit, the host separately armed at build time, and the device
-locked first. Console compromise alone is insufficient.
+audited commit, the host separately armed at build time, the device
+locked first, and a fresh signed nonce. Console compromise alone is
+insufficient.
 
 **Residual R5.** The wipe unit deliberately keeps a loose
 `SystemCallFilter`/`DeviceAllow` (`actd.nix:296`) - a documented choice
