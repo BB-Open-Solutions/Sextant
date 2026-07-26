@@ -57,9 +57,17 @@
         {{else}}<div class="flex flex-col gap-1"><label>{{.L.T "common.name"}}</label><input name="name" value="{{.SuggestName}}" placeholder="{{.L.T "common.eg"}} k8s-node" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>{{end}}
         <label>{{.L.T "overlays.module_label"}}</label>
         <textarea name="code" rows="20" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{ config, lib, pkgs, ... }:&#10;{&#10;  # your NixOS module for this device class&#10;}">{{.Code}}</textarea>
-        <div class="flex items-center justify-between">
+        {{if .SyntaxOK}}<div class="rounded-md border border-mint-vibrant/40 bg-mint-vibrant/5 px-3 py-2 text-body-sm text-mint-deep"><span class="material-symbols-outlined msz-14 align-middle">check_circle</span> {{.L.T "overlays.syntax_ok"}}</div>{{end}}
+        {{with .SyntaxError}}<div class="rounded-md border border-status-error/40 bg-status-error/5 px-3 py-2 font-mono text-code-inline text-status-error">{{.}}</div>{{end}}
+        {{with .SyntaxNote}}<div class="rounded-md border border-border-soft bg-surface-container-low px-3 py-2 text-body-sm text-text-tertiary">{{.}}</div>{{end}}
+        <div class="flex items-center justify-between gap-3">
           <p class="mb-0 text-label-md text-text-tertiary">{{.L.T "overlays.help_text"}}</p>
-          <button type="submit" class="shrink-0 !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "overlays.save_validate"}}</button>
+          <div class="flex shrink-0 items-center gap-2">
+            <!-- Fast syntax check via the gate-runner's parser; the full gate
+                 eval still runs on save. Same form fields, different action. -->
+            <button type="submit" formaction="/overlays/check" class="quiet"><span class="material-symbols-outlined msz-18">spellcheck</span>{{.L.T "overlays.check_syntax"}}</button>
+            <button type="submit" class="!bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "overlays.save_validate"}}</button>
+          </div>
         </div>
       </form>
     </div>

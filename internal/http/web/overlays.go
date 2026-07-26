@@ -1,12 +1,20 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
+
+// SyntaxChecker fast-checks overlay Nix source without evaluating it (the
+// gate-runner's /parse). Empty result = parses; a non-empty string is the
+// first syntax error. Implemented by the remote gate.
+type SyntaxChecker interface {
+	CheckSyntax(ctx context.Context, code string) (string, error)
+}
 
 // overlays.go: the custom-overlay surface (ADR 0014). An owner authors Nix
 // overlay modules (overlays/<name>.nix) in a code editor; each save passes the
@@ -92,6 +100,39 @@ func (s *Server) postOverlayWrite(w http.ResponseWriter, r *http.Request, v view
 		return err
 	}
 	http.Redirect(w, r, "/overlays?name="+url.QueryEscape(name), http.StatusSeeOther)
+	return nil
+}
+
+// postOverlayCheck runs the fast syntax check on the editor buffer and
+// re-renders the editor with the result, committing nothing. Fast feedback
+// before the full gate eval on save. Needs the remote gate; without it the
+// page says so.
+func (s *Server) postOverlayCheck(w http.ResponseWriter, r *http.Request, v view) error {
+	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
+		return err
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	code := r.FormValue("code")
+	names, _ := s.svc.Config.ListOverlays()
+	data := map[string]any{
+		"Title": "Overlays", "Nav": "overlays",
+		"Overlays": names, "Templates": overlayTemplates,
+		"Selected": name, "Code": code,
+	}
+	if s.syntax == nil {
+		data["SyntaxNote"] = v.L.T("overlays.syntax_unavailable")
+	} else {
+		msg, err := s.syntax.CheckSyntax(r.Context(), code)
+		switch {
+		case err != nil:
+			data["SyntaxNote"] = v.L.T("overlays.syntax_unavailable")
+		case msg == "":
+			data["SyntaxOK"] = true
+		default:
+			data["SyntaxError"] = msg
+		}
+	}
+	s.render(w, "overlays", data, v)
 	return nil
 }
 

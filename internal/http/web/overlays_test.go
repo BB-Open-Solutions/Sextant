@@ -61,3 +61,25 @@ func TestOverlaysTemplatePrefill(t *testing.T) {
 		t.Fatalf("k8s template not prefilled\n%s", s)
 	}
 }
+
+func TestOverlayCheckWithoutChecker(t *testing.T) {
+	ts, _ := newConsole(t)
+	form := url.Values{"csrf": {"dev-csrf"}, "name": {"k8s-node"}, "code": {"{ config, ... }: { }"}}
+	resp, err := client().PostForm(ts.URL+"/overlays/check", form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("check = %d", resp.StatusCode)
+	}
+	// No syntax checker wired (gate none in tests): the page says the fast
+	// check is unavailable, and still renders the editor with the code.
+	if !strings.Contains(string(body), "needs the remote validation gate") {
+		t.Error("unavailable note missing")
+	}
+	if !strings.Contains(string(body), "config") {
+		t.Error("editor did not re-render the code")
+	}
+}

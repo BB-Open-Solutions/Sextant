@@ -63,6 +63,7 @@ type deps struct {
 	staCreds       *app.StationCredentials
 	deviceSecrets  *app.DeviceSecretsService
 	intentNonceKey []byte
+	syntax         web.SyntaxChecker
 	prefs          ports.PrefsStore
 	dir            ports.Directory
 	evidence       *app.EvidenceService
@@ -127,7 +128,11 @@ func (d *deps) buildConfigPlane() error {
 		builder = builderFunc(func(context.Context, string, []string) error { return nil })
 	case "remote":
 		log.Info("validation gate delegated to gate-runner", "url", cfg.GateURL)
-		gate = gateadapter.NewRemoteGate(cfg.GateURL).WithToken(cfg.GateToken)
+		rg := gateadapter.NewRemoteGate(cfg.GateURL).WithToken(cfg.GateToken)
+		gate = rg
+		// The remote gate also fast-checks overlay Nix syntax (the editor's
+		// live linter); only wired here, so a non-remote gate has none.
+		d.syntax = rg
 		// The console image ships without nix (the reason the gate-runner
 		// exists), so the local nix builder cannot run here: calling it would
 		// fail every change submit with a misleading "nix build" error. The
@@ -494,6 +499,7 @@ func (d *deps) consoleCapability() capability.Capability {
 			}
 			console.SetDefaults(d.cfg.DefaultLocale, d.cfg.DefaultTimezone)
 			console.SetOrgName(d.cfg.OrgName)
+			console.SetSyntaxChecker(d.syntax)
 			console.Routes(mux)
 		},
 	}

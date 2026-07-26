@@ -52,6 +52,10 @@ type Server struct {
 	tmpl     map[string]*template.Template
 	log      *slog.Logger
 	write    bool
+	// syntax fast-checks overlay Nix source (the remote gate's /parse); nil
+	// when no such checker is wired (non-remote gate), so the editor says the
+	// check is unavailable rather than failing.
+	syntax SyntaxChecker
 
 	baseViewer, baseEditor, baseOwner []string
 
@@ -78,6 +82,14 @@ func (s *Server) SetDefaults(locale, tz string) {
 func (s *Server) SetOrgName(name string) {
 	if name != "" {
 		s.orgName = name
+	}
+}
+
+// SetSyntaxChecker wires the overlay editor's fast syntax check (the remote
+// gate's /parse). No-op with a nil checker.
+func (s *Server) SetSyntaxChecker(c SyntaxChecker) {
+	if c != nil {
+		s.syntax = c
 	}
 }
 
@@ -218,6 +230,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/secrets", s.postSecretRegister)
 	post("/secrets/{name}/remove", s.postSecretRemove)
 	post("/overlays", s.postOverlayWrite)
+	post("/overlays/check", s.postOverlayCheck)
 	post("/overlays/{name}/remove", s.postOverlayRemove)
 	post("/service-accounts", s.postServiceAccountMint)
 	post("/service-accounts/{id}/revoke", s.postServiceAccountRevoke)

@@ -126,3 +126,52 @@ func (g *RemoteGate) Validate(ctx context.Context, repoDir string, hosts []strin
 		return fmt.Errorf("gate-runner error (status %d): %s", resp.StatusCode, string(raw))
 	}
 }
+
+type parseRequest struct {
+	Code string `json:"code"`
+}
+
+type parseResponse struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
+// CheckSyntax runs a fast syntax check of an overlay module's nix source on
+// the runner (`nix-instantiate --parse`, no evaluation). It returns an empty
+// string when the source parses, or the first syntax error otherwise. A
+// transport failure returns an error so the caller can say "check
+// unavailable" rather than "valid".
+func (g *RemoteGate) CheckSyntax(ctx context.Context, code string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	body, err := json.Marshal(parseRequest{Code: code})
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, g.URL+"/parse", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if g.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+g.Token)
+	}
+	client := g.client
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("gate-runner unreachable: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("gate-runner parse returned %d", resp.StatusCode)
+	}
+	var pr parseResponse
+	if err := json.Unmarshal(raw, &pr); err != nil {
+		return "", fmt.Errorf("decode parse response: %w", err)
+	}
+	return pr.Error, nil
+}

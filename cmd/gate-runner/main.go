@@ -139,6 +139,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /validate", srv.handleValidate)
 	mux.HandleFunc("POST /build", srv.handleBuild)
+	mux.HandleFunc("POST /parse", srv.handleParse)
 	mux.HandleFunc("POST /bump", srv.handleBump)
 	mux.HandleFunc("GET /cache/", srv.handleCache)
 	mux.Handle("GET /healthz", checks.Liveness())
@@ -424,4 +425,84 @@ func envOrInt(key string, def int) int {
 		}
 	}
 	return def
+}
+
+type parseRequest struct {
+	Code string `json:"code"`
+}
+
+type parseResponse struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
+// handleParse is the editor's fast syntax check (design D4b): it runs
+// `nix-instantiate --parse` on the submitted overlay module source - a pure
+// parse, no evaluation, no I/O, no network - and returns the first syntax
+// error with its line:column. It is cheaper feedback than the full gate eval
+// on save (which remains the semantic validator). Parsing never executes the
+// code, so an unreviewed buffer is safe to check.
+func (s *server) handleParse(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="gate-runner"`)
+		writeJSON(w, http.StatusUnauthorized, parseResponse{Error: "unauthorized"})
+		return
+	}
+	var req parseRequest
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, parseResponse{Error: "bad request body"})
+		return
+	}
+	if req.Code == "" {
+		writeJSON(w, http.StatusBadRequest, parseResponse{Error: "missing code"})
+		return
+	}
+	f, err := os.CreateTemp("", "sextant-parse-*.nix")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, parseResponse{Error: "scratch file"})
+		return
+	}
+	defer func() { _ = os.Remove(f.Name()) }()
+	if _, err := f.WriteString(req.Code); err != nil {
+		_ = f.Close()
+		writeJSON(w, http.StatusInternalServerError, parseResponse{Error: "scratch write"})
+		return
+	}
+	_ = f.Close()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	// #nosec G204 - fixed argv, the only caller-influenced input is the file
+	// path we just created; --parse never evaluates the module.
+	cmd := exec.CommandContext(ctx, "nix-instantiate", "--parse", f.Name())
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		writeJSON(w, http.StatusOK, parseResponse{Error: parseErrorLine(string(out))})
+		return
+	}
+	writeJSON(w, http.StatusOK, parseResponse{OK: true})
+}
+
+// parseErrorLine pulls the actionable "error:" line out of nix-instantiate's
+// output, rewriting the scratch path away so the operator sees a clean
+// "line:col: message". Falls back to the trimmed output.
+func parseErrorLine(out string) string {
+	for _, ln := range strings.Split(out, "\n") {
+		ln = strings.TrimSpace(ln)
+		if i := strings.Index(strings.ToLower(ln), "error:"); i >= 0 {
+			msg := strings.TrimSpace(ln[i+len("error:"):])
+			// Drop the scratch file path prefix if present.
+			if j := strings.LastIndex(msg, "/sextant-parse-"); j >= 0 {
+				if k := strings.Index(msg[j:], ".nix:"); k >= 0 {
+					msg = "at line " + msg[j+k+len(".nix:"):]
+				}
+			}
+			return "syntax error: " + msg
+		}
+	}
+	if s := strings.TrimSpace(out); s != "" {
+		return s
+	}
+	return "syntax error"
 }
