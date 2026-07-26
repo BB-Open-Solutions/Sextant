@@ -1,0 +1,14 @@
+{{- if gt (int .Values.replicaCount) 1 }}
+# HA: keep at least one console replica serving during a voluntary
+# disruption (node drain, rollout). Only meaningful with replicaCount > 1.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels: { app: {{ .Release.Name }} }
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: {{ .Release.Name }} }
+{{- end }}

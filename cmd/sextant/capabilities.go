@@ -45,6 +45,10 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
+// workersLockKey is the Postgres advisory-lock key electing the single
+// replica that runs the committing background workers (HA).
+const workersLockKey int64 = 0x5E47A17
+
 // deps carries what the capability constructors share.
 type deps struct {
 	ctx    context.Context
@@ -64,6 +68,7 @@ type deps struct {
 	deviceSecrets  *app.DeviceSecretsService
 	intentNonceKey []byte
 	syntax         web.SyntaxChecker
+	pgStore        *postgres.Store
 	prefs          ports.PrefsStore
 	dir            ports.Directory
 	evidence       *app.EvidenceService
@@ -192,6 +197,7 @@ func (d *deps) buildConfigPlane() error {
 			return err
 		}
 		d.cleanup = append(d.cleanup, pg.Close)
+		d.pgStore = pg
 		d.inv = app.NewInventoryService(pg, pg, clock, app.DefaultTenant)
 		d.tokens = app.NewTokenService(pg.Tokens(), clock, 0)
 		d.devCreds = app.NewDeviceCredentials(pg.Tokens(), clock)
@@ -284,20 +290,37 @@ func (d *deps) buildConfigPlane() error {
 		d.rollouts.WithNotifier(d.notify, cfg.OwnerGroups)
 	}
 	d.evidence = app.NewEvidenceService(svc, d.changes, clock)
-	d.background(func() { d.rollouts.Run(d.ctx, 30*time.Second) })
 	// Saving IS rolling out (Intune model, waves underneath): a merged change
 	// starts its own scoped delivery unless the org opted for manual runs.
 	app.WireAutoRollout(d.changes, d.rollouts, svc, d.notify, cfg.OwnerGroups, log)
+	var up *app.UpstreamService
 	if cfg.UpstreamRepo != "" {
-		up := app.NewUpstreamService(cfg.UpstreamRepo, git.RemoteHead, d.changes.Open,
+		up = app.NewUpstreamService(cfg.UpstreamRepo, git.RemoteHead, d.changes.Open,
 			st.Upstream(), log).WithNotifier(d.notify, cfg.OwnerGroups)
 		// Phase two needs the runner's nix: only a remote gate can compute
 		// the flake bump. With an in-process gate the CR stays a draft.
 		if rg, ok := gate.(*gateadapter.RemoteGate); ok {
 			up.WithDelivery(rg.BumpInput, d.changes.EditFile, d.changes.Submit, "dawo")
 		}
-		d.background(func() { up.Run(d.ctx, 30*time.Minute) })
-		log.Info("upstream watcher started", "repo", redactRemote(cfg.UpstreamRepo))
+		log.Info("upstream watcher configured", "repo", redactRemote(cfg.UpstreamRepo))
+	}
+	// The committing background workers (rollout ticker + upstream watcher)
+	// must run on exactly ONE replica or they would race to move ring
+	// branches and stage duplicate CRs. With Postgres present they run under a
+	// database advisory-lock leader election, so the app scales to N replicas;
+	// without it (single-node dev) they run directly.
+	workers := func(wctx context.Context) {
+		go d.rollouts.Run(wctx, 30*time.Second)
+		if up != nil {
+			up.Run(wctx, 30*time.Minute)
+			return
+		}
+		<-wctx.Done()
+	}
+	if d.pgStore != nil {
+		d.background(func() { d.pgStore.LeaderLoop(d.ctx, workersLockKey, log, workers) })
+	} else {
+		d.background(func() { workers(d.ctx) })
 	}
 	d.checks.Register("config-repo", func(context.Context) error {
 		_, err := repo.ReadFile(app.FleetFile)

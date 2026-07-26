@@ -5,8 +5,16 @@ metadata:
   labels: { app: {{ .Release.Name }} }
 spec:
   replicas: {{ .Values.replicaCount }}
+  {{- if gt (int .Values.replicaCount) 1 }}
+  {{- if .Values.persistence.enabled }}
+  {{- fail "replicaCount > 1 needs persistence.enabled: false - the overlay is a per-replica git clone (RWO PVC cannot be shared across replicas). Each replica clones the remote and syncs; the committing workers run under database leader election." }}
+  {{- end }}
   strategy:
-    type: Recreate # single writer on the overlay PVC
+    type: RollingUpdate # HA: each replica has its own overlay clone (emptyDir)
+  {{- else }}
+  strategy:
+    type: Recreate # single replica, PVC-backed overlay clone
+  {{- end }}
   selector:
     matchLabels: { app: {{ .Release.Name }} }
   template:
