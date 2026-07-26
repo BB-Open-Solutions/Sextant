@@ -225,6 +225,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 		"Title":      "Settings", "Nav": "settings",
 		"Scope": scope, "ScopeLabel": scopeLabel(scope),
 		"Groups": groups, "Devices": devices, "SelGroup": selGroup, "Sections": sections,
+		"Bundles":    bundleCards(cat, s.svc.Config.Bundles(), own, resolved),
 		"SecretRefs": secretRefs,
 		"IsDevice":   strings.HasPrefix(scope, "device:"),
 		"Empty":      len(cat.Entries) == 0,

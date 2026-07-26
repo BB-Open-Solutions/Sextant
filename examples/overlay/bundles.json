@@ -1,0 +1,15 @@
+[
+  {
+    "name": "secure-workplace",
+    "label": "Secure workplace",
+    "icon": "shield_person",
+    "description": "Harden a staff laptop in one step: Secure Boot on, the office suite installed, and a conservative SSH login limit. Apply it, then adjust anything below.",
+    "enable": "secureboot",
+    "settings": {
+      "secureboot": true,
+      "apps.office": true,
+      "ssh.maxAuthTries": 3
+    },
+    "exposed": ["ssh.maxAuthTries"]
+  }
+]

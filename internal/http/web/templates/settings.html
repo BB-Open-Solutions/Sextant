@@ -15,6 +15,55 @@
 {{end}}
 
 {{$ := .}}
+{{if .Bundles}}
+<!-- Capability bundles: one click turns on a capability plus its sensible
+     companions (Identity = SSSD login + matching hardening), leaving only the
+     real choices visible. Applying writes the bundle's settings at the current
+     scope through the normal gated save. -->
+<section class="mb-6">
+  <h2 class="mb-1 flex items-center gap-2 text-headline-sm text-ink"><span class="material-symbols-outlined text-mint-deep">apps</span>{{.L.T "bundles.title"}}</h2>
+  <p class="mb-3 max-w-2xl text-body-md text-text-tertiary">{{.L.T "bundles.intro"}}</p>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    {{range .Bundles}}
+    <div class="flex flex-col rounded-lg border border-border-hairline bg-canvas shadow-sm">
+      <div class="flex items-center justify-between gap-2 border-b border-border-hairline px-4 py-3">
+        <span class="flex min-w-0 items-center gap-2 font-semibold text-ink"><span class="material-symbols-outlined msz-20 text-text-secondary">{{if .Icon}}{{.Icon}}{{else}}extension{{end}}</span><span class="truncate">{{.Label}}</span></span>
+        {{if .On}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check</span>{{$.L.T "bundles.on"}}</span>{{end}}
+      </div>
+      {{with .Description}}<p class="mb-0 px-4 pt-3 text-body-sm text-text-secondary">{{.}}</p>{{end}}
+      {{if $.CanEdit}}
+      <form method="post" action="/settings/bundle/{{.Name}}/apply" class="!block p-4">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="scope" value="{{$.Scope}}">
+        {{range .Exposed}}
+        {{$sl := slug .Entry.Name}}
+        <div class="mb-3">
+          <label class="mb-1 block">{{if .Entry.Label}}{{.Entry.Label}}{{else}}{{.Entry.Name}}{{end}}</label>
+          {{if eq .Entry.Widget "toggle"}}
+            <div class="inline-flex items-center rounded-full border border-border-hairline bg-surface-container-low p-0.5 text-label-md">
+              <input type="radio" name="v:{{.Entry.Name}}" id="bf-{{$sl}}" value="false" {{if ne .Value "true"}}checked{{end}} class="peer/off sr-only">
+              <input type="radio" name="v:{{.Entry.Name}}" id="bn-{{$sl}}" value="true" {{if eq .Value "true"}}checked{{end}} class="peer/on sr-only">
+              <label for="bf-{{$sl}}" class="cursor-pointer rounded-full px-3 py-1 font-medium text-text-secondary peer-checked/off:bg-status-error peer-checked/off:text-white">{{$.L.T "common.off"}}</label>
+              <label for="bn-{{$sl}}" class="cursor-pointer rounded-full px-3 py-1 font-medium text-text-secondary peer-checked/on:bg-mint-vibrant peer-checked/on:text-ink">{{$.L.T "common.on"}}</label>
+            </div>
+          {{else if eq .Entry.Widget "select"}}
+            {{$cur := .Value}}<select name="v:{{.Entry.Name}}" class="w-full">{{range .Entry.Options}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
+          {{else if eq .Entry.Widget "number"}}
+            <input type="number" name="v:{{.Entry.Name}}" value="{{.Value}}" class="w-full">
+          {{else}}
+            <input name="v:{{.Entry.Name}}" value="{{.Value}}" class="w-full">
+          {{end}}
+        </div>
+        {{end}}
+        <button type="submit" class="w-full">{{if .On}}{{$.L.T "bundles.reapply"}}{{else}}{{$.L.T "bundles.apply"}}{{end}}</button>
+      </form>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
 <!-- The organisation is the root scope: it has no parent, so "inherit" reads as
      "default" there. -->
 {{$inhWord := .L.T "common.inherit"}}{{if eq .Scope "org"}}{{$inhWord = .L.T "settings.default_word"}}{{end}}

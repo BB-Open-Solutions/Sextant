@@ -45,6 +45,12 @@ const seedProfiles = `[
    "settings":{"desktop":"gnome","apps.office":true}}
 ]`
 
+const seedBundles = `[
+  {"name":"secure-workplace","label":"Secure workplace","enable":"apps.office",
+   "settings":{"apps.office":true,"desktop":"gnome","apps.retries":3},
+   "exposed":["apps.retries"]}
+]`
+
 // newConsole builds the console over a real temp git repo seeded with
 // fleet.json + catalog.json, dev sessions, allow-all gate.
 func newConsole(t *testing.T) (*httptest.Server, *app.ConfigService) {
@@ -67,7 +73,8 @@ func newConsoleWithGate(t *testing.T, gate ports.Gate) (*httptest.Server, *app.C
 	}
 	run("init", "-q", "-b", "main")
 	for name, body := range map[string]string{"fleet.json": seedFleet,
-		"catalog.json": seedCatalog, "profiles.json": seedProfiles} {
+		"catalog.json": seedCatalog, "profiles.json": seedProfiles,
+		"bundles.json": seedBundles} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
