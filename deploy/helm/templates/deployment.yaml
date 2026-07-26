@@ -90,11 +90,8 @@ spec:
             {{- if eq .Values.gateMode "remote" }}
             - --gate-url=http://{{ .Release.Name }}-gate:8090
             {{- end }}
-            {{- if and .Values.write (eq .Values.gateMode "none") }}
-            {{- if not .Values.allowUnvalidated }}
+            {{- if and .Values.write (eq .Values.gateMode "none") (not .Values.allowUnvalidated) }}
             {{- fail "gateMode: none with write: true commits unvalidated config to devices. Use gateMode: remote (recommended) or eval, or set allowUnvalidated: true for a deliberate dev/demo cell." }}
-            {{- end }}
-            - --allow-unvalidated
             {{- end }}
             {{- if .Values.gitRemote.url }}
             - --git-remote=origin
@@ -158,6 +155,11 @@ spec:
             {{- end }}
             {{- if .Values.releaseCache }}
             - { name: SEXTANT_RELEASE_CACHE, value: "true" }
+            {{- end }}
+            {{- if .Values.allowUnvalidated }}
+            # Acknowledge the unvalidated write path via env (not a flag) so an
+            # image predating the flag ignores it rather than failing to parse.
+            - { name: SEXTANT_ALLOW_UNVALIDATED, value: "true" }
             {{- end }}
             {{- with .Values.defaultLocale }}
             - { name: SEXTANT_DEFAULT_LOCALE, value: {{ . | quote }} }
