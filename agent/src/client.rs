@@ -5,6 +5,11 @@
 use serde::Serialize;
 use std::time::Duration;
 
+/// is_zero lets serde skip the ack timestamp when unset (0).
+fn is_zero(n: &i64) -> bool {
+    *n == 0
+}
+
 /// CheckIn mirrors the server's observed.CheckIn contract.
 #[derive(Serialize)]
 pub struct CheckIn<'a> {
@@ -19,6 +24,13 @@ pub struct CheckIn<'a> {
     pub tpm2: &'a str,
     #[serde(skip_serializing_if = "str::is_empty")]
     pub ack: &'a str,
+    /// ackNonce/ackTs echo the wipe replay nonce (design 0004) so the server
+    /// can confirm a wipe ack answers an instruction it issued recently. Set
+    /// only on a wipe ack; empty otherwise.
+    #[serde(rename = "ackNonce", skip_serializing_if = "str::is_empty")]
+    pub ack_nonce: &'a str,
+    #[serde(rename = "ackTs", skip_serializing_if = "is_zero")]
+    pub ack_ts: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facts: Option<&'a serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -31,8 +43,14 @@ pub enum Outcome {
     /// Accepted (204).
     Ok,
     /// Accepted, and the server returned a pending remote-action intent
-    /// (200 with an intent body) for the device to act on locally.
-    Intent(String),
+    /// (200 with an intent body) for the device to act on locally. A wipe
+    /// carries a signed nonce + issued-at second (design 0004): the agent
+    /// checks freshness and echoes them in its ack.
+    Intent {
+        intent: String,
+        nonce: Option<String>,
+        ts: Option<i64>,
+    },
     /// The device is retired (410): stop for good, a human must act.
     Retired,
     /// Credential rejected (401): keep trying, it may be re-issued.
@@ -73,7 +91,14 @@ impl Client {
                     if let Ok(doc) = resp.into_json::<serde_json::Value>() {
                         if let Some(intent) = doc.get("intent").and_then(|v| v.as_str()) {
                             if !intent.is_empty() {
-                                return Outcome::Intent(intent.to_string());
+                                return Outcome::Intent {
+                                    intent: intent.to_string(),
+                                    nonce: doc
+                                        .get("nonce")
+                                        .and_then(|v| v.as_str())
+                                        .map(str::to_string),
+                                    ts: doc.get("ts").and_then(|v| v.as_i64()),
+                                };
                             }
                         }
                     }
@@ -157,6 +182,8 @@ mod tests {
             sb: "",
             tpm2: "",
             ack: "",
+            ack_nonce: "",
+            ack_ts: 0,
             facts: None,
             usage: None,
         };

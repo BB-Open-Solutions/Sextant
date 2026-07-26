@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
@@ -37,6 +38,12 @@ type CheckinAPI struct {
 	// from this check-in's posture and ack. Best-effort: it runs after the
 	// report is stored and never fails the check-in. nil = no imaging plane.
 	provision func(ctx context.Context, c observed.CheckIn) error
+	// intentKey signs the wipe replay nonce (design 0004). Empty disables the
+	// guard (the by-construction property - intent is the direct response -
+	// still holds); set, it signs the wipe response and verifies the wipe ack.
+	intentKey []byte
+	// now is the clock, injectable for tests. nil defaults to time.Now.
+	now func() time.Time
 }
 
 // NewCheckin builds the check-in surface. Both auth sources are optional
@@ -58,6 +65,27 @@ func (c *CheckinAPI) WithIntent(intent func(ctx context.Context, tag string) str
 	return c
 }
 
+// WithIntentKey enables the wipe replay guard (design 0004): the wipe intent
+// is signed with this key and the wipe ack is verified against it. Empty
+// leaves the guard off.
+func (c *CheckinAPI) WithIntentKey(key []byte) *CheckinAPI {
+	c.intentKey = key
+	return c
+}
+
+// WithClock injects the clock (tests).
+func (c *CheckinAPI) WithClock(now func() time.Time) *CheckinAPI {
+	c.now = now
+	return c
+}
+
+func (c *CheckinAPI) clock() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+
 // WithProvision wires the provisioning-wizard advancement hook.
 func (c *CheckinAPI) WithProvision(provision func(ctx context.Context, c observed.CheckIn) error) *CheckinAPI {
 	c.provision = provision
@@ -74,6 +102,22 @@ func (c *CheckinAPI) Routes(mux *http.ServeMux) {
 type checkinBody struct {
 	observed.CheckIn
 	Facts json.RawMessage `json:"facts,omitempty"`
+	// AckNonce/AckTs echo the wipe replay nonce (design 0004) the device
+	// received with a wipe intent, so the server can verify a wipe ack is a
+	// response to an instruction it recently issued. Empty on ordinary beats
+	// and on non-wipe acks.
+	AckNonce string `json:"ackNonce,omitempty"`
+	AckTs    int64  `json:"ackTs,omitempty"`
+}
+
+// isWipeAck reports whether an ack reports a wipe outcome (executed, refused
+// or failed) - the acks the replay guard verifies.
+func isWipeAck(ack string) bool {
+	switch ack {
+	case observed.AckWipe, observed.AckWipeRefused, observed.AckWipeFailed:
+		return true
+	}
+	return false
 }
 
 func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
@@ -116,6 +160,19 @@ func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Replay guard (design 0004): a wipe ack is only trusted when it echoes a
+	// nonce this server signed recently. A forged or replayed wipe ack is
+	// dropped (the beat is still recorded, minus the unverified outcome) so it
+	// cannot masquerade as a real destructive-action result in the audit
+	// trail. Only enforced when the guard is keyed; other acks pass through.
+	if len(c.intentKey) > 0 && isWipeAck(in.Ack) {
+		// The nonce is signed over the "wipe" intent string; refused/failed
+		// acks echo that same nonce back.
+		if !verifyIntentNonce(c.intentKey, in.Tag, fleetIntentWipe, in.AckTs, c.clock().Unix(), in.AckNonce) {
+			in.Ack = "" // drop the unverified wipe outcome
+		}
+	}
+
 	if err := c.inv.CheckIn(r.Context(), in.CheckIn, in.Facts); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -131,9 +188,18 @@ func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
 	// A pending remote action rides back on the response (design 0004):
 	// the device acts on it locally and echoes an ack next beat. Because
 	// this is the direct response to THIS request, it cannot be replayed.
+	// The destructive wipe additionally carries a signed nonce + timestamp
+	// (the replay guard): the device echoes them in its ack so the server
+	// can confirm the ack answers an instruction it issued recently.
 	if c.intent != nil {
 		if action := c.intent(r.Context(), in.Tag); action != "" {
-			writeJSON(w, http.StatusOK, map[string]string{"intent": action})
+			body := map[string]any{"intent": action}
+			if action == fleetIntentWipe && len(c.intentKey) > 0 {
+				ts := c.clock().Unix()
+				body["nonce"] = signIntentNonce(c.intentKey, in.Tag, fleetIntentWipe, ts)
+				body["ts"] = ts
+			}
+			writeJSON(w, http.StatusOK, body)
 			return
 		}
 	}

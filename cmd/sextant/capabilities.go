@@ -7,6 +7,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -50,25 +52,26 @@ type deps struct {
 	log    *slog.Logger
 	checks *health.Registry
 
-	svc           *app.ConfigService
-	changes       *app.ChangeService
-	rollouts      *app.RolloutService
-	inv           *app.InventoryService
-	tokens        *app.TokenService
-	devCreds      *app.DeviceCredentials
-	discovery     *app.DiscoveryService
-	imaging       *app.ImagingService
-	staCreds      *app.StationCredentials
-	deviceSecrets *app.DeviceSecretsService
-	prefs         ports.PrefsStore
-	dir           ports.Directory
-	evidence      *app.EvidenceService
-	notify        *app.NotifyService
-	mail          *app.MailService
-	users         ports.UserDirectory
-	compliance    *app.ComplianceService
-	authz         api.Authz
-	cleanup       []func()
+	svc            *app.ConfigService
+	changes        *app.ChangeService
+	rollouts       *app.RolloutService
+	inv            *app.InventoryService
+	tokens         *app.TokenService
+	devCreds       *app.DeviceCredentials
+	discovery      *app.DiscoveryService
+	imaging        *app.ImagingService
+	staCreds       *app.StationCredentials
+	deviceSecrets  *app.DeviceSecretsService
+	intentNonceKey []byte
+	prefs          ports.PrefsStore
+	dir            ports.Directory
+	evidence       *app.EvidenceService
+	notify         *app.NotifyService
+	mail           *app.MailService
+	users          ports.UserDirectory
+	compliance     *app.ComplianceService
+	authz          api.Authz
+	cleanup        []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
 	// can wait for them to observe cancellation - they end in git commits, and
 	// cutting one mid-write is never acceptable.
@@ -163,6 +166,11 @@ func (d *deps) buildConfigPlane() error {
 	if err != nil {
 		return err
 	}
+	// The wipe replay-nonce key (design 0004) is domain-separated from the
+	// sealing key so the two uses of SEXTANT_SECRET_KEY never share raw key
+	// material. Empty SecretKey leaves the guard off (by-construction still
+	// holds); a malformed key already failed secretbox.New above.
+	d.intentNonceKey = deriveIntentKey(cfg.SecretKey)
 	openWT := func(dir string) (ports.ConfigRepo, error) { return git.Open(dir, "") }
 	d.changes = app.NewChangeService(repo, st.Changes(), gate, builder, clock, openWT, svc)
 
@@ -383,7 +391,8 @@ func (d *deps) observedCapability() capability.Capability {
 					}
 					return d.imaging.AdvanceFromDevice(ctx, c,
 						want("secureboot.enable"), want("diskUnlock.tpm2.enable"))
-				}).Routes(inner)
+				}).
+				WithIntentKey(d.intentNonceKey).Routes(inner)
 			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner))
 		},
 	}
@@ -521,4 +530,20 @@ type noConvergence struct{}
 
 func (noConvergence) RingStatus(context.Context, []string, string) (rollout.RingStatus, error) {
 	return rollout.RingStatus{}, fmt.Errorf("observed plane not configured, convergence unknown: %w", ports.ErrUnavailable)
+}
+
+// deriveIntentKey derives the wipe replay-nonce HMAC key from the base64
+// SEXTANT_SECRET_KEY, domain-separated from the sealing key so the two never
+// share raw material. Returns nil when no key is set (guard off) or the key
+// does not decode (secretbox.New already reported that at startup).
+func deriveIntentKey(b64 string) []byte {
+	if b64 == "" {
+		return nil
+	}
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil || len(raw) == 0 {
+		return nil
+	}
+	sum := sha256.Sum256(append([]byte("sextant-intent-nonce\x00"), raw...))
+	return sum[:]
 }

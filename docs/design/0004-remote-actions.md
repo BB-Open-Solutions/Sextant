@@ -1,7 +1,25 @@
 # Design 0004: remote actions - lock, cryptographic wipe
 
-Status: intent surface + lock BUILT; the DESTRUCTIVE wipe execution
-(LUKS erase in the root actd unit) is the only part deferred.
+Status: BUILT end to end, including the destructive wipe (LUKS erase in
+the root actd unit) and the replay guard.
+
+## Replay guard (implemented)
+
+The wipe intent rides back on the check-in response with a server-signed
+nonce + issued-at second: `nonce = HMAC(intentKey, tag|"wipe"|ts)`, keyed
+by a secret derived from `SEXTANT_SECRET_KEY` (domain-separated from the
+sealing key). Stateless - no stored per-device nonce - so it is HA-safe:
+any replica verifies with the same key. The agent acts on a wipe only
+when the timestamp is fresh (`now - ts` within [0, 15 min]) and echoes
+`ackNonce`/`ackTs` in its wipe ack; the server verifies the ack carries a
+nonce it signed within the window before recording the outcome, dropping
+a forged or replayed wipe ack. Only the destructive wipe is signed -
+lock/reboot/provision recur by design and stay unsigned. The
+by-construction property (intent is the direct HTTPS response to an
+authenticated check-in, no store-and-forward) remains the first line;
+the nonce is defence-in-depth and the audit-visible acceptance criterion.
+Server: internal/http/api/{intent_nonce,checkin}.go. Agent:
+agent/src/{client,main}.rs (freshness + echo). Tested both sides.
 
 Built (server + console + agent):
 - fleet.Device.Intent (lock|wipe) + SetDeviceIntent (wipe needs lock-
