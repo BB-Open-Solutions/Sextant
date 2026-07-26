@@ -22,7 +22,15 @@ replicaCount: 1
 secretName: sextant-v2
 
 write: true
-gateMode: none # none | eval (in-pod nix) | remote (delegate to gate-runner)
+# Validation gate. remote (recommended for any real deploy) delegates to the
+# gate-runner; eval runs in-pod nix (the console image ships none, so eval is
+# effectively dev-only); none commits WITHOUT validation. A write-enabled
+# console with gateMode: none refuses to start unless allowUnvalidated: true
+# is set explicitly - a bad fleet.json otherwise reaches devices.
+gateMode: none # none | eval | remote
+# allowUnvalidated acknowledges a deliberate no-gate write deploy (a demo /
+# dev cell). Never set this on a cell that manages real devices.
+allowUnvalidated: false
 
 # gate-runner: nix-capable validation gate for gateMode=remote. The console
 # image ships no nix; when enabled the runner evaluates the overlay generator

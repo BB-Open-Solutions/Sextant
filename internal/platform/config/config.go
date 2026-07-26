@@ -44,6 +44,13 @@ type Config struct {
 	// that requires authentication (GATE_TOKEN on the runner). Empty sends no
 	// Authorization header, for a runner that allows unauthenticated calls.
 	GateToken string
+	// AllowUnvalidated acknowledges running the WRITE path with no validation
+	// gate (GateMode "none"). Without it, --write + --gate none refuses to
+	// start: committing configuration unvalidated is a foot-gun in a real
+	// deployment (a bad fleet.json reaches devices). Local dev / tests set it
+	// explicitly (SEXTANT_ALLOW_UNVALIDATED=1); a read-only console never
+	// needs it.
+	AllowUnvalidated bool
 	// ReleaseCache enables build-before-promote (GateMode remote only): a
 	// ring's release is built into the runner's signed binary cache before its
 	// branch moves. Requires the runner's cache to be configured
@@ -148,6 +155,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 		GateMode:         envOr(getenv, "GATE", "eval"),
 		GateURL:          envOr(getenv, "GATE_URL", ""),
 		GateToken:        envOr(getenv, "GATE_TOKEN", ""),
+		AllowUnvalidated: envOr(getenv, "ALLOW_UNVALIDATED", "") == "true",
 		ReleaseCache:     envOr(getenv, "RELEASE_CACHE", "") == "true",
 		GitRemote:        envOr(getenv, "GIT_REMOTE", ""),
 		APIToken:         getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
@@ -219,6 +227,7 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 	fs.StringVar(&cfg.GateMode, "gate", cfg.GateMode, "validation gate: eval|remote|none")
 	fs.StringVar(&cfg.GateURL, "gate-url", cfg.GateURL, "gate-runner base URL (when --gate=remote)")
 	fs.StringVar(&cfg.GateToken, "gate-token", cfg.GateToken, "bearer token for the gate-runner (when --gate=remote)")
+	fs.BoolVar(&cfg.AllowUnvalidated, "allow-unvalidated", cfg.AllowUnvalidated, "acknowledge running the write path with --gate none (local dev only)")
 	fs.BoolVar(&cfg.ReleaseCache, "release-cache", cfg.ReleaseCache, "build releases into the runner's binary cache before ring promotion (when --gate=remote)")
 	fs.StringVar(&cfg.GitRemote, "git-remote", cfg.GitRemote, "push remote for the HA write path")
 	fs.StringVar(&cfg.StateDir, "state-dir", cfg.StateDir, "durable control-plane state dir (default <repo>/.sextant-state)")
@@ -275,7 +284,14 @@ func (c *Config) validate() error {
 		return fmt.Errorf("shutdown-grace must be positive")
 	}
 	switch c.GateMode {
-	case "eval", "none":
+	case "eval":
+	case "none":
+		// Fail-safe: a write-enabled console with no validation gate would
+		// commit configuration nothing checked, and a bad fleet.json reaches
+		// devices. Refuse unless explicitly acknowledged (local dev / tests).
+		if c.Write && !c.AllowUnvalidated {
+			return fmt.Errorf("refusing --write with --gate none: unvalidated commits reach devices; use --gate eval|remote, or acknowledge with --allow-unvalidated (SEXTANT_ALLOW_UNVALIDATED=1) for local dev")
+		}
 	case "remote":
 		if c.GateURL == "" {
 			return fmt.Errorf("gate remote requires --gate-url")

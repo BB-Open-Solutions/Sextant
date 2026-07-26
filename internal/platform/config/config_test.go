@@ -131,6 +131,12 @@ func TestInvalid(t *testing.T) {
 			"gate remote requires --gate-url",
 		},
 		{
+			"write with gate none unacknowledged",
+			[]string{"--write", "--repo", "/tmp/x", "--gate", "none"},
+			nil,
+			"refusing --write with --gate none",
+		},
+		{
 			"bad secure-cookies env",
 			nil,
 			map[string]string{"SEXTANT_SECURE_COOKIES": "maybe"},
@@ -194,6 +200,16 @@ func TestValid(t *testing.T) {
 		{
 			"dev-auth on loopback",
 			[]string{"--dev-auth", "--addr", "127.0.0.1:8080"},
+			nil,
+		},
+		{
+			"write + gate none acknowledged",
+			[]string{"--write", "--repo", "/tmp/x", "--gate", "none", "--allow-unvalidated"},
+			nil,
+		},
+		{
+			"read-only + gate none needs no acknowledgement",
+			[]string{"--gate", "none"},
 			nil,
 		},
 	}
