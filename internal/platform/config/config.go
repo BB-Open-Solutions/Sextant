@@ -66,8 +66,11 @@ type Config struct {
 	// APIToken guards /api/v1 (bearer). Environment-only (SEXTANT_API_TOKEN):
 	// secrets never appear on the command line. Empty disables the API.
 	APIToken string
-	// CheckinToken guards POST /api/checkin (device-facing, its own
-	// credential). Environment-only. Empty disables check-in.
+	// CheckinToken is the OPTIONAL shared bridge token for POST /api/checkin
+	// (device-facing). Environment-only. Per-device credentials authorize
+	// check-in on their own (api/checkin.go authorized); empty disables only
+	// the shared-token path, which is the hardened shape - a cell without
+	// this token has no fleet-wide check-in secret to steal.
 	CheckinToken string
 	// PgDSN connects the observed plane to Postgres. Environment-only
 	// (SEXTANT_PG_DSN, carries a password). Empty disables the observed
