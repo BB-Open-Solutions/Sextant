@@ -58,11 +58,15 @@ cache is on, the cache signing key. Never in git; provisioned via
 kubectl per the runbook's key table. Two deploy credentials per cell,
 both issued in the forge UI:
 
-- **device-read**: an SSH deploy key on the overlay repo (repo-scoped by
-  construction, no account behind it). Devices' comin pulls over ssh;
-  key + known_hosts reach the device via agenix (device-side wiring is
-  tracked separately; a cell without devices-over-ssh can start with an
-  HTTPS-readable repo).
+- **device-read**: a repo-scoped READ-ONLY access token, pulled over the
+  forge's public HTTPS ingress (the Intune model: the update channel is
+  always public TLS + a credential, never VPN- or SSH-dependent —
+  revised 2026-07-27 after finding the forge's SSH is cluster-internal
+  only). The token reaches devices as an agenix secret; comin's native
+  `remotes[].auth.access_token_path` consumes it
+  (overlay `sextant.console.overlayTokenSecret`). Revocable and
+  rotatable per fleet; per-device credentials for git would need a
+  token-issuing proxy - MSP-phase work.
 - **console-write**: a repository-limited access token (Forgejo:
   token restricted to exactly one repo, scope `write:repository`) on a
   per-cell machine account `sextant-<org>`. The console commits `main`
@@ -191,9 +195,9 @@ tenant field as defense in depth only).
 
 ## Open points
 
-- Device-side ssh wiring for private overlay repos (agenix key +
-  known_hosts + ssh:// repoUrl) - needed before the first
-  private-overlay cell with real devices; tracked as its own push.
+- Nicer core option for comin auth (`dawo.autoUpdate.options.
+  tokenSecret`) - today the overlay re-declares the comin remote with
+  auth (sextant-addon.nix); a fork-PR moves it into the core interface.
 - Prod NetworkPolicy retrofit for `apps/sextant` after the demo canary
   proves the rule set.
 - Forge driver + CLI: build when cell count or external operators make
