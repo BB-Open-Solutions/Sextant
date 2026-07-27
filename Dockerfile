@@ -13,7 +13,10 @@ COPY go.mod go.sum ./
 COPY vendor/ vendor/
 COPY cmd/ cmd/
 COPY internal/ internal/
-RUN CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/sextant ./cmd/sextant \
+# VERSION lands in sextant_build_info; pass the release tag:
+#   podman build --build-arg VERSION=<v> ...
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/sextant ./cmd/sextant \
  && CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/sxctl ./cmd/sxctl \
  && CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/fleetsim ./cmd/fleetsim
 

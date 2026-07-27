@@ -28,6 +28,10 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/server"
 )
 
+// version is the release identity shown in sextant_build_info. Injected at
+// image build time via -ldflags "-X main.version=..."; "dev" outside CI.
+var version = "dev"
+
 func main() {
 	if err := run(os.Args[1:], os.Getenv); err != nil {
 		fmt.Fprintln(os.Stderr, "sextant:", err)
@@ -55,7 +59,7 @@ func run(args []string, getenv config.Getenv) error {
 	mux.Handle("GET /status", checks.StatusPage())
 	mux.Handle("GET /metrics", m.Handler())
 
-	caps, cleanup, err := buildCapabilities(ctx, cfg, log, checks)
+	caps, cleanup, err := buildCapabilities(ctx, cfg, log, checks, m)
 	// Release anything already opened even when the build failed partway
 	// (buildCapabilities returns its partial cleanup on error).
 	for _, c := range cleanup {

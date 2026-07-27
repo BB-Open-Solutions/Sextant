@@ -41,6 +41,16 @@ type UpstreamService struct {
 	editFile  func(ctx context.Context, id, path string, content []byte, msg string, a ports.Author) error
 	submit    func(ctx context.Context, id string) (change.CR, error)
 	inputName string
+
+	// checked observes a completed check (metrics); nil-safe optional.
+	checked func(time.Time)
+}
+
+// WithCheckMetric records each completed check's time, so operators can
+// alert on a watcher that silently stopped (leader lost, forge down).
+func (s *UpstreamService) WithCheckMetric(f func(time.Time)) *UpstreamService {
+	s.checked = f
+	return s
 }
 
 // WithDelivery arms phase two: computing and staging the flake bump inside
@@ -163,6 +173,8 @@ func (s *UpstreamService) Run(ctx context.Context, every time.Duration) {
 		case <-t.C:
 			if err := s.CheckOnce(ctx); err != nil {
 				s.log.Warn("upstream check failed", "err", err)
+			} else if s.checked != nil {
+				s.checked(time.Now())
 			}
 		}
 	}

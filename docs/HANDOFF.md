@@ -107,8 +107,10 @@ and Bram says go.
 ## Deploy playbook (proven this session)
 
 1. bump deploy/helm/Chart.yaml + values.yaml, commit, push bbopen
-2. `podman build -q -t forgejo.bb-open.com/bb-open/sextant:<v> . &&
-   podman push ...` (watch disk: `podman image prune -f` if full)
+2. `podman build -q --build-arg VERSION=<v>
+   -t forgejo.bb-open.com/bb-open/sextant:<v> . && podman push ...`
+   (VERSION voedt sextant_build_info; watch disk: `podman image
+   prune -f` if full)
 3. platform repo apps/sextant/helmrelease.yaml tag -> `git push origin
    main` (NOT the github-mirror remote - that was a real trap)
 4. `flux reconcile source git flux-system -n flux-system` then

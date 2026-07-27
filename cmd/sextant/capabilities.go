@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/capability"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/config"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/health"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/metrics"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/secretbox"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -55,6 +57,7 @@ type deps struct {
 	cfg    *config.Config
 	log    *slog.Logger
 	checks *health.Registry
+	m      *metrics.Metrics
 
 	svc            *app.ConfigService
 	changes        *app.ChangeService
@@ -95,11 +98,11 @@ func (d *deps) background(fn func()) {
 
 // buildCapabilities wires the config plane and returns the registry list
 // plus cleanup functions (run at shutdown).
-func buildCapabilities(ctx context.Context, cfg *config.Config, log *slog.Logger, checks *health.Registry) ([]capability.Capability, []func(), error) {
+func buildCapabilities(ctx context.Context, cfg *config.Config, log *slog.Logger, checks *health.Registry, m *metrics.Metrics) ([]capability.Capability, []func(), error) {
 	if cfg.RepoDir == "" {
 		return nil, nil, nil // health/metrics-only deployment
 	}
-	d := &deps{ctx: ctx, cfg: cfg, log: log, checks: checks}
+	d := &deps{ctx: ctx, cfg: cfg, log: log, checks: checks, m: m}
 	if err := d.buildConfigPlane(); err != nil {
 		// Return whatever cleanup was already registered (e.g. an opened
 		// Postgres pool) so the caller can release it; a later failure in the
@@ -304,6 +307,30 @@ func (d *deps) buildConfigPlane() error {
 		}
 		log.Info("upstream watcher configured", "repo", redactRemote(cfg.UpstreamRepo))
 	}
+	// Operator metrics (design 0005, PII-free by construction): deployment
+	// identity, watcher liveness, rollout pressure. Rings read the shared
+	// store at scrape time so every replica reports the same truth.
+	if d.m != nil {
+		d.m.SetBuildInfo(version, strconv.Itoa(fleet.Version), cfg.GateMode)
+		rolloutStore := st.Rollouts()
+		d.m.RegisterActiveRings(func() float64 {
+			sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			rst, err := rolloutStore.Get(sctx)
+			if err != nil || rst == nil {
+				return 0
+			}
+			switch rst.Status {
+			case rollout.Completed, rollout.Cancelled:
+				return 0
+			}
+			return float64(len(rst.PromotedAt))
+		})
+		if up != nil {
+			up.WithCheckMetric(d.m.UpstreamChecked)
+		}
+	}
+
 	// The committing background workers (rollout ticker + upstream watcher)
 	// must run on exactly ONE replica or they would race to move ring
 	// branches and stage duplicate CRs. With Postgres present they run under a

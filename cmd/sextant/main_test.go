@@ -16,6 +16,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/config"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/health"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/logging"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/metrics"
 )
 
 // env builds a config.Getenv over a fixed map, the same injectable seam
@@ -39,7 +40,7 @@ func TestBuildCapabilitiesNoRepo(t *testing.T) {
 	log := logging.New(io.Discard, "text", "info")
 	checks := health.New(time.Second)
 
-	caps, cleanup, err := buildCapabilities(context.Background(), cfg, log, checks)
+	caps, cleanup, err := buildCapabilities(context.Background(), cfg, log, checks, metrics.New())
 	if err != nil {
 		t.Fatalf("buildCapabilities: %v", err)
 	}
