@@ -4,7 +4,7 @@
     <h1 class="mb-1">{{.L.T "nav.policies"}}</h1>
     <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "policies.intro"}}</p>
   </div>
-  {{if .CanOwn}}<div class="flex shrink-0 gap-2"><a href="#create-filter" class="btn quiet"><span class="material-symbols-outlined msz-18">add</span>{{.L.T "policies.create_filter"}}</a><a href="#create-policy" class="btn !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">add_circle</span>{{.L.T "policies.create_policy"}}</a></div>{{end}}
+  <div class="flex shrink-0 gap-2"><a href="/policies.csv" class="btn quiet"><span class="material-symbols-outlined msz-18">download</span>{{.L.T "policies.export_csv"}}</a>{{if .CanOwn}}<a href="#create-filter" class="btn quiet"><span class="material-symbols-outlined msz-18">add</span>{{.L.T "policies.create_filter"}}</a><a href="#create-policy" class="btn !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">add_circle</span>{{.L.T "policies.create_policy"}}</a>{{end}}</div>
 </div>
 
 {{if .Profiles}}
@@ -72,7 +72,8 @@
       </div>
       <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border-hairline px-5 py-3">
         <div class="flex flex-wrap items-center gap-1">
-          {{range .Assignments}}<span class="tag {{if not .Devices}}bad{{end}}" {{if not .Devices}}title="{{$.L.T "policies.assignment_zero_hint"}}"{{end}}>{{.Target}}{{with .Filter}} | {{.}}{{end}} · {{.Devices}} {{$.L.T "policies.devices_suffix"}}</span>{{else}}<span class="muted">{{$.L.T "policies.unassigned"}}</span>{{end}}
+          {{range .Assignments}}<span class="tag {{if not .Devices}}bad{{end}}" {{if not .Devices}}title="{{$.L.T "policies.assignment_zero_hint"}}"{{end}}>{{.Target}}{{with .Filter}} | {{.}}{{end}} · {{.Devices}} {{$.L.T "policies.devices_suffix"}}{{if .Behind}} <span class="text-status-warn" title="{{$.L.T "policies.behind_hint"}}">({{.Behind}} {{$.L.T "policies.behind_suffix"}})</span>{{end}}</span>{{else}}<span class="muted">{{$.L.T "policies.unassigned"}}</span>{{end}}
+          {{range .Controls}}<span class="tag" title="{{$.L.T "policies.control_hint"}}"><span class="material-symbols-outlined msz-14">verified_user</span>{{.}}</span>{{end}}
         </div>
         {{if $.CanOwn}}
         <details class="relative">
@@ -82,6 +83,7 @@
             <input name="description" value="{{.Description}}" placeholder="{{$.L.T "common.description"}}">
             <textarea name="settings" rows="4" placeholder="{{$.L.T "policies.settings_placeholder"}}">{{.SettingsText}}</textarea>
             <input name="enforced" value="{{.EnforcedText}}" placeholder="{{$.L.T "policies.locked_keys_placeholder"}}">
+            <input name="controls" value="{{.ControlsText}}" placeholder="{{$.L.T "policies.controls_placeholder"}}">
             <div class="flex gap-2"><button type="submit">{{$.L.T "common.save"}}</button><button type="submit" formaction="/policies/{{.ID}}/delete" class="quiet">{{$.L.T "common.delete"}}</button></div>
           </form>
         </details>
@@ -101,6 +103,7 @@
         <input name="description" placeholder="{{.L.T "common.description"}}">
         <textarea name="settings" rows="4" placeholder="apps.office = true&#10;desktop = plasma" required></textarea>
         <input name="enforced" placeholder="{{.L.T "policies.locked_keys_placeholder"}} ({{.L.T "common.optional"}})">
+        <input name="controls" placeholder="{{.L.T "policies.controls_placeholder"}} ({{.L.T "common.optional"}})">
         <div class="flex items-center gap-3"><button type="submit">{{.L.T "common.create"}}</button><span class="muted">{{.L.T "policies.per_line_pre"}} <code>key = value</code> {{.L.T "policies.per_line_post"}}</span></div>
       </form>
     </div>

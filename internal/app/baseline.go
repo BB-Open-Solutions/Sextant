@@ -101,7 +101,7 @@ func (j *BaselineJudge) Verdict(tag string, st StatusView, hasStatus bool) Basel
 	}
 	// Same judgement the incident detector uses: compare against the ring's
 	// pinned revision; a device following HEAD ("" target) cannot be behind.
-	if target := targetRevision(j.f, dev); hasStatus && target != "" && st.Revision != target {
+	if target := TargetRevision(j.f, dev); hasStatus && target != "" && st.Revision != target {
 		fails = append(fails, BaselineRevision)
 	}
 	return Baseline{Compliant: len(fails) == 0, Failures: fails}

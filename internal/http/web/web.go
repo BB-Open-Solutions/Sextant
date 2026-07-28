@@ -139,6 +139,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/groups", s.groupsPage)
 	get("/settings", s.settingsPage)
 	get("/policies", s.policies)
+	get("/policies.csv", s.policiesCSV)
 	get("/compliance", s.compliancePage)
 	get("/changes", s.changesPage)
 	// A change's home is the Updates board; old notification links and

@@ -1,24 +1,29 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 )
 
-func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
+func (s *Server) policies(w http.ResponseWriter, r *http.Request, v view) {
 	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 	profiles := s.svc.Config.Profiles()
+	behindOf := s.policyBehindCounter(r.Context(), f)
 	// arow is one assignment with its live reach, so a filter that excludes
 	// the whole target reads "0 devices" instead of silently applying to
-	// nothing.
+	// nothing. Behind counts reached devices not running their ring's pinned
+	// revision - the declarative twin of Intune's per-profile pending count.
 	type arow struct {
 		fleet.Assignment
 		Devices int
+		Behind  int
 	}
 	type prow struct {
 		ID, Description string
@@ -26,6 +31,8 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		SettingsText    string // editable key = value form
 		Enforced        []string
 		EnforcedText    string
+		Controls        []string
+		ControlsText    string
 		Assignments     []arow
 		Profile         string // source profile name, "" for hand-made
 		Drift           bool   // the overlay's profile moved past this stamp
@@ -38,7 +45,8 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		var asn []arow
 		for _, a := range f.Assignments {
 			if a.Policy == id {
-				asn = append(asn, arow{Assignment: a, Devices: len(f.AssignmentDevices(a))})
+				devs := f.AssignmentDevices(a)
+				asn = append(asn, arow{Assignment: a, Devices: len(devs), Behind: behindOf(devs)})
 			}
 		}
 		var lines []string
@@ -48,6 +56,7 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		row := prow{ID: id, Description: p.Description,
 			Settings: p.Settings, SettingsText: strings.Join(lines, "\n"),
 			Enforced: p.Enforced, EnforcedText: strings.Join(p.Enforced, ", "),
+			Controls: p.Controls, ControlsText: strings.Join(p.Controls, ", "),
 			Assignments: asn}
 		if name, _, ok := strings.Cut(p.Profile, "@"); ok {
 			row.Profile = name
@@ -111,6 +120,37 @@ func (s *Server) policies(w http.ResponseWriter, _ *http.Request, v view) {
 		"FilterAttrs":  []string{fleet.AttrTag, fleet.AttrClass, fleet.AttrHardware, fleet.AttrAssignedUser, fleet.AttrGroup},
 		"FilterValues": filterValueSuggestions(f),
 		"CanOwn":       v.roleAt("org").Meets(identity.Owner)}, v)
+}
+
+// policyBehindCounter returns a counter of reached devices that are not
+// running their ring's pinned revision (never-seen counts as behind; a
+// HEAD-following device cannot be judged and does not count). One status
+// fetch serves every assignment on the page.
+func (s *Server) policyBehindCounter(ctx context.Context, f *fleet.Fleet) func(tags []string) int {
+	statuses := map[string]app.StatusView{}
+	if s.svc.Inventory != nil {
+		all, _ := s.svc.Inventory.StatusAll(ctx)
+		for _, st := range all {
+			statuses[st.Tag] = st
+		}
+	}
+	return func(tags []string) int {
+		n := 0
+		for _, tag := range tags {
+			dev, ok := f.Devices[tag]
+			if !ok {
+				continue
+			}
+			target := app.TargetRevision(f, dev)
+			if target == "" {
+				continue
+			}
+			if st, has := statuses[tag]; !has || st.Revision != target {
+				n++
+			}
+		}
+		return n
+	}
 }
 
 // filterValueSuggestions collects the fleet's existing attribute values

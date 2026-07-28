@@ -226,6 +226,11 @@ type Policy struct {
 	// The console compares the hash against the overlay's current profile
 	// to surface drift. Provenance only - resolution ignores it.
 	Profile string `json:"profile,omitempty"`
+	// Controls names the compliance controls this policy implements
+	// ("BIO 12.3.1", "ISO 27002 8.9") - the auditor's cross-reference from
+	// framework to enforcement. Free-text annotations; resolution ignores
+	// them, the policies page and the audit export carry them.
+	Controls []string `json:"controls,omitempty"`
 }
 
 // Assignment binds one policy to one scope target, optionally narrowed by a

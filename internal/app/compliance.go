@@ -46,7 +46,7 @@ func (s *ComplianceService) Incidents(ctx context.Context) ([]incident.Incident,
 		o := incident.Observation{
 			Tag:    tag,
 			Group:  primaryGroup(dev),
-			Target: targetRevision(f, dev),
+			Target: TargetRevision(f, dev),
 		}
 		if st, ok := byTag[tag]; ok {
 			o.Deployed = st.Revision
@@ -71,10 +71,11 @@ func primaryGroup(dev fleet.Device) string {
 	return ""
 }
 
-// targetRevision is the pin the device is expected to run: the nearest pinned
+// TargetRevision is the pin the device is expected to run: the nearest pinned
 // group across its memberships (most specific first), or "" when it follows
-// HEAD and cannot be judged behind.
-func targetRevision(f *fleet.Fleet, dev fleet.Device) string {
+// HEAD and cannot be judged behind. Shared by the incident detector, the
+// baseline verdict (design 0008) and the policies coverage counts.
+func TargetRevision(f *fleet.Fleet, dev fleet.Device) string {
 	for _, g := range dev.Groups {
 		chain := f.GroupAncestry(g) // root -> specific
 		for i := len(chain) - 1; i >= 0; i-- {

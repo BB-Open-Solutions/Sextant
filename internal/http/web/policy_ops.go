@@ -71,8 +71,15 @@ func (s *Server) postPolicyPut(w http.ResponseWriter, r *http.Request, v view) e
 			enforced = append(enforced, k)
 		}
 	}
+	// Compliance-control annotations ("BIO 12.3.1"), comma-separated.
+	var controls []string
+	for _, c := range strings.Split(r.FormValue("controls"), ",") {
+		if c = strings.TrimSpace(c); c != "" {
+			controls = append(controls, c)
+		}
+	}
 	p := fleet.Policy{Description: strings.TrimSpace(r.FormValue("description")),
-		Settings: settings, Enforced: enforced}
+		Settings: settings, Enforced: enforced, Controls: controls}
 	// A form edit must not strip what the form does not carry: the label and
 	// the profile provenance survive hand edits, so the console keeps
 	// comparing an edited policy against its source profile.
