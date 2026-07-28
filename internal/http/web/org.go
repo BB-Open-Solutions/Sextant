@@ -23,10 +23,5 @@ func (s *Server) orgPage(w http.ResponseWriter, r *http.Request, v view) {
 		"Title": "Organisation", "Nav": "org",
 		"Locale":   s.defaultLocale,
 		"Timezone": s.defaultTZ,
-		// About block: the build identity (sextant_build_info's triple) so
-		// "what is this console running" is answerable without cluster access.
-		"Version":    s.buildVersion,
-		"FleetModel": s.fleetModel,
-		"GateMode":   s.gateMode,
 	}, v)
 }

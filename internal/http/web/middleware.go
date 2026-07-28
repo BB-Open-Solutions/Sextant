@@ -144,8 +144,6 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 	// The organisation IS the scope tree's root; templates show its name
 	// wherever a generic "root"/"organisation" would otherwise appear.
 	data["OrgName"] = s.orgName
-	// Build identity for the footer; "" (tests, unwired) hides it.
-	data["BuildVersion"] = s.buildVersion
 	// Org-wide pages (changes, rollout) refuse scoped viewers; hide the
 	// links instead of offering a door that only opens with a 403.
 	data["CanOrgView"] = v.canView("org")

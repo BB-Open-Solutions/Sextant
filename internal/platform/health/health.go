@@ -25,6 +25,17 @@ type Registry struct {
 	checks  map[string]Check
 	timeout time.Duration
 	log     *slog.Logger
+	// Build identity shown on the status page (sextant_build_info's
+	// triple). The page is unauthenticated by design, and so is this:
+	// version-only, no configuration detail beyond the gate mode.
+	version, fleetModel, gateMode string
+}
+
+// SetBuildInfo sets the identity the status page's About section shows.
+func (r *Registry) SetBuildInfo(version, fleetModel, gateMode string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.version, r.fleetModel, r.gateMode = version, fleetModel, gateMode
 }
 
 // New returns a Registry whose checks each get the given timeout per probe.
@@ -155,15 +166,21 @@ func (r *Registry) Readiness() http.Handler {
 func (r *Registry) StatusPage() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ready, results := r.Snapshot(req.Context())
+		r.mu.RLock()
+		version, fleetModel, gateMode := r.version, r.fleetModel, r.gateMode
+		r.mu.RUnlock()
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		if !ready {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 		_ = statusTmpl.Execute(w, struct {
-			Ready   bool
-			Results []CheckResult
-		}{ready, results})
+			Ready      bool
+			Results    []CheckResult
+			Version    string
+			FleetModel string
+			GateMode   string
+		}{ready, results, version, fleetModel, gateMode})
 	})
 }
 
@@ -194,5 +211,15 @@ var statusTmpl = template.Must(template.New("status").Parse(`<!DOCTYPE html>
     </div>
     {{else}}<div class="px-5 py-4 text-text-tertiary">No checks registered.</div>{{end}}
   </div>
+  {{if .Version}}
+  <div class="mt-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
+    <div class="border-b border-border-soft px-5 py-3 text-label-xs-caps uppercase text-text-tertiary">About this console</div>
+    <div class="flex flex-wrap gap-x-8 gap-y-2 px-5 py-4 text-body-md">
+      <div><span class="text-text-tertiary">Release</span> <span class="ml-1 font-mono text-ink">{{.Version}}</span></div>
+      <div><span class="text-text-tertiary">Fleet model</span> <span class="ml-1 font-mono text-ink">{{.FleetModel}}</span></div>
+      <div><span class="text-text-tertiary">Validation gate</span> <span class="ml-1 font-mono text-ink">{{.GateMode}}</span></div>
+    </div>
+  </div>
+  {{end}}
   <p class="mt-6 text-label-md text-text-tertiary"><a href="/" class="text-secondary">Back to Sextant</a> - machine-readable at <a href="/readyz" class="text-secondary">/readyz</a></p>
 </div></body></html>`))
