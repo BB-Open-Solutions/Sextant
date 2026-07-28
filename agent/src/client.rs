@@ -63,10 +63,11 @@ pub enum Outcome {
     Transient(String),
 }
 
-/// Client posts check-ins.
+/// Client posts check-ins and diagnostics uploads.
 pub struct Client {
     agent: ureq::Agent,
     url: String,
+    base_url: String,
     credential: String,
 }
 
@@ -77,7 +78,28 @@ impl Client {
                 .timeout(Duration::from_secs(15))
                 .build(),
             url: format!("{base_url}/api/checkin"),
+            base_url: base_url.to_string(),
             credential: credential.to_string(),
+        }
+    }
+
+    /// upload_diagnostics posts the collected bundle (design 0010). Returns
+    /// true only on a 2xx - the caller deletes the local copy on that, so a
+    /// down console means retry next beat, never a lost bundle.
+    pub fn upload_diagnostics(&self, tag: &str, bundle: &[u8]) -> bool {
+        let url = format!("{}/api/device/{}/diagnostics", self.base_url, tag);
+        match self
+            .agent
+            .post(&url)
+            .set("Authorization", &format!("Bearer {}", self.credential))
+            .set("Content-Type", "application/gzip")
+            .send_bytes(bundle)
+        {
+            Ok(_) => true,
+            Err(e) => {
+                eprintln!("sextant-agent: diagnostics upload failed: {e}");
+                false
+            }
         }
     }
 

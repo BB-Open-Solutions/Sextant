@@ -35,6 +35,12 @@ pub fn react(root: &Path, intent: &str) {
             // root executor performs the reboot, the agent only records the request.
             spool(root, "reboot");
         }
+        "diagnostics" => {
+            // Bounded diagnostics collection (design 0010): the root executor
+            // gathers a fixed set (journal tail, failed units), never
+            // arbitrary commands; the agent uploads the resulting bundle.
+            spool(root, "diagnostics");
+        }
         "provision" => {
             // Provisioning-ceremony step (wizard): the root executor advances
             // whatever is possible right now - enrol Secure Boot platform keys
@@ -69,6 +75,26 @@ const ACK_FILE: &str = "/var/lib/sextant-agent/action.ack";
 /// state directory - only this agent user and root can reach the file, and
 /// it exists only for the enroll-to-confirm window.
 const RECOVERY_FILE: &str = "/var/lib/sextant-agent/recovery.key";
+
+/// DIAG_FILE is where the root executor leaves the collected diagnostics
+/// bundle (gzip, design 0010) for the agent to upload. One-shot like the
+/// recovery key: deleted only after the server confirmed receipt.
+const DIAG_FILE: &str = "/var/lib/sextant-agent/diagnostics.gz";
+
+/// pending_diagnostics returns the bundle awaiting upload, if any.
+pub fn pending_diagnostics(root: &Path) -> Option<Vec<u8>> {
+    let bundle = fs::read(root.join(DIAG_FILE.trim_start_matches('/'))).ok()?;
+    if bundle.is_empty() {
+        None
+    } else {
+        Some(bundle)
+    }
+}
+
+/// clear_diagnostics deletes the local bundle after a confirmed upload.
+pub fn clear_diagnostics(root: &Path) {
+    let _ = fs::remove_file(root.join(DIAG_FILE.trim_start_matches('/')));
+}
 
 /// pending_recovery_key returns the recovery key awaiting escrow, if any.
 pub fn pending_recovery_key(root: &Path) -> Option<String> {

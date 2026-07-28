@@ -38,11 +38,14 @@ type Services struct {
 	Imaging   *app.ImagingService
 	// DeviceSecrets seals/reveals per-device secrets (LUKS, break-glass admin).
 	DeviceSecrets *app.DeviceSecretsService
-	StationCreds  *app.StationCredentials
-	Notify        *app.NotifyService
-	Mail          *app.MailService
-	Users         ports.UserDirectory
-	Compliance    *app.ComplianceService
+	// Diagnostics serves sealed diagnostics bundles (design 0010); nil when
+	// unavailable or killed by SEXTANT_DISABLE_DIAGNOSTICS.
+	Diagnostics  *app.DiagnosticsService
+	StationCreds *app.StationCredentials
+	Notify       *app.NotifyService
+	Mail         *app.MailService
+	Users        ports.UserDirectory
+	Compliance   *app.ComplianceService
 }
 
 // Server renders the console.
@@ -183,6 +186,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/devices/{tag}/posture", s.postDevicePosture)
 	post("/devices/{tag}/intent", s.postDeviceIntent)
 	post("/devices/{tag}/intent/clear", s.postDeviceIntentClear)
+	get("/devices/{tag}/diagnostics", s.deviceDiagnostics)
 	post("/devices/{tag}/secret/{kind}/reveal", s.postSecretReveal)
 	post("/devices/{tag}/retire", s.postDeviceRetire)
 	post("/devices/{tag}/reactivate", s.postDeviceReactivate)

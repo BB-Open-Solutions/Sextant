@@ -13,6 +13,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/secret"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/secretbox"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
 // escrowStore is a minimal in-memory ports.DeviceSecretStore.
@@ -58,7 +59,7 @@ func (s *escrowStore) MarkRevealed(_ context.Context, _, tag string, kind secret
 	return nil
 }
 
-func escrowService(t *testing.T, store *escrowStore) *app.DeviceSecretsService {
+func escrowSealer(t *testing.T) secretbox.Sealer {
 	t.Helper()
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
@@ -68,7 +69,49 @@ func escrowService(t *testing.T, store *escrowStore) *app.DeviceSecretsService {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return app.NewDeviceSecretsService(store, sealer, fixedClock{time.Now()}, "")
+	return sealer
+}
+
+func escrowService(t *testing.T, store *escrowStore) *app.DeviceSecretsService {
+	t.Helper()
+	return app.NewDeviceSecretsService(store, escrowSealer(t), fixedClock{time.Now()}, "")
+}
+
+// memDiagStoreAPI is a minimal in-memory ports.DiagnosticsStore.
+type memDiagStoreAPI struct {
+	ciph    map[string][]byte
+	created map[string]time.Time
+}
+
+func newMemDiagStoreAPI() *memDiagStoreAPI {
+	return &memDiagStoreAPI{ciph: map[string][]byte{}, created: map[string]time.Time{}}
+}
+
+func (s *memDiagStoreAPI) Put(_ context.Context, _, tag string, ciphertext []byte, now time.Time) error {
+	s.ciph[tag], s.created[tag] = ciphertext, now
+	return nil
+}
+
+func (s *memDiagStoreAPI) Get(_ context.Context, _, tag string) ([]byte, ports.DiagnosticsMeta, bool, error) {
+	c, ok := s.ciph[tag]
+	if !ok {
+		return nil, ports.DiagnosticsMeta{}, false, nil
+	}
+	return c, ports.DiagnosticsMeta{Tag: tag, Size: len(c), Created: s.created[tag]}, true, nil
+}
+
+func (s *memDiagStoreAPI) Meta(_ context.Context, _, tag string) (ports.DiagnosticsMeta, bool, error) {
+	c, ok := s.ciph[tag]
+	if !ok {
+		return ports.DiagnosticsMeta{}, false, nil
+	}
+	return ports.DiagnosticsMeta{Tag: tag, Size: len(c), Created: s.created[tag]}, true, nil
+}
+
+func (s *memDiagStoreAPI) Delete(_ context.Context, _, tag string) error {
+	delete(s.ciph, tag)
+	delete(s.created, tag)
+	return nil
 }
 
 // A check-in carrying a provisioning-minted recovery key (design 0009) is
@@ -126,6 +169,61 @@ func TestCheckinRecoveryKeyWithoutStoreIsNotAcked(t *testing.T) {
 	}
 	if resp.Header.Get("X-Recovery-Key-Stored") != "" {
 		t.Fatal("no store configured, yet the server claimed to have sealed the key")
+	}
+}
+
+// The diagnostics upload (design 0010) shares the device credential, seals
+// via the service and answers 503 without a store so the device retries.
+func TestDeviceDiagnosticsUpload(t *testing.T) {
+	fo := newFakeObserved()
+	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
+	store := newMemDiagStoreAPI()
+	diag := app.NewDiagnosticsService(store, escrowSealer(t), fixedClock{time.Now()}, "")
+	mux := http.NewServeMux()
+	NewCheckin(inv, nil, "tok").WithDiagnostics(diag).Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	do := func(auth, body string) *http.Response {
+		req, _ := http.NewRequest("POST", srv.URL+"/api/device/lt-1/diagnostics", strings.NewReader(body))
+		if auth != "" {
+			req.Header.Set("Authorization", "Bearer "+auth)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+
+	if resp := do("", "gz"); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("no auth: %d, want 401", resp.StatusCode)
+	}
+	if resp := do("tok", ""); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty body: %d, want 400", resp.StatusCode)
+	}
+	if resp := do("tok", "gzip-bundle-bytes"); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("upload: %d, want 204", resp.StatusCode)
+	}
+	if raw := string(store.ciph["lt-1"]); raw == "" || strings.Contains(raw, "gzip-bundle-bytes") {
+		t.Fatal("bundle stored empty or as plaintext - must be sealed")
+	}
+
+	// Without a wired store the endpoint answers 503 (device retries).
+	mux2 := http.NewServeMux()
+	NewCheckin(inv, nil, "tok").Routes(mux2)
+	srv2 := httptest.NewServer(mux2)
+	t.Cleanup(srv2.Close)
+	req, _ := http.NewRequest("POST", srv2.URL+"/api/device/lt-1/diagnostics", strings.NewReader("gz"))
+	req.Header.Set("Authorization", "Bearer tok")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("storeless upload: %d, want 503", resp.StatusCode)
 	}
 }
 

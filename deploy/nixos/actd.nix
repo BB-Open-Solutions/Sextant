@@ -48,6 +48,7 @@ let
       pkgs.gawk
       pkgs.gnugrep
       pkgs.e2fsprogs # chattr: strip the kernel's immutable flag off efivars
+      pkgs.gzip # diagnostics bundle compression (design 0010)
     ];
     # The wipe gates (armWipe, allowUnlockedWipe, poweroffAfterWipe) are
     # resolved at build time into DIFFERENT emitted bash, rather than compared
@@ -197,6 +198,35 @@ let
         # Otherwise: waiting on a firmware step (or nothing applies). No ack -
         # the console keeps showing the operator instruction; the agent
         # re-spools next beat while the intent stands.
+      fi
+
+      # diagnostics: bounded support bundle (design 0010). A FIXED collector
+      # set - journal tails and unit state, never arbitrary commands; the cap
+      # keeps the gzip well under the server's 4MiB limit, newest entries win
+      # (tail). Root-written into the agent's 0700 state dir; the agent
+      # uploads and deletes it once the server confirms receipt.
+      if [ -e "$spool/diagnostics.intent" ]; then
+        rm -f "$spool/diagnostics.intent" || true
+        echo "sextant-actd: diagnostics intent - collecting bounded bundle"
+        diagFile="/var/lib/sextant-agent/diagnostics.gz"
+        diagTmp="$(mktemp)"
+        {
+          echo "== sextant diagnostics, collected $(date -u +%FT%TZ)"
+          echo "== truncation: journal sections are tail -c bounded, newest entries win"
+          echo "== failed units"
+          systemctl --failed --no-pager 2>&1 || true
+          echo "== sextant-agent unit log (current boot, tail)"
+          journalctl -b -u sextant-agent --no-pager -o short-iso 2>&1 | tail -c 262144 || true
+          echo "== journal (current boot, tail)"
+          journalctl -b --no-pager -o short-iso 2>&1 | tail -c 3145728 || true
+        } > "$diagTmp" || true
+        if gzip -c "$diagTmp" > "$diagFile"; then
+          writeAck diagnostics
+        else
+          echo "sextant-actd: diagnostics collection failed" >&2
+          writeAck diagnostics-failed
+        fi
+        rm -f "$diagTmp" || true
       fi
 
       # wipe: destructive, heavily gated.

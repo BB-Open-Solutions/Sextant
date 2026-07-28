@@ -24,12 +24,14 @@ func SetDeviceIntent(tag, intent string, force bool) Mutation {
 			// idempotent-safe: re-arming lock is fine.
 		case IntentReboot:
 			// Non-destructive one-shot; safe to (re-)arm during provisioning.
+		case IntentDiagnostics:
+			// Non-destructive fixed-set collection (design 0010).
 		case IntentWipe:
 			if d.Intent != IntentLock && !force {
 				return fmt.Errorf("wipe requires the device to be locked first (or force)")
 			}
 		default:
-			return fmt.Errorf("unknown intent %q (lock|reboot|wipe)", intent)
+			return fmt.Errorf("unknown intent %q (lock|reboot|wipe|diagnostics)", intent)
 		}
 		d.Intent = intent
 		f.Devices[tag] = d

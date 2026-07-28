@@ -12,19 +12,24 @@ import (
 // lock or wipe is org-owner reach; wipe demands a typed confirmation (the
 // device tag) so a mis-click cannot destroy a machine.
 
-// postDeviceIntent arms lock, reboot or wipe from the console. Reboot is
-// non-destructive (a provisioning convenience) so it is Editor reach; lock and
-// wipe stay org-owner.
+// postDeviceIntent arms lock, reboot, wipe or diagnostics from the console.
+// Reboot and diagnostics are non-destructive so they are Editor reach; lock
+// and wipe stay org-owner.
 func (s *Server) postDeviceIntent(w http.ResponseWriter, r *http.Request, v view) error {
 	tag := r.PathValue("tag")
 	intent := r.FormValue("intent")
 	force := r.FormValue("force") != ""
 	role := identity.Owner
-	if intent == fleet.IntentReboot {
+	if intent == fleet.IntentReboot || intent == fleet.IntentDiagnostics {
 		role = identity.Editor
 	}
 	if err := s.requireWeb(v, "org", role); err != nil {
 		return err
+	}
+	// Deployment kill switch (design 0010): a tenant that forbids log
+	// collection cannot even request it.
+	if intent == fleet.IntentDiagnostics && s.svc.Diagnostics == nil {
+		return fmt.Errorf("diagnostics collection is disabled in this deployment")
 	}
 	// Wipe is irreversible: require the operator to type the tag exactly.
 	if intent == fleet.IntentWipe && r.FormValue("confirm") != tag {

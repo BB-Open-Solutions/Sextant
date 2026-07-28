@@ -155,6 +155,10 @@ const (
 	// IntentWipe: cryptographically erase the device (destroy LUKS keys).
 	// Irreversible; requires the device to be locked first (or force).
 	IntentWipe = "wipe"
+	// IntentDiagnostics: collect a bounded diagnostics bundle (journal tail,
+	// failed units) and upload it for support (design 0010). Non-destructive;
+	// the executor collects a fixed set, never arbitrary commands.
+	IntentDiagnostics = "diagnostics"
 	// IntentReboot: reboot the device once. Used during the provisioning wizard
 	// so an operator can restart a laptop from the console to reach its BIOS for
 	// a Secure Boot / TPM2 firmware step, without walking to the machine to

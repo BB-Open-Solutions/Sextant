@@ -363,6 +363,16 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	if !d.Retired() {
 		data["Baseline"] = app.NewBaselineJudge(f, s.svc.Config.Profiles()).Verdict(tag, st, hasSt)
 	}
+	// Diagnostics (design 0010): the request button and, when a bundle
+	// exists (and is within retention), its download row.
+	if s.svc.Diagnostics != nil {
+		data["DiagEnabled"] = true
+		if meta, ok, err := s.svc.Diagnostics.Meta(r.Context(), tag); err != nil {
+			s.log.Warn("diagnostics meta", "tag", tag, "err", err)
+		} else if ok {
+			data["DiagMeta"] = meta
+		}
+	}
 	// Attention: the incidents raised for this device (scoped to the viewer).
 	var devInc []incidentRow
 	for _, in := range s.scopedIncidents(r, v, nil) {

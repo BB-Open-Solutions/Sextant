@@ -105,6 +105,10 @@ const (
 	AckSBEnrollFailed   = "sb-enroll-failed"   // sbctl enroll-keys failed
 	AckTPM2Enrolled     = "tpm2-enrolled"      // LUKS keyslot sealed to the TPM2 (PCR 7)
 	AckTPM2EnrollFailed = "tpm2-enroll-failed" // systemd-cryptenroll failed
+
+	// Diagnostics collection outcomes (design 0010).
+	AckDiagnostics       = "diagnostics"        // bundle collected; upload follows
+	AckDiagnosticsFailed = "diagnostics-failed" // collection failed on the device
 )
 
 // Validate rejects malformed check-ins before they reach storage.

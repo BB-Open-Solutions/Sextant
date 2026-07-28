@@ -76,6 +76,15 @@ fn main() -> ExitCode {
             _ => ("", 0),
         };
         let usage = collect::collect_usage();
+        // A collected diagnostics bundle (design 0010) uploads BEFORE the
+        // check-in: the standing intent clears on the ack this beat carries,
+        // and the upload should not race that clear. Deleted only on a
+        // confirmed 2xx, so a down console means retry, never loss.
+        if let Some(bundle) = action::pending_diagnostics(&posture::default_root()) {
+            if client.upload_diagnostics(&cfg.tag, &bundle) {
+                action::clear_diagnostics(&posture::default_root());
+            }
+        }
         // A provisioning-minted LUKS recovery key rides along until the
         // server confirms sealing it (design 0009); the local copy is
         // deleted only on that confirmation, never on a bare 2xx.

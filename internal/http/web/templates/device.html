@@ -333,6 +333,29 @@
     </div>
   </div>
 
+  {{if and .CanEdit (not .Retired) .DiagEnabled}}
+  <!-- Diagnostics on demand (design 0010): operator-requested, bounded,
+       short-lived. The device collects a fixed set on its next check-in. -->
+  <div class="mt-2 flex flex-col gap-3 rounded-lg border border-border-hairline bg-canvas p-6">
+    <h3 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-20 text-mint-deep">bug_report</span>{{.L.T "device.diag_title"}}</h3>
+    <p class="mb-0 text-body-sm text-text-tertiary">{{.L.T "device.diag_desc"}}</p>
+    {{with .DiagMeta}}
+    <p class="mb-0 flex items-center gap-2 text-body-md">
+      <a href="/devices/{{$.Tag}}/diagnostics" class="inline-flex items-center gap-1"><span class="material-symbols-outlined msz-18">download</span>{{$.L.T "device.diag_download"}}</a>
+      <span class="text-text-tertiary">{{.Created.Format "2006-01-02 15:04"}} UTC · {{.Size}} B</span>
+    </p>
+    {{end}}
+    {{if eq .Intent "diagnostics"}}
+    <p class="mb-0 text-body-sm text-text-secondary">{{.L.T "device.diag_requested"}}</p>
+    {{else if not .Intent}}
+    <form method="post" action="/devices/{{.Tag}}/intent" class="!m-0" data-confirm="{{.L.T "device.diag_confirm"}}">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="diagnostics">
+      <button type="submit" class="quiet">{{.L.T "device.diag_request"}}</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+
   {{if .CanOwn}}
   {{if not .Retired}}
   <!-- Red zone -->

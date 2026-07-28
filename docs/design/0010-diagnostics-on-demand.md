@@ -1,7 +1,19 @@
 # 0010 - Diagnostics on demand
 
-Status: draft for review. Decided 1.0-blocking 2026-07-28
+Status: BUILT (2026-07-28). Decided 1.0-blocking the same day
 (`docs/1.0-fit-gap.md` 5b).
+
+Build notes (deviations from the draft below):
+- The kill switch is deployment-level (`SEXTANT_DISABLE_DIAGNOSTICS=true`
+  leaves the service entirely unwired: no request button, upload answers
+  503), not an in-console org toggle - a tenant-forbidden feature should
+  not be one console click from returning. Revisit if a hosted multi-org
+  cell ever needs per-org granularity.
+- The bundle uploads BEFORE the check-in that carries the collection ack,
+  so the intent's structural clear cannot race the upload; the device
+  deletes its copy only on a confirmed 2xx.
+- Retention is enforced on every read (expired = deleted on sight), no
+  sweeper process.
 
 ## Problem
 

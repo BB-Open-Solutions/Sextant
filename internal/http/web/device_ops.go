@@ -59,6 +59,11 @@ func (s *Server) postDeviceRetire(w http.ResponseWriter, r *http.Request, v view
 			s.log.Warn("device retired but credential revoke failed", "tag", tag, "err", err)
 		}
 	}
+	// A retired device's diagnostics bundle is support material for a live
+	// machine - delete it with the retirement (design 0010).
+	if err := s.svc.Diagnostics.Delete(r.Context(), tag); err != nil {
+		s.log.Warn("device retired but diagnostics delete failed", "tag", tag, "err", err)
+	}
 	redirectToDevice(w, r, tag)
 	return nil
 }

@@ -122,6 +122,28 @@ type PrefsStore interface {
 	PutPrefs(ctx context.Context, tenant, subject string, p identity.Preferences, now time.Time) error
 }
 
+// DiagnosticsMeta is the non-secret record of a stored diagnostics bundle.
+type DiagnosticsMeta struct {
+	Tag     string
+	Size    int // sealed size in bytes (close enough for display)
+	Created time.Time
+}
+
+// DiagnosticsStore persists at most one sealed diagnostics bundle per device
+// (design 0010). Like the device-secret store it only ever holds ciphertext;
+// the application layer seals and opens. Retention is enforced by the
+// application (bundles are short-lived support material, not records).
+type DiagnosticsStore interface {
+	// Put stores (or replaces) the device's sealed bundle.
+	Put(ctx context.Context, tenant, tag string, ciphertext []byte, now time.Time) error
+	// Get returns the sealed bundle and metadata, or ok=false.
+	Get(ctx context.Context, tenant, tag string) (ciphertext []byte, meta DiagnosticsMeta, ok bool, err error)
+	// Meta returns only the metadata (no ciphertext transfer), or ok=false.
+	Meta(ctx context.Context, tenant, tag string) (DiagnosticsMeta, bool, error)
+	// Delete removes the device's bundle (retention sweep, retire).
+	Delete(ctx context.Context, tenant, tag string) error
+}
+
 // DeviceSecretStore persists per-device secrets encrypted-at-rest, keyed
 // (tenant, tag, kind). The store never sees plaintext - it holds the sealed
 // ciphertext the application layer produces (AES-256-GCM) - and records who

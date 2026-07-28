@@ -69,6 +69,7 @@ type deps struct {
 	imaging        *app.ImagingService
 	staCreds       *app.StationCredentials
 	deviceSecrets  *app.DeviceSecretsService
+	diagnostics    *app.DiagnosticsService
 	intentNonceKey []byte
 	syntax         web.SyntaxChecker
 	pgStore        *postgres.Store
@@ -208,6 +209,11 @@ func (d *deps) buildConfigPlane() error {
 		d.imaging = app.NewImagingService(pg.ImageJobs(), clock, app.DefaultTenant)
 		d.staCreds = app.NewStationCredentials(pg.Tokens(), clock)
 		d.deviceSecrets = app.NewDeviceSecretsService(pg.DeviceSecrets(), sealer, clock, app.DefaultTenant)
+		// Diagnostics bundles (design 0010) share the secretbox and Postgres;
+		// the deployment kill switch leaves the service unwired entirely.
+		if !cfg.DisableDiagnostics {
+			d.diagnostics = app.NewDiagnosticsService(pg.Diagnostics(), sealer, clock, app.DefaultTenant)
+		}
 		d.prefs = pg
 		// In-app notifications need durable storage, so they light up only with
 		// Postgres. The change flow then tells approvers a change is ready and
@@ -433,6 +439,18 @@ func (d *deps) observedCapability() capability.Capability {
 							d.log.Warn("could not clear completed reboot intent", "tag", c.Tag, "err", err)
 						}
 					}
+					// Same structural clear for a completed (or failed)
+					// diagnostics collection: the outcome is acked, the
+					// standing intent must not re-trigger it next beat.
+					if (c.Ack == observed.AckDiagnostics || c.Ack == observed.AckDiagnosticsFailed) &&
+						d.svc.Fleet().Devices[c.Tag].Intent == fleet.IntentDiagnostics {
+						if err := d.svc.ApplyStructural(ctx,
+							fleet.ClearDeviceIntent(c.Tag),
+							"intent: diagnostics completed on "+c.Tag,
+							ports.Author{Name: "sextant-agent", Email: "agent@sextant"}); err != nil {
+							d.log.Warn("could not clear completed diagnostics intent", "tag", c.Tag, "err", err)
+						}
+					}
 					if d.imaging == nil {
 						return nil
 					}
@@ -449,6 +467,7 @@ func (d *deps) observedCapability() capability.Capability {
 				}).
 				WithIntentKey(d.intentNonceKey).
 				WithDeviceSecrets(d.deviceSecrets).
+				WithDiagnostics(d.diagnostics).
 				WithLog(d.log).Routes(inner)
 			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner))
 		},
@@ -541,8 +560,8 @@ func (d *deps) consoleCapability() capability.Capability {
 					Inventory: d.inv, Tokens: d.tokens, Prefs: d.prefs,
 					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence,
 					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds,
-					DeviceSecrets: d.deviceSecrets,
-					Notify:        d.notify, Mail: d.mail, Users: d.users, Compliance: d.compliance},
+					DeviceSecrets: d.deviceSecrets, Diagnostics: d.diagnostics,
+					Notify: d.notify, Mail: d.mail, Users: d.users, Compliance: d.compliance},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {

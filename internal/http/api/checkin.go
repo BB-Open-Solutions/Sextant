@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -48,6 +49,8 @@ type CheckinAPI struct {
 	// nil/disabled = the key is NOT acknowledged, so the device keeps its
 	// copy and retries - recovery material is never silently dropped.
 	secrets *app.DeviceSecretsService
+	// diag stores sealed diagnostics bundles (design 0010); nil = 503.
+	diag *app.DiagnosticsService
 	// now is the clock, injectable for tests. nil defaults to time.Now.
 	now func() time.Time
 	// log is optional; logger() falls back to slog.Default().
@@ -103,6 +106,53 @@ func (c *CheckinAPI) WithDeviceSecrets(secrets *app.DeviceSecretsService) *Check
 	return c
 }
 
+// WithDiagnostics wires the sealed bundle store for the diagnostics upload
+// (design 0010). nil (or the deployment kill switch) leaves the endpoint
+// answering 503, so a device retries rather than dropping its bundle.
+func (c *CheckinAPI) WithDiagnostics(diag *app.DiagnosticsService) *CheckinAPI {
+	c.diag = diag
+	return c
+}
+
+// handleDiagnostics accepts a device's bounded diagnostics bundle (design
+// 0010) over the same per-device credential the check-in uses. At most one
+// bundle per device; a re-request overwrites. The service seals it before
+// storage (journals can contain personal data) and the console enforces
+// retention on every read.
+func (c *CheckinAPI) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
+	tag := r.PathValue("tag")
+	bearer := bearerToken(r)
+	if bearer == "" || !c.authorized(r, bearer, tag) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="sextant-checkin"`)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if c.retired != nil && c.retired(tag) {
+		http.Error(w, "device is retired", http.StatusGone)
+		return
+	}
+	if c.diag == nil || !c.diag.Enabled() {
+		http.Error(w, "diagnostics store unavailable; retry later", http.StatusServiceUnavailable)
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, app.MaxDiagnosticsBundle))
+	if err != nil {
+		http.Error(w, "bundle too large or unreadable", http.StatusRequestEntityTooLarge)
+		return
+	}
+	if len(body) == 0 {
+		http.Error(w, "empty bundle", http.StatusBadRequest)
+		return
+	}
+	if err := c.diag.Put(r.Context(), tag, body); err != nil {
+		c.logger().Error("failed to store diagnostics bundle", "tag", tag, "err", err)
+		http.Error(w, "could not store bundle", http.StatusInternalServerError)
+		return
+	}
+	c.logger().Info("diagnostics bundle stored", "tag", tag, "bytes", len(body))
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // WithClock injects the clock (tests).
 func (c *CheckinAPI) WithClock(now func() time.Time) *CheckinAPI {
 	c.now = now
@@ -122,9 +172,10 @@ func (c *CheckinAPI) WithProvision(provision func(ctx context.Context, c observe
 	return c
 }
 
-// Routes registers the device-facing endpoint.
+// Routes registers the device-facing endpoints.
 func (c *CheckinAPI) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/checkin", c.handleCheckin)
+	mux.HandleFunc("POST /api/device/{tag}/diagnostics", c.handleDiagnostics)
 }
 
 // checkinBody is the device report: a check-in plus an optional raw
