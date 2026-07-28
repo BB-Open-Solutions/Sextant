@@ -340,10 +340,15 @@ in
         # correctness matters more here than a maximal lockdown that cannot
         # be validated against real hardware in this change.
         ProtectSystem = "strict";
-        # sbctl (enroll-keys, GUID bookkeeping) writes /var/lib/sbctl; the
-        # provision step consumes and shreds the staged enrol key under
-        # /var/lib/sextant-actd.
-        ReadWritePaths = [ spoolDir "/var/lib/sextant-agent" "/var/lib/sextant-actd" "/var/lib/sbctl" ];
+        # /var/lib/sextant-actd (the staged enrol key the provision step
+        # consumes) only EXISTS on imaged devices - a plain ReadWritePaths
+        # entry made systemd fail namespace setup (226/NAMESPACE) on every
+        # other machine, killing ALL intents there (found on the station,
+        # 2026-07-28). StateDirectory creates it instead; sbctl's dir gets
+        # the '-' prefix (ignore when absent) for the same reason - a
+        # no-Secure-Boot device never has it.
+        StateDirectory = "sextant-actd";
+        ReadWritePaths = [ spoolDir "/var/lib/sextant-agent" "-/var/lib/sbctl" ];
         ProtectHome = true;
         # NOT ProtectKernelTunables: it mounts /sys read-only, and the
         # provision step must write EFI variables (sbctl enroll-keys). The
