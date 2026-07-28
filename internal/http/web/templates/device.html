@@ -115,6 +115,32 @@
       </div>
     </section>
 
+    <!-- Applied policies: which assignments reach this device (the Intune
+         device-configuration idiom); drift shows where the operator looks. -->
+    <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
+      <h2 class="mt-0 mb-4 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">policy</span>{{.L.T "device.applied_policies"}}</h2>
+      <div class="overflow-x-auto">
+        <table>
+          <tr><th>{{.L.T "device.col_policy"}}</th><th>{{.L.T "device.col_via"}}</th><th>{{.L.T "device.col_settings"}}</th><th>{{.L.T "common.status"}}</th></tr>
+          {{range .AppliedPolicies}}
+          <tr class="hover:bg-surface-bright transition-colors">
+            <td><a href="/policies" class="font-mono">{{.ID}}</a></td>
+            <td class="text-text-secondary">{{.Target}}{{with .Filter}} · {{$.L.T "device.via_filter"}} {{.}}{{end}}</td>
+            <td>{{.Settings}}{{if .Enforced}} <span class="text-text-tertiary" title="{{$.L.T "device.locked_title"}}">({{.Enforced}} <span class="material-symbols-outlined msz-14 align-middle">lock</span>)</span>{{end}}</td>
+            <td>
+              {{if eq .State "reapply"}}<span class="tag warn">{{$.L.T "device.policy_drift"}}</span>
+              {{else if eq .State "edited"}}<span class="tag">{{$.L.T "device.policy_edited"}}</span>
+              {{else if eq .State "current"}}<span class="tag ok">{{$.L.T "device.policy_current"}}</span>
+              {{else}}<span class="muted">{{$.L.T "device.policy_handmade"}}</span>{{end}}
+            </td>
+          </tr>
+          {{else}}
+          <tr><td colspan="4" class="muted">{{$.L.T "device.no_policies"}}</td></tr>
+          {{end}}
+        </table>
+      </div>
+    </section>
+
     <!-- Apps -->
     <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
       <h2 class="mt-0 mb-4 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">apps</span>{{.L.T "device.managed_apps"}}</h2>

@@ -343,6 +343,9 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	data["AllClasses"] = fleet.Classes
 	pkgs, flats, ovs := f.ResolveApps(tag)
 	data["Packages"], data["Flatpaks"], data["Overlays"] = pkgs, flats, ovs
+	// Applied policies (the Intune device-configuration idiom): which
+	// assignments reach this device, with per-policy drift state.
+	data["AppliedPolicies"] = devicePolicyRows(f, s.svc.Config.Profiles(), tag)
 	var st app.StatusView
 	var hasSt bool
 	if s.svc.Inventory != nil {
