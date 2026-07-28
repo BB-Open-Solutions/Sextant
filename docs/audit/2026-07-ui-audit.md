@@ -120,3 +120,14 @@ Format: location | severity | category | problem → fix.
     tag has no distinct color → remove attr, distinct warning class.
 40. device.html:319-323 | med | raw-value | Armed remote-action panel
     prints raw intent/ack values → translated phrases.
+41. app-wide | HIGH | perceived-performance | Operator feedback, first
+    live inspoelronde (2026-07-28): actions that dispatch background
+    work (start imaging, apply, save) look dead - no loading state, no
+    redirect into the resulting list/progress view. Sweep every mutating
+    form: submit lands where the effect is visible (job list, updates
+    board) with the new item present; add a busy state to slow buttons.
+42. groups (and other first-opens) | HIGH | perceived-performance |
+    First open of /groups takes long enough to feel broken (cold
+    derivation over the fleet). Measure, then either cache/precompute
+    server-side or render the shell immediately with the expensive
+    table streamed/loaded after - no blank wait.
