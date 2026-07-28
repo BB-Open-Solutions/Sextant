@@ -9,6 +9,27 @@ ADR 0009 chose instance-per-tenant cells. Today provisioning a cell is
 hand work (helmrelease + secrets + overlay repo). 1.0 needs: a runbook
 that is mostly `git commit`, and a thin global view over all cells.
 
+## Scope, 2026-07-28: less is more
+
+Product decision: for now a handful of customer cells that must simply
+work, nothing more. A cell is three things, no more:
+
+1. **Isolation** - namespace + the ADR-0013 NetworkPolicy set (below).
+2. **Spin-up** - the template directory (`apps/_sextant-cell-template/`)
+   plus the platform-repo runbook; manual `cp`/`sed`, the diff review is
+   the feature (next section).
+3. **Overview** - one Grafana dashboard on the three PII-free metrics
+   (Thin admin plane, below).
+
+Everything past that - forge driver, `cellctl`/CLI scaffolder, a real
+admin-plane service (its own API, actions on cells), a cells-master /
+self-service dashboard for MSP resellers - is explicitly not built now.
+Deferred to the professional-hosting phase, when cell count or an
+external operator makes manual provisioning the actual bottleneck; see
+the revisit triggers below and Non-goals. Priority until then: the e2e
+test, then Zaanstad in production (September 2026), then more
+government organisations.
+
 ## Guiding scope decision: manual over machinery
 
 Provisioning happens a few times per year at current scale. Every
@@ -149,7 +170,9 @@ them in-cluster, and one Grafana dashboard row per cell (name, host,
 version, Ready, last reconcile, upstream check, active rings) over
 Flux/kube-state-metrics. The boundary is ADR 0009's: the admin plane
 manages the cells' existence, versions and health; it never reads
-customer data, and there is no console superadmin.
+customer data, and there is no console superadmin. This dashboard is
+the whole admin plane for now - no separate service, no cells-master /
+self-service surface (Scope, above); those wait for real scale pain.
 
 ## Upgrade and retire staging
 

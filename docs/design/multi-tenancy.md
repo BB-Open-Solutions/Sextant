@@ -220,6 +220,8 @@ is actually the target topology - see section 6 before starting slice 1.
    customer data" boundary and design 0005's declarative-GitOps
    provisioning story. If self-service provisioning is still wanted, which
    plane owns it - the global admin plane, or a genuinely new capability?
+   *Answered 2026-07-28: no self-service provisioning now; deferred to the
+   professional-hosting phase (design 0005, "Scope: less is more").*
 4. The identity recommendation (per-tenant OIDC client) assumes each
    tenant brings its own IdP, matching ADR 0009. Is there a real case for
    many small customers sharing BB Open's own Zitadel instead, which would
