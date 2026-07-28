@@ -2,10 +2,11 @@
 
 ## Status
 
-Proposed. Decision draft for review (Bram); captures the 2026-07-20
-discussion. Settles which identity component issues tokens when a
-deployment combines Sextant, a directory and one or more IdP-capable
-products.
+Accepted 2026-07-28 (Bram): "LDAP is de source of truth als het op
+users en hun wachtwoorden aankomt - zo doet Univention dat ook."
+Originally drafted after the 2026-07-20 discussion. Settles which
+identity component issues tokens when a deployment combines Sextant, a
+directory and one or more IdP-capable products.
 
 ## Context
 
@@ -65,6 +66,17 @@ two half-truths - the exact opposite of single sign-on.
 
 ## Rejected
 
+- **SSSD coupled to the SSO directly (device login via OIDC)**
+  (considered 2026-07-28): SSSD speaks no OIDC; the existing routes
+  (PAM-OIDC modules, device-code flows at the greeter, Entra-specific
+  agents) are immature and - decisive for this fleet - break offline
+  login, where SSSD's cached LDAP credentials are proven. Linux login
+  also needs posix attributes (uid/gid/home/shell), LDAP's native
+  vocabulary. Device login stays SSSD -> directory; the SSO fronts the
+  web only. Known weak spot of the accepted shape: password
+  reset/self-service lives at the directory, not the IdP - acceptable
+  at current scale (admin-assisted), Nubus is the step-up when that
+  becomes the pain.
 - **Zitadel always, everywhere**: forces a second IdP onto suite
   customers, splitting SSO - the forbidden failure mode.
 - **Always broker through Zitadel**: keeps one console config at the
