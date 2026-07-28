@@ -141,6 +141,12 @@ func TestEnrollBatchImagesNamedDevices(t *testing.T) {
 	if resp.StatusCode != 303 {
 		t.Fatalf("batch enroll = %d, want 303", resp.StatusCode)
 	}
+	// Without an imaging plane no job exists for the wizard to show, so the
+	// dispatch lands back on the station page (with the plane it goes to
+	// /enroll/{station}/wizard, where the new Pending jobs are listed).
+	if loc := resp.Header.Get("Location"); loc != "/enroll?station=nuc-1" {
+		t.Errorf("batch redirect = %q, want the station page", loc)
+	}
 	devs := cfg.Fleet().Devices
 	for _, tag := range []string{"kiosk-01", "kiosk-03"} {
 		d, ok := devs[tag]

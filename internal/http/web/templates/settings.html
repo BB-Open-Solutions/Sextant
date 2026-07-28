@@ -115,6 +115,9 @@
           </div>
           {{with $row.Entry.Description}}<p class="mb-0 mt-1.5 max-w-2xl text-body-sm text-text-tertiary">{{.}}</p>{{end}}
           {{if and $row.RequiresKey $row.RequiresOff}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-status-warn"><span class="material-symbols-outlined msz-14">link_off</span>{{$.L.T "settings.requires_off_pre"}} <span class="font-mono">{{$row.RequiresKey}}</span> {{$.L.T "settings.requires_off_post"}}</p>{{end}}
+          {{/* Honesty over ceremony: an image-time key saved here changes
+               nothing on a running device until it is re-imaged. */}}
+          {{if $row.ImageTime}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-text-tertiary"><span class="material-symbols-outlined msz-14">deployed_code_update</span>{{$.L.T "settings.image_time"}}</p>{{end}}
         </div>
         {{if $.CanEdit}}
         {{$vn := printf "v:%s" $row.Entry.Name}}

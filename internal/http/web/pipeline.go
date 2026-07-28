@@ -247,6 +247,13 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 		"CanEdit": v.roleAt("org").Meets(identity.Editor),
 		"CanOwn":  v.roleAt("org").Meets(identity.Owner),
 	}
+	// Idle headline: an operator wants to read "all devices current", not
+	// "no rollout running". Only judged while nothing is rolling out - during
+	// a run the wave counters already say where the fleet stands, and the
+	// verdict would cost a fleet-wide status read for nothing.
+	if !active && !paused {
+		data["FleetCurrent"] = s.fleetOnTarget(r.Context(), f)
+	}
 	// The rollout procedure (ring plan) and governance controls live on this
 	// board too, so a change flows edit -> review -> roll out without leaving it.
 	for k, val := range rolloutPlanData(f) {

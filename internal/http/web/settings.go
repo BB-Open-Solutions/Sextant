@@ -42,6 +42,28 @@ type settingRow struct {
 	RequiresKey       string
 	RequiresOff       bool
 	RequiresInherited bool
+	// ImageTime marks an option that is written into the image rather than
+	// applied to a running device (see imageTimeKey), so the editor says when
+	// it lands instead of implying a live ceremony.
+	ImageTime bool
+}
+
+// imageTimePrefixes are the dotted namespaces whose options only take hold
+// when a device is (re)imaged: Secure Boot key enrollment and TPM2 disk
+// unlock are decided at install time (design 0001, decision 2026-07-28).
+// app.KeySecureBoot and app.KeyTPM2 live under them - imageTimeKey is asserted
+// against both, so a rename of either shows up as a failing test, not as a
+// silently missing hint.
+var imageTimePrefixes = []string{"secureboot.", "diskUnlock."}
+
+// imageTimeKey reports whether a setting is image-time rather than live.
+func imageTimeKey(key string) bool {
+	for _, p := range imageTimePrefixes {
+		if strings.HasPrefix(key, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // requiresOf finds the enable an option depends on: the longest dotted
@@ -142,7 +164,8 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 			if isIntegrationSetting(e.Name) {
 				continue
 			}
-			row := settingRow{Entry: e, Enforced: locked[e.Name], Suggestions: textSuggestions[e.Name]}
+			row := settingRow{Entry: e, Enforced: locked[e.Name], Suggestions: textSuggestions[e.Name],
+				ImageTime: imageTimeKey(e.Name)}
 			if req := requiresOf(cat, e.Name); req != "" {
 				row.RequiresKey = req
 				row.RequiresOff = !effectiveBool(cat, own, resolved, req)

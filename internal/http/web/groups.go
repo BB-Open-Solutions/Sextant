@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 
@@ -32,6 +33,29 @@ type groupRow struct {
 func (s *Server) groupsPage(w http.ResponseWriter, r *http.Request, v view) {
 	f := s.svc.Config.Fleet().VisibleTo(v.canView)
 
+	// Two indexes, each built in ONE pass, because this page renders the whole
+	// tree at once: a per-group f.GroupDevices scan walks the fleet G times
+	// (and sorts a slice whose length is all we want), and re-scanning
+	// f.Groups for every parent makes the walk quadratic in the group count.
+	// At fleet scale that is the whole cost of a first open.
+	members := make(map[string]int, len(f.Groups))
+	for _, d := range f.Devices {
+		for i, g := range d.Groups {
+			// A repeated membership is still one device, which is what
+			// f.GroupDevices counts; skip a name already seen on this device.
+			if slices.Index(d.Groups, g) == i {
+				members[g]++
+			}
+		}
+	}
+	children := make(map[string][]string, len(f.Groups))
+	for name, g := range f.Groups {
+		children[g.Parent] = append(children[g.Parent], name)
+	}
+	for _, kids := range children {
+		sort.Strings(kids)
+	}
+
 	var rows []groupRow
 	seen := map[string]bool{}
 	add := func(name string, depth int) {
@@ -39,7 +63,7 @@ func (s *Server) groupsPage(w http.ResponseWriter, r *http.Request, v view) {
 		rows = append(rows, groupRow{
 			Name: name, Depth: depth, Parent: g.Parent,
 			IdpGroup: g.IdpGroup, Pin: g.Pin,
-			Devices:        len(f.GroupDevices(name)),
+			Devices:        members[name],
 			CanOwn:         v.roleAt("group:" + name).Meets(identity.Owner),
 			AllowedClasses: g.AllowedClasses,
 		})
@@ -47,14 +71,7 @@ func (s *Server) groupsPage(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	var walk func(parent string, depth int)
 	walk = func(parent string, depth int) {
-		kids := make([]string, 0)
-		for name, g := range f.Groups {
-			if g.Parent == parent {
-				kids = append(kids, name)
-			}
-		}
-		sort.Strings(kids)
-		for _, name := range kids {
+		for _, name := range children[parent] {
 			add(name, depth)
 			walk(name, depth+1)
 		}
@@ -91,7 +108,10 @@ func (s *Server) groupsPage(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	// IdP-group picker: offer the real directory groups as a dropdown instead
 	// of free text. Best-effort; a slow or absent directory must not break the
-	// page (the template falls back to a text field).
+	// page (the template falls back to a text field). It is the one remaining
+	// blocking cost of a first open - a directory round trip, paid only by an
+	// org Owner - and it stays synchronous on purpose: a picker that appears
+	// after the operator has already typed is worse than one that waits.
 	if s.svc.Directory != nil && v.roleAt("org").Meets(identity.Owner) {
 		if dgs, err := s.svc.Directory.ListGroups(r.Context(), ""); err == nil {
 			names := make([]string, 0, len(dgs))

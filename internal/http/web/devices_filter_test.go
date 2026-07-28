@@ -79,3 +79,38 @@ func TestSortDeviceRows(t *testing.T) {
 		}
 	}
 }
+
+func TestDeviceConfigState(t *testing.T) {
+	cases := []struct {
+		name              string
+		revision, target  string
+		online, hasStatus bool
+		want              string
+	}{
+		{"never seen", "", "", false, false, ""},
+		{"status without a revision", "", "abc", false, true, ""},
+		{"on its pin", "abc", "abc", true, true, configCurrent},
+		{"on its pin, offline", "abc", "abc", false, true, configCurrent},
+		{"follows HEAD, nothing says it is behind", "abc", "", true, true, configCurrent},
+		{"behind and checking in", "abc", "def", true, true, configUpdating},
+		{"behind and silent", "abc", "def", false, true, configPending},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := deviceConfigState(c.revision, c.target, c.online, c.hasStatus); got != c.want {
+				t.Errorf("got %q, want %q", got, c.want)
+			}
+		})
+	}
+
+	// Both templates look the label up as devices.config_<state>, so a state
+	// without a catalog entry renders its own key at the operator. Nothing
+	// else ties the two together.
+	for _, state := range []string{configCurrent, configUpdating, configPending} {
+		for _, loc := range []string{"en", "nl"} {
+			if catalog[loc]["devices.config_"+state] == "" {
+				t.Errorf("devices.config_%s missing from the %s catalog", state, loc)
+			}
+		}
+	}
+}

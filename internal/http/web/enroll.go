@@ -228,6 +228,14 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 	}); err != nil {
 		return err
 	}
+	// Land where the effect is: the wizard lists the jobs just dispatched
+	// (Pending onwards) and drives the ceremony from there. Without an
+	// imaging plane no jobs exist and the wizard has nothing to show, so
+	// that path stays on the station page.
+	if s.svc.Imaging != nil {
+		http.Redirect(w, r, "/enroll/"+url.PathEscape(station)+"/wizard", http.StatusSeeOther)
+		return nil
+	}
 	http.Redirect(w, r, "/enroll?station="+url.QueryEscape(station), http.StatusSeeOther)
 	return nil
 }

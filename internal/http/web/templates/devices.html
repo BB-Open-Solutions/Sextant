@@ -54,10 +54,11 @@
         <td>
           {{if .HasStatus}}
             {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}
-            {{/* Release number leads (cheap: relCache-backed, deduped per page in
-                 devices_page.go); the raw hash moves to the hover title, or shows
-                 short when the release number is not yet known. */}}
-            {{if .Revision}}{{if .Release}}<span class="text-text-tertiary" title="{{.Revision}}">{{$.L.T "common.release"}} {{.Release}}</span>{{else}}<span class="font-mono text-text-tertiary">{{short .Revision}}</span>{{end}}{{end}}
+            {{/* The version chip, not a release number: an operator reads
+                 whether the device runs what its ring targets. Release and raw
+                 revision (relCache-backed, deduped per page in devices_page.go)
+                 stay in the hover title for forensics. */}}
+            {{if .Config}}<span class="tag{{if eq .Config "current"}} ok{{end}}" title="{{if .Release}}{{$.L.T "common.release"}} {{.Release}} · {{end}}{{.Revision}}">{{if eq .Config "updating"}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{$.L.T (printf "devices.config_%s" .Config)}}</span>{{end}}
           {{else}}<span class="muted">{{$.L.T "common.never_seen"}}</span>{{end}}
         </td>
         <td>

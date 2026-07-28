@@ -55,16 +55,22 @@ func (s *Server) postureView(f *fleet.Fleet, tag string, st app.StatusView) post
 
 // StepText renders the human instruction for a step; kept in Go (not the
 // template) so it can be localized later through the catalog.
+//
+// The two config-driven steps say when they land: Secure Boot key enrollment
+// and TPM2 binding happen while a device is imaged (design 0001, decision
+// 2026-07-28), so for a device that is already enrolled the instruction is
+// staged work, not a live ceremony. Saying so beats an operator waiting for a
+// green chip that cannot arrive.
 func stepText(step observed.PostureStep) string {
 	switch step {
 	case observed.PostureComplete:
 		return "Security posture complete."
 	case observed.StepEnableAudit:
-		return "Enable Secure Boot for this device (set secureboot.enable and deploy); the device creates and enrolls its keys in audit mode."
+		return "Enable Secure Boot for this device (set secureboot.enable and deploy); the device creates and enrolls its keys in audit mode (applies at the next re-image for an already-enrolled device)."
 	case observed.StepEnforceSB:
 		return "Reboot into firmware and switch Secure Boot ON."
 	case observed.StepEnrollTPM2:
-		return "Bind LUKS to the TPM2: run systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 <luks-device>, then reboot."
+		return "Bind LUKS to the TPM2: run systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 <luks-device>, then reboot (applies at the next re-image for an already-enrolled device)."
 	case observed.StepNoTPM2:
 		return "TPM2 auto-unlock is targeted but no TPM2 is present - check firmware/hardware."
 	}

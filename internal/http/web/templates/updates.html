@@ -26,6 +26,7 @@
     <div class="flex min-w-0 items-center gap-3">
       {{if .Paused}}<span class="tag"><span class="material-symbols-outlined msz-14">pause</span>{{.L.T "updates.state_paused"}}</span>
       {{else if .Active}}<span class="tag ok"><span class="material-symbols-outlined msz-14 animate-spin">autorenew</span>{{.L.T "updates.state_active"}}</span>
+      {{else if .FleetCurrent}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{.L.T "updates.state_all_current"}}</span>
       {{else}}<span class="tag">{{.L.T "updates.state_idle"}}</span>{{end}}
       {{with .TargetRelease}}<span class="text-label-md font-semibold text-ink">{{$.L.T "common.release"}} {{.}}</span>{{end}}
       {{with .State}}<span class="truncate font-mono text-code-inline text-text-tertiary">{{short .Target}}</span>{{end}}
@@ -52,7 +53,10 @@
           </label>
           <span class="text-body-sm text-text-tertiary">{{.L.T "updates.expedited_hint_short"}}</span>
         </div>
-        <button type="submit" class="btn"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{if .MainRelease}}{{.L.T "common.release"}} {{.MainRelease}}{{else}}{{short .MainRev}}{{end}}</button>
+        {{/* The release number stays on the button: it is the identity of what
+             is being rolled out, and the operator quotes it. The revision it
+             resolves to hangs in the hover title. */}}
+        <button type="submit" class="btn" title="{{.MainRev}}"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{if .MainRelease}}{{.L.T "common.release"}} {{.MainRelease}}{{else}}{{short .MainRev}}{{end}}</button>
       </form>
       <a href="/updates/rollout" class="btn quiet !py-1.5">{{.L.T "updates.view_rollout"}}</a>
       {{end}}

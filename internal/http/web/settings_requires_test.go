@@ -3,6 +3,7 @@ package web
 import (
 	"testing"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 )
 
@@ -42,5 +43,26 @@ func TestRequiresOfConvention(t *testing.T) {
 	}
 	if effectiveBool(cat, nil, nil, "timesync.enable") != false {
 		t.Error("catalog default ignored")
+	}
+}
+
+func TestImageTimeKey(t *testing.T) {
+	// The posture keys the baseline verdict judges are exactly the ones the
+	// editor must flag as image-time; renaming either without extending
+	// imageTimePrefixes fails here instead of silently dropping the hint.
+	cases := map[string]bool{
+		app.KeySecureBoot:        true,
+		app.KeyTPM2:              true,
+		"secureboot.signingKey":  true,
+		"diskUnlock.tpm2.device": true,
+		"timesync.enable":        false,
+		"desktop.plasma.enable":  false,
+		"securebootish.enable":   false, // prefix match is on the namespace
+		"hostname":               false,
+	}
+	for key, want := range cases {
+		if got := imageTimeKey(key); got != want {
+			t.Errorf("imageTimeKey(%s) = %v, want %v", key, got, want)
+		}
 	}
 }

@@ -35,6 +35,7 @@ func (s *Server) deviceRows(ctx context.Context, f *fleet.Fleet) []deviceRow {
 		rw := deviceRow{Tag: tag, Class: d.Class, Hardware: d.Hardware,
 			AssignedUser: d.AssignedUser, Groups: d.Groups,
 			HasStatus: has, Online: st.Online, Revision: st.Revision}
+		rw.Config = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, has)
 		if has && st.Usage.Reported() {
 			rw.Reported = true
 			rw.CPU = st.Usage.CPUPct
@@ -171,11 +172,77 @@ type deviceRow struct {
 	// are its used-percentages for the compact per-device resource column.
 	Reported       bool
 	CPU, RAM, Disk int
+	// Config is the version chip: "current", "updating", "pending" or ""
+	// when the device never reported (see deviceConfigState).
+	Config string
 	// Baseline is the design-0008 verdict: "ok", "attention" or "" for a
 	// retired device (nothing to judge). BaselineFails names the failing
 	// criteria for the hover title and the CSV.
 	Baseline      string
 	BaselineFails []string
+}
+
+// The version chip an operator reads instead of a release number: what matters
+// on a device list is whether the device runs what its ring targets, not which
+// build it carries. The raw revision and release number stay in the row's hover
+// title; the audit artifacts (CSV export, API) keep the numbers verbatim.
+// Labels live in the catalog as devices.config_current / devices.config_updating
+// / devices.config_pending.
+const (
+	configCurrent  = "current"
+	configUpdating = "updating"
+	configPending  = "pending"
+)
+
+// deviceConfigState derives that chip. A device on its pin is current, and so
+// is one that follows HEAD (no pin: nothing says it is behind). A behind device
+// that is checking in is updating; one that is not is waiting for its next
+// check-in. A device that never reported has no state to show.
+func deviceConfigState(revision, target string, online, hasStatus bool) string {
+	if !hasStatus || revision == "" {
+		return ""
+	}
+	if target == "" || revision == target {
+		return configCurrent
+	}
+	if online {
+		return configUpdating
+	}
+	return configPending
+}
+
+// fleetOnTarget reports whether every judgeable device runs its target pin -
+// the honest basis for the updates board's "all devices current" headline.
+// A device that never checked in neither confirms nor denies it and is left
+// out; with nothing judged at all the answer is no, since an empty fleet has
+// proven nothing.
+func (s *Server) fleetOnTarget(ctx context.Context, f *fleet.Fleet) bool {
+	if s.svc.Inventory == nil {
+		return false
+	}
+	all, err := s.svc.Inventory.StatusAll(ctx)
+	if err != nil {
+		return false
+	}
+	byTag := make(map[string]app.StatusView, len(all))
+	for _, st := range all {
+		byTag[st.Tag] = st
+	}
+	judged := 0
+	for tag, d := range f.Devices {
+		if d.Retired() {
+			continue
+		}
+		st, has := byTag[tag]
+		if !has {
+			continue
+		}
+		if deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true) != configCurrent {
+			return false
+		}
+		judged++
+	}
+	return judged > 0
 }
 
 // filterDeviceRows keeps rows matching a case-insensitive search over
@@ -353,6 +420,13 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 		if hasSt {
 			data["HasStatus"], data["Status"] = true, st
 			data["Posture"] = s.postureView(f, tag, st)
+			// Same version chip as the device list, but this is the page an
+			// operator opens to dig: the release number and the full revision
+			// stay on screen next to it rather than in a hover title.
+			data["Config"] = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true)
+			if st.Revision != "" {
+				data["Release"] = s.svc.Config.ReleaseNumber(r.Context(), st.Revision)
+			}
 			// Live usage gauges: reuse the fleet aggregation for this one device.
 			if st.Usage.Reported() {
 				data["Util"] = fleetUtilization([]app.StatusView{st})

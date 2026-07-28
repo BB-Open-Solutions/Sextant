@@ -263,3 +263,32 @@ document.addEventListener("click", function (e) {
     });
   });
 })();
+
+// Busy state: a submitted form marks itself aria-busy and disables its submit
+// controls, so an action that dispatches background work (image, apply, save)
+// does not look dead while the server works. Opt out with data-no-busy.
+// Registered last, so a handler above that cancels the submit (the confirm
+// modal, the empty selection guard) wins and no button is left dead. The
+// disable is deferred a tick because a control disabled during the submit
+// event no longer contributes its name/value to the request - multi-button
+// forms post the button that was clicked. Undone on pageshow, which also
+// fires when the browser restores the page from the back/forward cache.
+(function () {
+  function controls(form) {
+    return form.querySelectorAll("button[type=submit], button:not([type]), input[type=submit]");
+  }
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (e.defaultPrevented || !form || form.hasAttribute("data-no-busy")) return;
+    form.setAttribute("aria-busy", "true");
+    setTimeout(function () {
+      controls(form).forEach(function (b) { b.disabled = true; });
+    }, 0);
+  });
+  window.addEventListener("pageshow", function () {
+    document.querySelectorAll("form[aria-busy]").forEach(function (form) {
+      form.removeAttribute("aria-busy");
+      controls(form).forEach(function (b) { b.disabled = false; });
+    });
+  });
+})();
