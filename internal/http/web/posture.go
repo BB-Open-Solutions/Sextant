@@ -14,10 +14,12 @@ import (
 // TPM2) with its resolved target (config-as-data) to render the
 // enrollment wizard's next step (design 0001).
 
-// The catalog keys that express the posture targets in the DAWO core.
+// The catalog keys that express the posture targets in the DAWO core live
+// in the app layer (app.KeySecureBoot, app.KeyTPM2) so the baseline verdict
+// (design 0008) and this wizard judge the same targets.
 const (
-	keySecureBoot = "secureboot.enable"
-	keyTPM2       = "diskUnlock.tpm2.enable"
+	keySecureBoot = app.KeySecureBoot
+	keyTPM2       = app.KeyTPM2
 )
 
 // postureView is the template's view of one device's posture.

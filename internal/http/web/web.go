@@ -131,6 +131,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 
 	get("/{$}", s.overview)
 	get("/devices", s.devices)
+	get("/devices.csv", s.devicesCSV)
 	get("/devices/{tag}", s.device)
 	get("/groups", s.groupsPage)
 	get("/settings", s.settingsPage)

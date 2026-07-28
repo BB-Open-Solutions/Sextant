@@ -41,6 +41,21 @@
 <div class="grid grid-cols-12 gap-6">
   <!-- Left column: configuration + apps -->
   <div class="col-span-12 flex flex-col gap-6 md:col-span-8">
+    {{with .Baseline}}
+    <!-- Baseline verdict (design 0008): compliant, or exactly which criteria fail -->
+    <section class="rounded-lg border {{if .Compliant}}border-border-hairline{{else}}border-status-warn/30{{end}} bg-canvas p-4 shadow-sm">
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18 {{if .Compliant}}text-mint-deep{{else}}text-status-warn{{end}}">verified</span>{{$.L.T "devices.baseline"}}</h2>
+      {{if .Compliant}}
+      <p class="!m-0 flex items-center gap-2 text-body-sm text-text-secondary"><span class="tag ok">{{$.L.T "common.compliant"}}</span>{{$.L.T "device.baseline_ok"}}</p>
+      {{else}}
+      <p class="!m-0 mb-2 flex items-center gap-2 text-body-sm text-text-secondary"><span class="tag warn">{{$.L.T "common.attention"}}</span>{{$.L.T "device.baseline_fails"}}</p>
+      <ul class="!mb-0 mt-2 list-disc pl-6 text-body-sm text-text-secondary">
+        {{range .Failures}}<li>{{.}}</li>{{end}}
+      </ul>
+      {{end}}
+    </section>
+    {{end}}
+
     {{if .Util}}
     <!-- Live resource usage -->
     <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">

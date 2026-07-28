@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,16 +16,18 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
-func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
-	f := s.svc.Config.Fleet().VisibleTo(v.canView)
+// deviceRows builds the full (unfiltered) device table for a fleet view:
+// status join, usage columns and the design-0008 baseline verdict. Shared by
+// the devices page and its CSV export so both always show the same truth.
+func (s *Server) deviceRows(ctx context.Context, f *fleet.Fleet) []deviceRow {
 	statuses := map[string]app.StatusView{}
 	if s.svc.Inventory != nil {
-		all, _ := s.svc.Inventory.StatusAll(r.Context())
+		all, _ := s.svc.Inventory.StatusAll(ctx)
 		for _, st := range all {
 			statuses[st.Tag] = st
 		}
 	}
-	classSet := map[string]bool{}
+	judge := app.NewBaselineJudge(f, s.svc.Config.Profiles())
 	rows := make([]deviceRow, 0, len(f.Devices))
 	for _, tag := range f.DeviceTags() {
 		d := f.Devices[tag]
@@ -38,10 +41,28 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 			rw.RAM = pctOf(st.Usage.MemUsedMB, st.Usage.MemTotalMB)
 			rw.Disk = pctOf(st.Usage.DiskUsedGB, st.Usage.DiskTotalGB)
 		}
-		if d.Class != "" {
-			classSet[d.Class] = true
+		if d.State != fleet.DeviceRetired {
+			b := judge.Verdict(tag, st, has)
+			if b.Compliant {
+				rw.Baseline = "ok"
+			} else {
+				rw.Baseline = "attention"
+			}
+			rw.BaselineFails = b.Failures
 		}
 		rows = append(rows, rw)
+	}
+	return rows
+}
+
+func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
+	f := s.svc.Config.Fleet().VisibleTo(v.canView)
+	rows := s.deviceRows(r.Context(), f)
+	classSet := map[string]bool{}
+	for _, rw := range rows {
+		if rw.Class != "" {
+			classSet[rw.Class] = true
+		}
 	}
 
 	// Search, filter and sort happen server-side so they hold at fleet scale
@@ -50,7 +71,8 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 	qy := r.URL.Query()
 	q := strings.ToLower(strings.TrimSpace(qy.Get("q")))
 	fClass, fGroup, fStatus := qy.Get("class"), qy.Get("group"), qy.Get("status")
-	rows = filterDeviceRows(rows, q, fClass, fGroup, fStatus)
+	fBaseline := qy.Get("baseline")
+	rows = filterDeviceRows(rows, q, fClass, fGroup, fStatus, fBaseline)
 	sortKey, dir := qy.Get("sort"), qy.Get("dir")
 	sortDeviceRows(rows, sortKey, dir)
 
@@ -92,7 +114,7 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 
 	// The pager links re-carry every filter/sort control.
 	baseQ := url.Values{}
-	for _, k := range []string{"q", "class", "group", "status", "sort", "dir"} {
+	for _, k := range []string{"q", "class", "group", "status", "baseline", "sort", "dir"} {
 		if val := qy.Get(k); val != "" {
 			baseQ.Set(k, val)
 		}
@@ -119,10 +141,15 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request, v view) {
 	data := map[string]any{"Title": "Devices", "Nav": "devices",
 		"Devices": rows, "Groups": groups, "Classes": classes,
 		"Q": qy.Get("q"), "FClass": fClass, "FGroup": fGroup, "FStatus": fStatus,
-		"Sort": sortKey, "Dir": dir,
+		"FBaseline": fBaseline,
+		"Sort":      sortKey, "Dir": dir,
 		"Total": total, "Page": page, "Pages": pages,
 		"From": lo + 1, "To": hi,
-		"CanEdit": v.roleAt("org").Meets(identity.Editor)}
+		"CanEdit":   v.roleAt("org").Meets(identity.Editor),
+		"CanExport": v.roleAt("org").Meets(identity.Viewer),
+		// The export honours the active filters: a filtered view exports
+		// exactly what it shows (design 0008).
+		"ExportURL": "/devices.csv?" + baseQ.Encode()}
 	if page > 1 {
 		data["PrevURL"] = pageURL(page - 1)
 	}
@@ -144,12 +171,17 @@ type deviceRow struct {
 	// are its used-percentages for the compact per-device resource column.
 	Reported       bool
 	CPU, RAM, Disk int
+	// Baseline is the design-0008 verdict: "ok", "attention" or "" for a
+	// retired device (nothing to judge). BaselineFails names the failing
+	// criteria for the hover title and the CSV.
+	Baseline      string
+	BaselineFails []string
 }
 
 // filterDeviceRows keeps rows matching a case-insensitive search over
 // tag/user/hardware plus the class/group/status facets. Empty facets match all.
 // It filters in place (reusing the backing array), so the caller reassigns.
-func filterDeviceRows(rows []deviceRow, q, class, group, status string) []deviceRow {
+func filterDeviceRows(rows []deviceRow, q, class, group, status, baseline string) []deviceRow {
 	out := rows[:0]
 	for _, rw := range rows {
 		if q != "" && !strings.Contains(strings.ToLower(rw.Tag), q) &&
@@ -161,6 +193,9 @@ func filterDeviceRows(rows []deviceRow, q, class, group, status string) []device
 			continue
 		}
 		if group != "" && !slices.Contains(rw.Groups, group) {
+			continue
+		}
+		if baseline != "" && rw.Baseline != baseline {
 			continue
 		}
 		switch status {
@@ -195,6 +230,8 @@ func sortDeviceRows(rows []deviceRow, key, dir string) {
 		less = func(a, b deviceRow) bool { return a.Class < b.Class }
 	case "user":
 		less = func(a, b deviceRow) bool { return a.AssignedUser < b.AssignedUser }
+	case "baseline":
+		less = func(a, b deviceRow) bool { return baselineRank(a) < baselineRank(b) }
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		if dir == "desc" {
@@ -202,6 +239,19 @@ func sortDeviceRows(rows []deviceRow, key, dir string) {
 		}
 		return less(rows[i], rows[j])
 	})
+}
+
+// baselineRank orders needs-attention before compliant before not-judged
+// (retired), so the ascending sort surfaces the action items first.
+func baselineRank(r deviceRow) int {
+	switch r.Baseline {
+	case "attention":
+		return 0
+	case "ok":
+		return 1
+	default:
+		return 2
+	}
 }
 
 // deviceStatusRank orders online before offline before never-seen.
@@ -293,8 +343,11 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	data["AllClasses"] = fleet.Classes
 	pkgs, flats, ovs := f.ResolveApps(tag)
 	data["Packages"], data["Flatpaks"], data["Overlays"] = pkgs, flats, ovs
+	var st app.StatusView
+	var hasSt bool
 	if s.svc.Inventory != nil {
-		if st, has, _ := s.svc.Inventory.Status(r.Context(), tag); has {
+		st, hasSt, _ = s.svc.Inventory.Status(r.Context(), tag)
+		if hasSt {
 			data["HasStatus"], data["Status"] = true, st
 			data["Posture"] = s.postureView(f, tag, st)
 			// Live usage gauges: reuse the fleet aggregation for this one device.
@@ -305,6 +358,10 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 		if facts, at, has, _ := s.svc.Inventory.Facts(r.Context(), tag); has {
 			data["Facts"], data["FactsAt"] = string(facts), at
 		}
+	}
+	// Baseline verdict (design 0008) with its failing criteria spelled out.
+	if !d.Retired() {
+		data["Baseline"] = app.NewBaselineJudge(f, s.svc.Config.Profiles()).Verdict(tag, st, hasSt)
 	}
 	// Attention: the incidents raised for this device (scoped to the viewer).
 	var devInc []incidentRow

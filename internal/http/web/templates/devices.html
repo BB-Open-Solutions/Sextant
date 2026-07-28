@@ -29,18 +29,20 @@
     <select name="class" class="{{$ctl}}"><option value="">{{.L.T "devices.all_classes"}}</option>{{range .Classes}}<option value="{{.}}" {{if eq $.FClass .}}selected{{end}}>{{.}}</option>{{end}}</select>
     <select name="group" class="{{$ctl}}"><option value="">{{.L.T "settings.all_groups"}}</option>{{range .Groups}}<option value="{{.}}" {{if eq $.FGroup .}}selected{{end}}>{{.}}</option>{{end}}</select>
     <select name="status" class="{{$ctl}}"><option value="">{{.L.T "devices.all_statuses"}}</option><option value="online" {{if eq .FStatus "online"}}selected{{end}}>{{.L.T "common.online"}}</option><option value="offline" {{if eq .FStatus "offline"}}selected{{end}}>{{.L.T "common.offline"}}</option><option value="never" {{if eq .FStatus "never"}}selected{{end}}>{{.L.T "common.never_seen"}}</option></select>
+    <select name="baseline" class="{{$ctl}}"><option value="">{{.L.T "devices.all_baseline"}}</option><option value="ok" {{if eq .FBaseline "ok"}}selected{{end}}>{{.L.T "common.compliant"}}</option><option value="attention" {{if eq .FBaseline "attention"}}selected{{end}}>{{.L.T "common.attention"}}</option></select>
     {{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}">{{end}}{{if .Dir}}<input type="hidden" name="dir" value="{{.Dir}}">{{end}}
     {{/* !py-0/!h-9/!rounded-lg override the primary-button base (py-2,
          rounded-full), which otherwise renders this a fraction taller than
          the h-9 inputs beside it. */}}
     <button type="submit" class="!m-0 inline-flex !h-9 items-center gap-1 !rounded-lg bg-ink !px-4 !py-0 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">filter_list</span>{{.L.T "common.filter"}}</button>
-    {{if or .Q .FClass .FGroup .FStatus}}<a href="/devices" class="inline-flex h-9 items-center rounded-lg border border-border-hairline px-3 text-label-md text-text-secondary hover:bg-surface-container-low">{{.L.T "common.clear"}}</a>{{end}}
+    {{if or .Q .FClass .FGroup .FStatus .FBaseline}}<a href="/devices" class="inline-flex h-9 items-center rounded-lg border border-border-hairline px-3 text-label-md text-text-secondary hover:bg-surface-container-low">{{.L.T "common.clear"}}</a>{{end}}
+    {{if .CanExport}}<a href="{{.ExportURL}}" class="ml-auto inline-flex h-9 items-center gap-1 rounded-lg border border-border-hairline px-3 text-label-md text-text-secondary hover:bg-surface-container-low"><span class="material-symbols-outlined msz-18">download</span>{{.L.T "devices.export_csv"}}</a>{{end}}
   </form>
 
   <!-- Device list -->
   <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
     <table>
-      <tr>{{if .CanEdit}}<th class="!pl-4 w-8"><input type="checkbox" id="sel-all" class="cursor-pointer" title="{{.L.T "devices.select_all"}}"></th>{{end}}{{template "sortTh" (list $ "tag" (.L.T "common.tag"))}}<th>{{.L.T "common.groups"}}</th>{{template "sortTh" (list $ "class" (.L.T "common.class"))}}{{template "sortTh" (list $ "hardware" (.L.T "common.hardware"))}}{{template "sortTh" (list $ "user" (.L.T "common.user"))}}{{template "sortTh" (list $ "status" (.L.T "common.status"))}}<th class="whitespace-nowrap"><span class="material-symbols-outlined msz-16 align-middle text-text-tertiary" title="{{.L.T "page.overview.fleet_utilisation"}}">speed</span></th>{{if .CanEdit}}<th class="text-right !px-4">{{.L.T "common.actions"}}</th>{{end}}</tr>
+      <tr>{{if .CanEdit}}<th class="!pl-4 w-8"><input type="checkbox" id="sel-all" class="cursor-pointer" title="{{.L.T "devices.select_all"}}"></th>{{end}}{{template "sortTh" (list $ "tag" (.L.T "common.tag"))}}<th>{{.L.T "common.groups"}}</th>{{template "sortTh" (list $ "class" (.L.T "common.class"))}}{{template "sortTh" (list $ "hardware" (.L.T "common.hardware"))}}{{template "sortTh" (list $ "user" (.L.T "common.user"))}}{{template "sortTh" (list $ "status" (.L.T "common.status"))}}{{template "sortTh" (list $ "baseline" (.L.T "devices.baseline"))}}<th class="whitespace-nowrap"><span class="material-symbols-outlined msz-16 align-middle text-text-tertiary" title="{{.L.T "page.overview.fleet_utilisation"}}">speed</span></th>{{if .CanEdit}}<th class="text-right !px-4">{{.L.T "common.actions"}}</th>{{end}}</tr>
       {{range .Devices}}
       <tr class="group align-middle hover:bg-surface-container-low transition-colors">
         {{if $.CanEdit}}<td class="!pl-4"><input type="checkbox" class="dev-select cursor-pointer" value="{{.Tag}}"></td>{{end}}
@@ -58,11 +60,16 @@
             {{if .Revision}}{{if .Release}}<span class="text-text-tertiary" title="{{.Revision}}">{{$.L.T "common.release"}} {{.Release}}</span>{{else}}<span class="font-mono text-text-tertiary">{{short .Revision}}</span>{{end}}{{end}}
           {{else}}<span class="muted">{{$.L.T "common.never_seen"}}</span>{{end}}
         </td>
+        <td>
+          {{if eq .Baseline "ok"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">verified</span>{{$.L.T "common.compliant"}}</span>
+          {{else if eq .Baseline "attention"}}<span class="tag warn" title="{{range $i, $c := .BaselineFails}}{{if $i}}; {{end}}{{$c}}{{end}}">{{$.L.T "common.attention"}}</span>
+          {{else}}<span class="muted">—</span>{{end}}
+        </td>
         <td>{{if .Reported}}<span class="flex items-center gap-3 whitespace-nowrap font-mono text-label-md text-text-secondary"><span title="{{$.L.T "page.overview.cap_cpu"}}"><span class="material-symbols-outlined msz-14 align-middle text-text-tertiary">memory</span> {{.CPU}}%</span><span title="{{$.L.T "page.overview.cap_ram"}}"><span class="material-symbols-outlined msz-14 align-middle text-text-tertiary">memory_alt</span> {{.RAM}}%</span><span title="{{$.L.T "page.overview.cap_disk"}}"><span class="material-symbols-outlined msz-14 align-middle text-text-tertiary">hard_drive</span> {{.Disk}}%</span></span>{{else}}<span class="muted">—</span>{{end}}</td>
         {{if $.CanEdit}}<td class="text-right !px-4"><form method="post" action="/devices/{{.Tag}}/remove" class="!m-0 inline" data-confirm="{{$.L.T "devices.remove_confirm"}} {{.Tag}}?"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" title="{{$.L.T "common.remove"}}" aria-label="{{$.L.T "common.remove"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary opacity-0 transition hover:!text-status-error group-hover:opacity-100"><span class="material-symbols-outlined msz-18">delete</span></button></form></td>{{end}}
       </tr>
       {{else}}
-      <tr><td colspan="9" class="muted">{{$.L.T "devices.no_devices"}}</td></tr>
+      <tr><td colspan="10" class="muted">{{$.L.T "devices.no_devices"}}</td></tr>
       {{end}}
     </table>
   </div>
