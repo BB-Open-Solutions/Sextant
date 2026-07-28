@@ -130,7 +130,7 @@
 
     <!-- Footer -->
     <footer class="mt-auto flex flex-col gap-2 border-t border-border-hairline bg-surface-container-low px-8 py-4 text-label-md text-text-tertiary sm:flex-row sm:items-center sm:justify-between">
-      <span>Sextant - {{.L.T "footer.tagline"}}</span>
+      <span>Sextant{{with .BuildVersion}} <span class="font-mono" title="{{$.L.T "footer.version_title"}}">{{.}}</span>{{end}} - {{.L.T "footer.tagline"}}</span>
       <nav class="flex flex-wrap items-center gap-4" aria-label="{{.L.T "footer.aria_resources"}}">
         {{if .CanOrgView}}<a href="/audit" class="transition-colors hover:text-ink">{{.L.T "footer.audit"}}</a>{{end}}
         <a href="/status" class="transition-colors hover:text-ink">{{.L.T "footer.status"}}</a>

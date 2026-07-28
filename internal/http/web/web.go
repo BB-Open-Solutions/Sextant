@@ -68,6 +68,11 @@ type Server struct {
 	// the organisation, and showing its actual name (instead of a generic
 	// "root") keeps that legible everywhere scopes appear.
 	orgName string
+	// Build identity (release version, fleet model version, gate mode) -
+	// the same triple sextant_build_info exports, shown in the footer and
+	// on the organisation page so an operator can answer "what is this
+	// console running" without cluster access.
+	buildVersion, fleetModel, gateMode string
 }
 
 // SetDefaults configures the organisation's presentation defaults
@@ -86,6 +91,12 @@ func (s *Server) SetOrgName(name string) {
 	if name != "" {
 		s.orgName = name
 	}
+}
+
+// SetBuildInfo sets the build identity shown in the footer and on the
+// organisation page - the same triple sextant_build_info exports.
+func (s *Server) SetBuildInfo(version, fleetModel, gateMode string) {
+	s.buildVersion, s.fleetModel, s.gateMode = version, fleetModel, gateMode
 }
 
 // SetSyntaxChecker wires the overlay editor's fast syntax check (the remote

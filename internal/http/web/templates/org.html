@@ -58,4 +58,15 @@
   </div>
   <p class="muted mt-2 mb-0">{{.L.T "org.defaults_help"}}</p>
 </div>
+
+<!-- About: the build identity (sextant_build_info's triple) -->
+<div class="mt-6 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+  <p class="mb-3 text-label-xs-caps uppercase text-text-tertiary">{{.L.T "org.about"}}</p>
+  <div class="flex flex-wrap gap-6 text-body-sm">
+    <div><span class="text-text-tertiary">{{.L.T "org.about_version"}}</span> <span class="ml-1 font-mono text-ink">{{or .Version "dev"}}</span></div>
+    <div><span class="text-text-tertiary">{{.L.T "org.about_fleet_model"}}</span> <span class="ml-1 font-mono text-ink">{{or .FleetModel "-"}}</span></div>
+    <div><span class="text-text-tertiary">{{.L.T "org.about_gate"}}</span> <span class="ml-1 font-mono text-ink">{{or .GateMode "-"}}</span></div>
+  </div>
+  <p class="muted mt-2 mb-0">{{.L.T "org.about_help"}}</p>
+</div>
 {{end}}

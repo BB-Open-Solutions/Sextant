@@ -570,6 +570,7 @@ func (d *deps) consoleCapability() capability.Capability {
 			}
 			console.SetDefaults(d.cfg.DefaultLocale, d.cfg.DefaultTimezone)
 			console.SetOrgName(d.cfg.OrgName)
+			console.SetBuildInfo(version, strconv.Itoa(fleet.Version), d.cfg.GateMode)
 			console.SetSyntaxChecker(d.syntax)
 			console.Routes(mux)
 		},
