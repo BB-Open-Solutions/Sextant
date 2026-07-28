@@ -99,6 +99,19 @@ devices with a completed image job should say "takes effect at the
 next re-image" instead of implying a live ceremony (UI-audit item; the
 device posture panel's step texts assume mid-ceremony state today).
 
+Refinement (same day): fixed does not mean everything is fixed.
+
+- `secureboot.enable` is GROUP-scope only and image-time; the settings
+  editor hides it at device scope. The one device-level exception stays
+  the posture panel's guarded temporary-off-for-reinstall path.
+- TPM2 splits into capability vs use. The keyslot ENROLMENT is the
+  image-time capability: the ceremony seals whenever Secure Boot is
+  targeted and a TPM2 is present, regardless of the unlock toggle.
+  `diskUnlock.tpm2.enable` then becomes a pure runtime toggle - "use
+  the enrolled slot for auto-unlock, yes/no" - safely flippable via
+  config because the slot already exists. Requires the ceremony change
+  (always-seal) plus catalog wording; not built yet.
+
 - agent/src/posture.rs (new) + main.rs wiring + tests (mock /sys paths
   via injectable root dir)
 - internal/domain/observed/observed.go: CheckIn.SB/TPM2 + validation
