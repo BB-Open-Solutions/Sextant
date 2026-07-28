@@ -60,14 +60,28 @@ jobs:
 
       # Packaging must not break silently: the chart lints/renders and the
       # images build on every push, not just when a human happens to try.
+      # The chart's DEFAULTS deliberately refuse to render (P4 fail-safe:
+      # write + gateMode none needs an explicit ack), so lint/render pin a
+      # valid combo - and the guards themselves are asserted to fire.
       - name: Helm lint + render
         run: |
           cd "$GITHUB_WORKSPACE/src"
           nix shell nixpkgs#kubernetes-helm --command bash -c '
-            helm lint deploy/helm &&
-            helm template deploy/helm --set gateRunner.enabled=true \
+            set -e
+            helm lint deploy/helm --set gateMode=remote --set gateRunner.enabled=true \
+              --set gateRunner.cache.keySecret=k --set gateRunner.cache.host=cache.example
+            helm template deploy/helm --set gateMode=remote --set gateRunner.enabled=true \
               --set gateRunner.cache.keySecret=k --set gateRunner.cache.host=cache.example \
-              --set releaseCache=true >/dev/null'
+              --set releaseCache=true >/dev/null
+            helm template deploy/helm --set gateMode=eval >/dev/null
+            helm template deploy/helm --set allowUnvalidated=true >/dev/null
+            if helm template deploy/helm >/dev/null 2>&1; then
+              echo "P4 guard did not fire: default write+gateMode=none rendered without ack"; exit 1
+            fi
+            if helm template deploy/helm --set gateMode=eval --set replicaCount=2 \
+              --set persistence.enabled=true >/dev/null 2>&1; then
+              echo "HA guard did not fire: PVC + replicaCount>1 rendered"; exit 1
+            fi'
 
       - name: Agent (fmt + clippy + test)
         run: |
