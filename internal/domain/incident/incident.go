@@ -100,8 +100,14 @@ func Detect(obs []Observation, now time.Time) []Incident {
 		}
 
 		// An online device on the wrong revision is drifting from its target.
+		// Ahead gets its own title and advice: it means an out-of-band change
+		// (or a stale pin), not a lagging update - a headline saying "behind"
+		// above an AHEAD detail read as a contradiction (operator feedback,
+		// 2026-07-28).
 		if o.Online && o.Target != "" && o.Deployed != "" && o.Deployed != o.Target {
 			detail := fmt.Sprintf("Running %s, target is %s.", short(o.Deployed), short(o.Target))
+			title, advice := o.Tag+" is behind",
+				"The update has not landed; check the rollout and the device logs."
 			if o.DeployedRelease > 0 && o.TargetRelease > 0 {
 				diff := o.TargetRelease - o.DeployedRelease
 				switch {
@@ -109,15 +115,13 @@ func Detect(obs []Observation, now time.Time) []Incident {
 					detail = fmt.Sprintf("On release %d, target is release %d (%d behind).",
 						o.DeployedRelease, o.TargetRelease, diff)
 				case diff < 0:
-					// Ahead of its pin: it took a newer commit than the wave
-					// staged (or the pin is stale) - name that instead of
-					// pretending it is behind.
-					detail = fmt.Sprintf("On release %d, AHEAD of its release-%d target - check the pin.",
+					title = o.Tag + " is ahead of its target"
+					detail = fmt.Sprintf("On release %d, ahead of its release-%d target.",
 						o.DeployedRelease, o.TargetRelease)
+					advice = "The device runs something the rollout did not stage: an out-of-band change, or a stale pin. Check the pin."
 				}
 			}
-			add(Behind, Warning, o.Tag+" is behind", detail,
-				"The update has not landed; check the rollout and the device logs.", time.Time{})
+			add(Behind, Warning, title, detail, advice, time.Time{})
 		}
 
 		if o.Error != "" {

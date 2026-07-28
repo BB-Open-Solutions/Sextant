@@ -28,7 +28,8 @@ const (
 // Valid reports whether k is a known kind.
 func (k Kind) Valid() bool {
 	switch k {
-	case ApprovalNeeded, ChangeMerged, RolloutDone, GateFailed, WipeExecuted:
+	case ApprovalNeeded, ChangeMerged, RolloutDone, GateFailed, WipeExecuted,
+		WriteApplied:
 		return true
 	}
 	return false
