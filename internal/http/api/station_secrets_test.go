@@ -25,8 +25,10 @@ func (f *fakeSink) Store(_ context.Context, tag string, kind secret.Kind, plaint
 }
 
 // installReportsLUKS drives one job to imaging and reports it installed with a
-// LUKS recovery key in the message, returning the resulting stored job.
-func installReportsLUKS(t *testing.T, sink *fakeSink) imaging.Job {
+// LUKS recovery key in the message, returning the resulting stored job and the
+// report's status code (the keyed report is refused without a working store,
+// design 0009).
+func installReportsLUKS(t *testing.T, sink *fakeSink) (imaging.Job, int) {
 	t.Helper()
 	store := &jobMemStore{m: map[string]imaging.Job{}}
 	svc := app.NewImagingService(store, fixedClock{time.Unix(1000, 0)}, "")
@@ -50,17 +52,17 @@ func installReportsLUKS(t *testing.T, sink *fakeSink) imaging.Job {
 	resp := req(t, http.MethodPost, ts.URL+"/api/station/nuc-1/jobs/aa:bb:cc:dd:ee:01/status",
 		"s3cr3t", `{"status":"installed","message":"`+imaging.LUKSRecoveryPrefix+`z7Xq-9pLm"}`)
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("status report = %d, want 204", resp.StatusCode)
-	}
 	job, _, _ := svc.Get(ctx, "nuc-1", "aa:bb:cc:dd:ee:01")
-	return job
+	return job, resp.StatusCode
 }
 
 func TestStationSealsLUKSWhenStoreEnabled(t *testing.T) {
 	sink := &fakeSink{enabled: true, stored: map[string]string{}}
-	job := installReportsLUKS(t, sink)
+	job, code := installReportsLUKS(t, sink)
 
+	if code != http.StatusNoContent {
+		t.Fatalf("status report = %d, want 204", code)
+	}
 	if got := sink.stored["lab-1|luks"]; got != "z7Xq-9pLm" {
 		t.Fatalf("LUKS key not sealed into the store: %q", got)
 	}
@@ -69,17 +71,25 @@ func TestStationSealsLUKSWhenStoreEnabled(t *testing.T) {
 	}
 }
 
-func TestStationKeepsLUKSMessageWithoutStore(t *testing.T) {
-	// No secret store: the key stays in the message for a one-shot copy.
-	job := installReportsLUKS(t, nil)
-	if job.Message != imaging.LUKSRecoveryPrefix+"z7Xq-9pLm" {
-		t.Fatalf("without a store the one-shot key must stay in the message, got %q", job.Message)
+func TestStationRefusesLUKSReportWithoutStore(t *testing.T) {
+	// No secret store: the keyed report is refused (design 0009, closes R7) -
+	// plaintext recovery material must never rest in the job record. The
+	// station retries once the store is configured, so no key is lost.
+	job, code := installReportsLUKS(t, nil)
+	if code != http.StatusServiceUnavailable {
+		t.Fatalf("status report = %d, want 503", code)
+	}
+	if job.Message != "" {
+		t.Fatalf("refused report still altered the job message: %q", job.Message)
 	}
 
-	// A disabled sink behaves the same (key not persisted, kept in message).
-	job = installReportsLUKS(t, &fakeSink{enabled: false, stored: map[string]string{}})
-	if job.Message == "" {
-		t.Fatal("a disabled sink must not strip the one-shot key")
+	// A disabled sink behaves the same (refused, nothing persisted).
+	job, code = installReportsLUKS(t, &fakeSink{enabled: false, stored: map[string]string{}})
+	if code != http.StatusServiceUnavailable {
+		t.Fatalf("disabled sink: status report = %d, want 503", code)
+	}
+	if job.Message != "" {
+		t.Fatalf("disabled sink: refused report altered the job message: %q", job.Message)
 	}
 }
 

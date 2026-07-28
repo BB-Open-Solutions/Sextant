@@ -1,7 +1,18 @@
 # 0009 - Recovery-key escrow
 
-Status: draft for review. Decided 1.0-blocking 2026-07-28
-(`docs/1.0-fit-gap.md` 5b). Also closes threat-model residual risk R7.
+Status: BUILT (2026-07-28). Decided 1.0-blocking the same day
+(`docs/1.0-fit-gap.md` 5b); closes threat-model residual risk R7.
+
+Build notes (deviations from the draft below):
+- The console reveal path already existed (`/devices/{tag}/secret/{kind}/
+  reveal`, Owner-gated, audited) - nothing to build there.
+- Confirmation is an explicit `X-Recovery-Key-Stored` response header, not
+  a bare 2xx: the device deletes its copy only on that header, so a
+  storeless server can accept the beat without silently losing the key.
+- Rotation is coupled to the ceremony's staged enrol key (shredded after
+  use): a NEW recovery key requires re-staging it (re-image/re-install),
+  not merely re-running the provision intent. Good enough at current
+  scale; revisit if TPM swaps become routine.
 
 ## Problem
 

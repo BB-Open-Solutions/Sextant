@@ -76,6 +76,10 @@ fn main() -> ExitCode {
             _ => ("", 0),
         };
         let usage = collect::collect_usage();
+        // A provisioning-minted LUKS recovery key rides along until the
+        // server confirms sealing it (design 0009); the local copy is
+        // deleted only on that confirmation, never on a bare 2xx.
+        let recovery = action::pending_recovery_key(&posture::default_root());
         let beat = CheckIn {
             tag: &cfg.tag,
             revision: &revision,
@@ -88,8 +92,12 @@ fn main() -> ExitCode {
             ack_ts,
             facts: facts.as_ref(),
             usage: Some(&usage),
+            recovery_key: recovery.as_deref(),
         };
-        let outcome = client.send(&beat);
+        let (outcome, recovery_stored) = client.send(&beat);
+        if recovery_stored && recovery.is_some() {
+            action::clear_recovery_key(&posture::default_root());
+        }
         if beat_accepted(&outcome) {
             consecutive_failures = 0;
             // The wipe ack (with its nonce) reached the server: the challenge

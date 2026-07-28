@@ -62,6 +62,32 @@ pub fn react(root: &Path, intent: &str) {
 /// outcome, and the ack must survive that reboot to reach the console.
 const ACK_FILE: &str = "/var/lib/sextant-agent/action.ack";
 
+/// RECOVERY_FILE is where the root executor leaves the LUKS recovery key it
+/// minted during the provisioning ceremony (design 0009), for the agent to
+/// escrow to the console. One-shot: the agent deletes it the moment the
+/// server confirms sealing. Confidentiality rests on the 0700 owner-only
+/// state directory - only this agent user and root can reach the file, and
+/// it exists only for the enroll-to-confirm window.
+const RECOVERY_FILE: &str = "/var/lib/sextant-agent/recovery.key";
+
+/// pending_recovery_key returns the recovery key awaiting escrow, if any.
+pub fn pending_recovery_key(root: &Path) -> Option<String> {
+    let key = fs::read_to_string(root.join(RECOVERY_FILE.trim_start_matches('/'))).ok()?;
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        None
+    } else {
+        Some(key)
+    }
+}
+
+/// clear_recovery_key deletes the local copy - called only after the server
+/// confirmed it sealed the key (the X-Recovery-Key-Stored response header),
+/// so recovery material is never lost between mint and escrow.
+pub fn clear_recovery_key(root: &Path) {
+    let _ = fs::remove_file(root.join(RECOVERY_FILE.trim_start_matches('/')));
+}
+
 /// executed_ack reads and clears the outcome the root executor recorded for the
 /// last spooled intent ("lock"/"wipe"/"wipe-refused"/"wipe-failed"), so the
 /// agent forwards what HAPPENED, not merely that it spooled the request.
@@ -196,6 +222,22 @@ mod tests {
             .join(SPOOL.trim_start_matches('/'))
             .join("explode.intent")
             .exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn recovery_key_pending_and_clear_lifecycle() {
+        let root = tmp("recovery");
+        assert_eq!(pending_recovery_key(&root), None);
+        let f = root.join(RECOVERY_FILE.trim_start_matches('/'));
+        fs::create_dir_all(f.parent().unwrap()).unwrap();
+        fs::write(&f, "modhex-key\n").unwrap();
+        // Reads do NOT consume: the key stays pending until the server
+        // confirms sealing (unlike executed_ack's read-and-clear).
+        assert_eq!(pending_recovery_key(&root).as_deref(), Some("modhex-key"));
+        assert_eq!(pending_recovery_key(&root).as_deref(), Some("modhex-key"));
+        clear_recovery_key(&root);
+        assert_eq!(pending_recovery_key(&root), None);
         let _ = fs::remove_dir_all(&root);
     }
 

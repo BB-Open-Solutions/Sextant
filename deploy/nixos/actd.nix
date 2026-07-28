@@ -167,6 +167,21 @@ let
           dev="$(blkid -t TYPE=crypto_LUKS -o device | head -n1)"
           if [ -n "$dev" ] && systemd-cryptenroll --unlock-key-file="$keyfile" \
                --tpm2-device=auto --tpm2-pcrs=7 "$dev"; then
+            # Escrow (design 0009): mint a recovery keyslot while the staged
+            # enrol key still authorises one, and hand the phrase to the
+            # unprivileged agent for one-shot upload to the console (deleted
+            # there once the server confirms sealing). Best-effort: a failed
+            # mint must not fail the ceremony - the device still unlocks via
+            # TPM2; the console shows no recovery secret for it, which is the
+            # operator's cue. Root-written inside the agent's 0700 state dir:
+            # only the agent user and root can reach it.
+            recoveryFile="/var/lib/sextant-agent/recovery.key"
+            if recovery="$(systemd-cryptenroll --unlock-key-file="$keyfile" \
+                 --recovery-key "$dev" | tail -n1)" && [ -n "$recovery" ]; then
+              printf '%s' "$recovery" > "$recoveryFile"
+            else
+              echo "sextant-actd: recovery-key mint failed; no escrow for this device" >&2
+            fi
             shred -u "$keyfile" 2>/dev/null || rm -f "$keyfile"
             # The stamp is the agent's posture source for "enrolled" - the
             # LUKS header itself is root-only, out of the agent's reach.

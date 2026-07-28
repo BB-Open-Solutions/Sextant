@@ -230,18 +230,20 @@ func (s *StationAPI) handleJobStatus(w http.ResponseWriter, r *http.Request) {
 		// not be able to smuggle plaintext key material to rest by attaching the
 		// prefix to, say, a Failed message instead.
 		//
-		// With no secret store configured (or a seal attempt that fails) the key
-		// is KEPT in the message: the provisioning wizard's one-shot reveal reads
-		// it back from this same column on a later, separate GET
-		// (internal/http/web/enroll_wizard.go), so there is no other channel to
-		// hand it over - the app must work standalone (no key manager) as well as
-		// with secretbox / OpenBao. This is accepted residual risk (plaintext
-		// break-glass material at rest for a bounded window); see the matching
-		// comment on app.ImagingService.Report for how that window is bounded.
+		// Sealing is REQUIRED (design 0009, closes threat-model R7): with no
+		// secret store configured - or a seal attempt failing - the report is
+		// refused with an actionable error instead of keeping the plaintext in
+		// the job record for one-shot copy, which the previous behaviour did.
+		// The chart ships the secretbox key by default, so any real deploy has
+		// the store; a deploy that stripped it must restore it before imaging.
+		// The station retries the report, so no key is lost - it is just never
+		// at rest unencrypted.
 		if key, found := strings.CutPrefix(msg, imaging.LUKSRecoveryPrefix); found {
-			if s.sealLUKS(r.Context(), station, mac, key) {
-				msg = ""
+			if !s.sealLUKS(r.Context(), station, mac, key) {
+				http.Error(w, "device-secret store unavailable: refusing to keep a plaintext recovery key; configure the secret store (secretbox key) and re-report", http.StatusServiceUnavailable)
+				return
 			}
+			msg = ""
 		}
 		if err := s.imaging.Report(r.Context(), station, mac, status, msg); err != nil {
 			s.log.Warn("station job status rejected", "station", station, "mac", mac, "status", status, "err", err)
@@ -269,15 +271,13 @@ func (s *StationAPI) handleJobStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // sealLUKS resolves the job's asset tag and seals the reported LUKS recovery
-// key into the per-device secret store. A missing or disabled store is logged
-// loudly (the key is not persisted) rather than silently dropped, so an operator
-// notices that recovery material is not being kept.
-// sealLUKS reports whether it sealed the key (so the caller keeps or drops the
-// plaintext message accordingly). A missing/disabled store or an unresolvable
-// tag returns false and is logged - the key then stays in the one-shot message.
+// key into the per-device secret store. It reports whether it sealed the key;
+// false makes the caller refuse the report (design 0009 - plaintext recovery
+// material never rests in the job record), and the reason is logged loudly so
+// the operator sees why imaging is stalled.
 func (s *StationAPI) sealLUKS(ctx context.Context, station, mac, key string) bool {
 	if s.secrets == nil || !s.secrets.Enabled() {
-		s.log.Warn("LUKS recovery key reported but no secret store is configured; kept in the job message for one-shot copy", "station", station, "mac", mac)
+		s.log.Error("LUKS recovery key reported but no secret store is configured; refusing the report (design 0009)", "station", station, "mac", mac)
 		return false
 	}
 	job, ok, err := s.imaging.Get(ctx, station, mac)

@@ -445,9 +445,11 @@ func (d *deps) observedCapability() capability.Capability {
 						return b
 					}
 					return d.imaging.AdvanceFromDevice(ctx, c,
-						want("secureboot.enable"), want("diskUnlock.tpm2.enable"))
+						want(app.KeySecureBoot), want(app.KeyTPM2))
 				}).
-				WithIntentKey(d.intentNonceKey).Routes(inner)
+				WithIntentKey(d.intentNonceKey).
+				WithDeviceSecrets(d.deviceSecrets).
+				WithLog(d.log).Routes(inner)
 			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner))
 		},
 	}

@@ -35,6 +35,10 @@ pub struct CheckIn<'a> {
     pub facts: Option<&'a serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<&'a crate::collect::Usage>,
+    /// recoveryKey carries a provisioning-minted LUKS recovery key exactly
+    /// until the server confirms sealing it (design 0009); None otherwise.
+    #[serde(rename = "recoveryKey", skip_serializing_if = "Option::is_none")]
+    pub recovery_key: Option<&'a str>,
 }
 
 /// Outcome of one beat, as far as the loop needs to know.
@@ -77,8 +81,11 @@ impl Client {
         }
     }
 
-    /// send posts one check-in and classifies the response.
-    pub fn send(&self, body: &CheckIn) -> Outcome {
+    /// send posts one check-in and classifies the response. The second
+    /// return reports whether the server confirmed sealing this beat's
+    /// recovery key (the X-Recovery-Key-Stored header, design 0009) - the
+    /// caller deletes the local copy only on that confirmation.
+    pub fn send(&self, body: &CheckIn) -> (Outcome, bool) {
         let res = self
             .agent
             .post(&self.url)
@@ -86,32 +93,39 @@ impl Client {
             .send_json(body);
         match res {
             Ok(resp) => {
+                let recovery_stored = resp.header("X-Recovery-Key-Stored").is_some();
                 // 204 = nothing pending; 200 carries a remote-action intent.
                 if resp.status() == 200 {
                     if let Ok(doc) = resp.into_json::<serde_json::Value>() {
                         if let Some(intent) = doc.get("intent").and_then(|v| v.as_str()) {
                             if !intent.is_empty() {
-                                return Outcome::Intent {
-                                    intent: intent.to_string(),
-                                    nonce: doc
-                                        .get("nonce")
-                                        .and_then(|v| v.as_str())
-                                        .map(str::to_string),
-                                    ts: doc.get("ts").and_then(|v| v.as_i64()),
-                                };
+                                return (
+                                    Outcome::Intent {
+                                        intent: intent.to_string(),
+                                        nonce: doc
+                                            .get("nonce")
+                                            .and_then(|v| v.as_str())
+                                            .map(str::to_string),
+                                        ts: doc.get("ts").and_then(|v| v.as_i64()),
+                                    },
+                                    recovery_stored,
+                                );
                             }
                         }
                     }
                 }
-                Outcome::Ok
+                (Outcome::Ok, recovery_stored)
             }
-            Err(ureq::Error::Status(401, _)) => Outcome::Unauthorized,
-            Err(ureq::Error::Status(410, _)) => Outcome::Retired,
-            Err(ureq::Error::Status(code, resp)) => Outcome::Transient(format!(
-                "server returned {code}: {}",
-                resp.into_string().unwrap_or_default().trim()
-            )),
-            Err(e) => Outcome::Transient(e.to_string()),
+            Err(ureq::Error::Status(401, _)) => (Outcome::Unauthorized, false),
+            Err(ureq::Error::Status(410, _)) => (Outcome::Retired, false),
+            Err(ureq::Error::Status(code, resp)) => (
+                Outcome::Transient(format!(
+                    "server returned {code}: {}",
+                    resp.into_string().unwrap_or_default().trim()
+                )),
+                false,
+            ),
+            Err(e) => (Outcome::Transient(e.to_string()), false),
         }
     }
 }
@@ -186,11 +200,14 @@ mod tests {
             ack_ts: 0,
             facts: None,
             usage: None,
+            recovery_key: None,
         };
-        assert_eq!(c.send(&body), Outcome::Ok);
-        assert_eq!(c.send(&body), Outcome::Unauthorized);
-        assert_eq!(c.send(&body), Outcome::Retired);
-        assert!(matches!(c.send(&body), Outcome::Transient(_)));
+        // The plain server sends no X-Recovery-Key-Stored header, so the
+        // stored flag stays false on every classification.
+        assert_eq!(c.send(&body), (Outcome::Ok, false));
+        assert_eq!(c.send(&body), (Outcome::Unauthorized, false));
+        assert_eq!(c.send(&body), (Outcome::Retired, false));
+        assert!(matches!(c.send(&body), (Outcome::Transient(_), false)));
 
         let bodies = handle.join().unwrap();
         // Wire shape matches the server contract; absent fields are omitted.

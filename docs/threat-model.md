@@ -224,13 +224,17 @@ membership adapter consulted at auth time.
 - No `TODO`/`FIXME`/`HACK` near any security boundary in `internal/`,
   `agent/src`, `cmd/`, `deploy/`.
 
-**Residual R7 (data at rest).** When no secret store is enabled,
-`StationAPI.sealLUKS` keeps the LUKS recovery key in the `image_jobs`
-message field unencrypted for one-shot copy
-(`internal/http/api/station.go:278-282`) - a deliberate loud-vs-silent
-choice, but unencrypted recovery material at rest until copied. Enable
-the device-secret store (AES-256-GCM sealing) before real imaging, or
-gate imaging on a configured store.
+**R7 - CLOSED (design 0009).** The plaintext fallback is gone: a status
+report carrying a recovery key is refused with an actionable error when
+no secret store is configured (`internal/http/api/station.go`,
+`handleJobStatus` + `sealLUKS`), so recovery material never rests
+unencrypted - the station retries once the store is configured. The
+wizard path escrows the same way: the provisioning ceremony mints a
+recovery keyslot (`deploy/nixos/actd.nix`), the agent uploads it once
+over the authenticated check-in, the server seals it
+(`internal/http/api/checkin.go`) and confirms via response header
+before the device deletes its copy - no plaintext at rest on either
+side, reveal stays Owner-only + audited.
 
 ## Residual-risk register
 
@@ -242,7 +246,7 @@ gate imaging on a configured store.
 | R4 | Deploy force-push has no second factor | gate protects main; build-before-promote | ring-scoped least-priv token, rotation, signed refs |
 | R5 | Wipe unit keeps a loose syscall sandbox | documented, wipe needs 3 other walls | harden after hardware coverage |
 | R6 | Personal-token group snapshot staleness | TTL-bounded (30d) | per-user membership adapter |
-| R7 | LUKS recovery key plaintext when store off | loud warning; store seals when on | require the store before imaging |
+| R7 | LUKS recovery key plaintext when store off | CLOSED: the store is required - a keyed report is refused without it; wizard path escrows via confirmed check-in upload (design 0009) | - |
 
 None of R1-R7 is a live exploit against the deployed configuration
 (store enabled, per-device credentials issued, owners trusted); they are

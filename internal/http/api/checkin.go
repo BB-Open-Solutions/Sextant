@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
+	domsecret "code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/secret"
 )
 
 // DeviceAuthenticator verifies a per-device credential against a claimed
@@ -42,8 +44,29 @@ type CheckinAPI struct {
 	// guard (the by-construction property - intent is the direct response -
 	// still holds); set, it signs the wipe response and verifies the wipe ack.
 	intentKey []byte
+	// secrets escrows a device-reported LUKS recovery key (design 0009).
+	// nil/disabled = the key is NOT acknowledged, so the device keeps its
+	// copy and retries - recovery material is never silently dropped.
+	secrets *app.DeviceSecretsService
 	// now is the clock, injectable for tests. nil defaults to time.Now.
 	now func() time.Time
+	// log is optional; logger() falls back to slog.Default().
+	log *slog.Logger
+}
+
+// logger returns the wired logger or the process default.
+func (c *CheckinAPI) logger() *slog.Logger {
+	if c.log != nil {
+		return c.log
+	}
+	return slog.Default()
+}
+
+// WithLog wires a logger (the capability passes the process logger; tests
+// and older call sites fall back to slog.Default).
+func (c *CheckinAPI) WithLog(log *slog.Logger) *CheckinAPI {
+	c.log = log
+	return c
 }
 
 // NewCheckin builds the check-in surface. Both auth sources are optional
@@ -70,6 +93,13 @@ func (c *CheckinAPI) WithIntent(intent func(ctx context.Context, tag string) str
 // leaves the guard off.
 func (c *CheckinAPI) WithIntentKey(key []byte) *CheckinAPI {
 	c.intentKey = key
+	return c
+}
+
+// WithDeviceSecrets wires the escrow store for provisioning-minted LUKS
+// recovery keys (design 0009).
+func (c *CheckinAPI) WithDeviceSecrets(secrets *app.DeviceSecretsService) *CheckinAPI {
+	c.secrets = secrets
 	return c
 }
 
@@ -108,6 +138,11 @@ type checkinBody struct {
 	// and on non-wipe acks.
 	AckNonce string `json:"ackNonce,omitempty"`
 	AckTs    int64  `json:"ackTs,omitempty"`
+	// RecoveryKey is a one-shot LUKS recovery key minted during the
+	// provisioning ceremony (design 0009). The server seals it into the
+	// device-secret store and confirms with the X-Recovery-Key-Stored
+	// response header; only then does the device delete its copy.
+	RecoveryKey string `json:"recoveryKey,omitempty"`
 }
 
 // isWipeAck reports whether an ack reports a wipe outcome (executed, refused
@@ -176,6 +211,30 @@ func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
 	if err := c.inv.CheckIn(r.Context(), in.CheckIn, in.Facts); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// Escrow a provisioning-minted LUKS recovery key (design 0009): seal it
+	// into the device-secret store and confirm via response header; the
+	// device deletes its copy only on that confirmation, so a missing or
+	// failing store means retry-next-beat, never silent loss. The key is
+	// never logged. An oversized value cannot be a systemd-cryptenroll
+	// recovery phrase and is refused outright.
+	if in.RecoveryKey != "" {
+		const maxRecoveryKey = 256
+		switch {
+		case len(in.RecoveryKey) > maxRecoveryKey:
+			http.Error(w, "recovery key exceeds the expected size", http.StatusBadRequest)
+			return
+		case c.secrets == nil || !c.secrets.Enabled():
+			c.logger().Warn("device reported a recovery key but no secret store is configured; device keeps it and retries", "tag", in.Tag)
+		default:
+			if err := c.secrets.Store(r.Context(), in.Tag, domsecret.LUKS, in.RecoveryKey, "device:"+in.Tag); err != nil {
+				c.logger().Error("failed to seal device recovery key", "tag", in.Tag, "err", err)
+			} else {
+				w.Header().Set("X-Recovery-Key-Stored", "1")
+				c.logger().Info("sealed device recovery key", "tag", in.Tag)
+			}
+		}
 	}
 
 	// Advance the provisioning wizard from what this beat reported (posture,
