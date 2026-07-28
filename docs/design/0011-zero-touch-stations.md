@@ -44,6 +44,14 @@ existing domain, no new domain code expected:
 UI follows the rebuilt console's patterns (cards, confirm flows); the
 PoC screens are reference material, not code to salvage.
 
+Feedback is part of the surface (operator note from the first live
+inspoelronde, 2026-07-28): "start imaging" must never look like
+nothing happened. The dispatch redirects straight into the job list
+with the new job visible in its Pending/claimed state, and the job
+row shows liveness (last runner poll, current step/progress) without
+a manual refresh - the imaging state machine already reports progress,
+the page just has to show it promptly.
+
 **Station migration (operator work, runbook exists).** Migrate the
 inspoelstraat NUC to the sextant-overlay per
 `docs/station-migration-runbook.md`, return `rings/infra` to the
