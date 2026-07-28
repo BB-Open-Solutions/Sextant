@@ -469,7 +469,13 @@ func (d *deps) observedCapability() capability.Capability {
 				WithDeviceSecrets(d.deviceSecrets).
 				WithDiagnostics(d.diagnostics).
 				WithLog(d.log).Routes(inner)
-			mux.Handle("POST /api/checkin", mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner))
+			// One limiter over both device-facing endpoints: the check-in
+			// beat and the diagnostics upload (design 0010) share auth and
+			// cadence. Mounting only /api/checkin 404'd the upload route -
+			// found by the first station e2e.
+			limited := mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner)
+			mux.Handle("POST /api/checkin", limited)
+			mux.Handle("POST /api/device/{tag}/diagnostics", limited)
 		},
 	}
 }

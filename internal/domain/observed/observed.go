@@ -127,7 +127,8 @@ func (c CheckIn) Validate() error {
 	}
 	switch c.Ack {
 	case "", AckLock, AckWipe, AckWipeRefused, AckWipeFailed, AckRebooted,
-		AckSBEnrolled, AckSBEnrollFailed, AckTPM2Enrolled, AckTPM2EnrollFailed:
+		AckSBEnrolled, AckSBEnrollFailed, AckTPM2Enrolled, AckTPM2EnrollFailed,
+		AckDiagnostics, AckDiagnosticsFailed:
 	default:
 		return fmt.Errorf("unknown ack %q", c.Ack)
 	}
