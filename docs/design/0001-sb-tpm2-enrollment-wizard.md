@@ -81,7 +81,23 @@ already correct; the physical steps are the human's). The panel shows a
 red warning when TPM2 enrollment is attempted while sb != enforcing
 (PCR7 would bind to the wrong measurement).
 
-## Files to touch
+## Decision: posture is an image-time property (2026-07-28)
+
+Found live during the first inspoelronde: a device imaged while its
+resolved config did NOT target Secure Boot / TPM2 completes its job
+with those steps skipped, and enabling the keys afterwards does not
+restart the ceremony - deliberately. The material the ceremony consumes
+(the staged sbctl platform keys, the one-shot LUKS enrol key) exists
+only during install and is shredded after use; there is no safe
+config-only path to enrol later.
+
+The rule, decided with the operator: **changing secureboot.enable /
+diskUnlock.tpm2.* on an already-enrolled device requires re-imaging.**
+Set the posture keys on the group BEFORE dispatching the image. The
+console must make this legible: a posture-key change that reaches
+devices with a completed image job should say "takes effect at the
+next re-image" instead of implying a live ceremony (UI-audit item; the
+device posture panel's step texts assume mid-ceremony state today).
 
 - agent/src/posture.rs (new) + main.rs wiring + tests (mock /sys paths
   via injectable root dir)

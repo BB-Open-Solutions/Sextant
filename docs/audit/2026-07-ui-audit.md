@@ -131,3 +131,9 @@ Format: location | severity | category | problem → fix.
     derivation over the fleet). Measure, then either cache/precompute
     server-side or render the shell immediately with the expensive
     table streamed/loaded after - no blank wait.
+43. settings/posture keys | med | honesty | Posture keys (secureboot,
+    diskUnlock.tpm2.*) are image-time properties (design 0001 decision
+    2026-07-28): changing them for already-imaged devices does nothing
+    until re-image. The settings editor and the device posture panel
+    must say so ("takes effect at next re-image") instead of implying
+    a live ceremony.
