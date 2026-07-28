@@ -32,14 +32,29 @@ func (s *Store) LeaderLoop(ctx context.Context, key int64, log *slog.Logger, run
 
 // leadOnce acquires a dedicated connection, blocks until it wins the advisory
 // lock, then runs `run` under a leader-scoped context until the connection
-// dies or ctx is cancelled - at which point the lock releases (session end)
-// and a standby can take over.
+// dies or ctx is cancelled - at which point the lock is released (explicit
+// unlock, or session end if the connection is broken) and a standby takes
+// over.
 func (s *Store) leadOnce(ctx context.Context, key int64, log *slog.Logger, run func(context.Context)) error {
 	conn, err := s.pool.Acquire(ctx)
 	if err != nil {
 		return err
 	}
-	defer conn.Release() // releasing the session drops the advisory lock
+	// Release alone is NOT enough: pgxpool returns the connection to the
+	// pool with its session alive, so a session-level advisory lock would
+	// stay held (blocking failover) until the pooled connection ages out.
+	// Unlock explicitly; if that fails the session state is unknown, so
+	// take the connection out of the pool and close it - ending the
+	// session drops the lock server-side.
+	defer func() {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", key); err != nil {
+			_ = conn.Hijack().Close(unlockCtx)
+			return
+		}
+		conn.Release()
+	}()
 
 	// Block until we are the leader. pg_advisory_lock waits; the context
 	// bounds the wait so a shutdown does not hang here.
