@@ -35,7 +35,7 @@ device cannot get there".
   activation log. An online device on a revision the repo cannot place in
   its history is called out as following an unknown source.
 
-## Wazuh: five packaging defects in one module
+## Wazuh: six packaging defects in one module
 
 The vendor package assumes an FHS system and a running installer. Each
 defect below hid the next; all were invisible until the unit ran on real
@@ -63,20 +63,44 @@ hardware.
    `wazuh_manager.conf`; and the password differed by a trailing newline
    between device and manager.
 
-**Result.** Enrollment works - the device registers as an agent on the
-manager and holds a `client.keys`. Still open: `wazuh-agentd` rejects
-`etc/ossec.conf` with "Error reading XML file (line 0)" even with the
-package's own 191-line template substituted in. Ruled out: XML validity
-(no BOM, no CR, no NUL, parses), the symlink path, the enrollment-block
-injection, missing sections, and file ownership. Notable: the same binary
-read a minimal config fine BEFORE `client.keys` existed, so the next step
-is what agentd parses additionally once it holds a key (`etc/shared/`
-holds only cis_*.txt - no `agent.conf`).
+6. **One directory wearing three error messages.** The unit used systemd's
+   `StateDirectory`, which re-applies the directory's ownership from the
+   unit's own identity before EVERY `Exec` command. The unit runs as root;
+   the wazuh binaries drop privileges to the `wazuh` user. So systemd put
+   `/var/lib/ossec` back to `0750 root:root` after the preStart's
+   `chown -R`, and the runtime user could not TRAVERSE its own home. Every
+   read below it then failed with a message naming something other than
+   permissions:
+   - `Error reading XML file 'etc/ossec.conf': (line 0)` - never an XML
+     problem at all. Hours went into validating the XML, ruling out
+     BOM/CR/NUL, and substituting the package's own 191-line template.
+   - `(1402): Authentication key file 'etc/client.keys' not found` while
+     that file sat there with 80 bytes in it.
+   - `(1210): Queue 'queue/sockets/queue' not accessible: 'Permission
+     denied'` - the only one of the three that told the truth.
+
+   Fixed by owning the directory with a tmpfiles rule instead of
+   `StateDirectory`, so nothing chowns it back. Proven on the device: after
+   a single `chown -R wazuh:wazuh`, agentd read its keys and its config and
+   reported `Connected to the server ([siem.bb-open.com]:1514/tcp)`.
+
+**Result.** The agent enrols, reads its configuration and connects to the
+manager.
+
+**The lesson worth more than the fix.** An earlier version of the
+acceptance test measured this exact ownership (`root:root 0750` ten seconds
+into `ExecStart`, wazuh user unable to traverse) and wrote it off in a
+comment as cosmetic - "asserting the chown's intent here would only encode
+a no-op". It was not cosmetic; it was the whole bug. A test that observes
+an anomaly and argues it away is worse than one that never looked, because
+it leaves a note telling the next reader not to bother. The test now
+asserts what the binaries actually need: that the wazuh user can read the
+config and write the queue.
 
 **Do not use `systemctl is-active wazuh-agent` as a health signal.** It
 legitimately fails until enrollment succeeds, on a device and in a VM.
 
-## Identity (SSSD): three layers, each silent
+## Identity (SSSD): four layers, each silent
 
 1. **`SSSD is offline` with a perfectly reachable directory.** The config
    demanded a certificate (`ldap_tls_reqcert = demand`) on a plain
@@ -93,13 +117,38 @@ legitimately fails until enrollment succeeds, on a device and in a VM.
 3. **The read-only bind account could bind but not read.** OpenLDAP's ACL
    ended in `by * none`, so every search returned `err=32` (noSuchObject)
    - indistinguishable from an empty directory, and it cost an hour on the
-   wrong hypothesis ("the directory was never seeded"). Fixed: an ACL
-   granting `cn=sextant-ro` read on the subtree. **Still to do: capture
-   that ACL in the bb-ldap repo** - it is a live `cn=config` change today.
+   wrong hypothesis ("the directory was never seeded"). A bind that can
+   authenticate but not read is worse than a bind that fails: it lies about
+   the directory's contents. Fixed live, and now captured declaratively in
+   the bb-ldap repo along with the `cn=sextant-ro` account itself (osixia
+   bootstraps custom LDIFs only on a volume's first start, so that commit
+   is for rebuilds and new tenants, not a deploy action).
+
+4. **SSSD resolved the user; the rest of the system could not see it.**
+   With all three layers above fixed, `sssctl user-checks bbuijs` returned
+   the full record - uid 10001, gid, gecos, home directory - while
+   `getent passwd bbuijs` stayed empty, and stayed empty for four hours.
+   Cause: `nsncd`, the NSS caching daemon, dlopen's `libnss_sss` once and
+   caches its answers, and nixpkgs restart-triggers *sssd* on a settings
+   change but never the daemon in front of it. It kept answering out of a
+   world that no longer existed. `systemctl restart nscd` fixed it
+   instantly. Fixed permanently with a restart trigger on the identity
+   settings.
+
+   This one is worth remembering as a diagnostic habit: **every tool that
+   asked sssd said "fine".** `sssctl` talks to sssd over its own socket and
+   bypasses NSS entirely, which is exactly the layer that was broken. The
+   only signal that told the truth was the one a real login uses.
 
 Also: `offline_credentials_expiration` is a `[pam]` option, not a domain
 option. It sat in the domain section where sssd's validator rejects it, so
 offline login validity was silently not configured.
+
+Two things that looked like defects and were not, recorded so nobody
+re-investigates them: `/etc/pam.d/gdm-password` contains no `pam_sss` line
+(it `substack`s `login`, which has four), and `/etc/sssd/sssd.conf` shows
+mode 777 to `stat` (that is the symlink; the file it points at is
+`0600 root:root` outside the nix store, so the bind password does not leak).
 
 ## Boot experience
 
@@ -122,3 +171,12 @@ added to the fleet's workplace stack. No upstream change was needed.
   minutes of having a shell.
 - **A guard that cannot be observed is not a guard.** Several fixes here
   are about making a correct-but-silent system say what it is waiting for.
+- **Test the layer the user traverses, not the layer you suspect.** Two of
+  the hardest defects here hid behind a healthy-looking subsystem: sssd
+  answered its own socket correctly while NSS was blind, and wazuh's
+  binaries reported a config-parse error for what was a directory
+  permission. In both cases the tool closest to the suspect said "fine".
+- **An anomaly you argue away in a comment is a defect you shipped.** The
+  acceptance test measured wazuh's wrong ownership, explained why it did not
+  matter, and moved on. It mattered completely. If a test notices something
+  it cannot explain, the finding belongs in the assertion, not the prose.
