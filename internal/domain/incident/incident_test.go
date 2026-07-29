@@ -1,9 +1,10 @@
 package incident
 
 import (
-	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"testing"
 	"time"
+
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 )
 
 func TestDetect(t *testing.T) {
