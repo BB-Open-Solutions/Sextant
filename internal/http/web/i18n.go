@@ -1,6 +1,8 @@
 package web
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
@@ -73,6 +75,39 @@ func (l Localizer) Date(t time.Time) string {
 		return "-"
 	}
 	return t.In(l.loc).Format("2006-01-02")
+}
+
+// devices renders a device count with the matching noun. The catalog is a
+// flat key/value table with no pluralisation engine, so singular and plural
+// are two keys.
+func (l Localizer) devices(n int) string {
+	key := "common.device_many"
+	if n == 1 {
+		key = "common.device_one"
+	}
+	return strconv.Itoa(n) + " " + l.T(key)
+}
+
+// Progress renders a wave's device counts as a sentence instead of the
+// "(3/12 - 1 away)" arithmetic the board used to show: an operator reads how
+// far the wave got and what it is still waiting on. Absent devices (silent
+// beyond the window) are named separately because they left the promotion
+// denominator - present is what the counts measure against.
+func (l Localizer) Progress(onTarget, present, absent int) string {
+	var parts []string
+	switch remaining := present - onTarget; {
+	case present <= 0: // nothing left to measure against; only absent remains
+	case remaining <= 0:
+		parts = append(parts, l.T("rollout.progress_all")+" "+l.devices(present)+" "+l.T("rollout.progress_updated"))
+	case onTarget == 0:
+		parts = append(parts, l.T("rollout.waiting_on")+" "+l.devices(remaining))
+	default:
+		parts = append(parts, strconv.Itoa(onTarget)+" "+l.T("rollout.progress_of")+" "+l.devices(present)+" "+l.T("rollout.progress_updated"))
+	}
+	if absent > 0 {
+		parts = append(parts, l.devices(absent)+" "+l.T("rollout.not_reporting"))
+	}
+	return strings.Join(parts, " · ")
 }
 
 // Locale exposes the resolved locale (lang attribute).

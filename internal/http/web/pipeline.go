@@ -236,8 +236,11 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 		"Active":  active,
 		"Paused":  paused,
 		"MainRev": head, "MainRelease": headRelease, "TargetRelease": targetRelease,
-		"Delivering": st != nil && st.ChangeTitle != "" && (active || paused),
-		"DeliveringTitle": func() string {
+		// The running row leads with WHAT is changing: the change request's
+		// title when the run delivers one, a neutral line otherwise (the
+		// template's fallback). The release number and revision that identify
+		// it are forensics - they hang in the row's hover title.
+		"ChangeTitle": func() string {
 			if st != nil {
 				return st.ChangeTitle
 			}
@@ -250,6 +253,12 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 		"AutoFlow": f.Rollout.AutoFlowEnabled(),
 		"CanEdit":  v.roleAt("org").Meets(identity.Editor),
 		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
+	}
+	// The core version is the one version axis that is a version: config
+	// changes are a status, the image lineage is a release an operator quotes.
+	// An overlay without a dawo pin simply has no row.
+	if core, ok := s.svc.Config.CoreVersion(); ok {
+		data["Core"] = core
 	}
 	// Idle headline: an operator wants to read "all devices current", not
 	// "no rollout running". Only judged while nothing is rolling out - during

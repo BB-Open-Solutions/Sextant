@@ -23,15 +23,21 @@
 {{if .HasPlan}}
 <section class="mb-8 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <div class="flex min-w-0 items-center gap-3">
-      {{if .Paused}}<span class="tag"><span class="material-symbols-outlined msz-14">pause</span>{{.L.T "updates.state_paused"}}</span>
-      {{else if .Active}}<span class="tag ok"><span class="material-symbols-outlined msz-14 animate-spin">autorenew</span>{{.L.T "updates.state_active"}}</span>
-      {{else if .FleetCurrent}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{.L.T "updates.state_all_current"}}</span>
-      {{else}}<span class="tag">{{.L.T "updates.state_idle"}}</span>{{end}}
-      {{with .TargetRelease}}<span class="text-label-md font-semibold text-ink">{{$.L.T "common.release"}} {{.}}</span>{{end}}
-      {{with .State}}<span class="truncate font-mono text-code-inline text-text-tertiary">{{short .Target}}</span>{{end}}
-      {{if .Delivering}}<span class="truncate text-label-md text-ink"><span class="material-symbols-outlined msz-14 align-middle text-mint-deep">local_shipping</span> {{.L.T "updates.delivering"}} {{.DeliveringTitle}}</span>{{end}}
-      {{range .Waves}}{{if .Active}}<span class="truncate text-label-md text-text-secondary">{{.Label}} · {{$.L.T .StatusKey}}{{if .Total}} ({{.OnTarget}}/{{.Present}}{{if .Absent}} · {{.Absent}} {{$.L.T "rollout.away"}}{{end}}){{end}}</span>{{end}}{{end}}
+    <div class="flex min-w-0 flex-col gap-1">
+      <div class="flex min-w-0 flex-wrap items-center gap-3">
+        {{if .Paused}}<span class="tag"><span class="material-symbols-outlined msz-14">pause</span>{{.L.T "updates.state_paused"}}</span>
+        {{else if .Active}}<span class="tag ok"><span class="material-symbols-outlined msz-14 animate-spin">autorenew</span>{{.L.T "updates.state_active"}}</span>
+        {{else if .FleetCurrent}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{.L.T "updates.state_all_current"}}</span>
+        {{else}}<span class="tag">{{.L.T "updates.state_idle"}}</span>{{end}}
+        {{/* Rolling out: the headline names the change, not the release. The
+             number and the revision that identify it stay in the hover title -
+             the same demotion the devices list gives them. */}}
+        {{if or .Active .Paused}}
+        <span class="truncate text-label-md font-semibold text-ink" title="{{if .TargetRelease}}{{.L.T "common.release"}} {{.TargetRelease}} · {{end}}{{with .State}}{{.Target}}{{end}}"><span class="material-symbols-outlined msz-14 align-middle text-mint-deep">local_shipping</span> {{if .ChangeTitle}}{{.ChangeTitle}}{{else}}{{.L.T "updates.change_generic"}}{{end}}</span>
+        {{with .State}}<span class="shrink-0 font-mono text-code-inline text-text-tertiary">{{short .Target}}</span>{{end}}
+        {{end}}
+      </div>
+      {{range .Waves}}{{if .Active}}<span class="truncate text-label-md text-text-secondary">{{.Label}} · {{$.L.T .StatusKey}}{{with $.L.Progress .OnTarget .Present .Absent}} · {{.}}{{end}}</span>{{end}}{{end}}
     </div>
     <div class="flex shrink-0 items-center gap-2">
       {{if or .Active .Paused}}
@@ -70,6 +76,12 @@
       {{end}}
     </div>
   </div>
+  {{/* The image lineage IS a version - unlike a config release number, it is
+       what an operator means by "which DAWO are we on". An overlay without a
+       core pin has no row. */}}
+  {{with .Core}}
+  <p class="mt-2 mb-0 text-body-sm text-text-tertiary" title="{{.URL}}">{{$.L.T "updates.core_label"}} <span class="font-mono text-code-inline">{{short .Rev}}</span>{{if not .Modified.IsZero}} · {{$.L.T "updates.core_pinned"}} {{$.L.Date .Modified}}{{end}}</p>
+  {{end}}
   {{/* Nothing in flight and the ladder is standing policy: say so, or the
        board reads as a fleet waiting for someone to press something. */}}
   {{if and .AutoFlow (not (or .Active .Paused))}}

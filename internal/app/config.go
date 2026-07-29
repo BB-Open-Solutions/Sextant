@@ -44,6 +44,10 @@ type ConfigService struct {
 	// relCache memoises revision -> release number (immutable once known).
 	relCache sync.Map
 
+	// coreCache memoises the overlay's core pin against the snapshot it was
+	// read with (see coreversion.go).
+	coreCache atomic.Pointer[coreEntry]
+
 	// snap is the copy-on-write read snapshot: the fleet document and its
 	// settings vocabulary (catalog.json, ADR 0005) from the same working
 	// tree state, swapped as ONE pointer so readers can never observe a

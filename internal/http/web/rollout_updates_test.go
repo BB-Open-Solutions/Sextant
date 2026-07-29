@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -39,6 +40,18 @@ const ladderSeed = `{
   }
 }`
 
+// ladderLock pins a core revision the way an overlay's flake.lock does, so the
+// board can name the one version that IS a version (2025-06-23 in UTC).
+const ladderLock = `{
+  "nodes": {
+    "dawo": {"locked": {"lastModified": 1750680000, "owner": "MinBZK", "repo": "DAWO",
+      "rev": "0f1e2d3c4b5a69788796a5b4c3d2e1f001234567", "type": "github"}},
+    "root": {"inputs": {"dawo": "dawo"}}
+  },
+  "root": "root",
+  "version": 7
+}`
+
 // stubCacheBuilder reports every build as still running, pinning the engine
 // in the await-build phase.
 type stubCacheBuilder struct{}
@@ -62,6 +75,13 @@ func (c *stubClock) Now() time.Time { return c.t }
 // end-to-end (store, engine and handlers together).
 func newUpdatesConsole(t *testing.T) (*httptest.Server, *app.ConfigService, *app.RolloutService) {
 	t.Helper()
+	return newUpdatesConsoleWith(t, rollout.RingStatus{})
+}
+
+// newUpdatesConsoleWith is newUpdatesConsole with a fixed convergence reading,
+// so a test can drive the wave counters the board renders.
+func newUpdatesConsoleWith(t *testing.T, rs rollout.RingStatus) (*httptest.Server, *app.ConfigService, *app.RolloutService) {
+	t.Helper()
 	dir := t.TempDir()
 	run := func(args ...string) {
 		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
@@ -70,7 +90,7 @@ func newUpdatesConsole(t *testing.T) (*httptest.Server, *app.ConfigService, *app
 		}
 	}
 	run("init", "-q", "-b", "main")
-	for name, body := range map[string]string{"fleet.json": ladderSeed, "catalog.json": seedCatalog} {
+	for name, body := range map[string]string{"fleet.json": ladderSeed, "catalog.json": seedCatalog, "flake.lock": ladderLock} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -92,7 +112,7 @@ func newUpdatesConsole(t *testing.T) (*httptest.Server, *app.ConfigService, *app
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	clock := &stubClock{time.Now()}
-	rolloutSvc := app.NewRolloutService(cfg, st.Rollouts(), &stubConvergence{}, clock, log)
+	rolloutSvc := app.NewRolloutService(cfg, st.Rollouts(), &stubConvergence{rs: rs}, clock, log)
 	// The Updates board lists change requests, so the page needs a real
 	// change service even though these tests never open one.
 	openWT := func(dir string) (ports.ConfigRepo, error) { return git.Open(dir, "") }
@@ -519,6 +539,53 @@ func TestUpdatesBoardReadsAsStatusUnderAutoFlow(t *testing.T) {
 	}
 	if !strings.Contains(page, `<input type="checkbox" name="expedited" value="1"`) {
 		t.Error("manual-dispatch org lost the expedited choice")
+	}
+}
+
+// TestUpdatesBoardLeadsWithChangeNotRelease proves audit item 46: the board
+// separates the two version axes. Config changes read as a status led by WHAT
+// is changing (the release number and revision demoted to the hover title and
+// a mono suffix), the core pin is named as the real version it is, and the
+// wave counters speak plain language instead of "(1/3 - 1 away)".
+func TestUpdatesBoardLeadsWithChangeNotRelease(t *testing.T) {
+	ts, cfg, rolloutSvc := newUpdatesConsoleWith(t, rollout.RingStatus{Total: 4, OnTarget: 1, Healthy: 1, Absent: 1})
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"100"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+
+	// Idle: the image lineage is the version an operator reads.
+	_, page := getPage(t, ts, "/updates")
+	for _, want := range []string{"DAWO core", "0f1e2d3c4b5a", "pinned", "2025-06-23"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("idle board missing core version content %q", want)
+		}
+	}
+
+	// Rolling out: the change leads, the numbers retreat.
+	ctx := context.Background()
+	head := cfg.Head(ctx)
+	if _, err := rolloutSvc.StartWith(ctx, head,
+		app.StartOpts{ChangeTitle: "Office suite update"}, ports.Author{Name: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	_, page = getPage(t, ts, "/updates")
+	if !strings.Contains(page, "Office suite update") {
+		t.Error("running board does not lead with the change it delivers")
+	}
+	wantTitle := fmt.Sprintf(`title="Release %d · %s"`, cfg.ReleaseNumber(ctx, head), head)
+	if !strings.Contains(page, wantTitle) {
+		t.Errorf("release number and revision are not demoted to the hover title (want %s)", wantTitle)
+	}
+	// Plain language, both grammatical numbers, and no jargon left.
+	for _, want := range []string{"1 of 3 devices updated", "1 device not reporting"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("wave line missing plain-language progress %q", want)
+		}
+	}
+	if strings.Contains(page, "(1/3") || strings.Contains(page, "away)") {
+		t.Error("wave line still shows the old counter arithmetic")
 	}
 }
 

@@ -41,6 +41,36 @@ func TestLocalizerTimezone(t *testing.T) {
 	}
 }
 
+// TestLocalizerProgress: the wave counters read as a sentence in both
+// languages, and both grammatical numbers are correct.
+func TestLocalizerProgress(t *testing.T) {
+	en := newLocalizer(identity.Preferences{Locale: "en"}, "en", "UTC")
+	nl := newLocalizer(identity.Preferences{Locale: "nl"}, "en", "UTC")
+	cases := []struct {
+		name                      string
+		onTarget, present, absent int
+		wantEN, wantNL            string
+	}{
+		{"nothing known", 0, 0, 0, "", ""},
+		{"only absent, singular", 0, 0, 1, "1 device not reporting", "1 apparaat niet bereikbaar"},
+		{"none done yet", 0, 3, 0, "waiting on 3 devices", "wacht op 3 apparaten"},
+		{"one still out", 2, 3, 0, "2 of 3 devices updated", "2 van 3 apparaten bijgewerkt"},
+		{"all done", 3, 3, 0, "all 3 devices updated", "alle 3 apparaten bijgewerkt"},
+		{"partly done with absentees", 1, 3, 2, "1 of 3 devices updated · 2 devices not reporting",
+			"1 van 3 apparaten bijgewerkt · 2 apparaten niet bereikbaar"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := en.Progress(tc.onTarget, tc.present, tc.absent); got != tc.wantEN {
+				t.Errorf("en = %q, want %q", got, tc.wantEN)
+			}
+			if got := nl.Progress(tc.onTarget, tc.present, tc.absent); got != tc.wantNL {
+				t.Errorf("nl = %q, want %q", got, tc.wantNL)
+			}
+		})
+	}
+}
+
 func TestCatalogParity(t *testing.T) {
 	// Every NL key must exist in EN: EN is the source language, and an
 	// NL-only key would mask a missing English string.
