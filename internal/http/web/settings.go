@@ -312,6 +312,10 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 			changes = append(changes, app.SettingChange{Key: e.Name, RawValue: submitted, Enforce: enf})
 		}
 	}
+	// detached: the save's nix validation outlived the grace window and runs
+	// on in the background; the landing page then says "validating" (pending=1)
+	// instead of silently showing pre-write values.
+	var detached bool
 	if len(changes) > 0 {
 		// Brick guard: never let a save disable Secure Boot for a device
 		// whose firmware still enforces it (settings_guard.go).
@@ -326,7 +330,7 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 		// still stages inline below; only the nix validation can detach.
 		author := webAuthor(v)
 		desc := fmt.Sprintf("settings: %d change(s) at %s", len(changes), scopeLabel(scope))
-		if err := s.runGated(r, v, desc, func(ctx context.Context) error {
+		if det, err := s.runGatedDetached(r, v, desc, func(ctx context.Context) error {
 			return s.svc.Config.ApplySettings(ctx, scope, changes, author)
 		}); err != nil {
 			// A review-gated org does not fail the save: it flows into the review
@@ -336,6 +340,8 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 				return s.stageSettingsAsChange(w, r, v, scope, changes)
 			}
 			return err
+		} else {
+			detached = det
 		}
 	}
 	// A save must land back where it was made: the integrations cards post
@@ -343,6 +349,16 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 	// read as a broken save (operator report 2026-07-29). Local paths only,
 	// same open-redirect guard as the secret-reveal back link.
 	if back := r.FormValue("back"); strings.HasPrefix(back, "/") && !strings.HasPrefix(back, "//") {
+		// pending=1 lets the landing page say "validating" and refresh once,
+		// instead of silently showing pre-write values while the background
+		// eval runs (operator report 2026-07-29).
+		if detached {
+			sep := "?"
+			if strings.Contains(back, "?") {
+				sep = "&"
+			}
+			back += sep + "pending=1"
+		}
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return nil
 	}

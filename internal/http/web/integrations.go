@@ -120,10 +120,13 @@ func (s *Server) integrationsPage(w http.ResponseWriter, r *http.Request, v view
 		"PickerBase": "/integrations",
 		"Cards":      cards,
 		"SecretRefs": secretRefs,
-		"Scope":      scope,
-		"SelGroup":   selGroup,
-		"Groups":     groups,
-		"IsOrg":      scope == "org",
-		"CanEdit":    v.roleAt(scope).Meets(identity.Editor),
+		// Pending: a just-saved card detached to background validation; the
+		// page says so and refreshes once instead of showing stale values.
+		"Pending":  r.URL.Query().Get("pending") == "1",
+		"Scope":    scope,
+		"SelGroup": selGroup,
+		"Groups":   groups,
+		"IsOrg":    scope == "org",
+		"CanEdit":  v.roleAt(scope).Meets(identity.Editor),
 	}, v)
 }

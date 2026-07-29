@@ -29,6 +29,14 @@ const gateGraceWindow = 3 * time.Second
 //
 // desc names the change for those notifications ("group pilot re-parented").
 func (s *Server) runGated(r *http.Request, v view, desc string, fn func(ctx context.Context) error) error {
+	_, err := s.runGatedDetached(r, v, desc, fn)
+	return err
+}
+
+// runGatedDetached is runGated exposing WHETHER the write detached to the
+// background, so a handler can land the operator on a page that says
+// "validating" instead of silently showing pre-write state.
+func (s *Server) runGatedDetached(r *http.Request, v view, desc string, fn func(ctx context.Context) error) (bool, error) {
 	// The write must survive the request: WithoutCancel keeps the request's
 	// values (tracing) but not its cancellation - a browser redirect must
 	// not abort a half-validated commit. The gate carries its own timeouts.
@@ -38,7 +46,7 @@ func (s *Server) runGated(r *http.Request, v view, desc string, fn func(ctx cont
 
 	select {
 	case err := <-done:
-		return err
+		return false, err
 	case <-time.After(gateGraceWindow):
 	}
 
@@ -70,7 +78,7 @@ func (s *Server) runGated(r *http.Request, v view, desc string, fn func(ctx cont
 			Body:  desc,
 		})
 	}()
-	return nil
+	return true, nil
 }
 
 // applyGated is the one-line form for the common case: a fleet mutation

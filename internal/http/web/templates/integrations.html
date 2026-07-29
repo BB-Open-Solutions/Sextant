@@ -6,6 +6,13 @@
   </div>
   {{template "scopePicker" .}}
 </div>
+{{if .Pending}}
+<meta http-equiv="refresh" content="6">
+<div class="mb-6 flex items-center gap-2 rounded-lg border border-border-hairline bg-surface-container-low px-4 py-3 text-body-md text-text-secondary" role="status">
+  <span class="material-symbols-outlined msz-18 animate-spin text-mint-deep">progress_activity</span>
+  {{.L.T "integrations.pending"}}
+</div>
+{{end}}
 
 <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
   {{$ := .}}
