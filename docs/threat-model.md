@@ -251,3 +251,25 @@ side, reveal stays Owner-only + audited.
 None of R1-R7 is a live exploit against the deployed configuration
 (store enabled, per-device credentials issued, owners trusted); they are
 the honest edges of the model and the backlog for hardening toward 1.0.
+
+## Findings from e2e-2 (2026-07-30)
+
+Two security-relevant facts came out of running the integrations on real
+hardware; both are recorded in `docs/e2e-2-findings.md` in full.
+
+- **A device's secrets are only as reachable as its host key is known.**
+  Until the imaging flow recorded the device's SSH host public key, a fresh
+  device could decrypt nothing and therefore silently ran without ANY
+  integration - including the endpoint agent. The failure mode is
+  fail-closed (no config rather than wrong config), but it is invisible
+  without the stall guard, so a fleet could believe a device was managed
+  while it was not. Host keys are now recorded at install
+  (`fleet.ITAM.HostKeyID`) and secrets re-encrypted from the fleet's own
+  facts (`scripts/rekey-secrets.sh`).
+- **Plain LDAP over the mesh is a deliberate choice, not an oversight.**
+  Device login binds over `ldap://` to a cluster-internal directory that is
+  only reachable through the WireGuard mesh; the transport is encrypted and
+  peer-authenticated at the network layer, and nothing is exposed publicly
+  (route decision 2026-07-27, ADR 0015). A customer directory reached over
+  the public internet must use `ldaps://` with `identity.tlsCaCert`, and the
+  module enforces strict certificate verification there.
