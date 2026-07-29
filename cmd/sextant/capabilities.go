@@ -184,7 +184,15 @@ func (d *deps) buildConfigPlane() error {
 	// sealing key so the two uses of SEXTANT_SECRET_KEY never share raw key
 	// material. Empty SecretKey leaves the guard off (by-construction still
 	// holds); a malformed key already failed secretbox.New above.
-	d.intentNonceKey = deriveIntentKey(cfg.SecretKey)
+	//
+	// Derived from the PRIMARY key only. SEXTANT_SECRET_KEY may now carry
+	// several keys so a rotation does not orphan what is already sealed, and
+	// base64-decoding the whole list would fail on the separator and return
+	// nil - quietly disabling the replay guard on a destructive action at the
+	// moment an operator rotated. SplitKeys is the one parser for that value.
+	if primary := secretbox.SplitKeys(cfg.SecretKey); len(primary) > 0 {
+		d.intentNonceKey = deriveIntentKey(primary[0])
+	}
 	openWT := func(dir string) (ports.ConfigRepo, error) { return git.Open(dir, "") }
 	d.changes = app.NewChangeService(repo, st.Changes(), gate, builder, clock, openWT, svc)
 

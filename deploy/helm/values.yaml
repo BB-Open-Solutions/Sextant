@@ -19,6 +19,17 @@ replicaCount: 1
 # SEXTANT_SESSION_KEY, SEXTANT_OIDC_CLIENT_SECRET; optionally
 # SEXTANT_LDAP_BIND_PASSWORD, and SEXTANT_PG_DSN when cnpg.enabled=false
 # (external Postgres).
+#
+# SEXTANT_SECRET_KEY (also optional) seals the few secrets Sextant holds at
+# rest, and that includes the LUKS RECOVERY KEYS escrowed from devices - the
+# break-glass path for a locked laptop. ROTATING IT: put the new key FIRST and
+# KEEP the old one, comma-separated:
+#     SEXTANT_SECRET_KEY=<new-base64-32B>,<old-base64-32B>
+# New values seal under the new key; everything already stored keeps opening
+# under the old one, because each sealed value names the key that sealed it.
+# Removing a key makes every value sealed under it unreadable, so keep it until
+# nothing needs it. If you do lose it, the error says which key id is missing
+# rather than pretending the data is corrupt.
 secretName: sextant-v2
 
 write: true
