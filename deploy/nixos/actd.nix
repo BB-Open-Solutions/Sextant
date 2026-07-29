@@ -66,6 +66,19 @@ let
       # the outcome must survive the reboot.
       writeAck() { printf '%s' "$1" > "/var/lib/sextant-agent/action.ack" 2>/dev/null || true; }
 
+      # rebootNow ends this visit. `systemctl reboot` returns IMMEDIATELY - it
+      # asks systemd to start shutting down and comes straight back - so a
+      # bare call left the script running while the machine went down, and
+      # execution fell through into whatever intent came next in this file. A
+      # visit carrying both a reboot and a wipe would therefore begin erasing
+      # LUKS key slots while systemd was already unmounting and killing
+      # processes. The wipe path does detect an incomplete erase (it acks
+      # wipe-failed, keeps the intent and refuses to power off), so the outcome
+      # was never silently reported as success - but starting an irreversible
+      # operation into a shutdown is not something to leave to the recovery
+      # path. Whatever is left in the spool is handled on the next boot.
+      rebootNow() { systemctl reboot || true; exit 0; }
+
       # lock: lock every session. Idempotent. The marker is removed after
       # handling so the path unit does not re-trigger this oneshot in a loop
       # while the file lingers; the agent re-spools it next beat if the console
@@ -96,7 +109,7 @@ let
           mkdir -p "$(dirname "$rebootStamp")"
           printf '%s' "$bootid" > "$rebootStamp"
           rm -f "$spool/reboot.intent" || true
-          systemctl reboot || true
+          rebootNow
         else
           # Stamp matches the current boot: we already initiated the reboot this
           # boot; drop the re-spooled marker and wait for the machine to go down.
@@ -147,7 +160,7 @@ let
           done
           if sbctl --disable-landlock enroll-keys --microsoft; then
             writeAck sb-enrolled
-            systemctl reboot || true
+            rebootNow
           else
             echo "sextant-actd: sbctl enroll-keys failed" >&2
             writeAck sb-enroll-failed
@@ -165,7 +178,27 @@ let
           # ceremony on the resolved settings); if it ever mis-sends, the
           # worst case is an unused keyslot behind Secure Boot.
           echo "sextant-actd: Secure Boot enforcing - sealing LUKS to the TPM2 (PCR 7)"
-          dev="$(blkid -t TYPE=crypto_LUKS -o device | head -n1)"
+          # Exactly one LUKS volume, or nothing. `blkid | head -n1` used to
+          # pick whichever device came first, and blkid's order is not a
+          # promise - so on a machine with a second encrypted volume (a data
+          # disk) the ceremony could seal the TPM2 to the wrong one. The
+          # operator's symptom would be a password prompt on a device the
+          # console reports as enrolled, and worse: the recovery key minted
+          # below is minted on the SAME device, so the escrow the console
+          # shows would unlock a data disk rather than the system. A wrong
+          # recovery key is more dangerous than no recovery key.
+          # Refusing is the honest answer: this fleet is single-volume, so
+          # this never fires in practice, and when it does the operator gets
+          # a named failure instead of a silent mis-seal. Resolving the
+          # volume that actually backs / is the follow-up if multi-volume
+          # devices ever become a real configuration.
+          mapfile -t luksDevs < <(blkid -t TYPE=crypto_LUKS -o device || true)
+          dev=""
+          if [ ''${#luksDevs[@]} -eq 1 ]; then
+            dev="''${luksDevs[0]}"
+          elif [ ''${#luksDevs[@]} -gt 1 ]; then
+            echo "sextant-actd: ''${#luksDevs[@]} LUKS volumes present (''${luksDevs[*]}) - refusing to guess which one backs the system; not sealing" >&2
+          fi
           if [ -n "$dev" ] && systemd-cryptenroll --unlock-key-file="$keyfile" \
                --tpm2-device=auto --tpm2-pcrs=7 "$dev"; then
             # Escrow (design 0009): mint a recovery keyslot while the staged
@@ -188,7 +221,7 @@ let
             # LUKS header itself is root-only, out of the agent's reach.
             touch /var/lib/sextant-agent/tpm2-enrolled
             writeAck tpm2-enrolled
-            systemctl reboot || true
+            rebootNow
           else
             echo "sextant-actd: systemd-cryptenroll failed on ''${dev:-<no LUKS device>}" >&2
             shred -u "$keyfile" 2>/dev/null || rm -f "$keyfile"
