@@ -159,3 +159,11 @@ resources:
 simulator:
   enabled: false
   interval: 30s
+  # fleetsim lives in the TOOLS image, not the console image: it can invent
+  # device state from nothing but the shared check-in token, so the control
+  # plane does not carry it. Empty values default to the console repository
+  # with a "-tools" suffix on the tag, which is what
+  # `podman build --target tools -t <repo>:<tag>-tools .` produces.
+  image:
+    repository: ""
+    tag: ""

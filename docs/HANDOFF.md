@@ -110,7 +110,14 @@ and Bram says go.
 2. `podman build -q --build-arg VERSION=<v>
    -t forgejo.bb-open.com/bb-open/sextant:<v> . && podman push ...`
    (VERSION voedt sextant_build_info; watch disk: `podman image
-   prune -f` if full)
+   prune -f` if full). No `--target` needed: the server stage is last,
+   so the default build is the lean production image.
+2b. ONLY when a demo instance runs the simulator - build and push the
+   tools image too, or its fleetsim sidecar cannot pull:
+   `podman build -q --target tools
+   -t forgejo.bb-open.com/bb-open/sextant:<v>-tools . && podman push ...`
+   (fleetsim and sxctl live there; the control-plane image deliberately
+   does not carry a fake-device generator)
 3. platform repo apps/sextant/helmrelease.yaml tag -> `git push origin
    main` (NOT the github-mirror remote - that was a real trap)
 4. `flux reconcile source git flux-system -n flux-system` then

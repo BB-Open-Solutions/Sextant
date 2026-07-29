@@ -1,8 +1,14 @@
 {{- if .Values.simulator.enabled }}
-# The simulated fleet (demo instances only): fleetsim from the console image
-# drives N fake agents against this release's own service, following the
-# overlay's rings/<group> branches like comin would. Never enable this next
-# to real devices - the demo namespace tracks its own overlay branch.
+# The simulated fleet (demo instances only): fleetsim drives N fake agents
+# against this release's own service, following the overlay's rings/<group>
+# branches like comin would. Never enable this next to real devices - the demo
+# namespace tracks its own overlay branch.
+#
+# It runs from the TOOLS image, not the console image. fleetsim can manufacture
+# device state from nothing but the shared check-in token, so it no longer
+# ships in the control-plane image; simulator.image (default: the console
+# repository with a -tools tag suffix) points at the target that carries it.
+# Build it with: podman build --target tools -t <repo>:<tag>-tools .
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,7 +30,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: fleetsim
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.simulator.image.repository | default .Values.image.repository }}:{{ .Values.simulator.image.tag | default (printf "%s-tools" (.Values.image.tag | default .Chart.AppVersion)) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/bin/sh", "-c"]
           # Clone the fleet document first: fleetsim needs the tags+groups it
