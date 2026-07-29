@@ -64,6 +64,34 @@ func (a *API) getDevice(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// hostKeyEntry pairs a device with its recorded SSH host public key - the
+// input an operator's rekey run turns into age recipients.
+type hostKeyEntry struct {
+	Tag     string `json:"tag"`
+	HostKey string `json:"hostKey"`
+}
+
+// getHostKeys lists the SSH host public keys on file for active devices.
+// Devices without a recorded key are omitted rather than returned empty: the
+// consumer re-encrypts the overlay's secrets for exactly this list, and a
+// blank recipient is not one. Public keys by definition, so the viewer floor
+// the wrapper enforces is the right bar - but the same visibility filter as
+// every other read applies, so a scoped viewer never learns a foreign tag.
+func (a *API) getHostKeys(w http.ResponseWriter, r *http.Request) error {
+	f := a.cfg.Fleet()
+	canView := a.canView(r)
+	out := make([]hostKeyEntry, 0, len(f.Devices))
+	for _, tag := range f.DeviceTags() {
+		d := f.Devices[tag]
+		if d.Retired() || d.ITAM.HostKeyID == "" || !canView("device:"+tag) {
+			continue
+		}
+		out = append(out, hostKeyEntry{Tag: tag, HostKey: d.ITAM.HostKeyID})
+	}
+	writeJSON(w, http.StatusOK, out)
+	return nil
+}
+
 // --- writes: every mutation rides the safe transaction ---
 
 // postDevice enrolls a device. Requires editor at every target group (or at

@@ -10,8 +10,10 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/secret"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
 // secretSink seals a per-device secret. Optional on the station API: nil or a
@@ -35,6 +37,13 @@ type deviceCredIssuer interface {
 	Issue(ctx context.Context, tag string) (string, error)
 }
 
+// fleetWriter commits a fleet-document change. The station API needs exactly
+// one: recording the host public key of the device it just imaged.
+// Implemented by app.ConfigService.
+type fleetWriter interface {
+	ApplyStructural(ctx context.Context, mut fleet.Mutation, msg string, a ports.Author) error
+}
+
 // StationAPI serves the imaging-station endpoints. A station reports the
 // devices it has seen over PXE (discovery), claims the image jobs an operator
 // dispatched, and reports install progress. Auth prefers a per-station
@@ -45,7 +54,8 @@ type StationAPI struct {
 	svc      *app.DiscoveryService
 	imaging  *app.ImagingService
 	devCreds deviceCredIssuer
-	secrets  secretSink // optional: seals a reported LUKS key at install
+	secrets  secretSink  // optional: seals a reported LUKS key at install
+	cfg      fleetWriter // optional: records a reported host key at install
 	stations StationAuthenticator
 	shared   string // shared bridge token; "" disables it
 	log      *slog.Logger
@@ -56,6 +66,14 @@ type StationAPI struct {
 // the receiver for chaining at construction.
 func (s *StationAPI) WithSecrets(sink secretSink) *StationAPI {
 	s.secrets = sink
+	return s
+}
+
+// WithConfig wires the fleet document so an installed device's SSH host
+// public key is recorded against its asset record. Returns the receiver for
+// chaining at construction.
+func (s *StationAPI) WithConfig(w fleetWriter) *StationAPI {
+	s.cfg = w
 	return s
 }
 
@@ -206,11 +224,33 @@ func (s *StationAPI) handleJobStatus(w http.ResponseWriter, r *http.Request) {
 		Message  string `json:"message,omitempty"`
 		Progress *int   `json:"progress,omitempty"`
 		Step     string `json:"step,omitempty"`
+		// HostKey is the SSH host public key the station pre-seeded into the
+		// image, reported once the install lands so secrets can be encrypted
+		// for this device.
+		HostKey string `json:"hostKey,omitempty"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := dec.Decode(&in); err != nil {
 		http.Error(w, "bad status body: "+err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// Shape-check the reported host key before anything moves: a malformed
+	// key is the station's bug, and a 400 must not leave the job
+	// half-transitioned. It rides the install report only - that is the one
+	// moment the device's keypair is known to be the freshly imaged one.
+	var hostKey string
+	if in.HostKey != "" {
+		if in.Status != string(imaging.Installed) {
+			http.Error(w, "hostKey is only accepted with status "+string(imaging.Installed), http.StatusBadRequest)
+			return
+		}
+		key, err := fleet.NormalizeHostKey(in.HostKey)
+		if err != nil {
+			http.Error(w, "bad hostKey: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		hostKey = key
 	}
 
 	// A status transition (guarded) and a progress tick (display-only) arrive on
@@ -244,6 +284,14 @@ func (s *StationAPI) handleJobStatus(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			msg = ""
+		}
+		// Record the host key BEFORE the transition, like the LUKS seal above:
+		// on failure nothing has moved, so the station's retry replays the
+		// same report from the same state. An install declared done with no
+		// recorded key is the freeze this whole path exists to prevent.
+		if hostKey != "" && !s.recordHostKey(r.Context(), station, mac, hostKey) {
+			http.Error(w, "host key not recorded: the fleet document could not be written; retry the report", http.StatusServiceUnavailable)
+			return
 		}
 		if err := s.imaging.Report(r.Context(), station, mac, status, msg); err != nil {
 			s.log.Warn("station job status rejected", "station", station, "mac", mac, "status", status, "err", err)
@@ -290,6 +338,44 @@ func (s *StationAPI) sealLUKS(ctx context.Context, station, mac, key string) boo
 		return false
 	}
 	s.log.Info("sealed LUKS recovery key", "station", station, "tag", job.Tag)
+	return true
+}
+
+// recordHostKey writes the imaged device's SSH host public key onto its asset
+// record, so the operator's rekey run can encrypt the overlay's agenix
+// secrets for it. It reports whether the key is on file; false makes the
+// caller refuse the report. The refusal is the point: a device whose key was
+// never recorded cannot decrypt a single secret, its activation script fails,
+// comin refuses to switch, and it stays frozen at its image-time generation.
+//
+// The write is structural - no device's generated config reads the asset
+// record (nix/generator.nix never touches itam), so the nix gate would only
+// re-evaluate byte-identical toplevels.
+func (s *StationAPI) recordHostKey(ctx context.Context, station, mac, key string) bool {
+	if s.cfg == nil {
+		s.log.Error("station reported a host key but no fleet writer is configured; refusing the report", "station", station, "mac", mac)
+		return false
+	}
+	job, ok, err := s.imaging.Get(ctx, station, mac)
+	if err != nil || !ok {
+		s.log.Warn("cannot resolve tag to record the host key", "station", station, "mac", mac, "err", err)
+		return false
+	}
+	// The key itself never reaches the log: the fingerprint is what an
+	// operator needs to tell two keys apart.
+	fp := fleet.HostKeyFingerprint(key)
+	msg := "devices: record host key for " + job.Tag + " (sha256:" + fp + ")"
+	// Attribution names the reporting station, so the audit trail says which
+	// station recorded which key (the shared author() is request-principal
+	// based; a station is not one).
+	by := ports.Author{Subject: "station:" + station, Name: "sextant-station", Email: "station@sextant"}
+	// force: re-imaging legitimately mints a new keypair, so the install
+	// report is the one caller allowed to replace a key already on file.
+	if err := s.cfg.ApplyStructural(ctx, fleet.SetDeviceHostKey(job.Tag, key, true), msg, by); err != nil {
+		s.log.Error("failed to record device host key", "station", station, "tag", job.Tag, "fingerprint", fp, "err", err)
+		return false
+	}
+	s.log.Info("recorded device host key", "station", station, "tag", job.Tag, "fingerprint", fp)
 	return true
 }
 

@@ -283,6 +283,12 @@ func (d *deps) buildConfigPlane() error {
 	// The update funnel (ADR 0011): the same repo adapter moves the
 	// machine-owned rings/<group> branches devices follow.
 	d.rollouts = app.NewRolloutService(svc, st.Rollouts(), conv, clock, log).WithRefs(repo)
+	// Compliance reads the same run: a wave that was promoted and never
+	// converges must surface as an action item, not as a board that sits at
+	// "1 away" forever.
+	if d.compliance != nil {
+		d.compliance.WithRollout(st.Rollouts())
+	}
 	// Build-before-promote: with a remote runner, a ring's release is realised
 	// into the runner's signed binary cache before its branch moves, so devices
 	// substitute the release instead of each compiling it. Opt-in via
@@ -490,7 +496,7 @@ func (d *deps) stationCapability() capability.Capability {
 		RoutesFn: func(mux *http.ServeMux) {
 			inner := http.NewServeMux()
 			api.NewStation(d.discovery, d.imaging, d.devCreds, d.staCreds, d.cfg.CheckinToken, d.log).
-				WithSecrets(d.deviceSecrets).Routes(inner)
+				WithSecrets(d.deviceSecrets).WithConfig(d.svc).Routes(inner)
 			// Rate-limit every station route (report is high-frequency, the job
 			// claim/status calls are lower but still unauthenticated-reachable),
 			// sharing one limiter so a station cannot dodge the report bucket by

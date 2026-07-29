@@ -409,6 +409,9 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	// device carrying a legacy/unknown value is preserved as an extra option
 	// by the template so its record still renders.
 	data["AllClasses"] = fleet.Classes
+	// Whether the device's SSH host key is on file. Empty means no secret can
+	// be encrypted for this device, so the identity card says so out loud.
+	data["HostKeyFP"] = fleet.HostKeyFingerprint(d.ITAM.HostKeyID)
 	pkgs, flats, ovs := f.ResolveApps(tag)
 	data["Packages"], data["Flatpaks"], data["Overlays"] = pkgs, flats, ovs
 	// Applied policies (the Intune device-configuration idiom): which

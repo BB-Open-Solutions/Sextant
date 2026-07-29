@@ -272,6 +272,13 @@
         <div class="flex items-center justify-between"><span>{{.L.T "device.assigned_user"}}</span><span class="text-ink">{{with .Device.AssignedUser}}{{.}}{{else}}<span class="muted">-</span>{{end}}</span></div>
       </div>
       {{end}}
+      <!-- Host key: without one, nothing can be encrypted for this device -
+           every secret fails to decrypt and it never converges. -->
+      {{if .HostKeyFP}}
+      <p class="!mt-3 !mb-0 flex items-center gap-2 text-label-md text-text-secondary"><span class="material-symbols-outlined msz-16 text-mint-deep">key</span>{{.L.T "device.host_key_recorded"}} <span class="font-mono text-code-inline text-ink">sha256:{{.HostKeyFP}}</span></p>
+      {{else}}
+      <p class="!mt-3 !mb-0 flex items-center gap-2 text-label-md text-text-secondary"><span class="material-symbols-outlined msz-16 text-status-warn">warning</span>{{.L.T "device.host_key_missing"}}</p>
+      {{end}}
     </section>
 
     {{if .CanOwn}}

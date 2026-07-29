@@ -83,6 +83,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	get("/api/v1/fleet", a.getFleet)
 	get("/api/v1/devices", a.getDevices)
 	get("/api/v1/devices/{tag}", a.getDevice)
+	get("/api/v1/hostkeys", a.getHostKeys)
 	rw("POST", "/api/v1/devices", a.postDevice)
 	rw("PATCH", "/api/v1/devices/{tag}", a.patchDevice)
 	rw("DELETE", "/api/v1/devices/{tag}", a.deleteDevice)

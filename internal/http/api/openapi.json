@@ -251,6 +251,17 @@
         }
       }
     },
+    "/api/v1/hostkeys": {
+      "get": {
+        "summary": "SSH host public keys of active devices",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Returns [{tag, hostKey}] for every active, visible device with a recorded host key - the age recipients an overlay rekey run encrypts secrets for. Public key material only."
+      }
+    },
     "/api/v1/status": {
       "get": {
         "summary": "Observed status of every device",
