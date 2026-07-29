@@ -37,3 +37,16 @@ func TestForReader(t *testing.T) {
 		t.Error("broadcast delivered to a non-member")
 	}
 }
+
+// Every declared kind must validate: two release-blocking bugs came from
+// adding a kind constant without extending Valid (write-applied, then
+// write-pending). The list here is the single place to extend.
+func TestEveryDeclaredKindIsValid(t *testing.T) {
+	kinds := []Kind{ApprovalNeeded, ChangeMerged, RolloutDone, GateFailed,
+		WipeExecuted, WritePending, WriteApplied}
+	for _, k := range kinds {
+		if !k.Valid() {
+			t.Errorf("declared kind %q fails Valid()", k)
+		}
+	}
+}

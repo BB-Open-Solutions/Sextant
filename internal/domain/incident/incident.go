@@ -9,6 +9,8 @@ package incident
 import (
 	"fmt"
 	"time"
+
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 )
 
 // Kind classifies an incident so the console can icon and group it.
@@ -93,10 +95,15 @@ func Detect(obs []Observation, now time.Time) []Incident {
 			add(NeverSeen, Warning, o.Tag+" has never checked in",
 				"Enrolled but no report received yet.",
 				"Verify it was imaged and can reach the console.", time.Time{})
-		case !o.Online:
-			add(Offline, Warning, o.Tag+" is offline",
+		case !o.Online && now.Sub(o.LastSeen) > observed.InactiveWindow:
+			// Plain offline is NOT an incident: laptops sleep, travel and
+			// take vacations (operator decision 2026-07-29; Intune/FleetDM
+			// treat offline as a neutral state). Only prolonged absence
+			// escalates - past the window the machine may be lost, broken
+			// or shelved, and that IS an action item.
+			add(Offline, Warning, o.Tag+" has been offline for over two weeks",
 				fmt.Sprintf("Last seen %s.", o.LastSeen.Format("2006-01-02 15:04")),
-				"Check power and network; confirm the agent still runs.", o.LastSeen)
+				"Locate the machine; if it is retired in practice, retire it in the fleet too.", o.LastSeen)
 		}
 
 		// An online device on the wrong revision is drifting from its target.

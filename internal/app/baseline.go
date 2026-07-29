@@ -2,6 +2,7 @@ package app
 
 import (
 	"strings"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
@@ -40,14 +41,15 @@ type Baseline struct {
 type BaselineJudge struct {
 	f       *fleet.Fleet
 	drifted map[string]bool
+	now     time.Time
 }
 
 // NewBaselineJudge precomputes which devices are reached by a policy whose
 // profile stamp is behind the overlay's profile - the policies page's
 // "reapply" state (profileState). Hand-edited and conflicting policies are
 // deliberate operator choices, not drift, and do not count.
-func NewBaselineJudge(f *fleet.Fleet, profiles *fleet.Profiles) *BaselineJudge {
-	j := &BaselineJudge{f: f, drifted: map[string]bool{}}
+func NewBaselineJudge(f *fleet.Fleet, profiles *fleet.Profiles, now time.Time) *BaselineJudge {
+	j := &BaselineJudge{f: f, drifted: map[string]bool{}, now: now}
 	stale := map[string]bool{}
 	for id, pol := range f.Policies {
 		name, _, ok := strings.Cut(pol.Profile, "@")
@@ -80,7 +82,10 @@ func (j *BaselineJudge) Verdict(tag string, st StatusView, hasStatus bool) Basel
 		return Baseline{}
 	}
 	var fails []string
-	if !hasStatus || !st.Online {
+	// Recency judges ABSENCE, not offline: a laptop on vacation is fine
+	// (operator decision 2026-07-29, InactiveWindow). Only a device unseen
+	// for over the window - or never seen - fails this criterion.
+	if !hasStatus || j.now.Sub(st.LastSeen) > observed.InactiveWindow {
 		fails = append(fails, BaselineRecency)
 	}
 	if j.drifted[tag] {

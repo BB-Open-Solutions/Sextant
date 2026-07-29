@@ -1,6 +1,7 @@
 package incident
 
 import (
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
 	"testing"
 	"time"
 )
@@ -13,7 +14,10 @@ func TestDetect(t *testing.T) {
 		// behind: online but wrong revision
 		{Tag: "behind-1", Group: "backoffice", Deployed: "rev-old", Target: "rev-a", Online: true, LastSeen: now},
 		// offline
-		{Tag: "off-1", Group: "field", Deployed: "rev-a", Target: "rev-a", Online: false, LastSeen: now.Add(-time.Hour)},
+		{Tag: "off-1", Group: "field", Deployed: "rev-a", Target: "rev-a", Online: false, LastSeen: now.Add(-observed.InactiveWindow - time.Hour)},
+		// offline but within the inactive window: a vacation laptop, NOT an
+		// incident (operator decision 2026-07-29).
+		{Tag: "vacation-1", Group: "field", Deployed: "rev-a", Target: "rev-a", Online: false, LastSeen: now.Add(-time.Hour)},
 		// never seen
 		{Tag: "new-1", Group: "field", Deployed: "", Target: "", Online: false},
 		// errored (critical)
@@ -35,6 +39,9 @@ func TestDetect(t *testing.T) {
 	}
 	if kinds["off-1"] != Offline {
 		t.Errorf("off-1 kind = %q", kinds["off-1"])
+	}
+	if _, hit := kinds["vacation-1"]; hit {
+		t.Errorf("vacation-1 raised an incident; offline within the window must stay quiet")
 	}
 	if kinds["new-1"] != NeverSeen {
 		t.Errorf("new-1 kind = %q", kinds["new-1"])

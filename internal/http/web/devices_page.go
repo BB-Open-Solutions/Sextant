@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
@@ -27,7 +28,7 @@ func (s *Server) deviceRows(ctx context.Context, f *fleet.Fleet) []deviceRow {
 			statuses[st.Tag] = st
 		}
 	}
-	judge := app.NewBaselineJudge(f, s.svc.Config.Profiles())
+	judge := app.NewBaselineJudge(f, s.svc.Config.Profiles(), time.Now())
 	rows := make([]deviceRow, 0, len(f.Devices))
 	for _, tag := range f.DeviceTags() {
 		d := f.Devices[tag]
@@ -438,7 +439,7 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	}
 	// Baseline verdict (design 0008) with its failing criteria spelled out.
 	if !d.Retired() {
-		data["Baseline"] = app.NewBaselineJudge(f, s.svc.Config.Profiles()).Verdict(tag, st, hasSt)
+		data["Baseline"] = app.NewBaselineJudge(f, s.svc.Config.Profiles(), time.Now()).Verdict(tag, st, hasSt)
 	}
 	// Diagnostics (design 0010): the request button and, when a bundle
 	// exists (and is within retention), its download row.

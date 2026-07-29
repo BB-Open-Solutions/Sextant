@@ -53,7 +53,7 @@
         <td>{{.AssignedUser}}</td>
         <td>
           {{if .HasStatus}}
-            {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag bad">{{$.L.T "common.offline"}}</span>{{end}}
+            {{if .Online}}<span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="tag">{{$.L.T "common.offline"}}</span>{{end}}
             {{/* The version chip, not a release number: an operator reads
                  whether the device runs what its ring targets. Release and raw
                  revision (relCache-backed, deduped per page in devices_page.go)

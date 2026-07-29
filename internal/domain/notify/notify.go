@@ -29,7 +29,7 @@ const (
 func (k Kind) Valid() bool {
 	switch k {
 	case ApprovalNeeded, ChangeMerged, RolloutDone, GateFailed, WipeExecuted,
-		WriteApplied:
+		WriteApplied, WritePending:
 		return true
 	}
 	return false

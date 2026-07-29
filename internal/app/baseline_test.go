@@ -57,17 +57,30 @@ func TestBaselineVerdict(t *testing.T) {
 	}
 
 	t.Run("compliant", func(t *testing.T) {
-		j := NewBaselineJudge(baselineFleet(current(t)), profiles)
+		j := NewBaselineJudge(baselineFleet(current(t)), profiles, time.Now())
 		b := j.Verdict("lt-1", goodStatus(), true)
 		if !b.Compliant || len(b.Failures) != 0 {
 			t.Fatalf("want compliant, got %+v", b)
 		}
 	})
 
-	t.Run("recency fails when offline", func(t *testing.T) {
-		j := NewBaselineJudge(baselineFleet(current(t)), profiles)
+	t.Run("offline within the window stays compliant", func(t *testing.T) {
+		// Vacation-proof (2026-07-29): offline is a neutral state; only
+		// absence beyond InactiveWindow fails recency.
+		j := NewBaselineJudge(baselineFleet(current(t)), profiles, time.Now())
 		st := goodStatus()
 		st.Online = false
+		st.LastSeen = time.Now().Add(-7 * 24 * time.Hour)
+		if b := j.Verdict("lt-1", st, true); !b.Compliant {
+			t.Fatalf("week-offline laptop must stay compliant, got %+v", b)
+		}
+	})
+
+	t.Run("recency fails past the inactive window", func(t *testing.T) {
+		j := NewBaselineJudge(baselineFleet(current(t)), profiles, time.Now())
+		st := goodStatus()
+		st.Online = false
+		st.LastSeen = time.Now().Add(-observed.InactiveWindow - time.Hour)
 		b := j.Verdict("lt-1", st, true)
 		if b.Compliant || !slices.Contains(b.Failures, BaselineRecency) {
 			t.Fatalf("want recency failure, got %+v", b)
@@ -75,7 +88,7 @@ func TestBaselineVerdict(t *testing.T) {
 	})
 
 	t.Run("never seen fails recency only judgeable criteria", func(t *testing.T) {
-		j := NewBaselineJudge(baselineFleet(current(t)), profiles)
+		j := NewBaselineJudge(baselineFleet(current(t)), profiles, time.Now())
 		b := j.Verdict("lt-1", StatusView{}, false)
 		if b.Compliant {
 			t.Fatalf("want attention, got %+v", b)
@@ -89,7 +102,7 @@ func TestBaselineVerdict(t *testing.T) {
 	})
 
 	t.Run("drift fails when the profile moved on", func(t *testing.T) {
-		j := NewBaselineJudge(baselineFleet("laptop@stale"), profiles)
+		j := NewBaselineJudge(baselineFleet("laptop@stale"), profiles, time.Now())
 		b := j.Verdict("lt-1", goodStatus(), true)
 		if b.Compliant || !slices.Contains(b.Failures, BaselineDrift) {
 			t.Fatalf("want drift failure, got %+v", b)
@@ -98,14 +111,14 @@ func TestBaselineVerdict(t *testing.T) {
 
 	t.Run("hand-made policy is not drift", func(t *testing.T) {
 		f := baselineFleet("")
-		j := NewBaselineJudge(f, profiles)
+		j := NewBaselineJudge(f, profiles, time.Now())
 		if b := j.Verdict("lt-1", goodStatus(), true); !b.Compliant {
 			t.Fatalf("want compliant, got %+v", b)
 		}
 	})
 
 	t.Run("posture fails on unenrolled tpm2", func(t *testing.T) {
-		j := NewBaselineJudge(baselineFleet(current(t)), profiles)
+		j := NewBaselineJudge(baselineFleet(current(t)), profiles, time.Now())
 		st := goodStatus()
 		st.TPM2 = observed.TPM2Present
 		b := j.Verdict("lt-1", st, true)
@@ -115,7 +128,7 @@ func TestBaselineVerdict(t *testing.T) {
 	})
 
 	t.Run("posture exempt when not targeted", func(t *testing.T) {
-		j := NewBaselineJudge(baselineFleet(current(t)), profiles)
+		j := NewBaselineJudge(baselineFleet(current(t)), profiles, time.Now())
 		st := goodStatus()
 		st.Revision = "" // srv-1 follows HEAD: no target, cannot be behind
 		b := j.Verdict("srv-1", st, true)
@@ -125,7 +138,7 @@ func TestBaselineVerdict(t *testing.T) {
 	})
 
 	t.Run("revision fails behind the ring pin", func(t *testing.T) {
-		j := NewBaselineJudge(baselineFleet(current(t)), profiles)
+		j := NewBaselineJudge(baselineFleet(current(t)), profiles, time.Now())
 		st := goodStatus()
 		st.Revision = "rev-old"
 		b := j.Verdict("lt-1", st, true)
@@ -135,7 +148,7 @@ func TestBaselineVerdict(t *testing.T) {
 	})
 
 	t.Run("retired is not judged", func(t *testing.T) {
-		j := NewBaselineJudge(baselineFleet(current(t)), profiles)
+		j := NewBaselineJudge(baselineFleet(current(t)), profiles, time.Now())
 		b := j.Verdict("retired", StatusView{}, false)
 		if b.Compliant || b.Failures != nil {
 			t.Fatalf("want empty verdict, got %+v", b)

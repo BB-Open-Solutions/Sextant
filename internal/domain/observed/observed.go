@@ -157,6 +157,14 @@ type DeviceStatus struct {
 // online. Devices check in about every minute; three missed beats = offline.
 const OnlineWindow = 3 * time.Minute
 
+// InactiveWindow is how long a device may stay offline before that becomes
+// an operator concern. Offline itself is normal for laptops (weekends,
+// vacation - operator decision 2026-07-29, matching the Intune/FleetDM
+// idiom where offline is a neutral state and only prolonged absence
+// escalates); two weeks covers a vacation, past it the machine may be
+// lost, broken or shelved.
+const InactiveWindow = 14 * 24 * time.Hour
+
 // AbsentWindow is how long a device must have been silent before a rollout
 // stops WAITING for it. A laptop can be shut for days or a week (holiday) -
 // normal life, not a failure - so an absent device leaves the promotion
