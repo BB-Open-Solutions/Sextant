@@ -50,8 +50,14 @@ func (s *Server) postSecretRegister(w http.ResponseWriter, r *http.Request, v vi
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	ref := fleet.SecretRef{Description: strings.TrimSpace(r.FormValue("description"))}
-	if err := s.applyGated(r, v, fleet.AddSecretRef(name, ref),
-		"secrets: register reference "+name); err != nil {
+	// Structural, not gated: a newly registered name is by definition
+	// referenced by nothing, so no device's generated config changes - there
+	// is nothing for the nix gate to prove, and the operator sees the row
+	// immediately instead of waiting out a background eval (the row seemed
+	// to vanish, operator report 2026-07-29). REMOVAL stays gated: a name a
+	// setting still points at breaks builds, and the gate is what says so.
+	if err := s.svc.Config.ApplyStructural(r.Context(), fleet.AddSecretRef(name, ref),
+		"secrets: register reference "+name, webAuthor(v)); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/secrets", http.StatusSeeOther)
