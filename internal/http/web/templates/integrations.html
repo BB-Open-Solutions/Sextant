@@ -32,7 +32,7 @@
            commits the card as a single audited change. The batch handler
            only diffs keys present in the form, so this card can never
            clear settings that live on other pages. */}}
-      <form method="post" action="/settings" data-dirty-form class="!block">
+      <form method="post" action="/settings" data-dirty-form class="!block"><input type="hidden" name="back" value="/integrations">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <input type="hidden" name="scope" value="{{$.Scope}}">
         <div class="flex flex-col divide-y divide-border-soft">

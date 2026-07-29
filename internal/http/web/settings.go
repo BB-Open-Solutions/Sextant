@@ -338,6 +338,14 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 			return err
 		}
 	}
+	// A save must land back where it was made: the integrations cards post
+	// to this same handler and losing the operator to the settings editor
+	// read as a broken save (operator report 2026-07-29). Local paths only,
+	// same open-redirect guard as the secret-reveal back link.
+	if back := r.FormValue("back"); strings.HasPrefix(back, "/") && !strings.HasPrefix(back, "//") {
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return nil
+	}
 	http.Redirect(w, r, "/settings?scope="+url.QueryEscape(scope), http.StatusSeeOther)
 	return nil
 }
