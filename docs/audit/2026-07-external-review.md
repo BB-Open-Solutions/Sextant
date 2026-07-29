@@ -1,99 +1,157 @@
-# External code review, 2026-07-30
+# External code review, 2026-07-30 - verified
 
-An outside reviewer read the codebase and reported the findings below. They
-are recorded here **verbatim in substance and unverified in fact**: nothing
-in this document has been confirmed against the code yet, and a review's
-confidence is not evidence. Task #10 tracks working through them.
+An outside reviewer read the codebase and reported five flaws. Each one was
+then checked against the code. **Two hold up, one holds up in a much
+narrower form than claimed, and two are wrong** - one of them because the
+reviewer quoted code that is not in the repository.
 
-Read it in that spirit. A claim like "this mutex serialises the whole
-service" is either true and important or false and expensive to act on;
-the point of writing it down is to check it, not to schedule a fix.
+Recorded in full because a review that gets things wrong is still useful:
+the wrong claims say which parts of the design are easy to misread from the
+outside, and that is worth knowing for a repo about to be public.
 
-## Claimed flaws
+| # | Claim | Verdict |
+|---|-------|---------|
+| 1 | Global mutex held across nix calls serialises everything | **True, narrower scope** |
+| 2 | Merge dual-write has no split-brain mitigation | **Mostly false** - gate re-check + rollback exist; a small window remains |
+| 3 | Production image ships `sxctl` and `fleetsim` | **True** |
+| 4 | `InsecureSkipVerify` can be set in production | **False** - unreachable from any configuration surface |
+| 5 | Nix eval bomb is an effective DoS on the control plane | **False in the deployed configuration** - the eval runs in a separate, memory-capped pod |
 
-### 1. Global mutex held across nix invocations (reviewer's most severe)
+## 1. Global mutex across nix invocations - TRUE, but narrower
 
-`internal/app/change.go`: `ChangeService` serialises all git branch and
-worktree operations with one service-wide `sync.Mutex`, and holds it across
-the synchronous `gate.Validate` and `builder.Build` calls, which shell out
-to nix and can take seconds to minutes.
+Confirmed. `internal/app/change.go:216-280`: `Submit` takes `s.mu` and holds
+it across `s.gate.Validate` (line 248) and `s.builder.Build` (line 250).
+`Open`, `EditFile`, `Edit`, `Merge` and `Abandon` take the same mutex, so
+while one change builds, no other change can be opened, edited, submitted,
+merged or abandoned.
 
-> Because this is a global lock across the service, while one change is
-> building, no other user can open, edit, submit, merge, or abandon any
-> other change request across the entire system.
+**Where the reviewer overstates it.** "No other user can ... across the
+entire system" is not right:
 
-Consequence claimed: the concurrency model is broken, and a user submitting
-a heavy configuration is an unintentional denial of service.
+- `Get` (:133), `List` (:141) and `Diff` (:368) take no lock, so reading the
+  pipeline stays responsive.
+- `ConfigService` has its own separate `writeMu`
+  (`internal/app/config.go:42`), so ordinary settings writes, rollouts,
+  device check-ins and every other console page are unaffected by a change
+  building. The blast radius is the change-request pipeline, not the console.
 
-**What to check.** Whether the lock genuinely spans the nix calls; whether
-the git worktree model actually requires exclusion (it may - worktrees on
-one repo are not freely concurrent); and if so, whether the fix is a
-narrower lock, a per-change worktree, or moving the build off the request
-path entirely. Note that serialising nix builds may be deliberate: two
-concurrent evaluations of the same fleet contend for the same store and
-cache anyway.
+**Where it is worse than stated.** The build timeout defaults to 30 minutes
+(`internal/adapters/nix/build.go:16-17`), so a single heavy submit can hold
+the pipeline lock for a long time. And `ConfigService.Merge` runs its own
+`gate.Validate` under `WithWriteLock` (`change.go:313-341`), which means a
+merge briefly blocks settings writes too - that one is deliberate and
+documented (the merge mutates the same working tree).
 
-### 2. Dual-write split-brain between git and Postgres
+**Mitigation, in order of cost.** (a) Cheapest and immediately useful: cap
+the build timeout in the chart so the worst case is minutes, not half an
+hour. (b) Correct fix: move `Validate`/`Build` out of the critical section -
+the lock is needed for the git worktree operations, not for the nix call.
+Take the lock to prepare the worktree, release it, run the gate against that
+worktree path, re-take it to record the verdict, and re-check the branch tip
+did not move. (c) Bigger: per-change worktrees plus a build queue, which also
+lets the UI show "queued" honestly instead of hanging.
 
-`ChangeService.Merge` merges in git first, then transitions and persists:
+Do not "fix" this by removing the serialisation wholesale: concurrent nix
+evaluations on one store contend anyway, and git worktrees on a single repo
+are not freely concurrent.
 
-```go
-if err := s.repo.MergeNoFF(ctx, cr.Branch, ...); err != nil { ... }
-if err := cr.Transition(change.Merged, s.clock.Now()); err != nil { ... }
-if err := s.store.Put(ctx, cr); err != nil { ... }
-```
+## 2. Merge dual-write split-brain - MOSTLY FALSE
 
-If `store.Put` fails after `MergeNoFF` succeeds, git holds the merge while
-the database still reports `Ready`. Likewise, if the remote push fails at
-the end, local git and Postgres both say `Merged` while the remote does
-not have it. There is no reconciliation loop or saga.
+The reviewer quotes a three-line body that does not exist in the repo. The
+actual `Merge` (`change.go:285-364`) does considerably more:
 
-**What to check.** This is a design question, not a patch: which system is
-the source of truth, and what does recovery look like. Git is already the
-authority for configuration (the whole architecture says so), which argues
-for reconciling Postgres from git on startup rather than trying to make the
-two writes atomic.
+- runs the whole merge inside `s.cfg.WithWriteLock` so a concurrent settings
+  write cannot interleave on the shared index (:313),
+- captures the pre-merge tip and **re-validates the merged RESULT** through
+  the gate, because two individually valid changes can merge into an invalid
+  whole without a git conflict (:318-325),
+- on gate failure does `ResetHard(pre)` - the merge is rolled back, and if
+  the rollback itself fails the error says so explicitly (:326-330),
+- persists `Merged` **immediately after** the merge, before the snapshot
+  reload and before the push, with a comment stating exactly why: to keep the
+  store in step with git if a later step fails (:310-312, :331-336).
 
-### 3. Production image ships more than the server
+So the ordering the reviewer presents as an oversight is the deliberate
+choice, and it is the safer of the two orderings.
 
-The Dockerfile builds `sextant`, `sxctl` and `fleetsim` and copies all
-three into the runtime image, so a simulation tool and a CLI ride along in
-the production control-plane container. Suggested: separate target stages
-so the production container carries only the daemon.
+**What remains true.** If `store.Put` fails in that narrow window, git holds
+the merge while the database still says `Ready`, and there is no
+reconciliation loop to repair it. Same for a failed push: local git and the
+database both say `Merged` while the remote does not have the commit
+(:345-349 returns the error but nothing retries).
 
-**What to check.** Cheap and unambiguous if true. Worth confirming whether
-`sxctl` is deliberately present for in-container administration before
-removing it.
+**Mitigation.** Not atomicity - git is the source of truth by design, so
+reconcile from it. On startup (and on the existing sync loop), for any change
+in `Ready` whose branch is an ancestor of `main`, record it as merged. For
+the push: the HA sync loop already pushes; make sure a merge whose push
+failed is retried there rather than only surfaced as a request error. Both
+are additive and cheap.
 
-### 4. `InsecureSkipVerify` is reachable from configuration
+## 3. Production image ships more than the server - TRUE
 
-`internal/adapters/ldap/ldap.go` exposes `InsecureSkipVerify bool`. The
-comment says labs only, but nothing prevents an operator from setting it in
-production, where the control plane would then accept forged TLS
-certificates from the directory.
+`Dockerfile:19-21` builds `sextant`, `sxctl` and `fleetsim`; `:27-31` copies
+all three into the runtime stage. `fleetsim` is explicitly test tooling -
+its own doc comment says "Test tooling only" (`cmd/fleetsim/main.go`) - and
+it speaks the check-in API with nothing but the shared check-in token.
 
-**What to check.** Whether it can be set from fleet configuration or only
-from deploy-time environment, and whether a refuse-in-production guard (or
-removing the knob) is the better answer. Related: the device-side SSSD
-module makes the same trade-off deliberately and documents why
-(`bb-open/modules/integrations.nix`, certificate policy follows transport)
-- the console's own bind is a different decision and deserves its own.
+The Dockerfile does explain itself (`:29-30`: the demo instance runs
+fleetsim as a sidecar from this same image), so this is a conscious
+trade-off rather than an oversight. It is still the wrong trade-off for a
+production control plane: a fleet simulator inside the container is a ready
+tool for generating fake device state.
 
-### 5. Unbounded nix evaluation as a DoS vector
+**Mitigation.** Split the runtime stage: `FROM base AS server` with only
+`sextant`, and a `sim` target carrying `fleetsim` for the demo deployment to
+use. `sxctl` is a judgement call - decide whether in-container
+administration is wanted; if not, drop it too. Cheap, unambiguous, and worth
+doing before the repo is public.
 
-A sufficiently recursive or infinite nix expression makes `nix eval` consume
-memory and CPU until the context times out; combined with finding 1, that
-blocks the whole control plane rather than one request.
+## 4. `InsecureSkipVerify` reachable from configuration - FALSE
 
-**What to check.** What limits the gate runner actually has today (timeout,
-memory cgroup, `--max-jobs`), and whether the eval should run under a
-resource-capped sandbox. Design 0003 (gate=eval sandboxing) is the existing
-home for this.
+The field exists (`internal/adapters/ldap/ldap.go:35-36`) and is read at
+`:163`. It is never written. There is no `SEXTANT_LDAP_INSECURE*`
+environment variable, no helm value, and no fleet setting; the only
+construction site is `cmd/sextant/capabilities.go:257-258`, which sets
+`URL`, `BindDN` and `BindPassword` and leaves the field at Go's zero value.
+An administrator cannot set it - there is no surface to set it from.
 
-## What the reviewer credits
+**Mitigation anyway.** Delete the field. A knob that cannot be reached is
+dead code, and dead code that disables TLS verification is an invitation to
+the next person who needs to "just test something". No knob, no footgun.
 
-Recorded because it says which invariants an outsider could verify by
-reading, and those are worth not breaking:
+## 5. Nix eval bomb as a control-plane DoS - FALSE as deployed
+
+Two independent limits, both already in place:
+
+- **The eval is bounded in time.** `EvalGate.Timeout` defaults to 120s per
+  batch and is applied to every invocation
+  (`internal/adapters/nix/gate.go:46-47, 206, 223, 256-262`).
+- **The eval does not run in the control plane.** Production runs the console
+  with `--gate=remote --gate-url=http://sextant-gate:8090` (verified on the
+  live deployment), so `nix eval` executes in a separate `sextant-gate` pod.
+  That pod is capped at cpu 2 / memory 6Gi while the console itself runs at
+  cpu 1 / memory 512Mi. A runaway evaluation OOM-kills the gate runner, in
+  its own cgroup, and the console keeps serving.
+
+So the described attack costs the attacker a rejected change and the operator
+a restarted sidecar - not the control plane.
+
+**What remains true.** Two edges. First, while that eval runs, finding 1's
+mutex is held, so the change pipeline is blocked for up to the timeout -
+which makes finding 1 the real issue and finding 5 an amplifier of it, not a
+vulnerability of its own. Second, an operator who runs `--gate=eval`
+(in-process) puts the evaluation back inside the 512Mi console; the chart's
+fail-safe gate already makes that combination require an explicit
+acknowledgement, and it should stay that way.
+
+**Mitigation.** Nothing urgent. If hardening further: `--option max-jobs`
+and a lower per-eval memory ceiling on the runner, and design 0003
+(sandboxed eval) remains the long-term home for restricting what an
+evaluation may do at all.
+
+## What the reviewer credits, and it checks out
+
+Worth recording because these are invariants not to break:
 
 - **The domain layer is pure.** `internal/domain` imports no I/O, no
   adapters and no application code, which is why its tests are instant.
@@ -102,7 +160,21 @@ reading, and those are worth not breaking:
   instead of an N+1 pattern.
 - **HTTP hardening.** `internal/http/mw/mw.go` enforces CSP, HSTS and
   X-Frame-Options; CSRF uses `subtle.ConstantTimeCompare`; handlers wrap
-  bodies in `http.MaxBytesReader`. No TODO or FIXME comments near a
-  security boundary.
+  bodies in `http.MaxBytesReader`.
 - **Four-eyes is in the domain, not the UI.** `ChangeService` rejects a
   merge where author and approver are the same identity.
+
+## What to do, ranked
+
+1. **Cap the build timeout in the chart** (finding 1a) - one value, removes
+   the 30-minute worst case today.
+2. **Split the Dockerfile runtime stage** (finding 3) - mechanical, and it
+   matters more once the repo is public.
+3. **Delete `InsecureSkipVerify`** (finding 4) - one field.
+4. **Move the gate/build call out of the pipeline mutex** (finding 1b) - the
+   real fix; needs care around re-checking the branch tip afterwards.
+5. **Reconcile change status from git** (finding 2) - additive, closes the
+   only genuine split-brain window.
+
+Findings 1 and 3 are the ones a reader of the public repo could reasonably
+raise again, so they are the ones worth closing first.
