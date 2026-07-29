@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -32,8 +33,6 @@ type Config struct {
 	GroupFilter string
 	// NameAttr is the attribute shown and matched in bindings. Default "cn".
 	NameAttr string
-	// InsecureSkipVerify disables TLS verification (labs only).
-	InsecureSkipVerify bool
 	// Logger receives operational warnings, notably the cleartext-bind
 	// warning below. Defaults to slog.Default() when nil.
 	Logger *slog.Logger
@@ -66,6 +65,26 @@ func New(cfg Config) (*Directory, error) {
 	if cfg.NameAttr == "" {
 		cfg.NameAttr = "cn"
 	}
+	// Both values are spliced into the search filter, and NEITHER may be
+	// escaped: GroupFilter is a filter expression by design (escaping it would
+	// break exactly the thing it is for) and NameAttr is an attribute name, not
+	// data. They come from deploy-time configuration and never from a user, so
+	// there is no injection path - a review that called this "LDAP filter
+	// injection" and recommended EscapeFilter on both had the shape right and
+	// the diagnosis wrong; taking that advice would have broken group lookups.
+	//
+	// The real failure mode is silence. A typo in either value produces a
+	// filter that is syntactically fine and semantically wrong, so the console
+	// shows an empty group picker and nothing anywhere says why. That is the
+	// same class of failure as the directory ACL that answered every search
+	// with "no such object" and cost an hour of looking in the wrong place
+	// (docs/e2e-2-findings.md). Refuse to start instead.
+	if !attrNameRe.MatchString(cfg.NameAttr) {
+		return nil, fmt.Errorf("ldap directory: name attribute %q is not a valid LDAP attribute name (letters, digits and hyphens, starting with a letter)", cfg.NameAttr)
+	}
+	if _, err := ldapv3.CompileFilter(cfg.GroupFilter); err != nil {
+		return nil, fmt.Errorf("ldap directory: group filter %q is not a valid LDAP filter: %w", cfg.GroupFilter, err)
+	}
 	log := cfg.Logger
 	if log == nil {
 		log = slog.Default()
@@ -75,6 +94,11 @@ func New(cfg Config) (*Directory, error) {
 
 // maxGroups bounds one directory answer; pickers page client-side.
 const maxGroups = 500
+
+// attrNameRe is the shape of an LDAP attribute description (RFC 4512 keystring:
+// a letter followed by letters, digits and hyphens). Deliberately narrower than
+// the RFC's full option syntax - a group-name attribute never needs options.
+var attrNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]*$`)
 
 // searchFilter combines the group filter with an escaped substring match.
 func searchFilter(groupFilter, nameAttr, query string) string {
@@ -158,10 +182,16 @@ func (d *Directory) dial(ctx context.Context) (*ldapv3.Conn, error) {
 	d.warnCleartextBindOnce()
 	var opts []ldapv3.DialOpt
 	if strings.HasPrefix(d.cfg.URL, "ldaps://") {
+		// No InsecureSkipVerify knob. It existed, defaulted to false, and
+		// was never wired to an environment variable, a helm value or a fleet
+		// setting - so it could not be turned on, which is why a review that
+		// flagged it as an operator footgun was wrong. It is gone anyway: a
+		// dead field that disables certificate verification is an invitation
+		// to the next person who needs to "just test something quickly", and
+		// a lab with a self-signed certificate has a better answer already -
+		// point identity.tlsCaCert at the CA, the same way a device does.
 		opts = append(opts, ldapv3.DialWithTLSConfig(&tls.Config{
-			// #nosec G402 - defaults to false (verified); the operator can opt into skip-verify only for a lab directory with a self-signed cert.
-			InsecureSkipVerify: d.cfg.InsecureSkipVerify, // labs only
-			MinVersion:         tls.VersionTLS12,
+			MinVersion: tls.VersionTLS12,
 		}))
 	}
 	// Bound the dial itself, not just post-connect operations: DialURL
