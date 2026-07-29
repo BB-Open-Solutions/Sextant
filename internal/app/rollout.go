@@ -124,6 +124,28 @@ func (s *RolloutService) notifyDone(ctx context.Context, target string) {
 	}
 }
 
+const (
+	// engineAuthorName attributes every commit the engine makes itself (ring
+	// pins, cohort releases). Auto-flow damping keys on it: a run's own pin
+	// commits must never read as a reason to start the next run.
+	engineAuthorName  = "sextant-rollout"
+	engineAuthorEmail = "rollout@sextant"
+	// agentAuthorName authors the device agent's writes (clearing an intent a
+	// device has acted on) - machine traffic, like the engine's own commits.
+	agentAuthorName = "sextant-agent"
+)
+
+// engineAuthor is the identity the engine commits under.
+func engineAuthor() ports.Author {
+	return ports.Author{Name: engineAuthorName, Email: engineAuthorEmail}
+}
+
+// isMachineAuthor reports whether a commit came from the control plane
+// itself rather than from a person or an integration.
+func isMachineAuthor(name string) bool {
+	return name == engineAuthorName || name == agentAuthorName
+}
+
 // RingBranch names the machine-owned branch a ring group's devices follow.
 func RingBranch(group string) string { return "rings/" + group }
 
@@ -211,6 +233,108 @@ func (s *RolloutService) FollowHead(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// autoFlowLogDepth bounds the damping walk. A baseline pin older than this
+// many config commits means the fleet is far behind real history, which is
+// exactly when a run should start rather than be damped away.
+const autoFlowLogDepth = 200
+
+// maybeAutoStart makes the ladder standing policy (ADR 0012): when the engine
+// is idle and HEAD carries commits by someone other than the machines, it
+// starts a run to HEAD itself - a merged change reaches the fleet without an
+// operator dispatching it. The gate, the test wave, the soaks and the health
+// thresholds are untouched; only the manual dispatch disappears.
+//
+// Damping is the whole difficulty: promotions THEMSELVES commit (ring pins,
+// cohort releases), so HEAD always moves past the pins during a run. Without
+// the author walk below, each run's own pin commits would look like new work
+// and start the next run, forever.
+//
+// Called without s.mu held: StartWith takes the lock itself.
+func (s *RolloutService) maybeAutoStart(ctx context.Context) error {
+	if s.refs == nil {
+		return nil // no funnel: pins are data-only, nothing flows
+	}
+	f := s.cfg.Fleet()
+	if f.Rollout == nil || len(f.Rollout.Rings) == 0 || !f.Rollout.AutoFlowEnabled() {
+		return nil
+	}
+	st, err := s.store.Get(ctx)
+	if err != nil {
+		return err
+	}
+	// Active, paused and halted runs all own the ring branches: a second run
+	// would fight the first one's waves, and a halt is an operator's to clear.
+	if st != nil && st.Status != rollout.Completed && st.Status != rollout.Cancelled {
+		return nil
+	}
+	head, err := s.refs.Head(ctx)
+	if err != nil {
+		return err
+	}
+	baseline, atHead := promotedBaseline(f)
+	if baseline == "" {
+		return nil // every ring group unpinned: FollowHead already carries HEAD
+	}
+	if atHead(head) {
+		return nil // the fleet already stands on HEAD
+	}
+	roll, err := s.nonMachineCommitsSince(ctx, baseline)
+	if err != nil || !roll {
+		return err
+	}
+	if _, err := s.StartWith(ctx, head, StartOpts{}, engineAuthor()); err != nil {
+		return err
+	}
+	s.log.Info("rollout auto-started", "target", head)
+	return nil
+}
+
+// promotedBaseline reads the revision the fleet was last promoted to: the
+// first pinned ring group's pin, in plan order. atHead reports whether EVERY
+// pinned ring group already sits on the given revision. An empty baseline
+// means no ring group is pinned at all.
+func promotedBaseline(f *fleet.Fleet) (baseline string, atHead func(string) bool) {
+	var pins []string
+	for _, ring := range f.Rollout.Rings {
+		for _, name := range ring.GroupList() {
+			if g, ok := f.Groups[name]; ok && g.Pin != "" {
+				pins = append(pins, g.Pin)
+			}
+		}
+	}
+	if len(pins) == 0 {
+		return "", func(string) bool { return true }
+	}
+	return pins[0], func(rev string) bool {
+		for _, p := range pins {
+			if p != rev {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// nonMachineCommitsSince reports whether any commit newer than baseline was
+// authored by something other than the control plane itself - the damping
+// rule. Not finding baseline within autoFlowLogDepth commits counts as yes:
+// that much history cannot be one run's promotion trail.
+func (s *RolloutService) nonMachineCommitsSince(ctx context.Context, baseline string) (bool, error) {
+	entries, err := s.cfg.AuditLog(ctx, autoFlowLogDepth)
+	if err != nil {
+		return false, err
+	}
+	for _, e := range entries {
+		if e.Hash == baseline {
+			return false, nil // reached the pin: only machine commits above it
+		}
+		if !isMachineAuthor(e.Author) {
+			return true, nil
+		}
+	}
+	return true, nil
 }
 
 // runRings is the wave plan of a run: its own snapshot when it carries one
@@ -452,7 +576,7 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 				"status", string(st.Status))
 			return &act, st, nil
 		}
-		author := ports.Author{Name: "sextant-rollout", Email: "rollout@sextant"}
+		author := engineAuthor()
 		// Group pin: the audit record + the marker FollowHead uses to leave this
 		// ring's branch alone while the engine owns it (capped or not).
 		for _, g := range ring.GroupList() {
@@ -481,7 +605,7 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 		// The current cohort is healthy and soaked; release the next batch and
 		// restart the soak (the widened cohort must converge again).
 		ring := rings[st.Ring]
-		author := ports.Author{Name: "sextant-rollout", Email: "rollout@sextant"}
+		author := engineAuthor()
 		if err := s.releaseCohort(ctx, ring, author); err != nil {
 			return &act, st, err
 		}
@@ -591,6 +715,11 @@ func (s *RolloutService) Run(ctx context.Context, every time.Duration) {
 			// their devices between rollout runs.
 			if err := s.FollowHead(ctx); err != nil && ctx.Err() == nil {
 				s.log.Error("ring follow failed", "err", err)
+			}
+			// The ladder as standing policy (ADR 0012): an idle engine picks
+			// up non-machine commits itself, so nobody has to dispatch a run.
+			if err := s.maybeAutoStart(ctx); err != nil && ctx.Err() == nil {
+				s.log.Error("rollout auto-start check failed", "err", err)
 			}
 		}
 	}

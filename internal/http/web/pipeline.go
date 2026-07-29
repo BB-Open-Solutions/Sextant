@@ -244,8 +244,12 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 			return ""
 		}(),
 		"HasPlan": f.Rollout != nil && len(f.Rollout.Rings) > 0,
-		"CanEdit": v.roleAt("org").Meets(identity.Editor),
-		"CanOwn":  v.roleAt("org").Meets(identity.Owner),
+		// Auto-flow (ADR 0012) turns the board into status: the ladder runs as
+		// standing policy, so the button is an override rather than the way
+		// updates reach devices.
+		"AutoFlow": f.Rollout.AutoFlowEnabled(),
+		"CanEdit":  v.roleAt("org").Meets(identity.Editor),
+		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
 	}
 	// Idle headline: an operator wants to read "all devices current", not
 	// "no rollout running". Only judged while nothing is rolling out - during

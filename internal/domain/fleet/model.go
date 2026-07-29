@@ -271,6 +271,20 @@ type RolloutPolicy struct {
 	Rings []RolloutRing `json:"rings,omitempty"`
 	// ApproveRole is the minimum role required to start a rollout.
 	ApproveRole string `json:"approveRole,omitempty"`
+	// AutoFlow makes the ladder standing policy (ADR 0012): the engine starts
+	// its own runs when non-machine commits reach HEAD. A pointer because
+	// "not configured" must stay distinguishable from a deliberate false -
+	// unset means on, false returns the org to hand-dispatched runs.
+	AutoFlow *bool `json:"autoFlow,omitempty"`
+}
+
+// AutoFlowEnabled reports whether the engine may start runs itself. A plan
+// with no rings has nothing to flow, so a nil policy is off.
+func (p *RolloutPolicy) AutoFlowEnabled() bool {
+	if p == nil {
+		return false
+	}
+	return p.AutoFlow == nil || *p.AutoFlow
 }
 
 // RolloutRing mirrors rollout.Ring in the config document.

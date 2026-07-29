@@ -110,6 +110,11 @@ func (s *Server) postRolloutPlan(w http.ResponseWriter, r *http.Request, v view)
 		}
 		if plan == nil {
 			plan = &fleet.RolloutPolicy{}
+			if cur := s.svc.Config.Fleet().Rollout; cur != nil {
+				// Auto-flow is standing policy, not part of the ring form:
+				// editing the waves must not silently switch it back on.
+				plan.AutoFlow = cur.AutoFlow
+			}
 		}
 		plan.Rings = append(plan.Rings, ring)
 	}

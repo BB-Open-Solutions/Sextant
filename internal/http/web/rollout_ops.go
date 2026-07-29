@@ -410,6 +410,11 @@ func derivePlan(f *fleet.Fleet, test string, percents []int) *fleet.RolloutPolic
 	plan := &fleet.RolloutPolicy{Rings: []fleet.RolloutRing{{
 		Group: test, Name: "Testgroep", RequireApproval: true, SoakMinutes: 60,
 	}}}
+	if f.Rollout != nil {
+		// Auto-flow is standing policy, not part of the ladder's shape:
+		// reshaping the waves must not silently switch it back on.
+		plan.AutoFlow = f.Rollout.AutoFlow
+	}
 	type gs struct {
 		name string
 		n    int

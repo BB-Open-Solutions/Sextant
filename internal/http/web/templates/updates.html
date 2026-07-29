@@ -47,21 +47,34 @@
           <option value="*">{{.L.T "updates.scope_fleet"}}</option>
           {{range .AllGroups}}<option value="{{.}}">{{$.L.T "updates.scope_only"}} {{.}}</option>{{end}}
         </select>
+        {{if .AutoFlow}}
+        {{/* Auto-flow already carries HEAD through the waves, so the only
+             reason left to press is to overtake it: the form posts the
+             expedited pace outright instead of offering it as a choice. */}}
+        <input type="hidden" name="expedited" value="1">
+        <span class="text-body-sm text-text-tertiary">{{.L.T "updates.expedited_hint_short"}}</span>
+        {{else}}
         <div class="flex flex-col gap-0.5">
           <label class="flex items-center gap-1.5 !normal-case !tracking-normal text-label-md text-text-secondary">
             <input type="checkbox" name="expedited" value="1" class="!w-auto">{{.L.T "updates.expedited"}}
           </label>
           <span class="text-body-sm text-text-tertiary">{{.L.T "updates.expedited_hint_short"}}</span>
         </div>
+        {{end}}
         {{/* The release number stays on the button: it is the identity of what
              is being rolled out, and the operator quotes it. The revision it
              resolves to hangs in the hover title. */}}
-        <button type="submit" class="btn" title="{{.MainRev}}"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{.L.T "page.pipeline.roll_out_action"}} {{if .MainRelease}}{{.L.T "common.release"}} {{.MainRelease}}{{else}}{{short .MainRev}}{{end}}</button>
+        <button type="submit" class="btn{{if .AutoFlow}} quiet{{end}}" title="{{.MainRev}}"><span class="material-symbols-outlined msz-18">rocket_launch</span>{{if .AutoFlow}}{{.L.T "updates.roll_out_now_expedited"}}{{else}}{{.L.T "page.pipeline.roll_out_action"}} {{if .MainRelease}}{{.L.T "common.release"}} {{.MainRelease}}{{else}}{{short .MainRev}}{{end}}{{end}}</button>
       </form>
       <a href="/updates/rollout" class="btn quiet !py-1.5">{{.L.T "updates.view_rollout"}}</a>
       {{end}}
     </div>
   </div>
+  {{/* Nothing in flight and the ladder is standing policy: say so, or the
+       board reads as a fleet waiting for someone to press something. */}}
+  {{if and .AutoFlow (not (or .Active .Paused))}}
+  <p class="mt-2 mb-0 text-body-sm text-text-tertiary">{{.L.T "updates.autoflow_status"}}</p>
+  {{end}}
   {{if or .Active .Paused}}
   {{range .Waves}}{{if .Active}}
   <div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-container"><div class="h-full rounded-full bg-mint-vibrant {{.BarClass}}"></div></div>

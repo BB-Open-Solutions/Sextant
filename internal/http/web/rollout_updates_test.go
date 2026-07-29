@@ -17,6 +17,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/state"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/web"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
@@ -474,6 +475,50 @@ func TestUpdatesExpeditedHintIsAlwaysVisible(t *testing.T) {
 	_, page := getPage(t, ts, "/updates")
 	if !strings.Contains(page, "Security-fix pace") || !strings.Contains(page, "shrinks every wave") {
 		t.Error("expedited checkbox lost its always-visible short hint")
+	}
+}
+
+// TestUpdatesBoardReadsAsStatusUnderAutoFlow proves ADR 0012's console half:
+// with the ladder as standing policy the board states that changes flow by
+// themselves and the dispatch button becomes the expedited override; with
+// auto-flow off the ordinary wave dispatch returns.
+func TestUpdatesBoardReadsAsStatusUnderAutoFlow(t *testing.T) {
+	ts, cfg, _ := newUpdatesConsole(t)
+	if code := postForm(t, ts, "/org/updates/policy", url.Values{
+		"testgroup": {"test"}, "percents": {"100"},
+	}); code != 303 {
+		t.Fatalf("derive = %d", code)
+	}
+
+	_, page := getPage(t, ts, "/updates")
+	if !strings.Contains(page, "Changes flow to the fleet automatically") {
+		t.Error("auto-flow board does not say updates flow by themselves")
+	}
+	if !strings.Contains(page, "Roll out now (expedited)") {
+		t.Error("dispatch button is not relabelled as the expedited override")
+	}
+	if !strings.Contains(page, `<input type="hidden" name="expedited" value="1">`) {
+		t.Error("override button does not post the expedited pace")
+	}
+
+	// Off switch: the org that wants scheduled windows only gets the plain
+	// wave dispatch back.
+	off := false
+	plan := *cfg.Fleet().Rollout
+	plan.AutoFlow = &off
+	if err := cfg.Apply(context.Background(), fleet.SetRolloutPlan(&plan),
+		"rollout: manual dispatch only", ports.Author{Name: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	_, page = getPage(t, ts, "/updates")
+	if strings.Contains(page, "Changes flow to the fleet automatically") {
+		t.Error("manual-dispatch org still told updates flow by themselves")
+	}
+	if !strings.Contains(page, "Roll out in waves:") {
+		t.Error("manual-dispatch org lost the wave dispatch button")
+	}
+	if !strings.Contains(page, `<input type="checkbox" name="expedited" value="1"`) {
+		t.Error("manual-dispatch org lost the expedited choice")
 	}
 }
 
