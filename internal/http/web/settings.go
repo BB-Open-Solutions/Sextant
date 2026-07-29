@@ -66,6 +66,36 @@ func imageTimeKey(key string) bool {
 	return false
 }
 
+// riskClassHigh is the catalog's convention for "changing this deserves extra
+// care" (fleet.CatalogEntry.RiskClass).
+const riskClassHigh = "high"
+
+// riskMarkerFor decides whether a save deserves a human at the wheel and
+// returns the suffix its commit subject carries when it does (" " +
+// app.RiskHighMarker, empty otherwise): the rollout engine holds auto-flow
+// behind a marked commit until an operator dispatches the run (design 0012).
+// Two classes qualify - options the catalog marks riskClass "high", and an
+// integration being switched on or off (netbird.enable and friends: the device
+// joins or leaves a mesh, which is not something to discover from a wave).
+// Image-time keys never qualify, even when the catalog marks them high:
+// secureboot./diskUnlock. options are written into the image and stay inert
+// until a device is re-imaged (design 0001), so flowing them changes nothing
+// on a running fleet and braking on them would hold the whole save hostage.
+func riskMarkerFor(cat *fleet.Catalog, changes []app.SettingChange) string {
+	for _, c := range changes {
+		if imageTimeKey(c.Key) {
+			continue
+		}
+		if e, ok := cat.Lookup(c.Key); ok && e.RiskClass == riskClassHigh {
+			return " " + app.RiskHighMarker
+		}
+		if isIntegrationSetting(c.Key) && strings.HasSuffix(c.Key, ".enable") {
+			return " " + app.RiskHighMarker
+		}
+	}
+	return ""
+}
+
 // requiresOf finds the enable an option depends on: the longest dotted
 // prefix q of key for which q+".enable" is a catalog option. Convention
 // over metadata - the exported module tree already encodes the relation.
@@ -329,15 +359,20 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 		// milliseconds (well inside the window), so ErrChangeRequestRequired
 		// still stages inline below; only the nix validation can detach.
 		author := webAuthor(v)
-		desc := fmt.Sprintf("settings: %d change(s) at %s", len(changes), scopeLabel(scope))
+		// The risk brake (design 0012): a high-risk save carries its marker into
+		// the commit subject, where the rollout engine reads it and holds
+		// auto-flow for an operator-dispatched run. The same marker rides the
+		// save's own description, so the operator sees why it will wait.
+		marker := riskMarkerFor(cat, changes)
+		desc := fmt.Sprintf("settings: %d change(s) at %s%s", len(changes), scopeLabel(scope), marker)
 		if det, err := s.runGatedDetached(r, v, desc, func(ctx context.Context) error {
-			return s.svc.Config.ApplySettings(ctx, scope, changes, author)
+			return s.svc.Config.ApplySettingsMarked(ctx, scope, changes, marker, author)
 		}); err != nil {
 			// A review-gated org does not fail the save: it flows into the review
 			// process. Stage the same edits on a fresh change request and send the
 			// operator to the Updates board.
 			if errors.Is(err, app.ErrChangeRequestRequired) && s.svc.Changes != nil {
-				return s.stageSettingsAsChange(w, r, v, scope, changes)
+				return s.stageSettingsAsChange(w, r, v, scope, changes, marker)
 			}
 			return err
 		} else {
@@ -368,12 +403,16 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 
 // stageSettingsAsChange opens a fresh change request, stages the batch of edits
 // on its branch, and redirects to the Updates board - the review path a save
-// takes when the organisation mandates a change request.
-func (s *Server) stageSettingsAsChange(w http.ResponseWriter, r *http.Request, v view, scope string, changes []app.SettingChange) error {
+// takes when the organisation mandates a change request. marker (riskMarkerFor)
+// travels on the staged commit too: once the change merges, the same brake
+// applies to the same edits.
+func (s *Server) stageSettingsAsChange(w http.ResponseWriter, r *http.Request, v view,
+	scope string, changes []app.SettingChange, marker string) error {
 	mut, msg, hosts, err := s.svc.Config.SettingsMutation(scope, changes)
 	if err != nil {
 		return err
 	}
+	msg += marker
 	id, err := s.nextChangeID(r.Context(), scope)
 	if err != nil {
 		return err

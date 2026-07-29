@@ -80,6 +80,16 @@ type SettingChange struct {
 // integrity) for every change, and validates them ALL before mutating, so one
 // bad value rejects the whole save instead of half-applying it.
 func (s *ConfigService) ApplySettings(ctx context.Context, scope string, changes []SettingChange, a ports.Author) error {
+	return s.ApplySettingsMarked(ctx, scope, changes, "", a)
+}
+
+// ApplySettingsMarked is ApplySettings with marker appended to the commit
+// SUBJECT. The console marks a high-risk save with " "+RiskHighMarker so the
+// rollout engine's risk brake reads the risk back off the commit log (design
+// 0012); the marker therefore has to survive into git, not merely into the
+// console's own wording. An empty marker is exactly ApplySettings.
+func (s *ConfigService) ApplySettingsMarked(ctx context.Context, scope string,
+	changes []SettingChange, marker string, a ports.Author) error {
 	if err := s.requireDirectEditAllowed(); err != nil {
 		return err
 	}
@@ -90,7 +100,7 @@ func (s *ConfigService) ApplySettings(ctx context.Context, scope string, changes
 	if err != nil {
 		return err
 	}
-	return s.Apply(ctx, mut, msg, a, hosts...)
+	return s.Apply(ctx, mut, msg+marker, a, hosts...)
 }
 
 // SettingsMutation compiles a batch of setting changes at one scope into a

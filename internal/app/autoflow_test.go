@@ -8,16 +8,18 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/notify"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
-// revOf resolves a revision in the test repo.
-func revOf(t *testing.T, dir, ref string) string {
+// headOf resolves the test repo's current HEAD - the revision auto-flow is
+// expected to roll the fleet to.
+func headOf(t *testing.T, dir string) string {
 	t.Helper()
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "--verify", "-q", ref).Output()
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--verify", "-q", "HEAD").Output()
 	if err != nil {
-		t.Fatalf("rev-parse %s: %v", ref, err)
+		t.Fatalf("rev-parse HEAD: %v", err)
 	}
 	return strings.TrimSpace(string(out))
 }
@@ -45,7 +47,7 @@ func autoFlowStack(t *testing.T) (*RolloutService, *ConfigService, string) {
 		t.Fatal(err)
 	}
 	rs.WithRefs(repo)
-	baseline := revOf(t, dir, "HEAD")
+	baseline := headOf(t, dir)
 	for _, g := range []string{"canary", "fleet"} {
 		if err := svc.Apply(context.Background(), fleet.SetGroupPin(g, baseline),
 			"rollout: pin ring ("+g+") to "+baseline, engineAuthor()); err != nil {
@@ -119,6 +121,19 @@ func TestRolloutAutoStart(t *testing.T) {
 			},
 		},
 		{
+			name: "a high-risk commit waits for an operator",
+			setup: func(t *testing.T, _ *RolloutService, _ *ConfigService, dir string) {
+				commitAs(t, dir, "alice", "settings: update 1 at org "+RiskHighMarker)
+			},
+		},
+		{
+			name: "a plain commit above a high-risk one is held too",
+			setup: func(t *testing.T, _ *RolloutService, _ *ConfigService, dir string) {
+				commitAs(t, dir, "alice", "settings: update 1 at org "+RiskHighMarker)
+				commitAs(t, dir, "bob", "settings: update 1 at org")
+			},
+		},
+		{
 			name: "a baseline beyond the damping window starts a run anyway",
 			setup: func(t *testing.T, _ *RolloutService, svc *ConfigService, _ string) {
 				for _, g := range []string{"canary", "fleet"} {
@@ -137,7 +152,7 @@ func TestRolloutAutoStart(t *testing.T) {
 			rs, svc, dir := autoFlowStack(t)
 			tc.setup(t, rs, svc, dir)
 			ctx := context.Background()
-			head := revOf(t, dir, "HEAD")
+			head := headOf(t, dir)
 
 			if err := rs.maybeAutoStart(ctx); err != nil {
 				t.Fatalf("maybeAutoStart: %v", err)
@@ -152,5 +167,81 @@ func TestRolloutAutoStart(t *testing.T) {
 				t.Fatalf("auto-started = %v, want %v (state %+v, head %s)", started, tc.want, st, head)
 			}
 		})
+	}
+}
+
+// recordingNotifier captures what the engine emitted, so a test can assert
+// both the content of a notification and how often it was sent.
+type recordingNotifier struct{ sent []notify.Notification }
+
+// Emit implements Notifier.
+func (r *recordingNotifier) Emit(_ context.Context, n notify.Notification) error {
+	r.sent = append(r.sent, n)
+	return nil
+}
+
+// TestRolloutAutoStartRiskBrake follows the brake over several ticks (design
+// 0012): a marked commit holds the flow and tells the owners ONCE - the hold
+// re-derives from the log every tick, so a missing guard would refill the bell
+// forever - and the hold ends by itself once a manual run carries the marked
+// commit into the pins.
+func TestRolloutAutoStartRiskBrake(t *testing.T) {
+	rs, svc, dir := autoFlowStack(t)
+	rec := &recordingNotifier{}
+	rs.WithNotifier(rec, []string{"owners"})
+	ctx := context.Background()
+
+	commitAs(t, dir, "alice", "settings: update 1 at org "+RiskHighMarker)
+	marked := headOf(t, dir)
+
+	if err := rs.maybeAutoStart(ctx); err != nil {
+		t.Fatalf("maybeAutoStart: %v", err)
+	}
+	st, _, err := rs.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st != nil {
+		t.Fatalf("a high-risk commit started a run by itself: %+v", st)
+	}
+	if len(rec.sent) != 1 {
+		t.Fatalf("notifications = %d, want 1: %+v", len(rec.sent), rec.sent)
+	}
+	if got := rec.sent[0]; got.Kind != notify.ApprovalNeeded ||
+		!strings.Contains(got.Body, "settings: update 1 at org") {
+		t.Fatalf("hold notification = %+v", got)
+	}
+
+	// Same commit, next tick: still held, still one bell.
+	if err := rs.maybeAutoStart(ctx); err != nil {
+		t.Fatalf("maybeAutoStart: %v", err)
+	}
+	if len(rec.sent) != 1 {
+		t.Fatalf("the hold re-notified: %d notifications", len(rec.sent))
+	}
+
+	// An operator dispatched the run and it delivered: the pins now stand on
+	// the marked commit, and ordinary work lands on top. Nothing above the
+	// baseline is marked any more, so the fleet flows again.
+	for _, g := range []string{"canary", "fleet"} {
+		if err := svc.Apply(ctx, fleet.SetGroupPin(g, marked),
+			"rollout: pin ring ("+g+") to "+marked, engineAuthor()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commitAs(t, dir, "bob", "settings: update 1 at org")
+	head := headOf(t, dir)
+	if err := rs.maybeAutoStart(ctx); err != nil {
+		t.Fatalf("maybeAutoStart: %v", err)
+	}
+	st, _, err = rs.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st == nil || st.Status != rollout.Active || st.Target != head {
+		t.Fatalf("the hold did not clear once the pins passed it: %+v (head %s)", st, head)
+	}
+	if len(rec.sent) != 1 {
+		t.Fatalf("notifications = %d after the hold cleared, want 1", len(rec.sent))
 	}
 }

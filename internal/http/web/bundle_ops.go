@@ -115,12 +115,16 @@ func (s *Server) postBundleApply(w http.ResponseWriter, r *http.Request, v view)
 		return err
 	}
 	author := webAuthor(v)
-	desc := fmt.Sprintf("bundle: apply %s at %s", name, scopeLabel(scope))
+	// A bundle writes ordinary settings, so it earns the ordinary risk brake
+	// (design 0012): applying one that turns an integration on holds auto-flow
+	// exactly as the same key would from the settings editor.
+	marker := riskMarkerFor(cat, changes)
+	desc := fmt.Sprintf("bundle: apply %s at %s%s", name, scopeLabel(scope), marker)
 	if err := s.runGated(r, v, desc, func(ctx context.Context) error {
-		return s.svc.Config.ApplySettings(ctx, scope, changes, author)
+		return s.svc.Config.ApplySettingsMarked(ctx, scope, changes, marker, author)
 	}); err != nil {
 		if errors.Is(err, app.ErrChangeRequestRequired) && s.svc.Changes != nil {
-			return s.stageSettingsAsChange(w, r, v, scope, changes)
+			return s.stageSettingsAsChange(w, r, v, scope, changes, marker)
 		}
 		return err
 	}

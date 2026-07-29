@@ -30,6 +30,32 @@ The ladder becomes standing policy; the engine starts runs itself.
   approval merges to main, and auto-flow carries it from there - the
   Intune analog of "rings pick up the release".
 
+## Risk brake (decision 2026-07-29)
+
+Not every change should flow unattended. A save whose blast radius is
+large enough to want a human watching it carries a marker into its
+commit subject, and the engine holds auto-flow behind it.
+
+- **Marker**: the console appends ` [risk:high]` (`app.RiskHighMarker`)
+  to the commit subject when any changed key is a catalog option with
+  `riskClass: "high"`, or an integration enable (`<integration>.enable`:
+  the device joins or leaves a mesh, a directory, a SIEM).
+- **Hold**: the auto-start walk stops at a marked non-machine commit
+  above the pins - no run starts, and the owning groups get ONE
+  `approval-needed` notification per marked commit (the hold is
+  re-derived every tick; without the guard the bell would refill every
+  interval). The manual/expedited button is unchanged and ignores the
+  marker: it IS the dispatch path for these changes.
+- **Clearing**: nothing to reset. Once a manual run delivers the marked
+  commit, the pins stand past it and the next ordinary commit flows
+  normally.
+- **Image-time keys never brake**, even when the catalog marks them
+  high-risk: `secureboot.*` and `diskUnlock.*` are written into the
+  image and stay inert until a device is re-imaged (design 0001), so
+  rolling them out changes nothing on a running fleet. `diskUnlock`
+  options carrying `riskClass: high` would otherwise hold every save
+  they appear in for no gain.
+
 ## Consequences
 
 - Updates board reads as status, not controls: "All devices current" /

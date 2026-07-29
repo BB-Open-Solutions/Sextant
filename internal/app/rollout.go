@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,6 +36,13 @@ type RolloutService struct {
 	// the build gate (devices build locally, as without a cache).
 	builder ports.CacheBuilder
 	mu      sync.Mutex // one tick / start / cancel at a time
+	// riskHoldNotified is the newest risk-marked commit the brake has already
+	// reported (see RiskHighMarker). In memory on purpose: the hold itself is
+	// re-derived from the commit log on every tick, so a restart costs at most
+	// one repeated notification - cheaper than persisting bell bookkeeping.
+	// Guarded by mu (markRiskNotified), since the auto-start walk runs outside
+	// the tick lock.
+	riskHoldNotified string
 }
 
 // NewRolloutService wires the rollout engine.
@@ -240,6 +248,15 @@ func (s *RolloutService) FollowHead(ctx context.Context) error {
 // exactly when a run should start rather than be damped away.
 const autoFlowLogDepth = 200
 
+// RiskHighMarker is the tag a writer appends to a commit SUBJECT (after a
+// space) when the change it carries is high-risk: a catalog option marked
+// riskClass "high", or an integration being switched on or off. The console
+// writes it (internal/http/web, riskMarkerFor); the auto-flow walk below reads
+// it back off the log and holds the run for a human (design 0012, "Risk
+// brake"). It travels through git rather than through memory precisely because
+// the reader is a different process lifetime than the writer.
+const RiskHighMarker = "[risk:high]"
+
 // maybeAutoStart makes the ladder standing policy (ADR 0012): when the engine
 // is idle and HEAD carries commits by someone other than the machines, it
 // starts a run to HEAD itself - a merged change reaches the fleet without an
@@ -280,9 +297,17 @@ func (s *RolloutService) maybeAutoStart(ctx context.Context) error {
 	if atHead(head) {
 		return nil // the fleet already stands on HEAD
 	}
-	roll, err := s.nonMachineCommitsSince(ctx, baseline)
-	if err != nil || !roll {
+	scan, err := s.nonMachineCommitsSince(ctx, baseline)
+	if err != nil || !scan.roll {
 		return err
+	}
+	// The risk brake (design 0012): a change the writer marked high-risk never
+	// flows on its own. Everything else about the ladder is unchanged - the
+	// operator presses the button, which also makes them the person watching
+	// it land.
+	if scan.riskHash != "" {
+		s.holdForRisk(ctx, scan)
+		return nil
 	}
 	if _, err := s.StartWith(ctx, head, StartOpts{}, engineAuthor()); err != nil {
 		return err
@@ -317,24 +342,79 @@ func promotedBaseline(f *fleet.Fleet) (baseline string, atHead func(string) bool
 	}
 }
 
-// nonMachineCommitsSince reports whether any commit newer than baseline was
-// authored by something other than the control plane itself - the damping
-// rule. Not finding baseline within autoFlowLogDepth commits counts as yes:
-// that much history cannot be one run's promotion trail.
-func (s *RolloutService) nonMachineCommitsSince(ctx context.Context, baseline string) (bool, error) {
+// autoFlowScan is what the damping walk found above the promoted baseline:
+// whether a run is warranted at all, and the newest commit that warrants one
+// but carries the high-risk marker.
+type autoFlowScan struct {
+	roll                  bool   // a non-machine commit sits above the baseline
+	riskHash, riskSubject string // newest such commit carrying RiskHighMarker
+}
+
+// nonMachineCommitsSince walks the commits newer than baseline: roll is set
+// when any was authored by something other than the control plane itself (the
+// damping rule), and the newest of those carrying RiskHighMarker is reported
+// so the caller can hold instead of start. Not finding baseline within
+// autoFlowLogDepth commits counts as roll: that much history cannot be one
+// run's promotion trail. Only non-machine commits are risk-checked: a marker
+// is something a WRITER puts on a change, and the engine's own promotion trail
+// must never brake the flow it is part of.
+func (s *RolloutService) nonMachineCommitsSince(ctx context.Context, baseline string) (autoFlowScan, error) {
 	entries, err := s.cfg.AuditLog(ctx, autoFlowLogDepth)
 	if err != nil {
-		return false, err
+		return autoFlowScan{}, err
 	}
+	// Newest first: the first marked commit seen is the newest one, which is
+	// the hash the hold notifies about.
+	var scan autoFlowScan
 	for _, e := range entries {
 		if e.Hash == baseline {
-			return false, nil // reached the pin: only machine commits above it
+			return scan, nil // reached the pin: nothing of ours above it
 		}
-		if !isMachineAuthor(e.Author) {
-			return true, nil
+		if isMachineAuthor(e.Author) {
+			continue
+		}
+		scan.roll = true
+		if scan.riskHash == "" && strings.Contains(e.Subject, RiskHighMarker) {
+			scan.riskHash, scan.riskSubject = e.Hash, e.Subject
 		}
 	}
-	return true, nil
+	// Baseline never seen: the fleet is further behind than the damping window
+	// can explain, so a run is warranted whatever the walk found.
+	scan.roll = true
+	return scan, nil
+}
+
+// holdForRisk parks auto-flow behind a high-risk change and tells the owning
+// groups about it ONCE per commit: the hold is re-derived on every tick, so an
+// unguarded notify would refill the bell every interval until somebody
+// dispatched the run. The hold clears by itself once a manual run moves the
+// pins past the marked commit - nothing to reset, nothing to remember.
+func (s *RolloutService) holdForRisk(ctx context.Context, scan autoFlowScan) {
+	if !s.markRiskNotified(scan.riskHash) {
+		return
+	}
+	s.log.Info("rollout auto-start held", "reason", "risk:high", "commit", scan.riskHash)
+	emitAll(ctx, s.notifier, s.audience, notify.Notification{
+		Kind:  notify.ApprovalNeeded,
+		Title: "High-risk change awaits manual rollout",
+		Body: fmt.Sprintf("%q is marked high-risk, so it does not flow to the fleet by itself. "+
+			"Start its rollout from Updates when you can watch it land.", scan.riskSubject),
+		Link: "/updates/rollout",
+	})
+}
+
+// markRiskNotified records hash as reported and says whether it was new. It
+// takes the tick lock around the field only: maybeAutoStart deliberately runs
+// without it (StartWith takes it itself), so the flag cannot simply be guarded
+// by holding mu across the whole walk.
+func (s *RolloutService) markRiskNotified(hash string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.riskHoldNotified == hash {
+		return false
+	}
+	s.riskHoldNotified = hash
+	return true
 }
 
 // runRings is the wave plan of a run: its own snapshot when it carries one
