@@ -83,6 +83,9 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 	crit, warn := 0, 0
 	worst := map[string]int{} // device tag -> worst severity seen (2 crit, 1 warn)
 	for _, in := range incidents {
+		if in.Tag == "" {
+			continue // fleet-level (a stalled run): no device to colour
+		}
 		sev := 1
 		if in.Severity == "critical" {
 			sev = 2
@@ -209,8 +212,14 @@ func (s *Server) scopedIncidents(r *http.Request, v view, tagOK func(tag string)
 		if in.Severity == incident.Critical {
 			sev = "critical"
 		}
+		// A fleet-level incident (a stalled run) names no device; it links to
+		// the rollout monitor, where the wave that is stuck is visible.
+		link := "/updates/rollout"
+		if in.Tag != "" {
+			link = "/devices/" + in.Tag
+		}
 		out = append(out, incidentRow{Severity: sev, Title: in.Title, Detail: in.Detail,
-			Action: in.Action, Tag: in.Tag, Link: "/devices/" + in.Tag})
+			Action: in.Action, Tag: in.Tag, Link: link})
 		if len(out) >= 8 {
 			break
 		}

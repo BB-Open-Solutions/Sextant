@@ -8,9 +8,11 @@ package incident
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/rollout"
 )
 
 // Kind classifies an incident so the console can icon and group it.
@@ -24,6 +26,11 @@ const (
 	Errored     Kind = "errored"      // reported a build/apply error
 	WipeFailed  Kind = "wipe-failed"  // a crypto-wipe did not complete
 	WipeRefused Kind = "wipe-refused" // a device declined a wipe intent
+	// RolloutStalled is fleet-level: a wave was promoted and never converged.
+	RolloutStalled Kind = "rollout-stalled"
+	// UnknownConfig marks a device on a revision the config repo cannot place
+	// in its own history - it follows a source other than its ring branch.
+	UnknownConfig Kind = "unknown-config"
 )
 
 // Severity orders incidents; higher is more urgent.
@@ -49,10 +56,91 @@ type Observation struct {
 	// text can say "release 142, target 145" instead of two opaque shas.
 	DeployedRelease int
 	TargetRelease   int
-	Online          bool      // checked in within the online window
-	LastSeen        time.Time // zero = never
-	Error           string    // device-reported error ("" = none)
-	Ack             string    // last remote-action outcome
+	// Head/HeadRelease are the config repo's own tip as this console sees it.
+	// They are not judged; they exist so the unknown-config guard can tell a
+	// revision the repo does not know from one it has merely not counted yet.
+	Head        string
+	HeadRelease int
+	Online      bool      // checked in within the online window
+	LastSeen    time.Time // zero = never
+	Error       string    // device-reported error ("" = none)
+	Ack         string    // last remote-action outcome
+}
+
+// unknownConfig reports the wrong-source signature: an ONLINE device on a
+// revision the config repo cannot place in its own history.
+//
+// DeployedRelease == 0 alone is NOT that signature. It is equally what a
+// perfectly working lookup returns for a revision this console has not
+// fetched yet, so on its own the check would cry wolf on every commit made
+// outside the console. Three further conditions gate it:
+//
+//   - TargetRelease and HeadRelease both resolve: the console CAN count
+//     releases right now (the repo adapter supports it, the clone is
+//     readable). Without this, a console whose lookup is broken would brand
+//     the entire fleet in a single sweep.
+//   - The revision is not the device's own target: a device sitting exactly
+//     on its pin runs what the fleet asked for, and a zero there is a lagging
+//     lookup, never a stray device.
+//   - The revision is not the repo's HEAD: the console's own tip is
+//     legitimate even in the instant before its release number is cached.
+//
+// What is left is a revision that is neither the pin the console committed,
+// nor the tip it holds, nor anywhere in the history it can read - and a
+// pinned device can only receive its revision from the ring branch this
+// console moves. The one residual window (another replica promoted seconds
+// ago and this one has not synced yet) closes itself on the next sync tick.
+func (o Observation) unknownConfig() bool {
+	return o.Online && o.Deployed != "" && o.DeployedRelease == 0 &&
+		o.Target != "" && o.TargetRelease > 0 &&
+		o.Head != "" && o.HeadRelease > 0 &&
+		o.Deployed != o.Target && o.Deployed != o.Head
+}
+
+// RunObservation is the run-level input to the rollout guard: the state of a
+// rollout run's CURRENT wave. A stalled run is a fact about the fleet, not
+// about one device, so it feeds a sibling detector rather than widening
+// Detect's per-device signature.
+type RunObservation struct {
+	Ring string // wave label ("Canary", "Phase 1")
+	// Target is the revision the wave is converging to.
+	Target string
+	// Stalled is how long the wave has been promoted without converging, per
+	// rollout.State.StalledFor. Below rollout.StallWindow nothing is raised.
+	Stalled time.Duration
+	// OffTarget names the wave's devices not yet reporting the target.
+	OffTarget []string
+	// Since is when the wave was promoted, for the incident's age.
+	Since time.Time
+}
+
+// DetectRollout turns a rollout run into fleet-level incidents. It is a
+// sibling of Detect, merged in by the app layer, so the per-device detector
+// keeps its signature and its callers.
+//
+// The engine is right to hold a wave that has not converged - that is the
+// gate doing its job - but holding it forever without saying so is how a
+// device that CANNOT converge (undecryptable secrets, a failed activation)
+// reads on the board as "almost done". Past the stall window the wait itself
+// becomes the action item.
+func DetectRollout(run RunObservation) []Incident {
+	if run.Stalled < rollout.StallWindow {
+		return nil
+	}
+	detail := fmt.Sprintf("Promoted %s ago and still not on %s.",
+		humanDuration(run.Stalled), short(run.Target))
+	if len(run.OffTarget) > 0 {
+		detail += fmt.Sprintf(" %d device(s) still off target: %s.",
+			len(run.OffTarget), nameSome(run.OffTarget, 3))
+	}
+	return []Incident{{
+		Kind: RolloutStalled, Severity: Warning, Scope: "org",
+		Title:  "Rollout stalled on ring " + run.Ring,
+		Detail: detail,
+		Action: "The devices are not reaching the target. Check the device's activation log " +
+			"(a failed activation makes the updater refuse the new generation) and the rollout monitor.",
+		Since: run.Since,
+	}}
 }
 
 // Incident is one action item for one device.
@@ -106,12 +194,27 @@ func Detect(obs []Observation, now time.Time) []Incident {
 				"Locate the machine; if it is retired in practice, retire it in the fleet too.", o.LastSeen)
 		}
 
+		// A device on a revision this fleet's config never produced is not
+		// behind, it is elsewhere: it follows another remote or branch, or
+		// somebody built a generation by hand on it. It supersedes the Behind
+		// incident below - "the update has not landed, check the rollout" is
+		// the wrong instruction for a device that is not listening to the
+		// rollout at all, and two contradicting rows for one device is what
+		// operators already complained about (ahead/behind, 2026-07-28).
+		unknown := o.unknownConfig()
+		if unknown {
+			add(UnknownConfig, Warning, o.Tag+" runs an unrecognised configuration",
+				fmt.Sprintf("Reports revision %s which is not a release of this fleet's config.", short(o.Deployed)),
+				"The device is following a source other than its ring branch, or was built by hand. "+
+					"Check the updater's remote and branch on the device.", time.Time{})
+		}
+
 		// An online device on the wrong revision is drifting from its target.
 		// Ahead gets its own title and advice: it means an out-of-band change
 		// (or a stale pin), not a lagging update - a headline saying "behind"
 		// above an AHEAD detail read as a contradiction (operator feedback,
 		// 2026-07-28).
-		if o.Online && o.Target != "" && o.Deployed != "" && o.Deployed != o.Target {
+		if !unknown && o.Online && o.Target != "" && o.Deployed != "" && o.Deployed != o.Target {
 			detail := fmt.Sprintf("Running %s, target is %s.", short(o.Deployed), short(o.Target))
 			title, advice := o.Tag+" is behind",
 				"The update has not landed; check the rollout and the device logs."
@@ -149,6 +252,30 @@ func Detect(obs []Observation, now time.Time) []Incident {
 	}
 	sortBySeverity(out)
 	return out
+}
+
+// Sort orders incidents most-urgent first, then by kind and tag. Detect and
+// DetectRollout each return sorted output; a caller that MERGES the two
+// re-sorts the union so the console still reads worst-first.
+func Sort(in []Incident) { sortBySeverity(in) }
+
+// humanDuration renders a stall the way an operator says it ("50m", "1h20m")
+// rather than Go's default with its trailing zero seconds.
+func humanDuration(d time.Duration) string {
+	d = d.Round(time.Minute)
+	if h := int(d.Hours()); h > 0 {
+		return fmt.Sprintf("%dh%02dm", h, int(d.Minutes())%60)
+	}
+	return fmt.Sprintf("%dm", int(d.Minutes()))
+}
+
+// nameSome lists at most max names and summarises the rest, so a wave with
+// forty stragglers still yields a one-line detail.
+func nameSome(names []string, max int) string {
+	if len(names) <= max {
+		return strings.Join(names, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(names[:max], ", "), len(names)-max)
 }
 
 // short trims a revision to a readable prefix.

@@ -4,6 +4,22 @@
   <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "page.compliance.subtitle"}}</p>
 </div>
 
+<!-- Fleet-level issues first: they belong to no device row, and a stalled
+     rollout explains every "behind" underneath it. -->
+{{if .FleetWide}}
+<section class="mb-6 rounded-lg border border-status-warn/40 bg-canvas p-4 shadow-sm">
+  <h2 class="mb-2 flex items-center gap-2 text-label-md text-ink"><span class="material-symbols-outlined msz-18 text-status-warn">warning</span>{{.L.T "page.compliance.fleet_title"}}</h2>
+  {{range .FleetWide}}
+  <div class="mb-2 last:mb-0">
+    <span class="block text-body-sm text-ink">{{.Title}}</span>
+    <span class="block text-body-sm text-text-tertiary">{{.Detail}}</span>
+    <span class="block text-body-sm text-text-secondary">{{.Action}}</span>
+  </div>
+  {{end}}
+  <a href="/updates/rollout" class="text-body-sm text-secondary hover:underline">{{.L.T "page.compliance.fleet_link"}}</a>
+</section>
+{{end}}
+
 <!-- Summary chips double as a quick severity filter. -->
 <div class="mb-6 flex flex-wrap gap-3">
   {{$f := .FStatus}}

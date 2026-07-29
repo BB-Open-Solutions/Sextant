@@ -39,14 +39,23 @@ func (s *Server) compliancePage(w http.ResponseWriter, r *http.Request, v view) 
 	// All visible incidents, grouped per device (the overview caps at 8 for
 	// its attention queue; this page is the full account).
 	byTag := map[string][]incident.Incident{}
+	// Fleet-level incidents (a stalled rollout) name no device, so they have
+	// no row in the table below and would vanish here. They get their own
+	// band above it - dropping them is exactly the silence they exist to end.
+	var fleetWide []incidentIssue
 	if s.svc.Compliance != nil {
 		if all, err := s.svc.Compliance.Incidents(r.Context()); err != nil {
 			s.log.Warn("compliance incidents failed", "err", err)
 		} else {
 			for _, in := range all {
-				if v.canView(in.Scope) {
-					byTag[in.Tag] = append(byTag[in.Tag], in)
+				if !v.canView(in.Scope) {
+					continue
 				}
+				if in.Tag == "" {
+					fleetWide = append(fleetWide, incidentIssue{Title: in.Title, Detail: in.Detail, Action: in.Action})
+					continue
+				}
+				byTag[in.Tag] = append(byTag[in.Tag], in)
 			}
 		}
 	}
@@ -148,8 +157,9 @@ func (s *Server) compliancePage(w http.ResponseWriter, r *http.Request, v view) 
 
 	s.render(w, "compliance", map[string]any{
 		"Title": "Compliance", "Nav": "compliance",
-		"Rows":     rows,
-		"Critical": counts["critical"], "Warning": counts["warning"], "OK": counts["ok"],
+		"Rows":      rows,
+		"FleetWide": fleetWide,
+		"Critical":  counts["critical"], "Warning": counts["warning"], "OK": counts["ok"],
 		"Total": counts["critical"] + counts["warning"] + counts["ok"],
 		"Q":     qy.Get("q"), "FClass": fClass, "FGroup": fGroup, "FStatus": fStatus,
 		"Groups": groups, "Classes": classes,

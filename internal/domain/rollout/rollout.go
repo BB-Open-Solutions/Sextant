@@ -207,6 +207,37 @@ func (s *State) Normalize() {
 	}
 }
 
+// StallWindow is how long a wave may sit promoted without ever converging
+// before the run counts as stalled. It is deliberately generous: a large
+// closure build followed by a reboot, on a laptop tethered to a slow link,
+// legitimately takes tens of minutes. Past this window the run is no longer
+// progressing on its own - the devices are refusing the generation (a failed
+// activation, secrets that will not decrypt) and more waiting will not fix
+// it, so it must become an action item instead of a silent Wait.
+const StallWindow = 45 * time.Minute
+
+// StalledFor reports how long the given ring has been waiting: promoted (its
+// pin committed) but never observed converged. Zero when the question does
+// not apply - the ring was never promoted, it already converged, the clock
+// has not passed the promotion, or the run is not Active. A paused or halted
+// run is an already-visible state; only an active run waits silently.
+func (s *State) StalledFor(now time.Time, ring int) time.Duration {
+	if s == nil || s.Status != Active {
+		return 0
+	}
+	promoted, ok := s.PromotedAt[ring]
+	if !ok || promoted.IsZero() {
+		return 0
+	}
+	if converged, ok := s.ConvergedAt[ring]; ok && !converged.IsZero() {
+		return 0
+	}
+	if d := now.Sub(promoted); d > 0 {
+		return d
+	}
+	return 0
+}
+
 // RingStatus is the observed convergence of one ring (from the observed
 // plane): device totals for the ring's group on the target revision.
 type RingStatus struct {

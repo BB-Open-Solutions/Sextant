@@ -283,3 +283,109 @@ func TestTooBrokenIgnoresDozingOnTarget(t *testing.T) {
 		t.Fatal("quiet on-target devices are asleep, not broken")
 	}
 }
+
+func TestStalledFor(t *testing.T) {
+	cases := []struct {
+		name  string
+		build func() *State
+		now   time.Time
+		want  time.Duration
+	}{
+		{
+			name:  "never promoted",
+			build: func() *State { return NewState("rev-2", t0) },
+			now:   t0.Add(2 * time.Hour),
+			want:  0,
+		},
+		{
+			name: "just promoted",
+			build: func() *State {
+				s := NewState("rev-2", t0)
+				s.PromotedAt[0] = t0
+				return s
+			},
+			now:  t0.Add(time.Minute),
+			want: time.Minute,
+		},
+		{
+			name: "promoted and converged",
+			build: func() *State {
+				s := NewState("rev-2", t0)
+				s.PromotedAt[0] = t0
+				s.ConvergedAt[0] = t0.Add(10 * time.Minute)
+				return s
+			},
+			now:  t0.Add(5 * time.Hour),
+			want: 0,
+		},
+		{
+			name: "promoted, never converged, past the window",
+			build: func() *State {
+				s := NewState("rev-2", t0)
+				s.PromotedAt[0] = t0
+				return s
+			},
+			now:  t0.Add(StallWindow + time.Minute),
+			want: StallWindow + time.Minute,
+		},
+		{
+			name: "later ring stalls on its own clock",
+			build: func() *State {
+				s := NewState("rev-2", t0)
+				s.Ring = 1
+				s.PromotedAt[0], s.ConvergedAt[0] = t0, t0.Add(time.Minute)
+				s.PromotedAt[1] = t0.Add(time.Hour)
+				return s
+			},
+			now:  t0.Add(3 * time.Hour),
+			want: 2 * time.Hour,
+		},
+		{
+			name: "paused run is already visible, not a silent wait",
+			build: func() *State {
+				s := NewState("rev-2", t0)
+				s.PromotedAt[0] = t0
+				s.Status = Paused
+				return s
+			},
+			now:  t0.Add(5 * time.Hour),
+			want: 0,
+		},
+		{
+			name: "halted run does not stall",
+			build: func() *State {
+				s := NewState("rev-2", t0)
+				s.PromotedAt[0] = t0
+				s.Status = Halted
+				return s
+			},
+			now:  t0.Add(5 * time.Hour),
+			want: 0,
+		},
+		{
+			name: "clock behind the promotion",
+			build: func() *State {
+				s := NewState("rev-2", t0)
+				s.PromotedAt[0] = t0
+				return s
+			},
+			now:  t0.Add(-time.Minute),
+			want: 0,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := c.build()
+			if got := s.StalledFor(c.now, s.Ring); got != c.want {
+				t.Fatalf("StalledFor = %s, want %s", got, c.want)
+			}
+		})
+	}
+}
+
+func TestStalledForNilState(t *testing.T) {
+	var s *State
+	if got := s.StalledFor(t0, 0); got != 0 {
+		t.Fatalf("StalledFor on nil = %s, want 0", got)
+	}
+}
