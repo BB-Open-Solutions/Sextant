@@ -247,8 +247,9 @@ side, reveal stays Owner-only + audited.
 | R5 | Wipe unit keeps a loose syscall sandbox | documented, wipe needs 3 other walls | harden after hardware coverage |
 | R6 | Personal-token group snapshot staleness | TTL-bounded (30d) | per-user membership adapter |
 | R7 | LUKS recovery key plaintext when store off | CLOSED: the store is required - a keyed report is refused without it; wizard path escrows via confirmed check-in upload (design 0009) | - |
+| R8 | Shared local admin credential on every device | the hardcoded `dawo` account is superseded by the `localAdmin` card: off by default, name chosen per scope, password a secret-ref hash delivered per device via agenix, sudo asks for it, and turning the card off locks the account | retire `dawo.bootstrapUser` once every fleet has migrated |
 
-None of R1-R7 is a live exploit against the deployed configuration
+None of R1-R8 is a live exploit against the deployed configuration
 (store enabled, per-device credentials issued, owners trusted); they are
 the honest edges of the model and the backlog for hardening toward 1.0.
 
