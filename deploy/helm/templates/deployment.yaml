@@ -199,7 +199,7 @@ spec:
             # Moves /metrics off the listener the ingress publishes. The
             # Service does not expose this port, so it is reachable from
             # inside the cluster only - which is where the scraper is.
-            - { name: METRICS_ADDR, value: "0.0.0.0:{{ .Values.metrics.port }}" }
+            - { name: SEXTANT_METRICS_ADDR, value: "0.0.0.0:{{ .Values.metrics.port }}" }
             {{- end }}
           ports:
             - { containerPort: 8080, name: http }

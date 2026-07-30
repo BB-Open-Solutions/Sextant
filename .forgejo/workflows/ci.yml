@@ -112,6 +112,23 @@ jobs:
             if helm template deploy/helm --set gateMode=eval --set replicaCount=2 \
               --set persistence.enabled=true >/dev/null 2>&1; then
               echo "HA guard did not fire: PVC + replicaCount>1 rendered"; exit 1
+            fi
+            # Every setting the server reads from the environment is looked up
+            # with a SEXTANT_ prefix (config.EnvPrefix). A chart env var without
+            # it is not a typo the server complains about - it is silently
+            # ignored, the default applies, and the deployment looks correct
+            # while doing the opposite of what the values file says. That is
+            # exactly how SEXTANT_METRICS_ADDR shipped as METRICS_ADDR and left
+            # /metrics on the public listener.
+            #
+            # HOME is the one legitimate exception: it is read by git, not by us.
+            stray=$(helm template deploy/helm --set gateMode=eval \
+              | grep -oE "name: [A-Z][A-Z0-9_]+" | awk "{print \$2}" | sort -u \
+              | grep -vE "^(SEXTANT_|HOME$)" || true)
+            if [ -n "$stray" ]; then
+              echo "environment variables the server will never read (missing the SEXTANT_ prefix):" >&2
+              echo "$stray" >&2
+              exit 1
             fi'
 
       - name: Agent (fmt + clippy + test)
