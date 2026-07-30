@@ -93,10 +93,34 @@ disk; only one of them is evidence.
 - The policy model needs to carry both clause kinds, and the console must show
   which is which - enforced versus checked. That distinction is what keeps the
   word "policy" honest once conditions live in it.
-- `Policy.Controls` (the BIO/ISO annotations) is currently inert. It is the
-  hook that makes this pay off: it is what turns a policy list into an
-  auditor-facing view, and it is why the distinction is worth the work rather
-  than being a naming exercise.
+- `Policy.Controls` (the BIO/ISO annotations) is what turns a policy list into
+  an auditor-facing view, and it is why the distinction is worth the work
+  rather than being a naming exercise. It is live: editable on the policy
+  form, shown as tags on the policies page, and carried into the CSV export.
+
+## Status of the consequences (2026-07-30)
+
+Done:
+
+- The settings page says that a control belongs in a policy by default, and
+  links there.
+- Every setting row names the policies that already carry it at or above the
+  scope being edited, and marks the ones a policy locks - the case where an
+  edit here would be accepted and then do nothing.
+- Conditions are evaluated against what devices report, and a failure becomes
+  a finding on the compliance board. The metric vocabulary is a closed list,
+  so a condition can only require something the fleet actually measures, and a
+  metric a device did not report is unknown rather than failed.
+
+Deliberately not done yet - **policy-only controls**. Making a control
+unreachable outside a policy is the strongest form of this ADR and the right
+end state for USB device control, posture and offline login validity. It is
+held back because it removes a path operators are currently using: the USB
+allowlist is set through the settings editor today, including in the
+acceptance run this was written alongside. Changing how a control is reached
+on the evening it is being tested would invalidate the test rather than the
+control. It should land immediately after, as its own change, with the
+migration for anyone who set those keys inline.
 
 ## Alternatives considered
 

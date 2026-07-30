@@ -234,3 +234,87 @@ type PolicyCondition struct {
 	Name      string // the policy's human name, for the console
 	Condition Condition
 }
+
+// Governor records that a key at some scope is contributed by policies rather
+// than being a free local choice.
+type Governor struct {
+	// Policies are the ids contributing this key, sorted. More than one is
+	// normal: a general policy and a stricter one can both carry it.
+	Policies []string
+	// Names are the same policies' human names, index-aligned with Policies.
+	Names []string
+	// Enforced is true when at least one of them locks the key. That is the
+	// difference that matters to whoever is looking at the editor: a
+	// contributed key can still be overridden here, a locked one cannot, and
+	// an editor that offers the same affordance for both is lying about one.
+	Enforced bool
+}
+
+// Governors returns, for a scope ref ("org", "group:<g>" or "device:<tag>"),
+// the settings that policies applying AT OR ABOVE it contribute.
+//
+// ADR 0017 asks that a setting under governance not present itself as a free
+// local choice. Answering that needs a scope-level view: Resolve answers for
+// one device, and the settings editor is opened on groups and on the
+// organisation far more often than on a single machine.
+//
+// At or above, not below: a policy assigned to a child group does govern some
+// of this scope's devices, but it cannot alter what this scope's own value
+// means, and flagging it here would call a key governed on a page where the
+// governance does not apply.
+func (f *Fleet) Governors(scope string) map[string]Governor {
+	applies := f.scopeAppliesTo(scope)
+	out := map[string]Governor{}
+	for _, a := range f.Assignments {
+		p, ok := f.Policies[a.Policy]
+		if !ok || !applies(a.Target) {
+			continue
+		}
+		locked := enforcedSet(p.Enforced)
+		for key := range p.Settings {
+			g := out[key]
+			if !slices.Contains(g.Policies, a.Policy) {
+				g.Policies = append(g.Policies, a.Policy)
+				g.Names = append(g.Names, p.Name)
+			}
+			g.Enforced = g.Enforced || locked[key]
+			out[key] = g
+		}
+	}
+	for key, g := range out {
+		// Sort the pair together so a name never drifts onto another id.
+		idx := make([]int, len(g.Policies))
+		for i := range idx {
+			idx[i] = i
+		}
+		slices.SortFunc(idx, func(x, y int) int { return strings.Compare(g.Policies[x], g.Policies[y]) })
+		ids, names := make([]string, len(idx)), make([]string, len(idx))
+		for i, j := range idx {
+			ids[i], names[i] = g.Policies[j], g.Names[j]
+		}
+		g.Policies, g.Names = ids, names
+		out[key] = g
+	}
+	return out
+}
+
+// scopeAppliesTo builds the predicate "does an assignment target reach this
+// scope". A device answers through its own chain, which already handles group
+// ancestry and membership; the coarser scopes answer structurally.
+func (f *Fleet) scopeAppliesTo(scope string) func(target string) bool {
+	if tag, ok := strings.CutPrefix(scope, "device:"); ok {
+		pos := f.scopePositions(tag)
+		return func(target string) bool {
+			_, applies := assignmentPosition(pos, target, tag)
+			return applies
+		}
+	}
+	if g, ok := strings.CutPrefix(scope, "group:"); ok {
+		reach := map[string]bool{"org": true}
+		for _, anc := range f.GroupAncestry(g) { // root -> specific, includes g
+			reach["group:"+anc] = true
+		}
+		return func(target string) bool { return reach[target] }
+	}
+	return func(target string) bool { return target == "org" } // org sees only org
+}

@@ -178,6 +178,7 @@
             {{else}}<span class="flex items-center gap-1 text-text-tertiary"><span class="h-1.5 w-1.5 rounded-full bg-border-hairline"></span>{{$.L.T "settings.inherits_label"}}</span>{{end}}
             {{with $row.Entry.DefaultString}}<span class="flex min-w-0 max-w-full items-start gap-1 text-text-tertiary"><span class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-border-hairline"></span>{{$.L.T "settings.default_label"}} <code class="min-w-0 break-all normal-case">{{.}}</code></span>{{end}}
             {{if $.IsDevice}}<span class="flex items-center gap-1 text-text-tertiary">{{$.L.T "settings.col_effective"}}: {{with $row.Resolved}}<code>{{.}}</code>{{else}}-{{end}} <span class="provenance">{{$row.Source}}</span></span>{{end}}
+            {{if $row.GovernedBy}}<span class="flex min-w-0 max-w-full items-start gap-1 {{if $row.GovernedLocked}}text-status-warn{{else}}text-text-tertiary{{end}}"><span class="material-symbols-outlined msz-14 shrink-0">{{if $row.GovernedLocked}}gpp_maybe{{else}}policy{{end}}</span><span class="min-w-0 normal-case">{{if $row.GovernedLocked}}{{$.L.T "settings.governed_locked"}}{{else}}{{$.L.T "settings.governed_by"}}{{end}} {{range $i, $n := $row.GovernedBy}}{{if $i}}, {{end}}<span class="font-medium">{{$n}}</span>{{end}}</span></span>{{end}}
           </div>
         </div>
         {{if not $.IsDevice}}

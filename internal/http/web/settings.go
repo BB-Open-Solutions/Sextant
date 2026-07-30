@@ -46,6 +46,15 @@ type settingRow struct {
 	// applied to a running device (see imageTimeKey), so the editor says when
 	// it lands instead of implying a live ceremony.
 	ImageTime bool
+	// GovernedBy names the policies that already carry this key at or above
+	// this scope, and GovernedLocked says one of them locks it (ADR 0017).
+	// A key under governance is not a free local choice: setting it here
+	// either competes with a policy that records WHY the value is what it is,
+	// or - when locked - does nothing at all. The editor has to say which,
+	// because an input that accepts a value it will never apply is the one
+	// thing worse than no input.
+	GovernedBy     []string
+	GovernedLocked bool
 }
 
 // imageTimePrefixes are the dotted namespaces whose options only take hold
@@ -184,6 +193,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 	if tag, ok := strings.CutPrefix(scope, "device:"); ok {
 		resolved = f.Resolve(tag)
 	}
+	governed := f.Governors(scope)
 
 	var sections []settingSection
 	for _, name := range cat.Categories() {
@@ -196,6 +206,14 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 			}
 			row := settingRow{Entry: e, Enforced: locked[e.Name], Suggestions: textSuggestions[e.Name],
 				ImageTime: imageTimeKey(e.Name)}
+			if g, ok := governed[e.Name]; ok {
+				row.GovernedBy, row.GovernedLocked = g.Names, g.Enforced
+				for i, n := range row.GovernedBy {
+					if n == "" { // a policy with no human name shows as its id
+						row.GovernedBy[i] = g.Policies[i]
+					}
+				}
+			}
 			if req := requiresOf(cat, e.Name); req != "" {
 				row.RequiresKey = req
 				row.RequiresOff = !effectiveBool(cat, own, resolved, req)
