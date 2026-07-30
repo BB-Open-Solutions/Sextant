@@ -58,7 +58,7 @@
                  whether the device runs what its ring targets. Release and raw
                  revision (relCache-backed, deduped per page in devices_page.go)
                  stay in the hover title for forensics. */}}
-            {{if .Config}}<span class="tag{{if eq .Config "current"}} ok{{end}}" title="{{if .Release}}{{$.L.T "common.release"}} {{.Release}} · {{end}}{{.Revision}}">{{if eq .Config "updating"}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{$.L.T (printf "devices.config_%s" .Config)}}</span>{{end}}
+            {{if .Config}}<span class="tag{{if eq .Config "current"}} ok{{end}}" title="{{.Revision}}">{{if eq .Config "updating"}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{$.L.T (printf "devices.config_%s" .Config)}}</span>{{end}}
           {{else}}<span class="muted">{{$.L.T "common.never_seen"}}</span>{{end}}
         </td>
         <td>

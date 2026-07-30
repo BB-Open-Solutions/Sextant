@@ -124,7 +124,7 @@
                    revision, deduped in overview.go before this render); the raw
                    hash moves to the hover title. Falls back to the short hash
                    when the release number is unknown (not yet fetched). */}}
-              <td class="px-4 py-2 text-text-secondary">{{if .Revision}}{{$rel := index $.Releases .Revision}}{{if $rel}}<span title="{{.Revision}}">{{$.L.T "common.release"}} {{$rel}}</span>{{else}}<span class="font-mono">{{short .Revision}}</span>{{end}}{{else}}-{{end}}</td>
+              <td class="px-4 py-2 text-text-secondary">{{if .Revision}}<span class="font-mono" title="{{.Revision}}">{{short .Revision}}</span>{{else}}-{{end}}</td>
               <td class="px-4 py-2">{{with .Phase}}<span class="inline-flex items-center rounded-full border border-border-hairline bg-surface-container px-2 py-0.5 text-label-md text-text-secondary">{{if eq . "discovered"}}{{$.L.T "page.overview.phase_discovered"}}{{else if eq . "installing"}}{{$.L.T "page.overview.phase_installing"}}{{else if eq . "installed"}}{{$.L.T "page.overview.phase_installed"}}{{else if eq . "running"}}{{$.L.T "page.overview.phase_running"}}{{else}}{{.}}{{end}}</span>{{else}}<span class="muted">-</span>{{end}}</td>
               <td class="px-4 py-2">{{if .Online}}<span class="flex items-center gap-1 text-mint-deep"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "common.online"}}</span>{{else}}<span class="flex items-center gap-1 text-status-warn"><span class="material-symbols-outlined msz-14">schedule</span>{{$.L.T "common.offline"}}</span>{{end}}</td>
             </tr>
