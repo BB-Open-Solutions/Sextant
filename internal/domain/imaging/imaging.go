@@ -133,7 +133,25 @@ type Job struct {
 	MAC      string `json:"mac"`
 	Tag      string `json:"tag"`
 	Hardware string `json:"hardware"`
-	Status   Status `json:"status"`
+	// Rev is the overlay revision to install: the one the device's ring is
+	// pinned to, so the machine is CONVERGED the moment it boots. Empty means
+	// the station falls back to the overlay's main branch - what an older
+	// console sends, and what a device outside any ring gets.
+	//
+	// The console decides this because the station cannot: it knows a tag, not
+	// a group, so it cannot work out which ring a device belongs to. Defaulting
+	// to main is what made every freshly imaged device start life AHEAD of its
+	// own ring - the engine records each promotion as a commit on main, so main
+	// is permanently at least one commit past the ring it just pinned - and
+	// comin refuses a head that is not a descendant of what it runs. Such a
+	// device could not settle onto its ring until the ring passed the revision
+	// it was born with.
+	//
+	// A revision rather than a branch name on purpose: the station pins an
+	// exact rev anyway, and a ring branch can be force-moved between the
+	// console deciding and the station installing.
+	Rev    string `json:"rev,omitempty"`
+	Status Status `json:"status"`
 	// Progress is the percent-complete of the current step (0..100), for the
 	// live progress bar. It is advisory display state, reset per step.
 	Progress int `json:"progress,omitempty"`

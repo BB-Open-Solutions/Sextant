@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
@@ -217,8 +218,19 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 			}
 			// Imaging path: the MAC stays visible with its job and the station
 			// receives a fresh credential when it claims the job.
+			// Install the revision this device's ring is pinned to, so it is
+			// converged at first boot rather than born ahead of its own ring.
+			// Empty when the device is in no ring: the station then falls back
+			// to main, which is the old behaviour and correct for that case.
+			rev := ""
+			if cur := s.svc.Config.Fleet(); cur != nil {
+				if d, ok := cur.Devices[p.tag]; ok {
+					rev = app.TargetRevision(cur, d)
+				}
+			}
 			if err := s.svc.Imaging.Dispatch(ctx, imaging.Job{
 				Station: station, MAC: imaging.NormalizeMAC(p.mac), Tag: p.tag, Hardware: hardware,
+				Rev: rev,
 			}); err != nil {
 				s.log.Warn("batch image: dispatch failed", "station", station, "mac", p.mac, "tag", p.tag, "err", err)
 			}
