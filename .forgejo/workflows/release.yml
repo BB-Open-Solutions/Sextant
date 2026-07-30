@@ -67,25 +67,48 @@ jobs:
       # machine-readable list, not a promise. Generated from the pushed image
       # rather than the source tree, so it describes what actually ships -
       # base layer included.
+      # They are published next to the images they describe, as an OCI artifact
+      # under a derived tag, using the same push credential the images do.
+      # Attaching them to the git release would have needed a second token with
+      # release scope; a registry this one can already write to needs none, and
+      # every credential that is never created is one that never leaks and never
+      # has to be rotated. The OCI referrers API would be the tidier linkage,
+      # but this registry answers 404 to it (measured, 2026-07-30, against both
+      # a real and a bogus digest while manifest-by-digest returned 200), so a
+      # predictable tag is the mechanism that actually exists.
       - name: SBOM
         run: |
           cd "$GITHUB_WORKSPACE/src"
+          if [ -z "${REGISTRY_TOKEN}" ]; then
+            echo "REGISTRY_TOKEN secret is not configured; cannot publish SBOMs" >&2
+            exit 1
+          fi
           VERSION="${GITHUB_REF_NAME#v}"
+          # Set here rather than inherited: every `run:` block is its own shell,
+          # so a variable from the build step above is empty by the time this
+          # one starts. It used to be, and syft was silently handed a ref with
+          # no host in it.
+          REGISTRY="forgejo.bb-open.com"
           mkdir -p sbom
-          nix shell nixpkgs#syft --command bash -c '
+          nix shell nixpkgs#syft nixpkgs#oras --command bash -c "
             set -euo pipefail
-            for name in sextant sextant-gate sextant-docs; do
-              syft "'"$REGISTRY"'/bb-open/$name:'"$VERSION"'"                 -o spdx-json="sbom/$name-'"$VERSION"'.spdx.json"
+            oras login -u release-bot -p \"\$REGISTRY_TOKEN\" $REGISTRY
+            for name in sextant sextant-gate sextant-docs sextant:tools; do
+              tag=$VERSION
+              case \$name in sextant:tools) name=sextant; tag=$VERSION-tools;; esac
+              img=$REGISTRY/bb-open/\$name:\$tag
+              out=sbom/\$name-\$tag.spdx.json
+              echo \"== sbom for \$img\"
+              syft \"\$img\" -o spdx-json=\"\$out\"
+              oras push \"\$img-sbom\" \
+                --artifact-type application/spdx+json \
+                --annotation \"org.opencontainers.image.version=$VERSION\" \
+                \"\$out:application/spdx+json\"
             done
-          '
+          "
           ls -l sbom/
-          # Publishing these as release assets needs a token with release
-          # scope, which this runner does not have (it carries REGISTRY_TOKEN
-          # only) and no action is wired up here - the workflow is deliberately
-          # bare nix+podman. Generating them every release is still worth it on
-          # its own: it FAILS the release if an image cannot be read, and it
-          # produces the artifact the moment somebody wires up a token. Wiring
-          # that up is tracked separately.
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
 
       # The chart version must match the tag: the release IS the chart+images
       # at one version, and a drifting Chart.yaml is exactly the appVersion
