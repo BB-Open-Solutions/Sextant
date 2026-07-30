@@ -213,25 +213,26 @@ func (s *ChangeService) Edit(ctx context.Context, id string, mut fleet.Mutation,
 // Submit runs the build gate on the change's branch. Green moves the change
 // to ready; a rejection records the reason and moves it to failed.
 // Synchronous by design at this tier; a job runner can wrap it later.
+// Submit gates a change and records the verdict. The nix work runs WITHOUT the
+// service lock held.
+//
+// The lock exists for the git worktree operations - worktrees on one repository
+// are not safely concurrent - not for the evaluation. Holding it across a nix
+// eval meant that while one change was being gated, no other change could be
+// opened, edited, submitted, merged or abandoned; an external review called
+// that a denial-of-service vector and, for the change pipeline, it was right.
+// (Not for the console as a whole: reads take no lock and settings writes,
+// rollouts and check-ins go through ConfigService's own lock.)
+//
+// Dropping the lock is safe because Building is a state nothing else can leave
+// or edit: Edit and EditFile accept only Draft or Failed, Abandon has no
+// Building -> Abandoned step, Merge needs Ready, and a second Submit fails on
+// Building -> Building. So between the two locked sections this change and its
+// worktree are untouchable, and no tip-moved re-check is needed - the status
+// machine already provides it.
 func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	cr, err := s.mustGet(ctx, id)
+	dir, hosts, err := s.beginSubmit(ctx, id)
 	if err != nil {
-		return change.CR{}, err
-	}
-	// Prepare the worktree BEFORE committing the change to Building. A worktree
-	// failure here leaves the change in its prior status (retryable), instead
-	// of stranding it in Building - a state only Submit can leave, which would
-	// then reject its own retry (Building -> Building is not a legal step).
-	wt, err := s.ensureWorktree(ctx, cr)
-	if err != nil {
-		return change.CR{}, err
-	}
-	if err := cr.Transition(change.Building, s.clock.Now()); err != nil {
-		return change.CR{}, err
-	}
-	if err := s.store.Put(ctx, cr); err != nil {
 		return change.CR{}, err
 	}
 
@@ -244,10 +245,54 @@ func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error
 	// needs concrete hosts (there is no whole-set flake target). In remote
 	// gate mode the local builder is a no-op until the runner's /build is
 	// wired here.
-	hosts := gateScope(wt, cr.GateHosts())
-	gateErr := s.gate.Validate(ctx, wt.Dir(), hosts)
+	gateErr := s.gate.Validate(ctx, dir, hosts)
 	if gateErr == nil && len(hosts) > 0 {
-		gateErr = s.builder.Build(ctx, wt.Dir(), hosts)
+		gateErr = s.builder.Build(ctx, dir, hosts)
+	}
+	return s.finishSubmit(ctx, id, gateErr)
+}
+
+// beginSubmit takes the lock, moves the change to Building and returns what the
+// gate needs. Split out so the lock is released by a plain defer before the
+// long-running nix work, rather than by hand on every error path.
+func (s *ChangeService) beginSubmit(ctx context.Context, id string) (dir string, hosts []string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cr, err := s.mustGet(ctx, id)
+	if err != nil {
+		return "", nil, err
+	}
+	// Prepare the worktree BEFORE committing the change to Building. A worktree
+	// failure here leaves the change in its prior status (retryable), instead
+	// of stranding it in Building - a state only Submit can leave, which would
+	// then reject its own retry (Building -> Building is not a legal step).
+	wt, err := s.ensureWorktree(ctx, cr)
+	if err != nil {
+		return "", nil, err
+	}
+	if err := cr.Transition(change.Building, s.clock.Now()); err != nil {
+		return "", nil, err
+	}
+	if err := s.store.Put(ctx, cr); err != nil {
+		return "", nil, err
+	}
+	return wt.Dir(), gateScope(wt, cr.GateHosts()), nil
+}
+
+// finishSubmit records the gate's verdict under the lock.
+//
+// It uses a context detached from the caller's: the gate has already run, so
+// the verdict is a fact about the branch and must be persisted even if the
+// operator closed the tab mid-build. Writing it with a cancelled context would
+// strand the change in Building, which only Submit can leave - the same trap
+// the worktree ordering above avoids.
+func (s *ChangeService) finishSubmit(ctx context.Context, id string, gateErr error) (change.CR, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx = context.WithoutCancel(ctx)
+	cr, err := s.mustGet(ctx, id)
+	if err != nil {
+		return change.CR{}, err
 	}
 	if err := gateErr; err != nil {
 		cr.Error = err.Error()

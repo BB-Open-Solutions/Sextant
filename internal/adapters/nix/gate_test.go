@@ -166,20 +166,54 @@ func TestValidateParallelWorkersCoverAllBatches(t *testing.T) {
 }
 
 // A rejection with parallel workers still fails the whole validation and is
-// reported as the gate's verdict.
+// reported as the gate's verdict, and the rejection CANCELS the other workers.
+//
+// The cancellation half used to be asserted as "fewer than 8 batches ran",
+// which is a race dressed as an invariant: a worker already inside run() always
+// finishes, so under load (or under -race) all eight could complete and the
+// test failed while the code was correct. It had been noted as flaky twice.
+// What the gate actually promises is that cancellation REACHES the remaining
+// workers - so every batch after the rejection here returns only once its
+// context is done, which makes the property deterministic and stronger than a
+// count.
 func TestValidateParallelPropagatesRejection(t *testing.T) {
+	const workers = 4
 	var mu sync.Mutex
-	calls := 0
-	g := &EvalGate{ChunkSize: 1, Workers: 4,
-		run: func(context.Context, string, ...string) ([]byte, error) {
+	calls, cancelled := 0, 0
+	// arrived lets the rejecting batch wait until the other workers are really
+	// inside run(). Without it the rejection can land before they start, and the
+	// test would pass without ever exercising concurrency - the opposite
+	// flakiness to the one it used to have.
+	arrived := make(chan struct{}, workers)
+	g := &EvalGate{ChunkSize: 1, Workers: workers,
+		run: func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
 			mu.Lock()
 			calls++
-			n := calls
+			first := calls == 1
 			mu.Unlock()
-			if n == 2 {
+			if first {
+				for range workers - 1 {
+					select {
+					case <-arrived:
+					case <-time.After(10 * time.Second):
+						return nil, errors.New("the other workers never started")
+					}
+				}
 				return []byte("error: bad host"), errors.New("exit 1")
 			}
-			return []byte("ok"), nil
+			arrived <- struct{}{}
+			// Every other batch waits for the cancellation the rejection must
+			// trigger. The timeout is a test failure, not a fallback: if it
+			// fires, the gate kept workers running after a verdict.
+			select {
+			case <-ctx.Done():
+				mu.Lock()
+				cancelled++
+				mu.Unlock()
+				return nil, ctx.Err()
+			case <-time.After(10 * time.Second):
+				return nil, errors.New("cancellation never arrived")
+			}
 		}}
 	err := g.Validate(context.Background(), "/repo",
 		[]string{"h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8"})
@@ -187,8 +221,16 @@ func TestValidateParallelPropagatesRejection(t *testing.T) {
 	if !errors.As(err, &verr) {
 		t.Fatalf("want ValidationError, got %T %v", err, err)
 	}
-	if calls >= 8 {
-		t.Fatalf("cancellation did not stop the remaining batches (%d calls)", calls)
+	mu.Lock()
+	defer mu.Unlock()
+	if calls < 2 {
+		t.Fatalf("only %d batch(es) ran; the test never exercised a second worker", calls)
+	}
+	if cancelled == 0 {
+		t.Fatal("no worker observed the cancellation a rejection must trigger")
+	}
+	if cancelled != calls-1 {
+		t.Fatalf("%d of %d concurrent batches saw the cancellation; every batch after the rejection must", cancelled, calls-1)
 	}
 }
 
