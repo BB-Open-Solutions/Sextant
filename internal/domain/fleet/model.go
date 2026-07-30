@@ -6,6 +6,7 @@ package fleet
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -260,6 +261,23 @@ type Condition struct {
 	// console can only say a metric name, which tells an operator what was
 	// measured but not what they are supposed to do about it.
 	Detail string `json:"detail,omitempty"`
+}
+
+// Valid reports whether a condition is well-formed. A policy is a compliance
+// artefact, so a malformed clause must be refused at the point of writing
+// rather than silently checking nothing later: the failure mode of a broken
+// condition is a policy that LOOKS satisfied, which is worse than one that
+// obviously does not work.
+func (c Condition) Valid() error {
+	if c.Metric == "" {
+		return fmt.Errorf("condition has no metric")
+	}
+	switch c.Op {
+	case ">=", "<=", ">", "<", "==":
+	default:
+		return fmt.Errorf("condition on %q has unknown operator %q (use >=, <=, >, < or ==)", c.Metric, c.Op)
+	}
+	return nil
 }
 
 // Holds reports whether a condition is satisfied by the observed metrics.

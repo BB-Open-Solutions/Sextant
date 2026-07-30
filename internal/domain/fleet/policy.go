@@ -18,8 +18,17 @@ func PutPolicy(id string, p Policy) Mutation {
 		if !ValidateSlug(id) {
 			return fmt.Errorf("policy id %q: must be a lowercase slug", id)
 		}
-		if len(p.Settings) == 0 {
-			return fmt.Errorf("policy %q has no settings", id)
+		// A policy must actually say something. Settings OR conditions: a
+		// policy that only requires "disk above 15%" is a legitimate policy
+		// with no settings at all (ADR 0017), so the old "no settings" check
+		// would have refused exactly the kind of clause conditions exist for.
+		if len(p.Settings) == 0 && len(p.Conditions) == 0 {
+			return fmt.Errorf("policy %q says nothing: it needs settings, conditions, or both", id)
+		}
+		for i, c := range p.Conditions {
+			if err := c.Valid(); err != nil {
+				return fmt.Errorf("policy %q condition %d: %w", id, i+1, err)
+			}
 		}
 		for _, k := range p.Enforced {
 			if _, has := p.Settings[k]; !has {
