@@ -195,6 +195,16 @@ func (d *deps) buildConfigPlane() error {
 	}
 	openWT := func(dir string) (ports.ConfigRepo, error) { return git.Open(dir, "") }
 	d.changes = app.NewChangeService(repo, st.Changes(), gate, builder, clock, openWT, svc)
+	// Reconcile recorded change status against git before serving. Merge lands
+	// the merge first and records it second (deliberately - the database must
+	// never claim a merge that did not happen), so the gap it leaves is a
+	// change stuck in Ready over a main that already contains it. Git decides.
+	// Best-effort: a reconciliation failure must not stop the console from
+	// starting, or one confusing change record would take the whole fleet's
+	// control plane down with it.
+	if err := d.changes.Reconcile(d.ctx); err != nil {
+		log.Warn("change status reconciliation against git failed", "err", err)
+	}
 
 	d.authz = api.Authz{
 		BaselineViewer: cfg.ViewerGroups,

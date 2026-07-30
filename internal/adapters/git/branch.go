@@ -135,3 +135,37 @@ func (r *Repo) MergeNoFF(ctx context.Context, branch, msg string, a ports.Author
 	}
 	return fmt.Errorf("merge of %s conflicts with the base branch: %w: %w", branch, ports.ErrConflict, err)
 }
+
+// safeBranchRe is the shape of a branch name this package will interpolate
+// into a ref path. The other methods pass names as "--"-guarded positionals
+// and need no pattern; BranchMerged builds "refs/heads/<name>", so it
+// validates instead. No leading "-", no ".." (which git reads as a range).
+var safeBranchRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
+
+// BranchMerged implements ports.BranchRepo. Answers from git, which is the
+// authority on whether a merge happened.
+//
+// Deliberately two calls rather than "merge-base --is-ancestor": that reports
+// its answer through the EXIT CODE, and this package's git helper turns any
+// non-zero exit into a message, so "not an ancestor" and "no such branch"
+// would arrive indistinguishable. They are different answers, and conflating
+// them would let a deleted branch read as "not merged" - leaving a change in
+// Ready forever, the opposite of the reconciliation this serves.
+func (r *Repo) BranchMerged(ctx context.Context, branch string) (bool, error) {
+	if !safeBranchRe.MatchString(branch) || strings.Contains(branch, "..") {
+		return false, fmt.Errorf("invalid branch name %q", branch)
+	}
+	if _, err := gitRun(ctx, r.dir, "show-ref", "--verify", "--quiet", "--", "refs/heads/"+branch); err != nil {
+		return false, fmt.Errorf("branch %q: %w", branch, err)
+	}
+	out, err := gitRun(ctx, r.dir, "branch", "--merged", "HEAD", "--format=%(refname:short)")
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimSpace(line) == branch {
+			return true, nil
+		}
+	}
+	return false, nil
+}

@@ -89,6 +89,16 @@ type BranchRepo interface {
 	// Diff returns the unified diff a branch would apply to the current
 	// branch (merge-base three-dot semantics): what an approver reviews.
 	Diff(ctx context.Context, branch string) (string, error)
+	// BranchMerged reports whether the branch's tip is already contained in
+	// the current branch - i.e. it has been merged. A branch that does not
+	// exist returns an error, not false: "gone" and "not merged" are
+	// different answers and only git knows which.
+	//
+	// This exists so a change's recorded status can be reconciled against
+	// git, which is the source of truth for whether a merge happened. The
+	// database can disagree with it: a merge lands, and then persisting the
+	// new status fails.
+	BranchMerged(ctx context.Context, branch string) (bool, error)
 }
 
 // AuditEntry is one committed configuration change.

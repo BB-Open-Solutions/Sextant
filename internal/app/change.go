@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sync"
 
@@ -488,4 +489,59 @@ func (s *ChangeService) ensureWorktree(ctx context.Context, cr change.CR) (ports
 func (s *ChangeService) cleanup(ctx context.Context, cr change.CR) {
 	_ = s.repo.RemoveWorktree(ctx, s.worktreeDir(cr.ID))
 	_ = s.repo.DeleteBranch(ctx, cr.Branch)
+}
+
+// Reconcile brings recorded change status back in line with git.
+//
+// Merge lands the merge in git FIRST and records Merged afterwards, on purpose:
+// once MergeNoFF succeeds the merge is irreversible, so the ordering keeps the
+// database from ever claiming a merge that did not happen. The cost is the
+// opposite gap - a merge that DID happen while persisting its status failed
+// leaves a change sitting in Ready over a main branch that already contains it.
+// An approver then sees a change waiting for approval it has already had, and
+// merging it again fails with "Already up to date".
+//
+// So git decides. It is the source of truth for configuration everywhere else
+// in this design, and asking it "is this branch already in main?" is a cheaper
+// and more honest answer than trying to make two durable systems commit
+// atomically. Anything that is not exactly this case is left alone: a branch
+// that git cannot answer for is logged and skipped, never guessed at.
+//
+// Called at startup. It is safe to call repeatedly - a change already Merged is
+// not in the candidate set.
+func (s *ChangeService) Reconcile(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	all, err := s.store.List(ctx)
+	if err != nil {
+		return fmt.Errorf("reconcile: list changes: %w", err)
+	}
+	for _, cr := range all {
+		if cr.Status != change.Ready {
+			continue
+		}
+		merged, err := s.repo.BranchMerged(ctx, cr.Branch)
+		if err != nil {
+			// A branch git will not answer for is not evidence of anything.
+			// Most likely it was deleted by a cleanup that ran after the
+			// status was already recorded - in which case there is nothing
+			// to repair here anyway.
+			slog.Warn("reconcile: cannot tell whether a ready change was merged",
+				"change", cr.ID, "branch", cr.Branch, "err", err)
+			continue
+		}
+		if !merged {
+			continue
+		}
+		if err := cr.Transition(change.Merged, s.clock.Now()); err != nil {
+			return fmt.Errorf("reconcile %s: %w", cr.ID, err)
+		}
+		if err := s.store.Put(ctx, cr); err != nil {
+			return fmt.Errorf("reconcile %s: %w", cr.ID, err)
+		}
+		s.cleanup(ctx, cr)
+		slog.Info("reconcile: change was merged in git but recorded as ready; corrected",
+			"change", cr.ID, "branch", cr.Branch)
+	}
+	return nil
 }

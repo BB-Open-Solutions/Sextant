@@ -186,3 +186,59 @@ func TestLogSetRefPushHead(t *testing.T) {
 		t.Fatalf("remote ref = %q, want %q", out, head)
 	}
 }
+
+// BranchMerged answers the question Reconcile asks of git: is this branch
+// already in main. The three answers must stay distinguishable - merged, not
+// merged, and "git cannot tell you" - because collapsing the last into "not
+// merged" would leave a change waiting for an approval it already had.
+func TestBranchMerged(t *testing.T) {
+	ctx := context.Background()
+	dir := initRepo(t)
+	r := openRepo(t, dir, "")
+
+	if err := r.CreateBranch(ctx, "landed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CreateBranch(ctx, "pending"); err != nil {
+		t.Fatal(err)
+	}
+
+	// An unmerged branch at the same tip IS an ancestor of HEAD, so give
+	// "pending" a commit of its own - otherwise the test would pass on a
+	// coincidence rather than on the property.
+	wt := filepath.Join(t.TempDir(), "pendingwt")
+	if err := r.AddWorktree(ctx, wt, "pending"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "pending.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, wt, "add", "pending.txt")
+	run(t, wt, "-c", "user.name=op", "-c", "user.email=op@x", "commit", "-m", "pending work")
+
+	merged, err := r.BranchMerged(ctx, "landed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !merged {
+		t.Error("a branch at HEAD reported as not merged")
+	}
+
+	merged, err = r.BranchMerged(ctx, "pending")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if merged {
+		t.Error("a branch with its own commit reported as merged")
+	}
+
+	if _, err := r.BranchMerged(ctx, "no-such-branch"); err == nil {
+		t.Error("a missing branch returned an answer; gone and not-merged are different facts")
+	}
+	if _, err := r.BranchMerged(ctx, "../etc/passwd"); err == nil {
+		t.Error("a branch name that escapes the ref namespace was accepted")
+	}
+	if _, err := r.BranchMerged(ctx, "-x"); err == nil {
+		t.Error("a branch name that looks like a flag was accepted")
+	}
+}
