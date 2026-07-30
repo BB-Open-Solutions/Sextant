@@ -231,6 +231,60 @@ type Policy struct {
 	// framework to enforcement. Free-text annotations; resolution ignores
 	// them, the policies page and the audit export carry them.
 	Controls []string `json:"controls,omitempty"`
+	// Conditions are requirements on a device's OBSERVED state rather than
+	// its configuration: disk pressure, battery health, how long since it
+	// checked in. They exist because a policy is a layer over settings and
+	// not merely a wrapper around them (ADR 0017) - an organisation's real
+	// requirements include things you cannot write to a device.
+	//
+	// The difference from Settings is not cosmetic and must stay visible to
+	// an operator: a setting can be ENFORCED (the fleet converges on it,
+	// drift is corrected, a lock stops a lower scope weakening it), while a
+	// condition can only be CHECKED. There is nothing to write - a disk does
+	// not get emptier because a policy says so - so a failure is a finding to
+	// report, not a state to converge on. Showing "enforced" beside a
+	// disk-space requirement would promise something the system cannot do.
+	Conditions []Condition `json:"conditions,omitempty"`
+}
+
+// Condition is one requirement on observed device state.
+//
+// Metric is a name the observed plane supplies (e.g. "disk.free_percent"); a
+// metric this fleet does not report is NOT a failure - it is unknown, and
+// unknown must never become an accusation.
+type Condition struct {
+	Metric string  `json:"metric"`
+	Op     string  `json:"op"` // one of: >=, <=, >, <, ==
+	Value  float64 `json:"value"`
+	// Detail is the human sentence shown when it fails. Without one the
+	// console can only say a metric name, which tells an operator what was
+	// measured but not what they are supposed to do about it.
+	Detail string `json:"detail,omitempty"`
+}
+
+// Holds reports whether a condition is satisfied by the observed metrics.
+// ok is false when the metric is absent: the caller must treat that as
+// unknown rather than as a failure.
+func (c Condition) Holds(metrics map[string]float64) (holds, ok bool) {
+	v, present := metrics[c.Metric]
+	if !present {
+		return false, false
+	}
+	switch c.Op {
+	case ">=":
+		return v >= c.Value, true
+	case "<=":
+		return v <= c.Value, true
+	case ">":
+		return v > c.Value, true
+	case "<":
+		return v < c.Value, true
+	case "==":
+		return v == c.Value, true
+	}
+	// An operator this code does not know is a configuration error, and
+	// silently passing would make a broken policy look like a satisfied one.
+	return false, false
 }
 
 // Assignment binds one policy to one scope target, optionally narrowed by a
