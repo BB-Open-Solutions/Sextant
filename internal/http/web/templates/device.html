@@ -213,6 +213,13 @@
         </div>
         {{end}}
       </div>
+      {{/* Posture is decided when a device is imaged (design 0001). This panel
+           shows the state the device REPORTS, and the actions below advance the
+           ceremony on this machine - but the underlying setting cannot be
+           changed on a running device. Saying so here, not only in the settings
+           editor, because this is the page an operator is on when they wonder
+           why flipping the setting changed nothing. */}}
+      <p class="relative z-10 mt-3 mb-0 flex items-start gap-1 text-body-sm text-text-tertiary"><span class="material-symbols-outlined msz-14">deployed_code_update</span>{{$.L.T "device.posture_image_time"}}</p>
       <div class="relative z-10 mt-3 flex flex-wrap items-center gap-2 rounded-md bg-surface-container-low p-3">
         {{if .Complete}}
         <span class="tag ok"><span class="material-symbols-outlined msz-14">check_circle</span>{{$.L.T "device.complete"}}</span>
