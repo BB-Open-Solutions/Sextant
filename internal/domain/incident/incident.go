@@ -252,6 +252,7 @@ func Detect(obs []Observation, now time.Time) []Incident {
 			detail := fmt.Sprintf("Running %s, target is %s.", short(o.Deployed), short(o.Target))
 			title, advice := o.Tag+" is behind",
 				"The update has not landed; check the rollout and the device logs."
+			sev := Warning
 			if o.DeployedRelease > 0 && o.TargetRelease > 0 {
 				diff := o.TargetRelease - o.DeployedRelease
 				switch {
@@ -260,12 +261,28 @@ func Detect(obs []Observation, now time.Time) []Incident {
 						o.DeployedRelease, o.TargetRelease, diff)
 				case diff < 0:
 					title = o.Tag + " is ahead of its target"
-					detail = fmt.Sprintf("On release %d, ahead of its release-%d target.",
-						o.DeployedRelease, o.TargetRelease)
+					detail = fmt.Sprintf("Running %s; its ring is pinned to %s, which is older.",
+						short(o.Deployed), short(o.Target))
 					advice = "The device runs something the rollout did not stage: an out-of-band change, or a stale pin. Check the pin."
+					// Ahead ON THIS FLEET'S OWN LINEAGE is the ordinary state of
+					// a freshly imaged device, not a fault. Imaging installs
+					// from main, and the engine records each promotion as a
+					// commit on main, so a new device is always at least one
+					// commit ahead of the ring it is about to join. Calling
+					// that "out-of-band" trains an operator to ignore the one
+					// message that should mean somebody built a generation by
+					// hand.
+					if o.HeadRelease > 0 && o.DeployedRelease <= o.HeadRelease {
+						title = o.Tag + " is waiting for its ring to catch up"
+						detail = fmt.Sprintf(
+							"Running %s, which is this fleet's own configuration but newer than the %s its ring is pinned to. A freshly imaged device starts here.",
+							short(o.Deployed), short(o.Target))
+						advice = "Nothing to do: the next promotion moves the ring past it. If it persists across promotions, check whether the rollout is stuck."
+						sev = Info
+					}
 				}
 			}
-			add(Behind, Warning, title, detail, advice, time.Time{})
+			add(Behind, sev, title, detail, advice, time.Time{})
 		}
 
 		// A core the fleet has moved on from, and this device has not. Only
