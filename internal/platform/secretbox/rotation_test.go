@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -157,10 +158,10 @@ func TestDisabledSealerStaysDisabled(t *testing.T) {
 		if s.Enabled() {
 			t.Fatalf("New(%q) produced an enabled sealer", in)
 		}
-		if _, err := s.Seal([]byte("x")); err != ErrDisabled {
+		if _, err := s.Seal([]byte("x")); !errors.Is(err, ErrDisabled) {
 			t.Fatalf("New(%q) Seal: want ErrDisabled, got %v", in, err)
 		}
-		if _, err := s.Open([]byte("x")); err != ErrDisabled {
+		if _, err := s.Open([]byte("x")); !errors.Is(err, ErrDisabled) {
 			t.Fatalf("New(%q) Open: want ErrDisabled, got %v", in, err)
 		}
 	}
