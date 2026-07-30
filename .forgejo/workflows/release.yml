@@ -62,6 +62,31 @@ jobs:
         env:
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
 
+      # An SBOM per released image, attached to the release. A government
+      # buyer asks "what is in this thing" and the honest answer is a
+      # machine-readable list, not a promise. Generated from the pushed image
+      # rather than the source tree, so it describes what actually ships -
+      # base layer included.
+      - name: SBOM
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p sbom
+          nix shell nixpkgs#syft --command bash -c '
+            set -euo pipefail
+            for name in sextant sextant-gate sextant-docs; do
+              syft "'"$REGISTRY"'/bb-open/$name:'"$VERSION"'"                 -o spdx-json="sbom/$name-'"$VERSION"'.spdx.json"
+            done
+          '
+          ls -l sbom/
+          # Publishing these as release assets needs a token with release
+          # scope, which this runner does not have (it carries REGISTRY_TOKEN
+          # only) and no action is wired up here - the workflow is deliberately
+          # bare nix+podman. Generating them every release is still worth it on
+          # its own: it FAILS the release if an image cannot be read, and it
+          # produces the artifact the moment somebody wires up a token. Wiring
+          # that up is tracked separately.
+
       # The chart version must match the tag: the release IS the chart+images
       # at one version, and a drifting Chart.yaml is exactly the appVersion
       # confusion the deploy mechanics memory warns about.
