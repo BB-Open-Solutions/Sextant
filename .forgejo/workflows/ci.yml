@@ -52,6 +52,37 @@ jobs:
       - name: Nix package
         run: cd "$GITHUB_WORKSPACE/src" && nix build .#sextant
 
+      # The Dockerfile is otherwise exercised only at release time, which is
+      # the worst moment to discover it. `go build` above already covers the
+      # compile stage, so what this adds is the RUNTIME stage: that the COPY
+      # paths resolve, the pinned base digest still exists, and the entrypoint
+      # is there.
+      #
+      # The assertion is the point, more than the build. The Dockerfile has
+      # several targets and the release builds WITHOUT --target, so it relies
+      # on the server stage being last - a property nobody sees when reading a
+      # diff and one that silently inverts the day somebody appends a stage.
+      # If that happened, a release would push the tools image, with a fleet
+      # simulator inside the control plane, as production. So: build the
+      # default target and prove it contains the server and nothing else.
+      #
+      # Built, never pushed. Publishing is the release workflow's job.
+      - name: Container image (default target must be the server alone)
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          export PATH="/run/wrappers/bin:$PATH"
+          nix shell nixpkgs#podman --command bash -c '
+            set -euo pipefail
+            podman build -q -t sextant-ci-check . >/dev/null
+            got="$(podman run --rm --entrypoint sh sextant-ci-check -c "ls /usr/local/bin | sort | tr \"\\n\" \" \"")"
+            echo "image carries: $got"
+            [ "$got" = "sextant " ] || {
+              echo "the default build target is not the server alone - a release would publish this as production" >&2
+              exit 1
+            }
+            podman rmi -f sextant-ci-check >/dev/null 2>&1 || true
+          '
+
       # Drift guard (ADR 0005): catalog.json is derived output of the example
       # overlay's flake; a hand-edited or stale copy ships a wrong settings
       # vocabulary with no signal. The script exists exactly for this hook.
