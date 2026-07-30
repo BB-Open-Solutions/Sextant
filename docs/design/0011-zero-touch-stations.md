@@ -14,7 +14,7 @@ Installed → SB/TPM2 → Done), station report/claim APIs
 
 1. **The console surface.** Stations, PXE discoveries → enroll queue
    and image-job progress were never ported from the PoC console
-   (`docs/capabilities.md` #7, `docs/MVP-pilot.md`). The APIs work;
+   (`docs/capabilities.md` #7). The APIs work;
    operators are blind.
 2. **The reference station itself.** The inspoelstraat NUC still runs
    the bespoke appliance flake, outside `rings/infra`
