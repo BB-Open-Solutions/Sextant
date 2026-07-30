@@ -143,6 +143,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 		"Attention":   attn,
 		"Approvals":   approvals,
 		"Status":      status,
+		"ConfigState": configState,
 		"CanEnroll":   v.roleAt("org").Meets(identity.Editor),
 	}, v)
 }
