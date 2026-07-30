@@ -50,6 +50,16 @@ let
     [ "autoUpdate" ] # the update funnel Sextant owns (rings/<group>)
     [ "secureboot" "pkiBundle" ] # sbctl PKI path: a fixed convention, not policy
     [ "diskUnlock" "luksVolume" ] # disko layout name; wrong value bricks unlock
+    # usbControl is driven by an overlay-provided surface (dawo.usbDevices),
+    # not set directly. Two reasons, both temporary: the core declares its
+    # allowlist as `options.allowlist` inside the option set, so the key reads
+    # "usbControl.options.allowlist", and its label annotations do not survive
+    # evaluation, so both entries would render as raw dotted paths. Exporting
+    # them alongside the clean pair would give an operator four keys for two
+    # settings, two of them unlabelled - and the unlabelled dangerous one is
+    # exactly the one nobody should reach for by accident. Remove this line
+    # once the core names and labels them properly.
+    [ "usbControl" ]
   ];
   isManaged = path:
     lib.any (p: lib.take (lib.length p) path == p) managedPrefixes;
