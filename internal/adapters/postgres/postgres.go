@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -25,11 +28,76 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgres connect: %w", err)
 	}
-	if err := Migrate(ctx, pool); err != nil {
+	if err := migrateWithRetry(ctx, pool); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("postgres migrate: %w", err)
 	}
 	return &Store{pool: pool}, nil
+}
+
+// startupGrace is how long Open keeps trying to reach the database before
+// giving up. Sized for "the rest of the cell is still coming up", not for a
+// database that is genuinely gone: past this, exiting is the right answer and
+// the orchestrator can decide.
+const startupGrace = 2 * time.Minute
+
+// migrateWithRetry runs the migrations, retrying while the database is merely
+// not there YET.
+//
+// A control plane that dies because its database had not finished starting is
+// fragile for no good reason. Observed on a fresh cell (2026-07-30): the pod
+// came up before Cilium had programmed the namespace policy, every connection
+// was refused with "operation not permitted", the process exited, and Helm
+// gave up and rolled the release back - so what was a few seconds of ordinary
+// startup ordering looked exactly like a broken deployment. It recovered by
+// itself, which is the tell: nothing was wrong, we were simply early.
+//
+// Only CONNECT failures are retried. A migration that runs and fails is a real
+// error - a bad schema change does not get better by being run again - so that
+// returns immediately.
+func migrateWithRetry(ctx context.Context, pool *pgxpool.Pool) error {
+	deadline := time.Now().Add(startupGrace)
+	for attempt := 1; ; attempt++ {
+		err := Migrate(ctx, pool)
+		if err == nil {
+			return nil
+		}
+		if !isUnreachable(err) || time.Now().After(deadline) || ctx.Err() != nil {
+			return err
+		}
+		slog.Warn("database not reachable yet, retrying",
+			"attempt", attempt, "err", err)
+		select {
+		case <-time.After(2 * time.Second):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+// isUnreachable reports whether an error is "the database is not there yet"
+// rather than "the database said no". Matched on the connect path pgx reports
+// before any statement runs.
+func isUnreachable(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	s := err.Error()
+	for _, frag := range []string{
+		"connection refused",
+		"operation not permitted", // a network policy not yet programmed
+		"no route to host",
+		"i/o timeout",
+		"connect: connection reset by peer",
+		"server is not accepting connections",
+		"the database system is starting up",
+	} {
+		if strings.Contains(s, frag) {
+			return true
+		}
+	}
+	return false
 }
 
 // Close releases the pool.
