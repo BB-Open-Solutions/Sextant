@@ -534,7 +534,7 @@ func TestUpdatesBoardReadsAsStatusUnderAutoFlow(t *testing.T) {
 	if strings.Contains(page, "Changes flow to the fleet automatically") {
 		t.Error("manual-dispatch org still told updates flow by themselves")
 	}
-	if !strings.Contains(page, "Roll out in waves:") {
+	if !strings.Contains(page, "Roll out changes") {
 		t.Error("manual-dispatch org lost the wave dispatch button")
 	}
 	if !strings.Contains(page, `<input type="checkbox" name="expedited" value="1"`) {
@@ -574,9 +574,15 @@ func TestUpdatesBoardLeadsWithChangeNotRelease(t *testing.T) {
 	if !strings.Contains(page, "Office suite update") {
 		t.Error("running board does not lead with the change it delivers")
 	}
-	wantTitle := fmt.Sprintf(`title="Release %d · %s"`, cfg.ReleaseNumber(ctx, head), head)
-	if !strings.Contains(page, wantTitle) {
-		t.Errorf("release number and revision are not demoted to the hover title (want %s)", wantTitle)
+	// The revision identifies what is rolling out and stays available to
+	// quote, in the hover title. What must NOT be there is a release number:
+	// a configuration change is not a version, and numbering it invents a
+	// lineage that makes a policy typo look like a new DAWO.
+	if !strings.Contains(page, fmt.Sprintf(`title="%s"`, head)) {
+		t.Errorf("the revision is not in the hover title (want title=%q)", head)
+	}
+	if strings.Contains(page, "Release "+fmt.Sprint(cfg.ReleaseNumber(ctx, head))) {
+		t.Error("the board still numbers a configuration change as a release")
 	}
 	// Plain language, both grammatical numbers, and no jargon left.
 	for _, want := range []string{"1 of 3 devices updated", "1 device not reporting"} {
