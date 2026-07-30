@@ -80,6 +80,17 @@ func (s *ComplianceService) Incidents(ctx context.Context) ([]incident.Incident,
 		}
 		o.DeployedRelease = s.cfg.ReleaseNumber(ctx, o.Deployed)
 		o.TargetRelease = s.cfg.ReleaseNumber(ctx, o.Target)
+		// The cores those revisions pin. This is what separates "a setting has
+		// not arrived yet" from "this machine runs an older system": the first
+		// is a warning, the second becomes an issue once it persists. Both
+		// lookups are cached per revision and unknown is left unjudged.
+		if core, ok := s.cfg.CoreVersionAt(ctx, o.Deployed); ok {
+			o.DeployedCore = core.Rev
+		}
+		if core, ok := s.cfg.CoreVersionAt(ctx, o.Target); ok {
+			o.TargetCore = core.Rev
+			o.TargetCorePinned = core.Modified
+		}
 		obs = append(obs, o)
 	}
 	now := s.clock.Now()

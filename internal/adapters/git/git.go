@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -405,3 +406,30 @@ func RemoteHead(ctx context.Context, remote string) (string, error) {
 	}
 	return fields[0], nil
 }
+
+// FileAt returns a repo-relative file's contents as of a revision. Used to
+// read flake.lock at the revision a DEVICE reports running, so the console can
+// tell a configuration change from a core update: two config revisions that
+// pin the same core are the same VERSION of the system, however many commits
+// apart they are.
+//
+// A revision this clone does not have, or a path absent at it, is an error -
+// "the core did not change" and "I could not look" must not read alike.
+func (r *Repo) FileAt(ctx context.Context, rev, path string) ([]byte, error) {
+	if !revishRe.MatchString(rev) {
+		return nil, fmt.Errorf("invalid revision %q", rev)
+	}
+	// "--" separates the rev:path spec from any pathspec; the spec itself is
+	// built from a validated rev and a caller-controlled constant path.
+	// #nosec G204 - fixed "git" binary, discrete args, no shell.
+	out, err := exec.CommandContext(ctx, "git", "-C", r.dir, "show", rev+":"+path, "--").Output()
+	if err != nil {
+		return nil, fmt.Errorf("git show %s:%s: %w", rev, path, err)
+	}
+	return out, nil
+}
+
+// revishRe accepts a commit hash or a branch/tag name, the two things a caller
+// legitimately names. Deliberately narrow: no "..", no leading "-", nothing
+// that could be read as a flag or a range.
+var revishRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)

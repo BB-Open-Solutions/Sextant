@@ -43,6 +43,8 @@ type ConfigService struct {
 
 	// relCache memoises revision -> release number (immutable once known).
 	relCache sync.Map
+	// coreAtCache memoises CoreVersionAt: a revision pins one core forever.
+	coreAtCache sync.Map
 
 	// coreCache memoises the overlay's core pin against the snapshot it was
 	// read with (see coreversion.go).

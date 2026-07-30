@@ -31,6 +31,13 @@ const (
 	// UnknownConfig marks a device on a revision the config repo cannot place
 	// in its own history - it follows a source other than its ring branch.
 	UnknownConfig Kind = "unknown-config"
+
+	// CoreOutdated: the device runs an older DAWO core than its target pins.
+	// Distinct from Behind on purpose. A configuration lag is an edit that has
+	// not arrived yet - a warning. A core lag is an older KERNEL, older
+	// hardening and older packages, and once it has persisted it is a real
+	// issue: the fleet decided to move and this machine did not.
+	CoreOutdated Kind = "core-outdated"
 )
 
 // Severity orders incidents; higher is more urgent.
@@ -42,6 +49,21 @@ const (
 	Warning
 	Critical
 )
+
+// CoreGrace is how long a device may lag the fleet's core before the lag stops
+// being a rollout in progress and becomes an issue. Generous on purpose: a
+// laptop can be shut for a week and that is not a fault. What it is not is
+// indefinite - an unpatched kernel does not become acceptable by persisting.
+const CoreGrace = 14 * 24 * time.Hour
+
+// humanDays renders a lag the way an operator would say it.
+func humanDays(d time.Duration) string {
+	days := int(d.Hours() / 24)
+	if days <= 1 {
+		return "a day"
+	}
+	return fmt.Sprintf("%d days", days)
+}
 
 // Observation is one device's compliance-relevant state, assembled by the app
 // layer from the observed plane (deployed revision, last check-in) and the
@@ -61,10 +83,22 @@ type Observation struct {
 	// revision the repo does not know from one it has merely not counted yet.
 	Head        string
 	HeadRelease int
-	Online      bool      // checked in within the online window
-	LastSeen    time.Time // zero = never
-	Error       string    // device-reported error ("" = none)
-	Ack         string    // last remote-action outcome
+	// DeployedCore/TargetCore are the DAWO core revisions pinned AT those
+	// config revisions ("" = unknown, and unknown is never judged). Two config
+	// revisions pinning the same core differ in settings only, however far
+	// apart they are - which is exactly the difference an operator needs and
+	// a commit count cannot express.
+	DeployedCore string
+	TargetCore   string
+	// TargetCorePinned is when the target's core was pinned. The grace period
+	// runs from THAT, not from the config change: a device is not late because
+	// a setting moved, it is late because it never took a core the fleet
+	// adopted a while ago.
+	TargetCorePinned time.Time
+	Online           bool      // checked in within the online window
+	LastSeen         time.Time // zero = never
+	Error            string    // device-reported error ("" = none)
+	Ack              string    // last remote-action outcome
 }
 
 // unknownConfig reports the wrong-source signature: an ONLINE device on a
@@ -232,6 +266,27 @@ func Detect(obs []Observation, now time.Time) []Incident {
 				}
 			}
 			add(Behind, Warning, title, detail, advice, time.Time{})
+		}
+
+		// A core the fleet has moved on from, and this device has not. Only
+		// raised when BOTH cores are known: an unreadable revision must not
+		// become an accusation. Warning while the change is fresh - a rollout
+		// takes time and a laptop may simply be shut - and Critical once the
+		// grace period has passed, because by then it is not in flight any
+		// more, it is stuck.
+		if o.DeployedCore != "" && o.TargetCore != "" && o.DeployedCore != o.TargetCore {
+			sev := Warning
+			detail := "The fleet moved to a newer DAWO core; this device still runs the previous one."
+			if !o.TargetCorePinned.IsZero() && now.Sub(o.TargetCorePinned) > CoreGrace {
+				sev = Critical
+				detail = fmt.Sprintf(
+					"The fleet moved to a newer DAWO core %s ago and this device never took it: it is running an older kernel, older hardening and older packages.",
+					humanDays(now.Sub(o.TargetCorePinned)))
+			}
+			add(CoreOutdated, sev, o.Tag+" is running an older DAWO core",
+				detail,
+				"Check that the device converges: it may be off, or refusing the new generation. The activation log on the device says which.",
+				o.TargetCorePinned)
 		}
 
 		if o.Error != "" {

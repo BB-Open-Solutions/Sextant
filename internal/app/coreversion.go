@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -112,4 +113,43 @@ func coreNodeName(doc flakeLock) string {
 		return name
 	}
 	return coreInput
+}
+
+// CoreVersionAt is CoreVersion as of a given config revision: the core the
+// overlay pinned when that revision was written. It is what makes "is this
+// device merely behind on configuration, or is it running an older SYSTEM?"
+// answerable - two revisions that pin the same core differ in settings only,
+// however many commits apart they are.
+//
+// ok is false when the revision cannot be read or carries no core pin. That is
+// not an error worth surfacing: an overlay without a core input is legal, and
+// a console that cannot look must say nothing rather than guess.
+func (s *ConfigService) CoreVersionAt(ctx context.Context, rev string) (CoreVersion, bool) {
+	if rev == "" {
+		return CoreVersion{}, false
+	}
+	if v, ok := s.coreAtCache.Load(rev); ok {
+		cv, isCore := v.(CoreVersion)
+		return cv, isCore && cv.Rev != ""
+	}
+	reader, ok := s.repo.(interface {
+		FileAt(context.Context, string, string) ([]byte, error)
+	})
+	if !ok {
+		return CoreVersion{}, false
+	}
+	raw, err := reader.FileAt(ctx, rev, FlakeLockFile)
+	if err != nil {
+		// Cache the miss too: a revision this clone cannot read will not
+		// become readable by asking again on every page render.
+		s.coreAtCache.Store(rev, CoreVersion{})
+		return CoreVersion{}, false
+	}
+	core, ok := parseFlakeLock(raw)
+	if !ok {
+		s.coreAtCache.Store(rev, CoreVersion{})
+		return CoreVersion{}, false
+	}
+	s.coreAtCache.Store(rev, core)
+	return core, true
 }
