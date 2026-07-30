@@ -234,6 +234,46 @@ herstellen is.
 | A14.2 | Gereserveerde naam proberen | geweigerd bij het opslaan |
 | A14.3 | Uitzetten | account op slot, inloggen lukt niet meer |
 
+## A15. Gebruikersrechten
+
+Log in als **`bbuijs` (directory-gebruiker)**, niet als de lokale beheerder.
+Dat is het hele punt: dit werd gevonden doordat een LDAP-gebruiker in geen
+enkele lokale groep zit, en met de lokale beheerder merk je er niets van.
+
+| # | Actie | Bewijs |
+|---|---|---|
+| A15.1 | Wifi aan/uit zetten | gaat direct, geen dialoog |
+| A15.2 | Netwerk kiezen uit de lijst | verbindt, geen dialoog |
+| A15.3 | **Netwerk opslaan voor alle gebruikers** | vraagt om **je eigen** wachtwoord, niet om een beheerderswachtwoord |
+| A15.4 | Meteen een tweede beveiligde actie | vraagt het niet opnieuw (het onthoudt kort) |
+| A15.5 | Tijdzone wijzigen | gaat direct |
+| A15.6 | **Klok handmatig zetten** | **geweigerd** — tijd komt van de vloot |
+| A15.7 | **Hostnaam wijzigen** | **geweigerd** — die hoort bij de vloot |
+| A15.8 | USB-stick koppelen | gaat direct |
+| A15.9 | Dok aanmelden (raakt #18) | gaat direct, geen beheerder nodig |
+| A15.10 | **Gebruikersbeheer openen (account toevoegen)** | **geweigerd** — nooit verleenbaar |
+| A15.11 | Via SSH inloggen en `nmcli` een netwerk laten opslaan | **geweigerd** — geen zitplaats, dus geen recht |
+| A15.12 | Printer toevoegen | **geweigerd** (printen staat uit op deze groep; recht is bewust niet verleend) |
+
+A15.11 is de belangrijkste van de reeks. `session` betekent "wie fysiek aan de
+machine zit", niet "wie een shell heeft". Slaagt dit wél, dan is de
+`subject.local && subject.active`-clausule stuk en is elke andere regel hier
+ook niets waard.
+
+A15.6, A15.7 en A15.10 zijn negatieve tests. Een uitslag "gaat direct" is
+daar een **fout**, geen succes — makkelijk verkeerd af te vinken als je door
+de lijst raast.
+
+Loopt er iets anders dan verwacht, kijk dan op het toestel mee terwijl je het
+opnieuw probeert:
+
+```
+journalctl -f -u polkit
+```
+
+Dat noemt het actie-id dat geweigerd wordt, zodat we niet hoeven te gissen
+welk recht ontbreekt.
+
 ---
 
 # Run B — met integraties
