@@ -3,9 +3,11 @@ package oidc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -50,17 +52,9 @@ func fetchGroupsFromGraph(ctx context.Context, client *http.Client, baseURL, acc
 			return nil, err
 		}
 		req.Header.Set("Authorization", "Bearer "+accessToken)
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("graph request: %w", err)
-		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-		_ = resp.Body.Close()
+		body, err := getWithRetry(ctx, client, req)
 		if err != nil {
 			return nil, err
-		}
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("graph returned %d: %.200s", resp.StatusCode, body)
 		}
 		var pageDoc struct {
 			Value []struct {
@@ -83,4 +77,88 @@ func fetchGroupsFromGraph(ctx context.Context, client *http.Client, baseURL, acc
 		url = pageDoc.NextLink
 	}
 	return out, nil
+}
+
+// graphAttempts is how many times one page is tried before the login fails.
+const graphAttempts = 3
+
+// getWithRetry performs one Graph page request, retrying a transient failure.
+//
+// This sits on the LOGIN path: the caller turns any error into a 502 and the
+// whole sign-in fails. The fallback it serves only runs for users in more than
+// 150 groups - which in practice means administrators - so without a retry the
+// people with the most rights got the flakiest login, from a single dropped
+// packet or one rate-limit response. Git's network operations have retried
+// transient failures for a long time; this did not.
+//
+// Retried: a transport error, 429, and 5xx. Not retried: 4xx other than 429,
+// because a rejected token or a malformed request will be rejected identically
+// on the second attempt and retrying only delays a real answer.
+func getWithRetry(ctx context.Context, client *http.Client, req *http.Request) ([]byte, error) {
+	var lastErr error
+	for attempt := range graphAttempts {
+		if attempt > 0 {
+			// Honour Retry-After when the server sent one; otherwise back off
+			// 200ms, 400ms. Graph's rate limiter states how long to wait and
+			// ignoring it is how a retry storm starts.
+			select {
+			case <-time.After(retryDelay(attempt, lastErr)):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		resp, err := client.Do(req.Clone(ctx))
+		if err != nil {
+			lastErr = &graphError{err: fmt.Errorf("graph request: %w", err)}
+			continue
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+		retryAfter := resp.Header.Get("Retry-After")
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if readErr != nil {
+			lastErr = &graphError{err: readErr}
+			continue
+		}
+		if status == http.StatusOK {
+			return body, nil
+		}
+		httpErr := fmt.Errorf("graph returned %d: %.200s", status, body)
+		if status != http.StatusTooManyRequests && status < 500 {
+			return nil, httpErr
+		}
+		lastErr = &graphError{err: httpErr, retryAfter: retryAfter}
+	}
+	var ge *graphError
+	if errors.As(lastErr, &ge) {
+		return nil, fmt.Errorf("graph unreachable after %d attempts: %w", graphAttempts, ge.err)
+	}
+	return nil, lastErr
+}
+
+// graphError is a retryable failure, carrying any Retry-After the server asked
+// for. A non-retryable status never becomes one of these - it is returned
+// straight away.
+type graphError struct {
+	err        error
+	retryAfter string
+}
+
+func (e *graphError) Error() string { return e.err.Error() }
+func (e *graphError) Unwrap() error { return e.err }
+
+// retryDelay is the server's Retry-After when it gave a usable one, else an
+// exponential back-off. Capped so a hostile or confused header cannot park a
+// login request for minutes.
+func retryDelay(attempt int, lastErr error) time.Duration {
+	var ge *graphError
+	if errors.As(lastErr, &ge) && ge.retryAfter != "" {
+		if secs, err := strconv.Atoi(ge.retryAfter); err == nil && secs > 0 {
+			if d := time.Duration(secs) * time.Second; d <= 5*time.Second {
+				return d
+			}
+			return 5 * time.Second
+		}
+	}
+	return time.Duration(200*(1<<(attempt-1))) * time.Millisecond
 }
