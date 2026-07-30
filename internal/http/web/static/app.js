@@ -292,3 +292,26 @@ document.addEventListener("click", function (e) {
     });
   });
 })();
+
+// Mail provider presets. A [data-mailpreset] button fills the SMTP fields
+// from its own data attributes, leaving the password alone - that is the one
+// value a preset can never know, and the one that must stay a deliberate act.
+//
+// The fields stay editable afterwards. A preset is a shortcut past the part
+// nobody should have to look up, not a mode the form is now in: a provider
+// that changes a port should not leave the operator unable to correct it.
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest("[data-mailpreset]");
+  if (!btn) return;
+  var form = btn.closest("form");
+  if (!form) return;
+  e.preventDefault();
+  ["host", "port", "security", "username"].forEach(function (name) {
+    var val = btn.getAttribute("data-" + name);
+    if (val === null) return;
+    var field = form.elements[name];
+    if (field) field.value = val;
+  });
+  var from = form.elements["from"];
+  if (from) from.focus();
+});

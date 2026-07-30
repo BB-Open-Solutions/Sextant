@@ -19,6 +19,19 @@
 <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
   <form method="post" action="/mail" class="!items-stretch">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{/* Provider presets. Lettermint is a plain SMTP relay, so it needs no
+         integration of its own - only the four values somebody would
+         otherwise have to go and find. It is listed by name because a Dutch
+         public body asking for an EU mail route should not have to discover
+         that the console already supports one. The password is deliberately
+         never filled: it is the one value a preset cannot know. */}}
+    <div class="mb-4 flex flex-wrap items-center gap-2 text-label-md">
+      <span class="text-text-tertiary">{{.L.T "page.mail.preset_label"}}</span>
+      <button type="button" class="btn quiet !py-1 !px-3"
+              data-mailpreset data-host="smtp.lettermint.co" data-port="587"
+              data-security="starttls" data-username="lettermint">Lettermint</button>
+      <span class="text-text-tertiary">{{.L.T "page.mail.preset_hint"}}</span>
+    </div>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.host"}}</label><input name="host" value="{{.Cfg.Host}}" placeholder="smtp.example.com" required></div>
       <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.port"}}</label><input name="port" type="number" value="{{if .Cfg.Port}}{{.Cfg.Port}}{{else}}587{{end}}" required></div>
