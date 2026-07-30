@@ -71,8 +71,7 @@ That is the conviction: **a fleet you can explain is a fleet you control.**
 
 **Integrations, as ordinary fleet settings**
 - NetBird mesh, directory login over LDAP/LDAPS with SSSD, Wazuh endpoint
-  security, OpenBao, SMTP for notifications (one click for Lettermint, an EU
-  mail route).
+  security, OpenBao, and any SMTP server for notifications.
 - Endpoint controls: USB device control with an allowlist, printing, and
   per-capability user rights - so somebody can join a WiFi network or approve a
   dock without anyone handing out an administrator password.
