@@ -32,9 +32,22 @@ settings that adds three things a bare setting cannot express:
 So: **settings are the mechanism, policies are the instrument of governance.**
 
 The practical rule that follows, and the one to apply when deciding where a
-new control belongs: *anything an organisation must be able to DEMONSTRATE
-belongs in a policy; anything that is a local operational choice can be a
-plain setting.*
+new control belongs: **a setting becomes a policy by default; a policy never
+becomes a setting.**
+
+The direction matters more than it looks. If a bare setting is the default,
+every new control starts OUTSIDE governance and somebody has to remember to
+promote it - and nobody does, because the moment to remember is the moment
+you are busy adding the control. Defaults decide outcomes. Making policy the
+default means governance is the norm and a plain setting is a deliberate,
+justified exception: this one is a local operational choice with nothing to
+demonstrate, and here is why.
+
+The asymmetry is the other half. A policy must never quietly degrade into a
+setting, because that loses enforcement and the audit trail without anyone
+deciding to lose them - and it loses them silently, which is the worst way.
+Demoting a policy is a decision somebody makes on purpose and records, not
+something that happens by editing a value.
 
 An auditor does not read settings. They read policies. "BIO control X is
 enforced on every workplace" is a policy sentence. "netbird.enable = true on
@@ -52,6 +65,9 @@ disk; only one of them is evidence.
 - Some controls should be reachable ONLY through a policy - posture, USB
   device control, offline login validity. They are exactly the ones with an
   audit story, and exactly the ones where a quiet local override is a finding.
+- New `dawo.*` options land in a policy unless someone argues otherwise, and
+  the argument belongs in the option's own documentation. "It is only a
+  setting" should have to be said out loud.
 - `Policy.Controls` (the BIO/ISO annotations) is currently inert. It is the
   hook that makes this pay off: it is what turns a policy list into an
   auditor-facing view, and it is why the distinction is worth the work rather
