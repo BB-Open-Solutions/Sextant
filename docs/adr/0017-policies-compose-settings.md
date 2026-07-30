@@ -1,4 +1,4 @@
-# ADR 0017 - A policy composes settings; it is not a second way to set them
+# ADR 0017 - A policy is a layer over settings, and over more than settings
 
 Status: Accepted (2026-07-30)
 
@@ -30,6 +30,28 @@ settings that adds three things a bare setting cannot express:
   written once and forgotten.
 
 So: **settings are the mechanism, policies are the instrument of governance.**
+
+And a policy is not limited to wrapping settings. It is a layer ON TOP of
+them, which means it can also assert things that have no setting behind them
+at all - conditions about a device's observed STATE. Disk pressure. Battery
+health. How long since it last checked in. Free space before an update may
+start. These are requirements an organisation genuinely has, and none of them
+is a value you write to a device.
+
+That gives a policy two kinds of clause, and the difference is not cosmetic:
+
+- **Configuration clauses** wrap settings. They can be ENFORCED: the fleet
+  converges on them, drift is detected and corrected, a lock stops a lower
+  scope weakening them.
+- **Condition clauses** assert something about observed state. They cannot be
+  enforced, because there is nothing to write - a disk does not become emptier
+  because a policy says so. They can only be CHECKED, and a failure is a
+  finding: report it, raise it, and let a human or a separate action respond.
+
+Confusing the two would be the expensive mistake. A condition presented as if
+it were enforceable promises something the system cannot deliver, and an
+operator who sees "enforced" next to "disk under 85%" will believe the fleet
+is keeping it that way. It is not; it is watching.
 
 The practical rule that follows, and the one to apply when deciding where a
 new control belongs: **a setting becomes a policy by default; a policy never
@@ -68,6 +90,9 @@ disk; only one of them is evidence.
 - New `dawo.*` options land in a policy unless someone argues otherwise, and
   the argument belongs in the option's own documentation. "It is only a
   setting" should have to be said out loud.
+- The policy model needs to carry both clause kinds, and the console must show
+  which is which - enforced versus checked. That distinction is what keeps the
+  word "policy" honest once conditions live in it.
 - `Policy.Controls` (the BIO/ISO annotations) is currently inert. It is the
   hook that makes this pay off: it is what turns a policy list into an
   auditor-facing view, and it is why the distinction is worth the work rather
