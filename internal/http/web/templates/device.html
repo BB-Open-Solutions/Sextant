@@ -18,8 +18,11 @@
         {{/* Version: the chip an operator acts on, with the release number and
              the full revision beside it - forensics stay reachable here even
              though the device list keeps them in a hover title. */}}
-        {{if .Config}}<span class="tag{{if eq .Config "current"}} ok{{end}}">{{if eq .Config "updating"}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{.L.T (printf "devices.config_%s" .Config)}}</span>
-        <span class="flex items-center gap-1 text-body-sm text-text-tertiary"><span class="font-mono" title="{{.Status.Revision}}">{{short .Status.Revision}}</span></span>{{end}}
+        {{/* State, not a revision. A hash tells an end user nothing - the
+             question they have is "is this machine as it should be", and the
+             answer is yes or no. Engineers who need the revision find it in
+             the hover, the same demotion the devices list already makes. */}}
+        {{if .Config}}<span class="tag{{if eq .Config "current"}} ok{{end}}" title="{{.Status.Revision}}">{{if eq .Config "updating"}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{.L.T (printf "devices.config_%s" .Config)}}</span>{{end}}
       {{else}}
         <span class="flex items-center gap-1.5 text-label-md font-medium text-text-tertiary"><span class="h-2 w-2 rounded-full bg-surface-container-highest"></span>{{.L.T "common.never_seen"}}</span>
       {{end}}

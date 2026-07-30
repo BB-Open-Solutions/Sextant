@@ -36,7 +36,14 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 	online := 0
 	type attention struct{ Kind, Detail string }
 	var attn []attention
+	// Config state per device, the same helper the devices list uses. A
+	// revision hash answers a question an end user does not have; "is this
+	// machine as it should be" is the one they do.
+	configState := map[string]string{}
 	for _, st := range status {
+		if d, ok := f.Devices[st.Tag]; ok {
+			configState[st.Tag] = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true)
+		}
 		if st.Online {
 			online++
 		}
