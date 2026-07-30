@@ -3,7 +3,13 @@
 <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
   <div>
     <h1 class="mb-1">{{.L.T "settings.title"}}</h1>
-    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "settings.scope_help_pre"}} <strong>{{.L.T "common.enforce"}}</strong> {{.L.T "settings.scope_help_post"}}</p>
+    <p class="mb-1 max-w-2xl text-body-md text-text-tertiary">{{.L.T "settings.scope_help_pre"}} <strong>{{.L.T "common.enforce"}}</strong> {{.L.T "settings.scope_help_post"}}</p>
+  {{/* ADR 0017: a setting becomes a policy by default, and a plain setting is
+       the deliberate exception. This page is where somebody lands when they
+       want to change something, so it is where that has to be said - an
+       editor that silently offers a key with a compliance story is inviting
+       the wrong tool. */}}
+  <p class="mb-0 max-w-2xl text-body-sm text-text-tertiary">{{.L.T "settings.policy_pointer"}} <a href="/policies" class="underline">{{.L.T "nav.policies"}}</a>.</p>
   </div>
   {{template "scopePicker" .}}
 </div>
