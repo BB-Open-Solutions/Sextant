@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
@@ -77,6 +80,7 @@ func (s *ComplianceService) Incidents(ctx context.Context) ([]incident.Incident,
 			o.LastSeen = st.LastSeen
 			o.Error = st.Error
 			o.Ack = st.Ack
+			o.Failed = failedConditions(f, tag, st.Usage.Metrics())
 		}
 		o.DeployedRelease = s.cfg.ReleaseNumber(ctx, o.Deployed)
 		o.TargetRelease = s.cfg.ReleaseNumber(ctx, o.Target)
@@ -196,4 +200,41 @@ func TargetRevision(f *fleet.Fleet, dev fleet.Device) string {
 		}
 	}
 	return ""
+}
+
+// failedConditions evaluates the condition clauses of the policies assigned to
+// a device against what it last reported, and returns only the DEFINITE
+// failures.
+//
+// The silence on unknowns is the point (ADR 0017). A condition whose metric
+// the device never reported - an older agent, a probe that did not run - is
+// unknown, and unknown must not become an accusation: a fleet that reports
+// "disk below 15%" for machines it cannot measure teaches operators to ignore
+// the finding, which costs more than the finding was worth.
+func failedConditions(f *fleet.Fleet, tag string, metrics map[string]float64) []incident.ConditionFailure {
+	var out []incident.ConditionFailure
+	for _, pc := range f.ConditionsFor(tag) {
+		holds, known := pc.Condition.Holds(metrics)
+		if !known || holds {
+			continue
+		}
+		// The measurement always appears, because "the disk is too full" without
+		// a number leaves the operator to go and look it up. The policy's own
+		// sentence leads when it has one: it is the author explaining what they
+		// wanted, which a metric name cannot do.
+		measured := fmt.Sprintf("%s is %s, and this policy requires %s %s.",
+			pc.Condition.Metric, trimNum(metrics[pc.Condition.Metric]),
+			pc.Condition.Op, trimNum(pc.Condition.Value))
+		if d := strings.TrimSpace(pc.Condition.Detail); d != "" {
+			measured = d + " (" + measured + ")"
+		}
+		out = append(out, incident.ConditionFailure{Policy: pc.Policy, Name: pc.Name, Detail: measured})
+	}
+	return out
+}
+
+// trimNum prints a measurement the way an operator would read it: 20 rather
+// than 20.000000, and 8.5 kept intact.
+func trimNum(v float64) string {
+	return strconv.FormatFloat(v, 'f', -1, 64)
 }

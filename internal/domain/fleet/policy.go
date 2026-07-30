@@ -196,3 +196,41 @@ func (f *Fleet) validateTarget(ref string) error {
 	}
 	return fmt.Errorf("bad target %q (want org|group:<name>|device:<tag>)", ref)
 }
+
+// ConditionsFor returns the condition clauses that apply to a device, tagged
+// with the policy that asked for them, in a stable order.
+//
+// Conditions are the half of a policy that cannot be enforced, only checked
+// (ADR 0017), so this is the input to a finding rather than to convergence.
+// The policy id travels with the condition because a bare "disk below 15%" is
+// not actionable: the operator needs to know which rule they are answering to,
+// and an auditor needs the trail back to the intent.
+func (f *Fleet) ConditionsFor(tag string) []PolicyCondition {
+	var out []PolicyCondition
+	for _, a := range f.Assignments {
+		p, ok := f.Policies[a.Policy]
+		if !ok || len(p.Conditions) == 0 {
+			continue
+		}
+		if !slices.Contains(f.AssignmentDevices(a), tag) {
+			continue
+		}
+		for _, c := range p.Conditions {
+			out = append(out, PolicyCondition{Policy: a.Policy, Name: p.Name, Condition: c})
+		}
+	}
+	slices.SortFunc(out, func(a, b PolicyCondition) int {
+		if a.Policy != b.Policy {
+			return strings.Compare(a.Policy, b.Policy)
+		}
+		return strings.Compare(a.Condition.Metric, b.Condition.Metric)
+	})
+	return slices.CompactFunc(out, func(a, b PolicyCondition) bool { return a == b })
+}
+
+// PolicyCondition is a condition together with the policy that requires it.
+type PolicyCondition struct {
+	Policy    string // policy id, for the trail back to the intent
+	Name      string // the policy's human name, for the console
+	Condition Condition
+}

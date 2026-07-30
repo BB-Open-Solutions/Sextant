@@ -38,6 +38,12 @@ const (
 	// hardening and older packages, and once it has persisted it is a real
 	// issue: the fleet decided to move and this machine did not.
 	CoreOutdated Kind = "core-outdated"
+
+	// PolicyCondition: a policy assigned to this device requires something of
+	// its observed state that the device does not meet. Distinct from Behind,
+	// which is a config the fleet will converge on by itself: nothing converges
+	// a full disk, so this needs a human.
+	PolicyCondition Kind = "policy-condition"
 )
 
 // Severity orders incidents; higher is more urgent.
@@ -99,6 +105,21 @@ type Observation struct {
 	LastSeen         time.Time // zero = never
 	Error            string    // device-reported error ("" = none)
 	Ack              string    // last remote-action outcome
+	// Failed lists the policy conditions this device does not satisfy. A
+	// condition cannot be enforced, only checked (ADR 0017), so a failure is a
+	// finding rather than something the fleet converges away. The caller
+	// evaluates them - it holds the metrics - and passes only DEFINITE
+	// failures: a condition on a metric the device never reported is unknown
+	// and must not appear here, because an unmeasured device has not broken a
+	// rule.
+	Failed []ConditionFailure
+}
+
+// ConditionFailure is one unsatisfied policy condition on one device.
+type ConditionFailure struct {
+	Policy string // policy id, for the trail back to the intent
+	Name   string // the policy's human name
+	Detail string // e.g. "disk.free_percent is 8, requires >= 15"
 }
 
 // unknownConfig reports the wrong-source signature: an ONLINE device on a
@@ -304,6 +325,21 @@ func Detect(obs []Observation, now time.Time) []Incident {
 				detail,
 				"Check that the device converges: it may be off, or refusing the new generation. The activation log on the device says which.",
 				o.TargetCorePinned)
+		}
+
+		// One incident per failed condition rather than one per device: they
+		// come from different policies, need different answers, and collapsing
+		// them would hide the second behind the first.
+		for _, c := range o.Failed {
+			name := c.Name
+			if name == "" {
+				name = c.Policy
+			}
+			add(PolicyCondition, Warning, o.Tag+" does not meet "+name,
+				c.Detail,
+				"This is a condition, not a setting: the fleet cannot correct it by converging. "+
+					"Free the resource on the device, or change the policy if the requirement is wrong.",
+				time.Time{})
 		}
 
 		if o.Error != "" {

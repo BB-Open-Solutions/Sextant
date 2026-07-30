@@ -46,6 +46,13 @@ func (s *listStatus) Ping(context.Context) error { return nil }
 // release lookup and HEAD behave as in production) and a rollout store.
 func newComplianceStack(t *testing.T, status *listStatus) (*ComplianceService, ports.RolloutStore, *fakeClock) {
 	t.Helper()
+	return newComplianceStackWith(t, status, rolloutFleet)
+}
+
+// newComplianceStackWith is the same over a caller-supplied fleet, for tests
+// that need policies or assignments the shared rollout fixture does not carry.
+func newComplianceStackWith(t *testing.T, status *listStatus, fleetJSON string) (*ComplianceService, ports.RolloutStore, *fakeClock) {
+	t.Helper()
 	dir := t.TempDir()
 	shr := func(args ...string) {
 		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
@@ -54,7 +61,7 @@ func newComplianceStack(t *testing.T, status *listStatus) (*ComplianceService, p
 		}
 	}
 	shr("init", "-q", "-b", "main")
-	if err := os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(rolloutFleet), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(fleetJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	shr("add", "fleet.json")

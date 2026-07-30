@@ -187,3 +187,42 @@ func (s DeviceStatus) Healthy(target string, now time.Time) bool {
 		(s.Phase == "" || s.Phase == Running) &&
 		s.Error == ""
 }
+
+// Metrics projects utilisation onto the names a policy condition can
+// reference (ADR 0017). This function IS the vocabulary: a condition can only
+// require what appears here, so adding a metric is a deliberate act rather
+// than a string somebody guesses at in a policy and which then silently never
+// matches.
+//
+// A figure the device did not report is ABSENT from the map, never zero. That
+// distinction carries the whole weight: a condition on an absent metric is
+// unknown and must not become a finding, whereas 0 would read as "this disk is
+// completely full" and raise an alarm about a device that simply has an older
+// agent.
+//
+// Percentages are free/available rather than used, because that is how the
+// requirement is phrased - "at least 15% free" - and a policy that has to be
+// written as "used below 85%" invites the off-by-one nobody notices in review.
+func (u Usage) Metrics() map[string]float64 {
+	m := map[string]float64{}
+	if u.CPUPct > 0 {
+		m["cpu.used_percent"] = float64(u.CPUPct)
+	}
+	if u.MemTotalMB > 0 {
+		m["memory.total_mb"] = float64(u.MemTotalMB)
+		m["memory.free_percent"] = pct(u.MemTotalMB-u.MemUsedMB, u.MemTotalMB)
+	}
+	if u.DiskTotalGB > 0 {
+		m["disk.total_gb"] = float64(u.DiskTotalGB)
+		m["disk.free_gb"] = float64(u.DiskTotalGB - u.DiskUsedGB)
+		m["disk.free_percent"] = pct(u.DiskTotalGB-u.DiskUsedGB, u.DiskTotalGB)
+	}
+	return m
+}
+
+func pct(part, whole int) float64 {
+	if whole <= 0 {
+		return 0
+	}
+	return float64(part) * 100 / float64(whole)
+}
