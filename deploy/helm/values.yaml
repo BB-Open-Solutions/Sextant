@@ -178,3 +178,19 @@ simulator:
   image:
     repository: ""
     tag: ""
+
+# Metrics. separatePort moves /metrics onto its own container port, off the
+# listener the ingress publishes. Leave it on: the endpoint discloses the exact
+# build, the route inventory and the per-route traffic volume, and a public
+# console would otherwise serve all of that to anyone who asks. It carries no
+# fleet data, but a version number is the first thing somebody matches against
+# a vulnerability list.
+#
+# Nothing needs the public path. Prometheus scrapes inside the cluster, and the
+# console's own /status page reads the build identity server-side.
+#
+# Turning it off puts /metrics back on the main listener, which is right for a
+# local run with no ingress in front and no second port to scrape.
+metrics:
+  separatePort: true
+  port: 9090

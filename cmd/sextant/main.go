@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	// Embed the IANA zone database: user timezone preferences must resolve
 	// even in a container image without tzdata.
@@ -59,8 +60,24 @@ func run(args []string, getenv config.Getenv) error {
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", checks.Liveness())
 	mux.Handle("GET /readyz", checks.Readiness())
-	mux.Handle("GET /status", checks.StatusPage())
-	mux.Handle("GET /metrics", m.Handler())
+	// /metrics and /status go on the main listener only when no separate one
+	// is configured. The main listener is what the ingress publishes, so a
+	// public console would otherwise hand out its build version, its route
+	// inventory and its per-route traffic to anyone who asks.
+	//
+	// /status belongs with /metrics rather than with the probes: it prints the
+	// exact version too, so closing one and leaving the other open moves the
+	// disclosure instead of removing it. Nobody loses it - an operator sees
+	// the build identity in the console footer and on the organisation page,
+	// both behind a login, and a scraper reaches this listener from inside
+	// the cluster.
+	//
+	// /healthz and /readyz stay: kubelet probes them on the container port,
+	// and they answer alive/ready without saying what is running.
+	if cfg.MetricsAddr == "" {
+		mux.Handle("GET /status", checks.StatusPage())
+		mux.Handle("GET /metrics", m.Handler())
+	}
 
 	caps, cleanup, err := buildCapabilities(ctx, cfg, log, checks, m)
 	// Release anything already opened even when the build failed partway
@@ -89,5 +106,31 @@ func run(args []string, getenv config.Getenv) error {
 	)
 
 	srv := server.New(cfg.Addr, handler, log, server.Options{ShutdownGrace: cfg.ShutdownGrace})
+
+	if cfg.MetricsAddr != "" {
+		// A second listener carrying nothing but /metrics, for an in-cluster
+		// scraper. Deliberately without the middleware chain: access logging
+		// every scrape drowns the log, and the metrics of the metrics
+		// endpoint are noise measuring themselves.
+		mmux := http.NewServeMux()
+		mmux.Handle("GET /metrics", m.Handler())
+		mmux.Handle("GET /status", checks.StatusPage())
+		msrv := server.New(cfg.MetricsAddr, mmux, log, server.Options{ShutdownGrace: cfg.ShutdownGrace})
+		mctx, mstop := context.WithCancel(ctx)
+		defer mstop()
+		merr := make(chan error, 1)
+		go func() { merr <- msrv.Run(mctx) }()
+		defer func() {
+			mstop()
+			// A metrics listener that failed to bind must not be silent: the
+			// scraper would go blind and the graphs would simply stop, which
+			// reads as "nothing is happening" rather than "nothing is being
+			// measured".
+			if err := <-merr; err != nil && !errors.Is(err, context.Canceled) {
+				log.Error("metrics listener stopped", "err", err)
+			}
+		}()
+	}
+
 	return srv.Run(ctx)
 }

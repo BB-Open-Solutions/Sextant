@@ -50,7 +50,7 @@ esac
 metrics=$(curl "${curl_args[@]}" "$BASE/metrics" 2>/dev/null)
 version=$(printf '%s' "$metrics" | sed -n 's/.*sextant_build_info{[^}]*version="\([^"]*\)".*/\1/p' | head -1)
 if [ -z "$version" ]; then
-  none "build identity: /metrics not exposed publicly (check /status by hand)"
+  none "build identity: /metrics is not public, which is the intended state (check the console footer, or the metrics port from inside the cluster)"
 elif [ -n "$WANT_VERSION" ] && [ "$version" != "$WANT_VERSION" ]; then
   bad "build identity: serving $version, expected $WANT_VERSION"
 else
@@ -62,8 +62,11 @@ PAGES=(
   / /devices /groups /settings /policies /compliance /changes
   /updates /updates/rollout /org/updates /access /audit /profile
   /station /enroll /integrations /overlays /secrets /service-accounts
-  /notifications /org /mail /status
+  /notifications /org /mail
 )
+# /status is deliberately absent: it prints the exact build, so it now lives on
+# the private metrics listener alongside /metrics. Publicly it answers 404, and
+# that 404 is the fix working rather than a page that broke.
 
 echo "== pages"
 if [ -z "${SEXTANT_COOKIE:-}" ]; then

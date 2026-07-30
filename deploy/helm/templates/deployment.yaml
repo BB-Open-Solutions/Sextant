@@ -195,8 +195,17 @@ spec:
             {{- with .Values.ldap.nameAttr }}
             - { name: SEXTANT_LDAP_NAME_ATTR, value: {{ . | quote }} }
             {{- end }}
+            {{- if .Values.metrics.separatePort }}
+            # Moves /metrics off the listener the ingress publishes. The
+            # Service does not expose this port, so it is reachable from
+            # inside the cluster only - which is where the scraper is.
+            - { name: METRICS_ADDR, value: "0.0.0.0:{{ .Values.metrics.port }}" }
+            {{- end }}
           ports:
             - { containerPort: 8080, name: http }
+            {{- if .Values.metrics.separatePort }}
+            - { containerPort: {{ .Values.metrics.port }}, name: metrics }
+            {{- end }}
           startupProbe:
             httpGet: { path: /healthz, port: http }
             periodSeconds: 5

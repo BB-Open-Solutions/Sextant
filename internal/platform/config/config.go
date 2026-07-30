@@ -19,6 +19,21 @@ const EnvPrefix = "SEXTANT_"
 type Config struct {
 	// Addr is the HTTP listen address, e.g. "127.0.0.1:8080".
 	Addr string
+
+	// MetricsAddr, when set, moves /metrics onto its own listener and takes
+	// it OFF the main one. The main address is the one behind the ingress, so
+	// anything served there is served to whoever can reach the console -
+	// which for a public console means the internet.
+	//
+	// /metrics discloses the exact build, the route inventory and the traffic
+	// volume per page. No fleet data, but a version number is the first thing
+	// somebody matches against a vulnerability list, and none of it needs a
+	// public path: Prometheus scrapes inside the cluster.
+	//
+	// Empty keeps /metrics on the main listener, which is right for local
+	// development where there is no second port to scrape and no ingress in
+	// front. Deployments set it.
+	MetricsAddr string
 	// LogLevel is one of debug, info, warn, error.
 	LogLevel string
 	// LogFormat is one of text, json.
@@ -156,6 +171,7 @@ type Getenv func(key string) string
 func Load(args []string, getenv Getenv) (*Config, error) {
 	cfg := &Config{
 		Addr:               envOr(getenv, "ADDR", "127.0.0.1:8080"),
+		MetricsAddr:        envOr(getenv, "METRICS_ADDR", ""),
 		LogLevel:           envOr(getenv, "LOG_LEVEL", "info"),
 		LogFormat:          envOr(getenv, "LOG_FORMAT", "text"),
 		ShutdownGrace:      15 * time.Second,
@@ -228,6 +244,8 @@ func Load(args []string, getenv Getenv) (*Config, error) {
 
 	fs := flag.NewFlagSet("sextant", flag.ContinueOnError)
 	fs.StringVar(&cfg.Addr, "addr", cfg.Addr, "HTTP listen address")
+	fs.StringVar(&cfg.MetricsAddr, "metrics-addr", cfg.MetricsAddr,
+		"serve /metrics on this address instead of the main one (empty: on the main listener)")
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level: debug|info|warn|error")
 	fs.StringVar(&cfg.LogFormat, "log-format", cfg.LogFormat, "log format: text|json")
 	fs.DurationVar(&cfg.ShutdownGrace, "shutdown-grace", cfg.ShutdownGrace, "graceful shutdown timeout")

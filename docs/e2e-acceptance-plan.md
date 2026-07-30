@@ -37,7 +37,7 @@ Twee valkuilen uit eerdere rondes, expliciet omdat ze allebei geld kostten:
 
 | # | Actie | Bewijs |
 |---|---|---|
-| P1 | Console-versie vaststellen | `/status` toont 0.69.0; `sextant_build_info{version="0.69.0"}` |
+| P1 | Console-versie vaststellen | footer of orgpagina toont de versie na inloggen; van buiten geven `/status` en `/metrics` een 404 |
 | P2 | Device volledig wissen | disk gewist, firmware in setup mode als Secure Boot in scope is |
 | P3 | Ring-pin bewust achterlaten op main | de ring wijst naar een oudere revisie dan main — dit is de #16-conditie |
 | P4 | Testgroep en testring leeg opzetten | groep zichtbaar in `/groups`, ring in `/updates/rollout` |
@@ -61,7 +61,8 @@ dus de opstelling moet die conditie afdwingen in plaats van erop te hopen.
 | A1.3 | Inloggen als lezer (niet-editor) | bewerkknoppen afwezig, niet alleen uitgegrijsd |
 | A1.4 | Groep-scoped gebruiker | ziet alleen eigen groep in `/devices` en `/compliance` |
 | A1.5 | Uitloggen | sessie weg, `/devices` stuurt naar login |
-| A1.6 | `/status` | build-identiteit, database, gate-mode, klok |
+| A1.6 | `/status` en `/metrics` van buiten opvragen | **404** — allebei alleen op de interne poort; een publieke console hoort zijn versie niet te noemen |
+| A1.7 | Build-identiteit in de footer en op de orgpagina | zichtbaar zodra je bent ingelogd |
 
 A1.3 vraagt om echt kijken: een knop die er staat maar 403 geeft is een andere
 bug dan een knop die er niet staat, en de tweede is de bedoeling.
