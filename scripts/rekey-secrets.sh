@@ -31,6 +31,14 @@
 #   -s, --secrets  DIR    the overlay's secrets directory (*.age). REQUIRED.
 #   -r, --recipients FILE extra recipients, one per line (other admins, a
 #                         break-glass key). Optional, repeatable.
+#   -a, --add NAME        create secrets/NAME.age from PLAINTEXT ON STDIN,
+#                         encrypted to the same recipient set as everything
+#                         else, then continue with the normal rekey. Creating
+#                         a secret had no supported path before this, so
+#                         everybody invented their own age invocation and got
+#                         the recipient set subtly wrong - which fails at the
+#                         worst moment, on a device, at activation.
+#                         Refuses to overwrite an existing file.
 #   -n, --dry-run         report what would change; write nothing.
 #   -f, --force           rekey every file even when already up to date.
 #
@@ -62,6 +70,7 @@ while [ $# -gt 0 ]; do
     -i|--identity)   IDENTITY="${2:-}"; shift 2 ;;
     -s|--secrets)    SECRETS_DIR="${2:-}"; shift 2 ;;
     -r|--recipients) EXTRA_RECIPIENT_FILES+=("${2:-}"); shift 2 ;;
+    -a|--add)        ADD_NAME="${2:-}"; shift 2 ;;
     -n|--dry-run)    DRY_RUN=1; shift ;;
     -f|--force)      FORCE=1; shift ;;
     -h|--help)       sed -n '2,50p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -139,6 +148,40 @@ sort -u "$recipients_file" -o "$recipients_file"
 recipients_hash="$(sha256sum <"$recipients_file" | cut -d' ' -f1)"
 note "recipients: $(wc -l <"$recipients_file") unique, of which $device_count device host keys"
 [ "$device_count" -gt 0 ] || note "WARNING: the console reported no device host keys - imaged devices may not be reporting them yet"
+
+# --- create a new secret, if asked ------------------------------------------
+
+# Deliberately after the recipient set is known and before the rekey loop, so
+# a new secret is born with exactly the recipients every other one has. The
+# plaintext arrives on stdin and is never written to the secrets directory:
+# a plaintext file that lives next to the ciphertext for even a moment is a
+# plaintext file somebody commits.
+if [ -n "${ADD_NAME:-}" ]; then
+  case "$ADD_NAME" in
+    *[!a-z0-9-]*|"") die "secret name must be lowercase letters, digits and dashes: $ADD_NAME" ;;
+  esac
+  target="$SECRETS_DIR/$ADD_NAME.age"
+  [ -e "$target" ] && die "$target already exists; remove it first if you mean to replace it"
+  [ -t 0 ] && die "no plaintext on stdin (pipe it in, e.g. head -c 32 /dev/urandom | base64 | ... --add $ADD_NAME)"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    note "would create $ADD_NAME.age for $(wc -l <"$recipients_file") recipients"
+  else
+    cat >"$WORK/plain.new"
+    [ -s "$WORK/plain.new" ] || die "stdin was empty; refusing to create an empty secret"
+    add_args=()
+    while IFS= read -r r; do add_args+=(--recipient "$r"); done <"$recipients_file"
+    "$AGE" --encrypt "${add_args[@]}" --output "$WORK/new.add" "$WORK/plain.new"
+    # Same round trip the rekey path insists on: a secret nobody can open is
+    # worse than no secret, and it fails on a device rather than here.
+    "$AGE" --decrypt --identity "$IDENTITY" --output "$WORK/check.add" "$WORK/new.add" \
+      || die "the new secret is not readable with the admin identity; nothing written"
+    cmp -s "$WORK/plain.new" "$WORK/check.add" \
+      || die "round trip changed the contents; nothing written"
+    mv "$WORK/new.add" "$target"
+    chmod 0644 "$target" # ciphertext: it is committed to the overlay repo
+    note "created $ADD_NAME.age"
+  fi
+fi
 
 # --- select the files to rekey ----------------------------------------------
 
