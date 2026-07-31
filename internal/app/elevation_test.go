@@ -35,15 +35,14 @@ func (s *memElevation) Pending(_ context.Context, _ string) ([]elevation.Request
 	return out, nil
 }
 
-func newElevationStack() (*ElevationService, *memElevation, *fakeClock) {
-	store := newMemElevation()
+func newElevationStack() (*ElevationService, *fakeClock) {
 	clock := newFakeClock(testT0)
-	return NewElevationService(store, clock, DefaultTenant), store, clock
+	return NewElevationService(newMemElevation(), clock, DefaultTenant), clock
 }
 
 func TestRaisePollApprove(t *testing.T) {
 	ctx := context.Background()
-	svc, _, clock := newElevationStack()
+	svc, clock := newElevationStack()
 
 	r, err := svc.Raise(ctx, "lt-1", "bbuijs", "org.freedesktop.NetworkManager.settings.modify.system", "joining the office wifi")
 	if err != nil {
@@ -79,7 +78,7 @@ func TestRaisePollApprove(t *testing.T) {
 // another's queue and consume an approval meant for somebody else.
 func TestADeviceCannotPollAnothersRequest(t *testing.T) {
 	ctx := context.Background()
-	svc, _, _ := newElevationStack()
+	svc, _ := newElevationStack()
 	r, err := svc.Raise(ctx, "lt-1", "bbuijs", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +93,7 @@ func TestADeviceCannotPollAnothersRequest(t *testing.T) {
 // would show operators requests whose users gave up long ago.
 func TestTheQueueDropsWhatHasExpired(t *testing.T) {
 	ctx := context.Background()
-	svc, _, clock := newElevationStack()
+	svc, clock := newElevationStack()
 	if _, err := svc.Raise(ctx, "lt-1", "bbuijs", "", ""); err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +112,7 @@ func TestTheQueueDropsWhatHasExpired(t *testing.T) {
 
 func TestAnExpiredRequestCannotBeApproved(t *testing.T) {
 	ctx := context.Background()
-	svc, _, clock := newElevationStack()
+	svc, clock := newElevationStack()
 	r, err := svc.Raise(ctx, "lt-1", "bbuijs", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +127,7 @@ func TestAnExpiredRequestCannotBeApproved(t *testing.T) {
 // thing tying a waiting device to its answer.
 func TestIdsAreDistinct(t *testing.T) {
 	ctx := context.Background()
-	svc, _, _ := newElevationStack()
+	svc, _ := newElevationStack()
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {
 		r, err := svc.Raise(ctx, "lt-1", "bbuijs", "", "")
@@ -149,7 +148,7 @@ func TestIdsAreDistinct(t *testing.T) {
 // sends a megabyte of text would make the queue unreadable for everybody else.
 func TestFreeTextIsBounded(t *testing.T) {
 	ctx := context.Background()
-	svc, _, _ := newElevationStack()
+	svc, _ := newElevationStack()
 	long := make([]byte, 5000)
 	for i := range long {
 		long[i] = 'x'
@@ -165,7 +164,7 @@ func TestFreeTextIsBounded(t *testing.T) {
 
 func TestRaiseRefusesAnAnonymousAsk(t *testing.T) {
 	ctx := context.Background()
-	svc, _, _ := newElevationStack()
+	svc, _ := newElevationStack()
 	if _, err := svc.Raise(ctx, "lt-1", "   ", "", ""); err == nil {
 		t.Fatal("a request with no user was accepted; nobody could tell who to approve")
 	}

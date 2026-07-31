@@ -111,7 +111,7 @@ func TestElevationPendingIsOldestFirstAndTenantScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var ids []string
+	ids := make([]string, 0, len(q))
 	for _, r := range q {
 		ids = append(ids, r.ID)
 	}

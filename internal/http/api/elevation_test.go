@@ -57,9 +57,11 @@ func elevationServer(t *testing.T) (*httptest.Server, *app.ElevationService, *mo
 	return srv, svc, clock
 }
 
-func raise(t *testing.T, srv *httptest.Server, cred, tag, body string) (int, elevationAnswer) {
+// raise always targets lt-1. What varies is the CREDENTIAL, which is the
+// point: presenting lt-2's credential for lt-1's path must be refused.
+func raise(t *testing.T, srv *httptest.Server, cred, body string) (int, elevationAnswer) {
 	t.Helper()
-	req, _ := http.NewRequest("POST", srv.URL+"/api/device/"+tag+"/elevation", bytes.NewBufferString(body))
+	req, _ := http.NewRequest("POST", srv.URL+"/api/device/lt-1/elevation", bytes.NewBufferString(body))
 	req.Header.Set("Authorization", "Bearer "+cred)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -88,7 +90,7 @@ func poll(t *testing.T, srv *httptest.Server, cred, tag, id string) (int, elevat
 func TestElevationRaiseThenPollUntilApproved(t *testing.T) {
 	srv, svc, clock := elevationServer(t)
 
-	code, got := raise(t, srv, "cred-lt1", "lt-1",
+	code, got := raise(t, srv, "cred-lt1",
 		`{"user":"bbuijs","action":"org.freedesktop.NetworkManager.settings.modify.system","reason":"office wifi"}`)
 	if code != 201 || got.ID == "" {
 		t.Fatalf("raise = %d %+v, want 201 with an id", code, got)
@@ -122,10 +124,10 @@ func TestElevationRaiseThenPollUntilApproved(t *testing.T) {
 // raise a request in another's name, have it approved, and claim the answer.
 func TestADeviceCannotActAsAnother(t *testing.T) {
 	srv, _, _ := elevationServer(t)
-	if code, _ := raise(t, srv, "cred-lt2", "lt-1", `{"user":"bbuijs"}`); code != 401 {
+	if code, _ := raise(t, srv, "cred-lt2", `{"user":"bbuijs"}`); code != 401 {
 		t.Errorf("lt-2 raising as lt-1 = %d, want 401", code)
 	}
-	code, got := raise(t, srv, "cred-lt1", "lt-1", `{"user":"bbuijs"}`)
+	code, got := raise(t, srv, "cred-lt1", `{"user":"bbuijs"}`)
 	if code != 201 {
 		t.Fatalf("raise = %d", code)
 	}
@@ -153,10 +155,10 @@ func TestElevationRequiresAuthentication(t *testing.T) {
 
 func TestElevationRejectsAnAnonymousAsk(t *testing.T) {
 	srv, _, _ := elevationServer(t)
-	if code, _ := raise(t, srv, "cred-lt1", "lt-1", `{}`); code != 400 {
+	if code, _ := raise(t, srv, "cred-lt1", `{}`); code != 400 {
 		t.Errorf("a request with no user = %d, want 400 - nobody could tell who to approve", code)
 	}
-	if code, _ := raise(t, srv, "cred-lt1", "lt-1", `not json`); code != 400 {
+	if code, _ := raise(t, srv, "cred-lt1", `not json`); code != 400 {
 		t.Errorf("malformed body = %d, want 400", code)
 	}
 }
@@ -173,7 +175,7 @@ func TestElevationWithoutTheServiceSaysUnavailable(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	if code, _ := raise(t, srv, "cred-lt1", "lt-1", `{"user":"bbuijs"}`); code != 503 {
+	if code, _ := raise(t, srv, "cred-lt1", `{"user":"bbuijs"}`); code != 503 {
 		t.Errorf("raise without the service = %d, want 503", code)
 	}
 }

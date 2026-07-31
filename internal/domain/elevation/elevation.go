@@ -33,6 +33,9 @@ import (
 // that state exactly once.
 type State string
 
+// Pending, Approved and Denied are recorded; Expired is derived from the clock
+// (see Resolve) and is never written, so a request cannot sit Pending because
+// whatever was going to expire it died.
 const (
 	Pending  State = "pending"
 	Approved State = "approved"
