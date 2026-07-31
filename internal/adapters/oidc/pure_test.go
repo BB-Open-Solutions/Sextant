@@ -52,7 +52,17 @@ func TestSecureCookieOpenRejectsTampered(t *testing.T) {
 	sealed, _ := c.seal(map[string]string{"x": "y"})
 	var out map[string]string
 	// Flip a character in the ciphertext -> GCM auth fails.
-	bad := "A" + sealed[1:]
+	//
+	// The replacement must be guaranteed DIFFERENT. Hard-coding "A" made this
+	// a no-op roughly one run in sixty-four - whenever the sealed value
+	// already began with an A - and the test then failed while nothing was
+	// wrong. A security assertion that goes red at random is worse than none:
+	// it teaches people to re-run until it passes.
+	repl := byte('A')
+	if sealed[0] == repl {
+		repl = 'B'
+	}
+	bad := string(repl) + sealed[1:]
 	if err := c.open(bad, &out); err == nil {
 		t.Fatal("opened a tampered cookie")
 	}

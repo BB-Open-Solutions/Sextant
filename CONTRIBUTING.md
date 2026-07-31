@@ -3,6 +3,21 @@
 Sextant shares its contribution standards with its sibling repository
 DAWO-NixOS; the two evolve together.
 
+## Before you push
+
+```
+git config core.hooksPath scripts/git-hooks
+```
+
+That installs a pre-push hook running `just ci` - the same set the runner runs.
+It costs a few minutes locally and saves a red build plus the follow-up commit
+that says "fix CI", which is the expensive way to learn the same thing.
+
+`SKIP_CI_HOOK=1 git push` bypasses it. Use that when you are deliberately
+pushing something broken for somebody else to look at, not to get past a
+failure you have not read.
+
+
 ## Language policy
 - **Primary language: English.** All documentation, pull request
   descriptions, code comments, commit messages and technical discussion.
