@@ -137,6 +137,15 @@
           </div>
         {{else if eq (printf "%s" .Status) "failed"}}<span class="tag bad" title="{{.Message}}"><span class="material-symbols-outlined msz-14">error</span>{{$.L.T "enroll.status_failed"}}</span>
         {{else if eq (printf "%s" .Status) "canceled"}}<span class="tag"><span class="material-symbols-outlined msz-14">block</span>{{$.L.T "enroll.status_canceled"}}</span>
+        {{/* The remaining domain states each need their own branch. They used
+             to fall into the else below and render as "pending", so a FINISHED
+             job read as one that had not started, and sb-pending - which is
+             waiting on a person at the machine - read as waiting on the
+             station. */}}
+        {{else if eq (printf "%s" .Status) "done"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">task_alt</span>{{$.L.T "enroll.status_done"}}</span>
+        {{else if eq (printf "%s" .Status) "sb-pending"}}<span class="tag" style="border-color:var(--status-warn,#b45309)"><span class="material-symbols-outlined msz-14">pan_tool</span>{{$.L.T "enroll.status_sbpending"}}</span>
+        {{else if eq (printf "%s" .Status) "sb-enrolled"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">verified_user</span>{{$.L.T "enroll.status_sbenrolled"}}</span>
+        {{else if eq (printf "%s" .Status) "tpm2-enrolled"}}<span class="tag ok"><span class="material-symbols-outlined msz-14">lock</span>{{$.L.T "enroll.status_tpm2"}}</span>
         {{else}}<span class="tag"><span class="material-symbols-outlined msz-14">schedule</span>{{$.L.T "enroll.status_pending"}}</span>{{end}}
       </td>
       <td class="text-right !px-6">
