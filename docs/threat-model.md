@@ -236,6 +236,52 @@ over the authenticated check-in, the server seals it
 before the device deletes its copy - no plaintext at rest on either
 side, reveal stays Owner-only + audited.
 
+## Control 8 - The public binary cache, and what a store path is worth
+
+`cache.sextant.bb-open.com` is reachable from the internet and answers
+`WantMassQuery: 1`. That is normal for a Nix cache and it is a deliberate
+choice, so it is recorded here rather than left to be discovered.
+
+**What an attacker gets from a store path.** Not much, and this was measured
+rather than argued. A full `test15` system closure is 2047 paths. Grepping all
+of them for the fleet's own identifiers - bind DN, LDAP search base, console
+URL, directory suffix, machine-account names - returns exactly ONE hit: the
+NetBird management hostname, in a wrapper script. No credential, no bind DN, no
+search base, no token.
+
+That is the escrow design paying off rather than luck. Anything that would hurt
+is resolved at RUNTIME from `/run/agenix/...`, so it is never an input to a
+derivation and never enters the store. The `.age` files that do live in the
+store are encrypted to device host keys.
+
+**What still holds the risk.**
+
+- Store paths are unguessable (32 characters of base32) and the overlay that
+  produces them is private, so the hashes cannot be derived by an outsider.
+  Enumeration is not the exposure; a LEAKED path is.
+- A leaked path yields one infrastructure hostname and a package manifest -
+  which versions of which software a fleet runs. That is version disclosure,
+  the same category as the `/metrics` finding, and it is the reason to keep
+  this bounded rather than shrug at it.
+
+**Mitigations, in the order they are worth doing.**
+
+1. Keep secrets out of derivations. Already the rule; the measurement above is
+   the check that it is still true, and it should be re-run when a new
+   integration lands. An integration that bakes a URL or a DN into the store
+   moves it from "runtime secret" to "published".
+2. Put the cache behind the mesh, or behind the credential devices already
+   carry. Nix substituters support netrc auth, and every device already holds a
+   per-device credential, so this needs no new secret. This is the real
+   remaining mitigation and it is not done.
+3. Do not treat the signing key as access control. It proves integrity, not
+   confidentiality: a signature stops somebody serving you a tampered closure,
+   it does not stop them reading yours.
+
+**Residual.** Accepted for now at the level of "one hostname and a package
+list, to whoever already has a store path". Revisit before a customer fleet
+runs on it, because their manifest is their business and not ours to publish.
+
 ## Residual-risk register
 
 | Id | Risk | Current mitigation | Close with |
