@@ -6,6 +6,7 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/elevation"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/observed"
@@ -25,6 +26,20 @@ type ChangeStore interface {
 type RolloutStore interface {
 	Get(ctx context.Context) (*rollout.State, error)
 	Put(ctx context.Context, s *rollout.State) error
+}
+
+// ElevationStore holds the elevation requests a device raised and an operator
+// answers (design: internal/domain/elevation). Short-lived by nature - a
+// request is dead five minutes after it is created - so an implementation is
+// expected to prune rather than accumulate.
+//
+// Pending is scoped to a tenant rather than a device: the console shows one
+// queue, and an operator who has to guess which device to look at will not
+// answer in time.
+type ElevationStore interface {
+	Put(ctx context.Context, tenant string, r elevation.Request) error
+	Get(ctx context.Context, tenant, id string) (elevation.Request, bool, error)
+	Pending(ctx context.Context, tenant string) ([]elevation.Request, error)
 }
 
 // UpstreamStore remembers the last core-repo revision the upstream watcher
