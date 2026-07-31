@@ -53,6 +53,10 @@ type CheckinAPI struct {
 	diag *app.DiagnosticsService
 	// now is the clock, injectable for tests. nil defaults to time.Now.
 	now func() time.Time
+	// elevation is the request queue (#27); nil leaves the endpoints
+	// answering 503 rather than absent, so a device that asks learns the
+	// console cannot help rather than that the path is wrong.
+	elevation *app.ElevationService
 	// log is optional; logger() falls back to slog.Default().
 	log *slog.Logger
 }
@@ -120,15 +124,11 @@ func (c *CheckinAPI) WithDiagnostics(diag *app.DiagnosticsService) *CheckinAPI {
 // storage (journals can contain personal data) and the console enforces
 // retention on every read.
 func (c *CheckinAPI) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
-	tag := r.PathValue("tag")
-	bearer := bearerToken(r)
-	if bearer == "" || !c.authorized(r, bearer, tag) {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="sextant-checkin"`)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if c.retired != nil && c.retired(tag) {
-		http.Error(w, "device is retired", http.StatusGone)
+	// Same authorisation as every other per-device call, through one helper
+	// so the two cannot drift into disagreeing about what a retired device
+	// may do.
+	tag, ok := c.deviceFromRequest(w, r)
+	if !ok {
 		return
 	}
 	if c.diag == nil || !c.diag.Enabled() {
@@ -176,6 +176,8 @@ func (c *CheckinAPI) WithProvision(provision func(ctx context.Context, c observe
 func (c *CheckinAPI) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/checkin", c.handleCheckin)
 	mux.HandleFunc("POST /api/device/{tag}/diagnostics", c.handleDiagnostics)
+	mux.HandleFunc("POST /api/device/{tag}/elevation", c.handleElevationRaise)
+	mux.HandleFunc("GET /api/device/{tag}/elevation/{id}", c.handleElevationPoll)
 }
 
 // checkinBody is the device report: a check-in plus an optional raw
