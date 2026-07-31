@@ -12,7 +12,7 @@ anders niet toe te wijzen: een device dat niet convergeert terwijl SSSD,
 NetBird en Wazuh tegelijk aan staan levert vier verdachten en geen dader. Dat
 is precies hoe e2e-2 tijd verloor.
 
-Versie onder test: **console 0.73.0** (prod), overlay `bb-open` main, core
+Versie onder test: **console 0.74.0** (prod), overlay `bb-open` main, core
 DAWO-NixOS zoals gepind in de ring.
 
 ## Hoe je dit invult
@@ -84,6 +84,7 @@ bug dan een knop die er niet staat, en de tweede is de bedoeling.
 | A3.1 | Station opstarten, device aanmelden | station zichtbaar in `/station`, job claimbaar |
 | A3.2 | Imagingjob starten | job krijgt status "claimed" |
 | A3.3 | **Revisie in de job controleren** | de job draagt de **ring-pin**, niet main — dit is #16 |
+| A3.3b | Rev in de claim-respons van het station | `rev` staat erin en is gelijk aan de ring-pin — de plek waar hij tot 0.74.0 wegviel |
 | A3.4 | Installatie afronden | device boot, geen handmatige stap |
 | A3.5 | Eerste check-in | device meldt zich met de ring-revisie |
 | A3.6 | Host-key als age-recipient | secrets ontsleutelen op het device zonder handwerk |
