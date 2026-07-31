@@ -129,17 +129,12 @@ See CONTRIBUTING.md for the mechanics.
 | | |
 |---|---|
 | **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical. Published here as Dutch government open source. |
-| **Codeberg** | Public mirror, and where participation happens: issues and pull requests here. |
+| **github.com/BB-Open-Solutions/Sextant** | Public mirror, and where participation happens: issues and pull requests here. Opens at 1.0.0. |
 
-The canonical repository is not open to the public yet, which is why the
-Codeberg mirror exists. Codeberg runs Forgejo - the same software as our own
-forge - so a contribution travels back without anyone translating between
-tools, and it is EU-hosted and run by a non-profit. That is the same argument
-this product makes to the organisations that buy it, so it would be odd to
-make it anywhere else.
-
-A read-only GitHub mirror may follow, purely because that is where many people
-still look first. If it appears, it is a pointer and nothing more.
+The canonical repository is not open to the public yet, which is why the mirror
+exists at all. GitHub is where the people who would contribute to this already
+are, and a sovereignty argument that nobody can find helps nobody - the code
+and its licence are what make this open, not the address it is served from.
 
 ## Status: Beta
 
