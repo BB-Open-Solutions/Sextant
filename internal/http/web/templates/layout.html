@@ -26,7 +26,10 @@
         </span>
         <span class="text-headline-sm font-bold text-ink">Sextant</span>
       </a>
-      <p class="text-label-md text-text-tertiary">{{.L.T "layout.tagline"}}</p>
+      {{/* normal-case and tracking-normal are explicit: the wordmark reads as
+           a product name, not as a label, and label styling elsewhere in the
+           sheet capitalises and spaces it out. */}}
+      <p class="text-body-sm font-normal normal-case tracking-normal text-text-tertiary">{{.L.T "layout.tagline"}}</p>
     </div>
 
     <!-- Primary action: enroll a device (the "start something new" CTA). -->

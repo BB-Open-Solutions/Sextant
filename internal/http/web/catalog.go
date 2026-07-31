@@ -505,7 +505,7 @@ var catalog = map[string]map[string]string{
 		"layout.section_fleet":                 "Fleet",
 		"layout.section_governance":            "Governance",
 		"layout.section_shipping":              "Updates",
-		"layout.tagline":                       "Fleet Control Plane",
+		"layout.tagline":                       "Fleet control plane",
 		"layout.unread_suffix":                 "unread",
 		"nav.access":                           "Access",
 		"nav.audit":                            "Audit",
