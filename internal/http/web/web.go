@@ -46,6 +46,9 @@ type Services struct {
 	Mail         *app.MailService
 	Users        ports.UserDirectory
 	Compliance   *app.ComplianceService
+	// Elevation is the queue of users asking an operator for permission to do
+	// one privileged thing on their own machine (#27); nil hides the page.
+	Elevation *app.ElevationService
 }
 
 // Server renders the console.
@@ -101,7 +104,7 @@ func (s *Server) SetSyntaxChecker(c SyntaxChecker) {
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
 	funcs := templateFuncs()
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "org_updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error", "rollout_confirm", "merge_confirm", "assurance_confirm"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "elevation", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "org_updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error", "rollout_confirm", "merge_confirm", "assurance_confirm"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -141,6 +144,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/policies", s.policies)
 	get("/policies.csv", s.policiesCSV)
 	get("/compliance", s.compliancePage)
+	get("/elevation", s.elevationPage)
+	post("/elevation/{id}", s.elevationDecide)
 	get("/changes", s.changesPage)
 	// A change's home is the Updates board; old notification links and
 	// bookmarks to /changes/<id> land there instead of a 404.

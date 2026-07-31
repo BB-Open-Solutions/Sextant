@@ -18,7 +18,7 @@ func TestPagesRenderToCompletion(t *testing.T) {
 	paths := []string{
 		"/", "/devices", "/devices/lt-1", "/groups", "/settings",
 		"/settings?scope=group:pilot", "/settings?scope=device:lt-1",
-		"/policies", "/compliance", "/changes", "/updates", "/org/updates",
+		"/policies", "/compliance", "/elevation", "/changes", "/updates", "/org/updates",
 		"/updates/rollout", "/access", "/audit", "/profile", "/station",
 		"/enroll", "/integrations", "/integrations?scope=group:pilot",
 		"/overlays", "/secrets", "/service-accounts", "/notifications",

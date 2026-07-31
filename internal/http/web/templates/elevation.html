@@ -1,0 +1,57 @@
+{{define "content"}}
+<div class="mb-8">
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">pan_tool</span>{{.L.T "nav.elevation"}}</h1>
+  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "page.elevation.subtitle"}}</p>
+</div>
+
+{{if .Rows}}
+{{/* The page refreshes itself. Somebody is standing in front of a dialog for
+     the whole window, and an operator who has to remember to reload is an
+     operator who answers requests that already expired. */}}
+<meta http-equiv="refresh" content="10">
+<div class="flex flex-col gap-3">
+  {{range .Rows}}
+  <div class="rounded-lg border {{if .Expiring}}border-status-warn/50 bg-status-warn/5{{else}}border-border-hairline bg-canvas{{end}} p-4 shadow-sm">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="font-medium text-ink">{{.User}}</span>
+          <span class="text-text-tertiary">{{$.L.T "page.elevation.on"}}</span>
+          <a href="/devices/{{.Tag}}" class="font-mono text-code-md text-secondary">{{.Tag}}</a>
+        </div>
+        {{with .Reason}}
+        <p class="mb-0 mt-2 text-body-md text-ink">{{.}}</p>
+        {{else}}
+        <p class="mb-0 mt-2 text-body-md text-text-tertiary">{{$.L.T "page.elevation.no_reason"}}</p>
+        {{end}}
+        {{with .Action}}
+        {{/* Shown small and labelled as reported, because it is: PAM is not
+             told the polkit action id, so this string comes from the device's
+             own session. Judge the request on who is asking and where. */}}
+        <p class="mb-0 mt-1 text-label-xs-caps text-text-tertiary">
+          {{$.L.T "page.elevation.reported_action"}} <code class="normal-case break-all">{{.}}</code>
+        </p>
+        {{end}}
+      </div>
+      <div class="flex shrink-0 items-center gap-3">
+        <div class="text-right text-label-md">
+          <div class="text-text-tertiary">{{$.L.T "page.elevation.waiting"}} {{.Waited}}</div>
+          <div class="{{if .Expiring}}text-status-warn font-medium{{else}}text-text-tertiary{{end}}">{{$.L.T "page.elevation.expires_in"}} {{.Left}}</div>
+        </div>
+        <form method="post" action="/elevation/{{.ID}}" class="!m-0 !flex-row items-center gap-2">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <button type="submit" name="decision" value="deny" class="btn quiet !py-1.5">{{$.L.T "page.elevation.deny"}}</button>
+          <button type="submit" name="decision" value="approve" class="!py-1.5">{{$.L.T "page.elevation.approve"}}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="rounded-lg border border-dashed border-border-soft bg-canvas p-8 text-center">
+  <p class="mb-1 text-body-md text-ink">{{.L.T "page.elevation.empty"}}</p>
+  <p class="mb-0 text-body-sm text-text-tertiary">{{.L.T "page.elevation.empty_hint"}} {{.WindowMinutes}} {{.L.T "page.elevation.minutes"}}.</p>
+</div>
+{{end}}
+{{end}}

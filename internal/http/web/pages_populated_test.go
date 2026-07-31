@@ -152,7 +152,7 @@ func TestPagesRenderWithAPopulatedFleet(t *testing.T) {
 	paths := []string{
 		"/", "/devices", "/devices/lt-1", "/devices/lt-2", "/groups",
 		"/settings", "/settings?scope=group:laptops", "/settings?scope=device:lt-1",
-		"/policies", "/compliance", "/changes", "/updates", "/org/updates",
+		"/policies", "/compliance", "/elevation", "/changes", "/updates", "/org/updates",
 		"/updates/rollout", "/access", "/audit", "/profile", "/station",
 		"/enroll", "/integrations", "/integrations?scope=group:laptops",
 		"/overlays", "/secrets", "/service-accounts", "/notifications",

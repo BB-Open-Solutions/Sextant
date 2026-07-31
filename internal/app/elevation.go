@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/elevation"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
@@ -133,3 +134,8 @@ func trimTo(s string, n int) string {
 	}
 	return s
 }
+
+// Now is the service's clock, so a page can render "waited 40s" against the
+// same instant the queue was filtered with. A page reading the wall clock
+// instead could show a request as still open that Pending had already dropped.
+func (s *ElevationService) Now() time.Time { return s.clock.Now() }

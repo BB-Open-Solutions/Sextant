@@ -166,7 +166,17 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 	// next to shipping a broken page as success - that hid a real render
 	// bug on the device page for weeks.
 	var buf bytes.Buffer
-	if err := s.tmpl[name].ExecuteTemplate(&buf, "layout", data); err != nil {
+	// A page whose template was never registered is a programming mistake, but
+	// it must not take the process down with a nil dereference: the panic
+	// looks like a runtime fault and sends whoever debugs it hunting through
+	// the handler instead of the one-line list it is actually missing from.
+	t := s.tmpl[name]
+	if t == nil {
+		s.log.Error("no such template", "page", name)
+		http.Error(w, "this page is not available", http.StatusInternalServerError)
+		return
+	}
+	if err := t.ExecuteTemplate(&buf, "layout", data); err != nil {
 		s.log.Error("template render failed", "page", name, "err", err)
 		http.Error(w, "page failed to render; this is a bug - check the console logs", http.StatusInternalServerError)
 		return
