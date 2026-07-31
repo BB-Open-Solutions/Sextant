@@ -82,22 +82,28 @@ func TestSortDeviceRows(t *testing.T) {
 
 func TestDeviceConfigState(t *testing.T) {
 	cases := []struct {
-		name              string
-		revision, target  string
-		online, hasStatus bool
-		want              string
+		name                           string
+		revision, target               string
+		online, hasStatus, coreChanged bool
+		want                           string
 	}{
-		{"never seen", "", "", false, false, ""},
-		{"status without a revision", "", "abc", false, true, ""},
-		{"on its pin", "abc", "abc", true, true, configCurrent},
-		{"on its pin, offline", "abc", "abc", false, true, configCurrent},
-		{"follows HEAD, nothing says it is behind", "abc", "", true, true, configCurrent},
-		{"behind and checking in", "abc", "def", true, true, configUpdating},
-		{"behind and silent", "abc", "def", false, true, configPending},
+		{"never seen", "", "", false, false, false, ""},
+		{"status without a revision", "", "abc", false, true, false, ""},
+		{"on its pin", "abc", "abc", true, true, false, configCurrent},
+		{"on its pin, offline", "abc", "abc", false, true, false, configCurrent},
+		{"follows HEAD, nothing says it is behind", "abc", "", true, true, false, configCurrent},
+		// The distinction this vocabulary exists for. Same core means settings
+		// are moving, not the system; calling that an update teaches an
+		// operator to read every lag as a system change and then to ignore the
+		// ones that are.
+		{"behind on the core, checking in", "abc", "def", true, true, true, configUpdating},
+		{"behind on the core, silent", "abc", "def", false, true, true, configPending},
+		{"behind on settings only, checking in", "abc", "def", true, true, false, configApplying},
+		{"behind on settings only, silent", "abc", "def", false, true, false, configSettingsDue},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := deviceConfigState(c.revision, c.target, c.online, c.hasStatus); got != c.want {
+			if got := deviceConfigState(c.revision, c.target, c.online, c.hasStatus, c.coreChanged); got != c.want {
 				t.Errorf("got %q, want %q", got, c.want)
 			}
 		})

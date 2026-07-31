@@ -36,7 +36,8 @@ func (s *Server) deviceRows(ctx context.Context, f *fleet.Fleet) []deviceRow {
 		rw := deviceRow{Tag: tag, Class: d.Class, Hardware: d.Hardware,
 			AssignedUser: d.AssignedUser, Groups: d.Groups,
 			HasStatus: has, Online: st.Online, Revision: st.Revision}
-		rw.Config = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, has)
+		rw.Config = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, has,
+			s.coreChanged(ctx, st.Revision, app.TargetRevision(f, d)))
 		if has && st.Usage.Reported() {
 			rw.Reported = true
 			rw.CPU = st.Usage.CPUPct
@@ -193,23 +194,41 @@ const (
 	configCurrent  = "current"
 	configUpdating = "updating"
 	configPending  = "pending"
+	// A device whose target pins the SAME DAWO core is not taking an update,
+	// it is taking settings. Saying "update pending" there is how an operator
+	// comes to treat every lag as a system change and stops reading either.
+	configApplying    = "applying"
+	configSettingsDue = "settings-pending"
 )
 
 // deviceConfigState derives that chip. A device on its pin is current, and so
 // is one that follows HEAD (no pin: nothing says it is behind). A behind device
-// that is checking in is updating; one that is not is waiting for its next
+// that is checking in is moving; one that is not is waiting for its next
 // check-in. A device that never reported has no state to show.
-func deviceConfigState(revision, target string, online, hasStatus bool) string {
+//
+// coreChanged separates the two kinds of lag, which is the whole point of this
+// vocabulary. If the target pins the same DAWO core the device already runs,
+// nothing about the system is changing - only settings are - and calling that
+// an "update" trains an operator to read every lag as a system change and then
+// to ignore the ones that are. Unknown (a revision the repo cannot resolve)
+// counts as changed: overstating is the safe direction here.
+func deviceConfigState(revision, target string, online, hasStatus, coreChanged bool) string {
 	if !hasStatus || revision == "" {
 		return ""
 	}
 	if target == "" || revision == target {
 		return configCurrent
 	}
-	if online {
+	switch {
+	case online && coreChanged:
 		return configUpdating
+	case online:
+		return configApplying
+	case coreChanged:
+		return configPending
+	default:
+		return configSettingsDue
 	}
-	return configPending
 }
 
 // fleetOnTarget reports whether every judgeable device runs its target pin -
@@ -238,7 +257,8 @@ func (s *Server) fleetOnTarget(ctx context.Context, f *fleet.Fleet) bool {
 		if !has {
 			continue
 		}
-		if deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true) != configCurrent {
+		if deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true,
+			s.coreChanged(ctx, st.Revision, app.TargetRevision(f, d))) != configCurrent {
 			return false
 		}
 		judged++
@@ -427,7 +447,8 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 			// Same version chip as the device list, but this is the page an
 			// operator opens to dig: the release number and the full revision
 			// stay on screen next to it rather than in a hover title.
-			data["Config"] = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true)
+			data["Config"] = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true,
+				s.coreChanged(r.Context(), st.Revision, app.TargetRevision(f, d)))
 			if st.Revision != "" {
 				data["Release"] = s.svc.Config.ReleaseNumber(r.Context(), st.Revision)
 			}
@@ -519,4 +540,21 @@ func (s *Server) postDeviceSetting(w http.ResponseWriter, r *http.Request, v vie
 	}
 	http.Redirect(w, r, "/devices/"+tag, http.StatusSeeOther)
 	return nil
+}
+
+// coreChanged reports whether moving a device from what it runs to what it
+// should run swaps the DAWO core underneath it. Unknown counts as changed:
+// a revision the repo cannot resolve might be anything, and overstating the
+// change is the safe direction - the cost is a device labelled as updating
+// when it was only taking settings, not the reverse.
+func (s *Server) coreChanged(ctx context.Context, deployed, target string) bool {
+	if deployed == "" || target == "" || deployed == target {
+		return false
+	}
+	from, okFrom := s.svc.Config.CoreVersionAt(ctx, deployed)
+	to, okTo := s.svc.Config.CoreVersionAt(ctx, target)
+	if !okFrom || !okTo {
+		return true
+	}
+	return from.Rev != to.Rev
 }
