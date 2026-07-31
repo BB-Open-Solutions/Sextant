@@ -275,6 +275,31 @@ journalctl -f -u polkit
 Dat noemt het actie-id dat geweigerd wordt, zodat we niet hoeven te gissen
 welk recht ontbreekt.
 
+## A16. Verzoek om verhoogde rechten
+
+Log in als **`bbuijs`**. Zet een recht dat op `off` staat (bijvoorbeeld
+`firmware`) even aan als testdoel, of gebruik een actie die nog om een
+beheerder vraagt.
+
+| # | Actie | Bewijs |
+|---|---|---|
+| A16.1 | Actie uitvoeren die om een beheerder vraagt | dialoog verschijnt |
+| A16.2 | Kijk in de console op `/elevation` | verzoek staat er, met gebruiker, toestel en de wachttijd |
+| A16.3 | Goedkeuren | dialoog op de laptop gaat door, **zonder** dat je een wachtwoord typte |
+| A16.4 | Tweede verzoek, nu **weigeren** | dialoog valt terug op het wachtwoordveld |
+| A16.5 | Derde verzoek, niets doen | na vijf minuten verlopen; verdwijnt uit de wachtrij |
+| A16.6 | Verzoek doen met de console onbereikbaar | valt terug op het wachtwoordpad; dialoog blijft **niet** hangen |
+| A16.7 | Gemelde actie op de kaart | staat er met het label "gemeld" — context, geen bewijs |
+
+A16.6 is de belangrijkste. De hele constructie is `sufficient` en additief:
+faalt hij, dan hoort het dialoog zich te gedragen zoals vóórdat deze functie
+bestond. Blijft hij hangen, dan is dat erger dan een weigering — dan kun je
+niet eens meer een wachtwoord intypen.
+
+A16.4 hoort óók door te vallen naar het wachtwoordveld. Een weigering door de
+operator sluit de gebruiker niet buiten; het zegt alleen dat er langs deze weg
+geen goedkeuring komt.
+
 ---
 
 # Run B — met integraties
