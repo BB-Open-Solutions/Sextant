@@ -301,6 +301,30 @@ A16.4 hoort óók door te vallen naar het wachtwoordveld. Een weigering door de
 operator sluit de gebruiker niet buiten; het zegt alleen dat er langs deze weg
 geen goedkeuring komt.
 
+## A17. Release-cache achter een credential
+
+Volgorde is dwingend. Het netrc moet op het toestel staan **voordat** de server
+het token eist, want een toestel dat niet kan authenticeren faalt niet luid —
+het gaat z'n eigen closure bouwen. Dat is uren, en het ziet eruit als een trage
+uitrol in plaats van een toegangsprobleem.
+
+| # | Actie | Bewijs |
+|---|---|---|
+| A17.1 | Cache-token als agenix-secret `cache-token` uitrollen | `/run/agenix/cache-token` bestaat op het toestel |
+| A17.2 | Convergeren | `/run/sextant/netrc` bestaat, mode 0600, en `nix.conf` noemt `netrc-file` |
+| A17.3 | **Nu pas** `CACHE_TOKEN` in het app-secret zetten | gate-runner herstart |
+| A17.4 | Cache anoniem opvragen van buiten | **401** |
+| A17.5 | Cache opvragen mét het token | 200 |
+| A17.6 | Een wave uitrollen | device **substitueert**, bouwt niet zelf — kijk naar de duur, niet naar het eindresultaat |
+| A17.7 | Token op het toestel bewust fout maken | device valt terug op zelf bouwen; bewijs dat het faalgedrag traag is en niet luid |
+
+A17.6 is de rij die telt. Een geslaagde uitrol bewijst niets: een toestel dat
+zijn hele systeem zelf compileert komt óók aan. Meet de tijd, of kijk in
+`journalctl -u nix-daemon` of er gesubstitueerd is.
+
+A17.7 doe je bewust één keer, zodat je het faalbeeld herkent als het je later
+per ongeluk overkomt.
+
 ---
 
 # Run B — met integraties
