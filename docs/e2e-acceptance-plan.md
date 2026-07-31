@@ -12,7 +12,7 @@ anders niet toe te wijzen: een device dat niet convergeert terwijl SSSD,
 NetBird en Wazuh tegelijk aan staan levert vier verdachten en geen dader. Dat
 is precies hoe e2e-2 tijd verloor.
 
-Versie onder test: **console 0.72.0** (prod), overlay `bb-open` main, core
+Versie onder test: **console 0.73.0** (prod), overlay `bb-open` main, core
 DAWO-NixOS zoals gepind in de ring.
 
 ## Hoe je dit invult
@@ -310,13 +310,14 @@ uitrol in plaats van een toegangsprobleem.
 
 | # | Actie | Bewijs |
 |---|---|---|
-| A17.1 | Cache-token als agenix-secret `cache-token` uitrollen | `/run/agenix/cache-token` bestaat op het toestel |
-| A17.2 | Convergeren | `/run/sextant/netrc` bestaat, mode 0600, en `nix.conf` noemt `netrc-file` |
-| A17.3 | **Nu pas** `CACHE_TOKEN` in het app-secret zetten | gate-runner herstart |
-| A17.4 | Cache anoniem opvragen van buiten | **401** |
-| A17.5 | Cache opvragen mét het token | 200 |
+| A17.1 | `cacheAuth.enable` aan, convergeren | `/run/sextant/netrc` bestaat (mode 0600) en `nix.conf` noemt `netrc-file` |
+| A17.2 | Inhoud van het netrc | wachtwoord = het device-credential; géén nieuw geheim uitgerold |
+| A17.3 | Cache anoniem opvragen van buiten | **401** |
+| A17.4 | Cache opvragen met het device-credential | 200 |
+| A17.5 | Device intrekken in de console, opnieuw proberen | **401** binnen vijf minuten — dit is wat een gedeeld token niet kan |
 | A17.6 | Een wave uitrollen | device **substitueert**, bouwt niet zelf — kijk naar de duur, niet naar het eindresultaat |
-| A17.7 | Token op het toestel bewust fout maken | device valt terug op zelf bouwen; bewijs dat het faalgedrag traag is en niet luid |
+| A17.7 | Credential op het toestel bewust fout maken | device valt terug op zelf bouwen; bewijs dat het faalgedrag traag is en niet luid |
+| A17.8 | Console tijdelijk onbereikbaar maken voor de gate | cache weigert (**faalt dicht**), device bouwt zelf — niet: cache gaat open |
 
 A17.6 is de rij die telt. Een geslaagde uitrol bewijst niets: een toestel dat
 zijn hele systeem zelf compileert komt óók aan. Meet de tijd, of kijk in
