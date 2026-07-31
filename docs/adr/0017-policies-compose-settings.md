@@ -126,16 +126,17 @@ policy, and refusing the clear would strand every value that already exists. A
 scope that still carries one sees the row, read-only, saying where it belongs,
 rather than watching the key vanish and silently stop applying.
 
-Previously deferred (2026-07-30), and the reason is kept because it is the
-general rule: Making a control
-unreachable outside a policy is the strongest form of this ADR and the right
-end state for USB device control, posture and offline login validity. It is
-held back because it removes a path operators are currently using: the USB
-allowlist is set through the settings editor today, including in the
-acceptance run this was written alongside. Changing how a control is reached
-on the evening it is being tested would invalidate the test rather than the
-control. It should land immediately after, as its own change, with the
-migration for anyone who set those keys inline.
+It was deferred by one day, and the reason is worth keeping because it is the
+general rule rather than a detail of this change: it removes a path operators
+were using, and changing how a control is REACHED on the evening somebody is
+testing that control invalidates the test rather than the control. Land it
+immediately after, as its own change, with a migration for anyone who set the
+keys inline.
+
+Offline login validity is named in the consequences above and is NOT yet
+policy-only. It lives on the identity card rather than in the general editor,
+so the one-key-one-place rule already covers it; moving it is a smaller and
+separate step.
 
 ## Alternatives considered
 

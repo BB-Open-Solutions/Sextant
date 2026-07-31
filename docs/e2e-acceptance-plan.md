@@ -216,8 +216,9 @@ is het ergste dat dit product kan doen.
 
 | # | Actie | Bewijs |
 |---|---|---|
-| A13.1 | Allowlist vullen via de interface | regels landen in de config |
-| A13.2 | USB-control aanzetten | wat bij boot inzit blijft werken |
+| A13.1 | Allowlist vullen **via een policy** | regels landen in de config; de settings-editor biedt de sleutel niet meer aan |
+| A13.2 | USB-control aanzetten in dezelfde policy | wat bij boot inzit blijft werken |
+| A13.2b | Proberen de sleutel tóch via settings te zetten | geweigerd (403) — verbergen is geen handhaving |
 | A13.3 | Toegestaan apparaat inpluggen | werkt |
 | A13.4 | Niet-toegestaan apparaat inpluggen | geblokkeerd |
 | A13.5 | Toetsenbord uit de allowlist laten | **vooraf bedacht**: dit sluit je buiten — alleen testen met een tweede weg naar binnen |
