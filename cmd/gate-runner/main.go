@@ -101,16 +101,17 @@ func main() {
 	}
 
 	srv := &server{
-		log:       log,
-		workdir:   *workdir,
-		remote:    *remote,
-		branch:    *branch,
-		variants:  splitVariants(*variants),
-		gate:      &nix.EvalGate{Timeout: time.Duration(*evalSecs) * time.Second, ChunkSize: *chunkSize, Workers: *evalWorkers},
-		sem:       make(chan struct{}, *maxConcurrent),
-		token:     token,
-		builds:    map[string]*buildResponse{},
-		buildSlot: make(chan struct{}, 1),
+		log:        log,
+		workdir:    *workdir,
+		remote:     *remote,
+		branch:     *branch,
+		variants:   splitVariants(*variants),
+		gate:       &nix.EvalGate{Timeout: time.Duration(*evalSecs) * time.Second, ChunkSize: *chunkSize, Workers: *evalWorkers},
+		sem:        make(chan struct{}, *maxConcurrent),
+		token:      token,
+		cacheToken: os.Getenv("CACHE_TOKEN"),
+		builds:     map[string]*buildResponse{},
+		buildSlot:  make(chan struct{}, 1),
 	}
 	// The release cache is opt-in: both the directory and the signing key must
 	// be configured, or /build answers 501 and /cache stays dark. Half a
@@ -177,6 +178,19 @@ type server struct {
 	branch   string
 	variants []string
 	gate     *nix.EvalGate
+
+	// cacheToken guards the read-only binary cache. Empty leaves it open,
+	// which is the right default for a runner nobody exposes and for a local
+	// run, but a cache on a public host should set it: a signed path proves
+	// integrity, never confidentiality, so signatures stop somebody serving a
+	// tampered closure and do nothing about them reading yours. What leaks
+	// without it is one infrastructure hostname and a package manifest -
+	// which versions of what a fleet runs (threat model, control 8).
+	//
+	// Separate from the gate token on purpose. Every device needs this one and
+	// no device needs the gate's, and a single secret for both would put a
+	// build trigger in the hands of every laptop in the fleet.
+	cacheToken string
 
 	// token is the shared bearer secret required on every /validate call.
 	// Empty means the gate was started without one (only permitted for a
@@ -505,4 +519,21 @@ func parseErrorLine(out string) string {
 		return s
 	}
 	return "syntax error"
+}
+
+// cacheAuthorized checks the credential a substituting device presents.
+//
+// HTTP Basic rather than a bearer header, because that is what nix speaks: a
+// netrc entry becomes Basic auth and nothing else is on offer. The username is
+// ignored - netrc requires one, and a per-device name here would imply a
+// per-device secret this does not have.
+func (s *server) cacheAuthorized(r *http.Request) bool {
+	if s.cacheToken == "" {
+		return true
+	}
+	_, pass, ok := r.BasicAuth()
+	if !ok {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(pass), []byte(s.cacheToken)) == 1
 }

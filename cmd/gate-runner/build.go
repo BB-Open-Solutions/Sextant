@@ -146,12 +146,24 @@ func (s *server) buildAtRev(req buildRequest) error {
 
 // handleCache serves the binary cache read-only. Substitution needs exactly
 // two shapes - /nix-cache-info and flat files (narinfo, nar/*) - so directory
-// listings are refused. Reads are deliberately unauthenticated: nix fetches
-// over plain GET, and integrity comes from the signature on every path
-// (devices pin the org public key), not from transport secrecy.
+// listings are refused.
+//
+// Integrity comes from the signature on every path (devices pin the org public
+// key). CONFIDENTIALITY does not, and the two are easy to conflate: a
+// signature stops somebody serving a tampered closure, it does nothing about
+// them reading yours. So a cache on a public host should set CACHE_TOKEN and
+// require the credential below; empty leaves reads open, which is right for a
+// runner nobody exposes.
 func (s *server) handleCache(w http.ResponseWriter, r *http.Request) {
 	if s.cacheDir == "" {
 		http.NotFound(w, r)
+		return
+	}
+	if !s.cacheAuthorized(r) {
+		// Basic, because a nix substituter authenticates from netrc and speaks
+		// nothing else. The realm is what lands in the operator's netrc file.
+		w.Header().Set("WWW-Authenticate", `Basic realm="sextant-cache"`)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	if strings.HasSuffix(r.URL.Path, "/") {

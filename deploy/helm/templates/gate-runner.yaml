@@ -79,6 +79,18 @@ spec:
                   name: {{ .Values.secretName }}
                   key: GATE_TOKEN
                   optional: true
+            # Guards the read-only cache. Optional and separate from
+            # GATE_TOKEN: every device needs this one and no device needs the
+            # gate's, so one secret for both would hand a build trigger to
+            # every laptop. Absent leaves the cache open, which is what a
+            # cluster-internal runner wants and what a PUBLIC cache host does
+            # not - a path signature proves integrity, never confidentiality.
+            - name: CACHE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: CACHE_TOKEN
+                  optional: true
           ports:
             - { containerPort: 8090, name: http }
           startupProbe:
@@ -155,7 +167,7 @@ spec:
 {{- end }}
 {{- if and .Values.gateRunner.cache.keySecret .Values.gateRunner.cache.host }}
 ---
-# Public read endpoint for the signed release cache: devices substitute over
+# Read endpoint for the signed release cache: devices substitute over
 # plain HTTPS GET; integrity comes from the path signatures (devices pin the
 # org public key), not transport secrecy. Only /cache is exposed - /validate
 # and /build stay cluster-internal (and bearer-guarded regardless).

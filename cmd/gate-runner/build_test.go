@@ -190,3 +190,62 @@ func TestEnsureCacheInfoAndCacheServing(t *testing.T) {
 		t.Fatalf("dark cache = %d, want 404", got)
 	}
 }
+
+// A cache on a public host has to be closable. Integrity comes from path
+// signatures, confidentiality does not, and conflating the two is how a fleet
+// publishes its package manifest without meaning to (threat model, control 8).
+func TestCacheTokenGuardsReads(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "nix-cache-info"),
+		[]byte("StoreDir: /nix/store\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{cacheDir: dir, cacheToken: "s3cret"}
+	get := func(user, pass string, auth bool) int {
+		req := httptest.NewRequest(http.MethodGet, "/cache/nix-cache-info", nil)
+		if auth {
+			req.SetBasicAuth(user, pass)
+		}
+		rec := httptest.NewRecorder()
+		s.handleCache(rec, req)
+		return rec.Code
+	}
+
+	if got := get("", "", false); got != http.StatusUnauthorized {
+		t.Errorf("no credential = %d, want 401", got)
+	}
+	if got := get("device", "wrong", true); got != http.StatusUnauthorized {
+		t.Errorf("wrong password = %d, want 401", got)
+	}
+	// The username is ignored: netrc requires one, but a per-device name here
+	// would imply a per-device secret the runner does not have. Anything goes,
+	// as long as the password is right.
+	if got := get("anything", "s3cret", true); got != http.StatusOK {
+		t.Errorf("correct credential = %d, want 200", got)
+	}
+
+	// Empty token leaves reads open - the right default for a runner nobody
+	// exposes, and the behaviour every existing deployment already has.
+	s.cacheToken = ""
+	if got := get("", "", false); got != http.StatusOK {
+		t.Errorf("open cache = %d, want 200", got)
+	}
+}
+
+// The gate token and the cache token must stay separate secrets. Every device
+// needs the cache one and no device needs the gate's; sharing them would put a
+// build trigger in the hands of every laptop in the fleet.
+func TestCacheTokenIsNotTheGateToken(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "nix-cache-info"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{cacheDir: dir, cacheToken: "cache-secret", token: "gate-secret"}
+	req := httptest.NewRequest(http.MethodGet, "/cache/nix-cache-info", nil)
+	req.SetBasicAuth("d", "gate-secret")
+	rec := httptest.NewRecorder()
+	s.handleCache(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("the gate token opened the cache (%d); the two must not be interchangeable", rec.Code)
+	}
+}

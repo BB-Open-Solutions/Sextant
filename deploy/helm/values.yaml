@@ -76,6 +76,20 @@ gateRunner:
     # Optional dedicated host for the cache (Ingress + TLS via certManager);
     # empty serves /cache only inside the cluster.
     host: ""
+    # Naming a host PUBLISHES the cache. Set CACHE_TOKEN in the app secret to
+    # require a credential, because the tempting reasoning - "every path is
+    # signed, so exposing it is safe" - conflates two different things. A
+    # signature stops somebody serving you a tampered closure; it does nothing
+    # about them reading yours, and what they read is which versions of what
+    # your fleet runs (threat model, control 8).
+    #
+    # Devices authenticate from a netrc file: nix speaks Basic auth and nothing
+    # else, the token is the password, and the username is ignored.
+    #
+    # ORDER MATTERS. Put the netrc on the devices FIRST and set CACHE_TOKEN
+    # second. A device that cannot authenticate does not fail loudly - it
+    # falls back to building the closure itself, which is hours per machine
+    # and looks like a slow rollout rather than an access problem.
     # Node-disk cap for the ephemeral cache volume (emptyDir). The cache is
     # derived state: a pod restart clears it and builds republish on demand.
     sizeLimit: 20Gi
