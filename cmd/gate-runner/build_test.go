@@ -249,3 +249,81 @@ func TestCacheTokenIsNotTheGateToken(t *testing.T) {
 		t.Fatalf("the gate token opened the cache (%d); the two must not be interchangeable", rec.Code)
 	}
 }
+
+// The cache accepts a per-device credential verified with the console. That is
+// the shape that makes closing the cache practical: every device already holds
+// one, so there is nothing to distribute, and retiring a device takes its
+// access with it - which a shared token cannot do.
+func TestCacheAcceptsAVerifiedDeviceCredential(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "nix-cache-info"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var asked int
+	console := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked++
+		if r.Header.Get("Authorization") != "Bearer gate-secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		var body struct {
+			Credential string `json:"credential"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Credential != "device-cred" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		_, _ = w.Write([]byte(`{"tag":"lt-1"}`))
+	}))
+	defer console.Close()
+
+	s := &server{cacheDir: dir, token: "gate-secret",
+		consoleURL: console.URL, verified: map[string]time.Time{}}
+	get := func(pass string) int {
+		req := httptest.NewRequest(http.MethodGet, "/cache/nix-cache-info", nil)
+		req.SetBasicAuth("device", pass)
+		rec := httptest.NewRecorder()
+		s.handleCache(rec, req)
+		return rec.Code
+	}
+
+	if got := get("device-cred"); got != http.StatusOK {
+		t.Fatalf("a valid device credential = %d, want 200", got)
+	}
+	if got := get("not-a-credential"); got != http.StatusUnauthorized {
+		t.Errorf("an invalid credential = %d, want 401", got)
+	}
+
+	// A substitution fetches hundreds of paths. Asking the console once per
+	// file would turn every rollout into a denial-of-service against our own
+	// control plane, so a positive verdict is remembered.
+	before := asked
+	for i := 0; i < 20; i++ {
+		if got := get("device-cred"); got != http.StatusOK {
+			t.Fatalf("repeat fetch %d = %d", i, got)
+		}
+	}
+	if asked != before {
+		t.Errorf("the console was asked %d more times for a credential it had already accepted", asked-before)
+	}
+}
+
+// An unreachable console must not open the cache. Failing closed costs a slow,
+// visible local build; failing open costs a silent disclosure, and only one of
+// those gets noticed.
+func TestCacheFailsClosedWhenTheConsoleIsUnreachable(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "nix-cache-info"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{cacheDir: dir, token: "t",
+		consoleURL: "http://127.0.0.1:1", verified: map[string]time.Time{}}
+	req := httptest.NewRequest(http.MethodGet, "/cache/nix-cache-info", nil)
+	req.SetBasicAuth("device", "anything")
+	rec := httptest.NewRecorder()
+	s.handleCache(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unreachable console = %d, want 401", rec.Code)
+	}
+}

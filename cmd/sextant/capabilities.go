@@ -624,6 +624,12 @@ func (d *deps) apiCapability() capability.Capability {
 				DevCreds: d.devCreds, Prefs: d.prefs, Directory: d.dir,
 				Evidence: d.evidence},
 				d.authz, d.cfg.APIToken, d.cfg.Write, d.log).Routes(inner)
+			// Credential verification for the gate runner, so the binary cache
+			// can be closed without inventing a shared secret: a device
+			// presents the credential it already has. Guarded by the gate's own
+			// token - anything that turns a credential into a tag is an oracle,
+			// and an unguarded one can be asked all day.
+			api.NewDeviceAuth(d.devCreds, d.cfg.GateToken).Routes(inner)
 			// Rate-limit the whole machine surface: a leaked token or a client
 			// bug must not be able to hammer the API unbounded.
 			mux.Handle("/api/v1/", mw.RateLimit(rate.Limit(20), 40, d.cfg.TrustProxy)(inner))

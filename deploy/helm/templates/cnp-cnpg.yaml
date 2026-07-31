@@ -78,4 +78,15 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+    # The console, to verify a substituting device's credential before serving
+    # it from the cache. In-cluster and plain HTTP on purpose: it never leaves
+    # the pod network, and terminating TLS between two pods in the same
+    # namespace buys nothing a network policy does not already give.
+    - toEndpoints:
+        - matchLabels:
+            app: {{ .Release.Name }}
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
 {{- end }}

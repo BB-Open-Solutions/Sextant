@@ -85,6 +85,14 @@ spec:
             # every laptop. Absent leaves the cache open, which is what a
             # cluster-internal runner wants and what a PUBLIC cache host does
             # not - a path signature proves integrity, never confidentiality.
+            # Where to verify a substituting device's credential. With this
+            # set, a device authenticates to the cache with the credential it
+            # already holds - nothing to distribute, and revocable per machine.
+            # CACHE_TOKEN stays valid alongside it as the escape hatch for the
+            # imaging station, which substitutes before any device credential
+            # exists.
+            - name: SEXTANT_CONSOLE_URL
+              value: "http://{{ .Release.Name }}:80"
             - name: CACHE_TOKEN
               valueFrom:
                 secretKeyRef:

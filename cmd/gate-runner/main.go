@@ -17,8 +17,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -110,6 +113,8 @@ func main() {
 		sem:        make(chan struct{}, *maxConcurrent),
 		token:      token,
 		cacheToken: os.Getenv("CACHE_TOKEN"),
+		consoleURL: strings.TrimRight(os.Getenv("SEXTANT_CONSOLE_URL"), "/"),
+		verified:   map[string]time.Time{},
 		builds:     map[string]*buildResponse{},
 		buildSlot:  make(chan struct{}, 1),
 	}
@@ -191,6 +196,18 @@ type server struct {
 	// no device needs the gate's, and a single secret for both would put a
 	// build trigger in the hands of every laptop in the fleet.
 	cacheToken string
+
+	// consoleURL, when set, verifies a substituting device's credential with
+	// the console instead of comparing a shared token. Better in the way that
+	// matters: the credential is per device and already on every machine, so
+	// there is no secret to distribute and retiring a device takes its cache
+	// access with it.
+	consoleURL string
+	// verified caches recent verdicts. A single substitution fetches hundreds
+	// of paths, and asking the console once per file would turn every rollout
+	// into a denial-of-service against our own control plane.
+	verified   map[string]time.Time
+	verifiedMu sync.Mutex
 
 	// token is the shared bearer secret required on every /validate call.
 	// Empty means the gate was started without one (only permitted for a
@@ -528,12 +545,77 @@ func parseErrorLine(out string) string {
 // ignored - netrc requires one, and a per-device name here would imply a
 // per-device secret this does not have.
 func (s *server) cacheAuthorized(r *http.Request) bool {
-	if s.cacheToken == "" {
+	if s.cacheToken == "" && s.consoleURL == "" {
 		return true
 	}
 	_, pass, ok := r.BasicAuth()
-	if !ok {
+	if !ok || pass == "" {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(pass), []byte(s.cacheToken)) == 1
+	// A shared token, when one is configured, stays valid: it is the escape
+	// hatch for a runner that cannot reach the console, and for the imaging
+	// station, which substitutes before any device credential exists.
+	if s.cacheToken != "" &&
+		subtle.ConstantTimeCompare([]byte(pass), []byte(s.cacheToken)) == 1 {
+		return true
+	}
+	return s.consoleURL != "" && s.deviceCredentialValid(r.Context(), pass)
+}
+
+// cacheVerifyTTL is how long a verdict is reused. Short enough that revoking a
+// device's credential takes effect within minutes, long enough that a rollout
+// does not hammer the console: one substitution fetches hundreds of paths.
+const cacheVerifyTTL = 5 * time.Minute
+
+// deviceCredentialValid asks the console whether this is a live device
+// credential, remembering the answer briefly.
+//
+// Only POSITIVE answers are cached. Caching a rejection would make a device
+// that has just been re-credentialled wait out the TTL for no reason, and the
+// cost of re-asking on failure is paid by whoever is presenting a bad
+// credential, which is the right person to make wait.
+func (s *server) deviceCredentialValid(ctx context.Context, cred string) bool {
+	sum := sha256.Sum256([]byte(cred))
+	key := hex.EncodeToString(sum[:])
+
+	s.verifiedMu.Lock()
+	until, ok := s.verified[key]
+	s.verifiedMu.Unlock()
+	if ok && time.Now().Before(until) {
+		return true
+	}
+
+	body, _ := json.Marshal(map[string]string{"credential": cred})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		s.consoleURL+"/api/v1/device-auth", bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Authorization", "Bearer "+s.token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	if err != nil {
+		// Fail CLOSED. An unreachable console must not open the cache: the
+		// device falls back to building locally, which is slow and visible,
+		// where opening up is fast and invisible.
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+
+	s.verifiedMu.Lock()
+	s.verified[key] = time.Now().Add(cacheVerifyTTL)
+	// Bounded: a stream of bogus credentials must not grow this map forever.
+	// Positives only ever come from real devices, so the cap is generous.
+	if len(s.verified) > 4096 {
+		for k, exp := range s.verified {
+			if time.Now().After(exp) {
+				delete(s.verified, k)
+			}
+		}
+	}
+	s.verifiedMu.Unlock()
+	return true
 }
