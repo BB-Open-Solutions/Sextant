@@ -149,40 +149,6 @@ recipients_hash="$(sha256sum <"$recipients_file" | cut -d' ' -f1)"
 note "recipients: $(wc -l <"$recipients_file") unique, of which $device_count device host keys"
 [ "$device_count" -gt 0 ] || note "WARNING: the console reported no device host keys - imaged devices may not be reporting them yet"
 
-# --- create a new secret, if asked ------------------------------------------
-
-# Deliberately after the recipient set is known and before the rekey loop, so
-# a new secret is born with exactly the recipients every other one has. The
-# plaintext arrives on stdin and is never written to the secrets directory:
-# a plaintext file that lives next to the ciphertext for even a moment is a
-# plaintext file somebody commits.
-if [ -n "${ADD_NAME:-}" ]; then
-  case "$ADD_NAME" in
-    *[!a-z0-9-]*|"") die "secret name must be lowercase letters, digits and dashes: $ADD_NAME" ;;
-  esac
-  target="$SECRETS_DIR/$ADD_NAME.age"
-  [ -e "$target" ] && die "$target already exists; remove it first if you mean to replace it"
-  [ -t 0 ] && die "no plaintext on stdin (pipe it in, e.g. head -c 32 /dev/urandom | base64 | ... --add $ADD_NAME)"
-  if [ "$DRY_RUN" -eq 1 ]; then
-    note "would create $ADD_NAME.age for $(wc -l <"$recipients_file") recipients"
-  else
-    cat >"$WORK/plain.new"
-    [ -s "$WORK/plain.new" ] || die "stdin was empty; refusing to create an empty secret"
-    add_args=()
-    while IFS= read -r r; do add_args+=(--recipient "$r"); done <"$recipients_file"
-    "$AGE" --encrypt "${add_args[@]}" --output "$WORK/new.add" "$WORK/plain.new"
-    # Same round trip the rekey path insists on: a secret nobody can open is
-    # worse than no secret, and it fails on a device rather than here.
-    "$AGE" --decrypt --identity "$IDENTITY" --output "$WORK/check.add" "$WORK/new.add" \
-      || die "the new secret is not readable with the admin identity; nothing written"
-    cmp -s "$WORK/plain.new" "$WORK/check.add" \
-      || die "round trip changed the contents; nothing written"
-    mv "$WORK/new.add" "$target"
-    chmod 0644 "$target" # ciphertext: it is committed to the overlay repo
-    note "created $ADD_NAME.age"
-  fi
-fi
-
 # --- select the files to rekey ----------------------------------------------
 
 STATE_FILE="$SECRETS_DIR/.rekey-state"
@@ -223,6 +189,45 @@ for f in "${todo[@]}"; do
     die "aborting with nothing rewritten - the admin identity must be a recipient of every secret"
   fi
 done
+
+# --- create a new secret, if asked ------------------------------------------
+
+# Deliberately after the recipient set is known and before the rekey loop, so
+# a new secret is born with exactly the recipients every other one has. The
+# plaintext arrives on stdin and is never written to the secrets directory:
+# a plaintext file that lives next to the ciphertext for even a moment is a
+# plaintext file somebody commits.
+if [ -n "${ADD_NAME:-}" ]; then
+  # Runs AFTER every existing secret decrypted, so the admin identity is
+  # PROVEN before anything is written. Creating a secret and then discovering
+  # the identity is wrong leaves an orphan behind - readable by whoever ran
+  # the command and nobody else - which is what happened the first time.
+  [ "$device_count" -gt 0 ] || die "the console reports no device host keys, so a new secret would reach no device. Record the host keys first (see --help); nothing written."
+  case "$ADD_NAME" in
+    *[!a-z0-9-]*|"") die "secret name must be lowercase letters, digits and dashes: $ADD_NAME" ;;
+  esac
+  target="$SECRETS_DIR/$ADD_NAME.age"
+  [ -e "$target" ] && die "$target already exists; remove it first if you mean to replace it"
+  [ -t 0 ] && die "no plaintext on stdin (pipe it in, e.g. head -c 32 /dev/urandom | base64 | ... --add $ADD_NAME)"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    note "would create $ADD_NAME.age for $(wc -l <"$recipients_file") recipients"
+  else
+    cat >"$WORK/plain.new"
+    [ -s "$WORK/plain.new" ] || die "stdin was empty; refusing to create an empty secret"
+    add_args=()
+    while IFS= read -r r; do add_args+=(--recipient "$r"); done <"$recipients_file"
+    "$AGE" --encrypt "${add_args[@]}" --output "$WORK/new.add" "$WORK/plain.new"
+    # Same round trip the rekey path insists on: a secret nobody can open is
+    # worse than no secret, and it fails on a device rather than here.
+    "$AGE" --decrypt --identity "$IDENTITY" --output "$WORK/check.add" "$WORK/new.add" \
+      || die "the new secret is not readable with the admin identity; nothing written"
+    cmp -s "$WORK/plain.new" "$WORK/check.add" \
+      || die "round trip changed the contents; nothing written"
+    mv "$WORK/new.add" "$target"
+    chmod 0644 "$target" # ciphertext: it is committed to the overlay repo
+    note "created $ADD_NAME.age"
+  fi
+fi
 
 # --- phase 2: re-encrypt and replace in place -------------------------------
 
