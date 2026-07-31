@@ -26,12 +26,13 @@ func (j *ImageJobStore) Upsert(ctx context.Context, tenant string, job imaging.J
 		status = imaging.Pending
 	}
 	_, err := j.s.pool.Exec(ctx, `
-		INSERT INTO image_jobs (tenant, station, mac, tag, hardware, status, message, progress, step, created, updated)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
+		INSERT INTO image_jobs (tenant, station, mac, tag, hardware, status, message, progress, step, rev, created, updated)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
 		ON CONFLICT (tenant, station, mac) DO UPDATE SET
 			tag=EXCLUDED.tag, hardware=EXCLUDED.hardware, status=EXCLUDED.status,
-			message=EXCLUDED.message, progress=EXCLUDED.progress, step=EXCLUDED.step, updated=EXCLUDED.updated`,
-		tenant, job.Station, job.MAC, job.Tag, job.Hardware, string(status), job.Message, job.Progress, job.Step, now)
+			message=EXCLUDED.message, progress=EXCLUDED.progress, step=EXCLUDED.step,
+			rev=EXCLUDED.rev, updated=EXCLUDED.updated`,
+		tenant, job.Station, job.MAC, job.Tag, job.Hardware, string(status), job.Message, job.Progress, job.Step, job.Rev, now)
 	if err != nil {
 		return fmt.Errorf("upsert image job %s: %w", job.MAC, err)
 	}
@@ -41,14 +42,14 @@ func (j *ImageJobStore) Upsert(ctx context.Context, tenant string, job imaging.J
 // ListByStation returns every job for a station, newest first.
 func (j *ImageJobStore) ListByStation(ctx context.Context, tenant, station string) ([]imaging.Job, error) {
 	return j.query(ctx, `
-		SELECT station, mac, tag, hardware, status, message, progress, step
+		SELECT station, mac, tag, hardware, status, message, progress, step, rev
 		FROM image_jobs WHERE tenant=$1 AND station=$2 ORDER BY updated DESC`, tenant, station)
 }
 
 // ListPending returns jobs a station still has work for: not yet terminal.
 func (j *ImageJobStore) ListPending(ctx context.Context, tenant, station string) ([]imaging.Job, error) {
 	return j.query(ctx, `
-		SELECT station, mac, tag, hardware, status, message, progress, step
+		SELECT station, mac, tag, hardware, status, message, progress, step, rev
 		FROM image_jobs WHERE tenant=$1 AND station=$2 AND status IN ('pending','imaging')
 		ORDER BY created`, tenant, station)
 }
@@ -63,7 +64,7 @@ func (j *ImageJobStore) query(ctx context.Context, sql, tenant, station string) 
 	for rows.Next() {
 		var job imaging.Job
 		var status string
-		if err := rows.Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step); err != nil {
+		if err := rows.Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step, &job.Rev); err != nil {
 			return nil, err
 		}
 		job.Status = imaging.Status(status)
@@ -77,9 +78,9 @@ func (j *ImageJobStore) Get(ctx context.Context, tenant, station, mac string) (i
 	var job imaging.Job
 	var status string
 	err := j.s.pool.QueryRow(ctx, `
-		SELECT station, mac, tag, hardware, status, message, progress, step
+		SELECT station, mac, tag, hardware, status, message, progress, step, rev
 		FROM image_jobs WHERE tenant=$1 AND station=$2 AND mac=$3`, tenant, station, mac).
-		Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step)
+		Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step, &job.Rev)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return imaging.Job{}, false, nil
@@ -95,10 +96,10 @@ func (j *ImageJobStore) GetActiveByTag(ctx context.Context, tenant, tag string) 
 	var job imaging.Job
 	var status string
 	err := j.s.pool.QueryRow(ctx, `
-		SELECT station, mac, tag, hardware, status, message, progress, step
+		SELECT station, mac, tag, hardware, status, message, progress, step, rev
 		FROM image_jobs WHERE tenant=$1 AND tag=$2 AND status NOT IN ('done','canceled')
 		ORDER BY updated DESC LIMIT 1`, tenant, tag).
-		Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step)
+		Scan(&job.Station, &job.MAC, &job.Tag, &job.Hardware, &status, &job.Message, &job.Progress, &job.Step, &job.Rev)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return imaging.Job{}, false, nil

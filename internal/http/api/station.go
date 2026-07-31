@@ -137,6 +137,16 @@ type jobView struct {
 	Tag      string `json:"tag"`
 	Hardware string `json:"hardware"`
 	Status   string `json:"status"`
+	// Rev is the overlay revision the station must install: the pin of the
+	// device's ring, not whatever main happens to be. Empty for a device in no
+	// ring, where the station's fallback to main is correct.
+	//
+	// It has to travel all the way: the field existed in the domain and the
+	// station already read it, but the store had no column and this view had no
+	// field, so a job was dispatched with a pin and arrived without one. A
+	// device imaged that way is born ahead of its own ring and cannot converge
+	// back - the exact failure #16 exists to prevent.
+	Rev string `json:"rev,omitempty"`
 	// Credential is the device's one-time agent secret, present only in a
 	// claim response so the station can bake it into the image. Never stored.
 	Credential string `json:"credential,omitempty"`
@@ -161,7 +171,7 @@ func (s *StationAPI) handleJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]jobView, 0, len(jobs))
 	for _, j := range jobs {
-		out = append(out, jobView{MAC: j.MAC, Tag: j.Tag, Hardware: j.Hardware, Status: string(j.Status)})
+		out = append(out, jobView{MAC: j.MAC, Tag: j.Tag, Hardware: j.Hardware, Status: string(j.Status), Rev: j.Rev})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -187,7 +197,7 @@ func (s *StationAPI) handleClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]jobView, 0, len(jobs))
 	for _, j := range jobs {
-		v := jobView{MAC: j.MAC, Tag: j.Tag, Hardware: j.Hardware, Status: string(imaging.Imaging)}
+		v := jobView{MAC: j.MAC, Tag: j.Tag, Hardware: j.Hardware, Status: string(imaging.Imaging), Rev: j.Rev}
 		if s.devCreds != nil {
 			secret, err := s.devCreds.Issue(r.Context(), j.Tag)
 			if err != nil {

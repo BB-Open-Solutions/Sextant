@@ -164,3 +164,60 @@ func TestTransitionStatusConcurrentReportsExactlyOneApplies(t *testing.T) {
 		t.Fatalf("final status = %+v %v, want installed", got, err)
 	}
 }
+
+// The revision has to survive the store. It did not: the domain carried a Rev,
+// the dispatcher set it and the station already read it, but there was no
+// column - so a job dispatched with a ring pin arrived without one and the
+// station fell back to main. A device imaged that way is born ahead of its own
+// ring and cannot converge back, which is the whole reason #16 exists.
+func TestImageJobKeepsTheRevisionItWasDispatchedWith(t *testing.T) {
+	s := openStore(t).ImageJobs()
+	ctx := context.Background()
+	const pin = "401aea47c7b57a08aa6a91570cc53884184bf3d6"
+
+	if err := s.Upsert(ctx, "t1", imaging.Job{
+		Station: "nuc-1", MAC: "aa:bb:cc:dd:ee:01", Tag: "lt-1",
+		Hardware: "hw", Status: imaging.Pending, Rev: pin,
+	}, t0); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok, err := s.Get(ctx, "t1", "nuc-1", "aa:bb:cc:dd:ee:01")
+	if err != nil || !ok {
+		t.Fatalf("get: ok=%v err=%v", ok, err)
+	}
+	if got.Rev != pin {
+		t.Errorf("Get lost the revision: %q, want %q", got.Rev, pin)
+	}
+
+	// The station reads its work through the pending list, so that path is the
+	// one that actually matters.
+	pending, err := s.ListPending(ctx, "t1", "nuc-1")
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("pending: %d jobs, err=%v", len(pending), err)
+	}
+	if pending[0].Rev != pin {
+		t.Errorf("ListPending lost the revision: %q, want %q", pending[0].Rev, pin)
+	}
+}
+
+// A device in no ring has no pin, and empty must stay empty rather than
+// becoming a sentinel: the station's fallback to main is correct there, and a
+// placeholder would send it looking for a revision that does not exist.
+func TestImageJobWithoutARingKeepsAnEmptyRevision(t *testing.T) {
+	s := openStore(t).ImageJobs()
+	ctx := context.Background()
+	if err := s.Upsert(ctx, "t1", imaging.Job{
+		Station: "nuc-1", MAC: "aa:bb:cc:dd:ee:02", Tag: "lt-2",
+		Hardware: "hw", Status: imaging.Pending,
+	}, t0); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := s.Get(ctx, "t1", "nuc-1", "aa:bb:cc:dd:ee:02")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Rev != "" {
+		t.Errorf("Rev = %q for a device in no ring, want empty", got.Rev)
+	}
+}

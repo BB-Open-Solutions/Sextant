@@ -1,0 +1,11 @@
+-- #16: an imaging job carries the revision the device's ring is pinned to.
+--
+-- The column was missing while the domain field, the dispatcher and the
+-- station-side consumer all existed - so the revision was set, dropped here,
+-- and the station fell back to main. A device imaged while its ring lagged was
+-- then born ahead of its own ring and could not converge back, which is the
+-- exact failure #16 was opened for.
+--
+-- Empty is meaningful and stays allowed: a device in no ring has no pin, and
+-- the station's fallback to main is correct for that case.
+ALTER TABLE image_jobs ADD COLUMN IF NOT EXISTS rev text NOT NULL DEFAULT '';
