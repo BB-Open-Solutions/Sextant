@@ -86,10 +86,16 @@ gateRunner:
     # Devices authenticate from a netrc file: nix speaks Basic auth and nothing
     # else, the token is the password, and the username is ignored.
     #
-    # ORDER MATTERS. Put the netrc on the devices FIRST and set CACHE_TOKEN
-    # second. A device that cannot authenticate does not fail loudly - it
-    # falls back to building the closure itself, which is hours per machine
-    # and looks like a slow rollout rather than an access problem.
+    # ORDER MATTERS, and requireAuth is the switch that enforces it. Roll the
+    # netrc out to every device FIRST (dawo.cacheAuth in the overlay), confirm
+    # they still substitute, and only then set this true. A device that cannot
+    # authenticate does not fail loudly - it falls back to building the closure
+    # itself, which is hours per machine and looks like a slow rollout rather
+    # than an access problem.
+    #
+    # Off by default for exactly that reason: flipping it is a decision about
+    # the whole fleet, not a side effect of upgrading the chart.
+    requireAuth: false
     # Node-disk cap for the ephemeral cache volume (emptyDir). The cache is
     # derived state: a pod restart clears it and builds republish on demand.
     sizeLimit: 20Gi
