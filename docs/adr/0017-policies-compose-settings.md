@@ -112,7 +112,22 @@ Done:
   so a condition can only require something the fleet actually measures, and a
   metric a device did not report is unknown rather than failed.
 
-Deliberately not done yet - **policy-only controls**. Making a control
+Done (2026-07-31) - **policy-only controls**. USB device control and posture
+are set through a policy and nowhere else. The general editor stops offering
+them, and a form post naming one is refused with a 403 rather than quietly
+ignored, because hiding a field is not enforcement.
+
+Two decisions inside that are worth recording. The USB switch and its allowlist
+move TOGETHER: enabling the control without the right allowlist is exactly how
+a machine locks its own user out, so splitting them across two pages would make
+that combination easier to create by accident, not harder. And clearing an
+inline value stays allowed - that is how somebody moves a control into a
+policy, and refusing the clear would strand every value that already exists. A
+scope that still carries one sees the row, read-only, saying where it belongs,
+rather than watching the key vanish and silently stop applying.
+
+Previously deferred (2026-07-30), and the reason is kept because it is the
+general rule: Making a control
 unreachable outside a policy is the strongest form of this ADR and the right
 end state for USB device control, posture and offline login validity. It is
 held back because it removes a path operators are currently using: the USB

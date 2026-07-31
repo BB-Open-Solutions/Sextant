@@ -34,6 +34,8 @@ const seedCatalog = `[
   {"name":"desktop","type":"string","description":"Desktop environment","default":"kde","label":"Bureaublad"},
   {"name":"apps.licenseRef","type":"string","description":"App license key","secret":true},
   {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true},
+  {"name":"usbDevices.enable","type":"boolean","description":"Block USB devices plugged in after boot","default":false,"riskClass":"high"},
+  {"name":"usbDevices.allowlist","type":"list of string","description":"USBGuard rules for devices that must keep working","default":[]},
   {"name":"timesync.enable","type":"boolean","description":"Time sync","default":false},
   {"name":"netbird.enable","type":"boolean","description":"Join the mesh","default":false},
   {"name":"netbird.managementUrl","type":"string","description":"Management server URL"},

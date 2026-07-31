@@ -55,6 +55,12 @@ type settingRow struct {
 	// thing worse than no input.
 	GovernedBy     []string
 	GovernedLocked bool
+	// PolicyOnly marks a control that may only be set through a policy
+	// (ADR 0017). Such a row appears here only when this scope still carries
+	// an inline value, and then read-only: the value is left applying and the
+	// row says where it belongs, rather than vanishing and silently ceasing
+	// to have an effect.
+	PolicyOnly bool
 }
 
 // imageTimePrefixes are the dotted namespaces whose options only take hold
@@ -204,8 +210,18 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 			if isIntegrationSetting(e.Name) {
 				continue
 			}
+			// Policy-only controls (ADR 0017) are not offered here. They are
+			// hidden rather than disabled UNLESS this scope already carries an
+			// inline value: silently dropping a key somebody set would stop it
+			// applying with nothing on screen saying so, which is a worse
+			// failure than the one this rule exists to prevent. An existing
+			// value is shown, read-only, with where it now belongs.
+			_, setHere := own[e.Name]
+			if isPolicyOnly(e.Name) && !setHere {
+				continue
+			}
 			row := settingRow{Entry: e, Enforced: locked[e.Name], Suggestions: textSuggestions[e.Name],
-				ImageTime: imageTimeKey(e.Name)}
+				ImageTime: imageTimeKey(e.Name), PolicyOnly: isPolicyOnly(e.Name)}
 			if g, ok := governed[e.Name]; ok {
 				row.GovernedBy, row.GovernedLocked = g.Names, g.Enforced
 				for i, n := range row.GovernedBy {
@@ -349,6 +365,15 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 		}
 		enf := r.FormValue("e:"+e.Name) != ""
 		curVal, curSet := own[e.Name]
+		// A policy-only control (ADR 0017) may not gain a value here. Clearing
+		// one IS allowed and is the point: that is how somebody moves it into
+		// a policy - set it there, remove it here - and refusing the clear
+		// would leave the inline value stranded forever.
+		if isPolicyOnly(e.Name) && strings.TrimSpace(firstOf(vals)) != "" {
+			if !curSet || renderValue(curVal) != strings.TrimSpace(firstOf(vals)) {
+				return &webForbidden{e.Name + " is set through a policy, not here"}
+			}
+		}
 		curStr := ""
 		if curSet {
 			curStr = renderValue(curVal)
@@ -529,4 +554,13 @@ func renderValue(v any) string {
 		return fmt.Sprintf("%v", v)
 	}
 	return string(b)
+}
+
+// firstOf is the first submitted value for a form key, or "" when the field
+// was present but empty.
+func firstOf(vals []string) string {
+	if len(vals) == 0 {
+		return ""
+	}
+	return vals[0]
 }
