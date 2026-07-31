@@ -12,7 +12,7 @@ anders niet toe te wijzen: een device dat niet convergeert terwijl SSSD,
 NetBird en Wazuh tegelijk aan staan levert vier verdachten en geen dader. Dat
 is precies hoe e2e-2 tijd verloor.
 
-Versie onder test: **console 0.69.0** (prod), overlay `bb-open` main, core
+Versie onder test: **console 0.72.0** (prod), overlay `bb-open` main, core
 DAWO-NixOS zoals gepind in de ring.
 
 ## Hoe je dit invult

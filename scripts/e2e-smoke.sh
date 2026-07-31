@@ -62,7 +62,7 @@ PAGES=(
   / /devices /groups /settings /policies /compliance /changes
   /updates /updates/rollout /org/updates /access /audit /profile
   /station /enroll /integrations /overlays /secrets /service-accounts
-  /notifications /org /mail
+  /notifications /org /mail /elevation
 )
 # /status is deliberately absent: it prints the exact build, so it now lives on
 # the private metrics listener alongside /metrics. Publicly it answers 404, and
@@ -89,7 +89,20 @@ else
   done
 fi
 
-# 3. The public API surface. No session needed, and worth its own check: the
+# 3. Endpoints that must NOT answer publicly. Checked positively rather than
+#    assumed: /metrics and /status both print the exact build, and a console
+#    that starts serving them again would do so silently.
+echo "== closed to the public"
+for p in /metrics /status; do
+  code=$(curl "${curl_args[@]}" -o /dev/null -w '%{http_code}' "$BASE$p")
+  case "$code" in
+    404|403) ok "$p is not public ($code)" ;;
+    200)     bad "$p answers 200 to the internet - it discloses the exact build" ;;
+    *)       none "$p: HTTP $code" ;;
+  esac
+done
+
+# 4. The public API surface. No session needed, and worth its own check: the
 #    OpenAPI document is what an integrator reads first.
 echo "== api"
 code=$(curl "${curl_args[@]}" -o /dev/null -w '%{http_code}' "$BASE/api/v1/openapi.json")
