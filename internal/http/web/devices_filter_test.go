@@ -120,3 +120,38 @@ func TestDeviceConfigState(t *testing.T) {
 		}
 	}
 }
+
+// The two verdicts answer different questions, and the asymmetry between them
+// is the point: a device can be up to date without being on spec (settings
+// lag), but never on spec while out of date - if the revision matches, the
+// core matches by construction. A display that let the second happen would be
+// claiming something impossible.
+func TestDeviceVerdictSeparatesSystemFromConfiguration(t *testing.T) {
+	cases := []struct {
+		name                           string
+		revision, target               string
+		online, hasStatus, coreChanged bool
+		wantKnown, wantUp, wantSpec    bool
+	}{
+		{"never reported", "", "", false, false, false, false, false, false},
+		{"on its pin", "abc", "abc", true, true, false, true, true, true},
+		{"follows HEAD", "abc", "", true, true, false, true, true, true},
+		{"settings lag only", "abc", "def", true, true, false, true, true, false},
+		{"core lag", "abc", "def", true, true, true, true, false, false},
+		{"core lag, silent", "abc", "def", false, true, true, true, false, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			v := judgeDevice(c.revision, c.target, c.online, c.hasStatus, c.coreChanged)
+			if v.Known != c.wantKnown || v.UpToDate != c.wantUp || v.OnSpec != c.wantSpec {
+				t.Errorf("got known=%v up=%v spec=%v, want %v/%v/%v",
+					v.Known, v.UpToDate, v.OnSpec, c.wantKnown, c.wantUp, c.wantSpec)
+			}
+			// The impossible combination, asserted everywhere rather than
+			// reasoned about once.
+			if v.OnSpec && !v.UpToDate {
+				t.Error("on spec while out of date: the revision matched but the core did not, which cannot happen")
+			}
+		})
+	}
+}

@@ -58,7 +58,17 @@
                  whether the device runs what its ring targets. Release and raw
                  revision (relCache-backed, deduped per page in devices_page.go)
                  stay in the hover title for forensics. */}}
-            {{if .Config}}<span class="tag{{if eq .Config "current"}} ok{{end}}" title="{{.Revision}}">{{if eq .Config "updating"}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{$.L.T (printf "devices.config_%s" .Config)}}</span>{{end}}
+            {{/* Two verdicts, not one chip. Up to date answers "is this the
+                 system we intend"; on spec answers "is this the configuration
+                 we wrote down". A device can be the first without the second,
+                 and squeezing both into one word is what made a settings
+                 change read as "update pending". */}}
+            {{if .Verdict.Known}}
+              <span class="inline-flex flex-wrap gap-1" title="{{.Revision}}">
+                <span class="tag{{if .Verdict.UpToDate}} ok{{end}}">{{if and (not .Verdict.UpToDate) .Verdict.Moving}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{if .Verdict.UpToDate}}{{$.L.T "devices.uptodate"}}{{else}}{{$.L.T "devices.outofdate"}}{{end}}</span>
+                <span class="tag{{if .Verdict.OnSpec}} ok{{end}}">{{if and (not .Verdict.OnSpec) .Verdict.Moving}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{if .Verdict.OnSpec}}{{$.L.T "devices.onspec"}}{{else}}{{$.L.T "devices.offspec"}}{{end}}</span>
+              </span>
+            {{end}}
           {{else}}<span class="muted">{{$.L.T "common.never_seen"}}</span>{{end}}
         </td>
         <td>

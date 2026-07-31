@@ -36,8 +36,9 @@ func (s *Server) deviceRows(ctx context.Context, f *fleet.Fleet) []deviceRow {
 		rw := deviceRow{Tag: tag, Class: d.Class, Hardware: d.Hardware,
 			AssignedUser: d.AssignedUser, Groups: d.Groups,
 			HasStatus: has, Online: st.Online, Revision: st.Revision}
-		rw.Config = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, has,
-			s.coreChanged(ctx, st.Revision, app.TargetRevision(f, d)))
+		changed := s.coreChanged(ctx, st.Revision, app.TargetRevision(f, d))
+		rw.Config = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, has, changed)
+		rw.Verdict = judgeDevice(st.Revision, app.TargetRevision(f, d), st.Online, has, changed)
 		if has && st.Usage.Reported() {
 			rw.Reported = true
 			rw.CPU = st.Usage.CPUPct
@@ -174,6 +175,9 @@ type deviceRow struct {
 	// are its used-percentages for the compact per-device resource column.
 	Reported       bool
 	CPU, RAM, Disk int
+	// Verdict is the pair the page renders: up to date (system) and on spec
+	// (configuration). Two questions, two answers.
+	Verdict deviceVerdict
 	// Config is the version chip: "current", "updating", "pending" or ""
 	// when the device never reported (see deviceConfigState).
 	Config string
@@ -201,34 +205,65 @@ const (
 	configSettingsDue = "settings-pending"
 )
 
-// deviceConfigState derives that chip. A device on its pin is current, and so
-// is one that follows HEAD (no pin: nothing says it is behind). A behind device
-// that is checking in is moving; one that is not is waiting for its next
-// check-in. A device that never reported has no state to show.
+// deviceVerdict is what a device row says about itself, on two independent
+// axes, because they answer two different questions and an operator needs
+// both. UpToDate asks whether the SYSTEM is the one we intend - the question
+// a security officer asks. OnSpec asks whether the CONFIGURATION is what we
+// wrote down - the question an auditor asks.
 //
-// coreChanged separates the two kinds of lag, which is the whole point of this
-// vocabulary. If the target pins the same DAWO core the device already runs,
-// nothing about the system is changing - only settings are - and calling that
-// an "update" trains an operator to read every lag as a system change and then
-// to ignore the ones that are. Unknown (a revision the repo cannot resolve)
-// counts as changed: overstating is the safe direction here.
+// They are not symmetrical, and the display should not pretend otherwise: a
+// device can be up to date and not on spec (settings lag behind), but not on
+// spec while out of date - if the revision matches, the core matches by
+// construction. Collapsing the pair into one chip is what made "update
+// pending" appear for a settings change.
+type deviceVerdict struct {
+	// Known is false for a device that never reported; nothing is claimed
+	// about a machine that has not spoken.
+	Known bool
+	// UpToDate: the target pins the same DAWO core the device runs.
+	UpToDate bool
+	// OnSpec: the device runs exactly the revision it is pinned to.
+	OnSpec bool
+	// Moving: it is checking in, so the gap is closing by itself. An operator
+	// reads a closing gap differently from a stuck one.
+	Moving bool
+}
+
+// deviceConfigState derives the legacy single chip, kept for the filter and
+// the CSV so both keep one word per device. The page shows the pair.
 func deviceConfigState(revision, target string, online, hasStatus, coreChanged bool) string {
-	if !hasStatus || revision == "" {
-		return ""
-	}
-	if target == "" || revision == target {
-		return configCurrent
-	}
+	v := judgeDevice(revision, target, online, hasStatus, coreChanged)
 	switch {
-	case online && coreChanged:
+	case !v.Known:
+		return ""
+	case v.OnSpec:
+		return configCurrent
+	case v.Moving && !v.UpToDate:
 		return configUpdating
-	case online:
+	case v.Moving:
 		return configApplying
-	case coreChanged:
+	case !v.UpToDate:
 		return configPending
 	default:
 		return configSettingsDue
 	}
+}
+
+// judgeDevice answers both questions at once. A device that follows HEAD (no
+// pin) is on spec: nothing says it is behind, so nothing may accuse it.
+//
+// coreChanged unknown counts as CHANGED upstream, so an unresolvable revision
+// reads as out of date. Overstating a system change is the safe direction;
+// the cost is a device that looks like it is updating when it was only taking
+// settings, and the reverse cost is an operator who misses a system change.
+func judgeDevice(revision, target string, online, hasStatus, coreChanged bool) deviceVerdict {
+	if !hasStatus || revision == "" {
+		return deviceVerdict{}
+	}
+	if target == "" || revision == target {
+		return deviceVerdict{Known: true, UpToDate: true, OnSpec: true}
+	}
+	return deviceVerdict{Known: true, UpToDate: !coreChanged, OnSpec: false, Moving: online}
 }
 
 // fleetOnTarget reports whether every judgeable device runs its target pin -
