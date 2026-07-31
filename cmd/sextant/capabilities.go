@@ -80,6 +80,7 @@ type deps struct {
 	mail           *app.MailService
 	users          ports.UserDirectory
 	compliance     *app.ComplianceService
+	elevation      *app.ElevationService
 	authz          api.Authz
 	cleanup        []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
@@ -254,6 +255,10 @@ func (d *deps) buildConfigPlane() error {
 		// Compliance/incidents read the observed plane, so they light up with
 		// Postgres alongside the inventory service.
 		d.compliance = app.NewComplianceService(d.svc, d.inv, clock)
+		// Elevation requests (#27) need durable storage for the same reason
+		// notifications do: a request that vanished on restart leaves somebody
+		// staring at a dialog that will never be answered.
+		d.elevation = app.NewElevationService(pg.Elevation(), clock, app.DefaultTenant)
 		// Deliver notifications by e-mail too: the seen-users directory (pg)
 		// resolves a recipient or audience to addresses; ConsoleURL makes the
 		// mail clickable. Delivery is best-effort and off the emitter's path.
@@ -492,6 +497,7 @@ func (d *deps) observedCapability() capability.Capability {
 				WithIntentKey(d.intentNonceKey).
 				WithDeviceSecrets(d.deviceSecrets).
 				WithDiagnostics(d.diagnostics).
+				WithElevation(d.elevation).
 				WithLog(d.log).Routes(inner)
 			// One limiter over both device-facing endpoints: the check-in
 			// beat and the diagnostics upload (design 0010) share auth and
@@ -591,7 +597,8 @@ func (d *deps) consoleCapability() capability.Capability {
 					DevCreds: d.devCreds, Directory: d.dir, Evidence: d.evidence,
 					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds,
 					DeviceSecrets: d.deviceSecrets, Diagnostics: d.diagnostics,
-					Notify: d.notify, Mail: d.mail, Users: d.users, Compliance: d.compliance},
+					Notify: d.notify, Mail: d.mail, Users: d.users, Compliance: d.compliance,
+					Elevation: d.elevation},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {
