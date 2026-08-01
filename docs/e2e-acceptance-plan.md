@@ -12,7 +12,7 @@ anders niet toe te wijzen: een device dat niet convergeert terwijl SSSD,
 NetBird en Wazuh tegelijk aan staan levert vier verdachten en geen dader. Dat
 is precies hoe e2e-2 tijd verloor.
 
-Versie onder test: **console 0.74.0** (prod), overlay `bb-open` main, core
+Versie onder test: **console 0.75.0** (prod), overlay `bb-open` main, core
 DAWO-NixOS zoals gepind in de ring.
 
 ## Hoe je dit invult
@@ -89,6 +89,7 @@ bug dan een knop die er niet staat, en de tweede is de bedoeling.
 | A3.5 | Eerste check-in | device meldt zich met de ring-revisie |
 | A3.6 | Host-key als age-recipient | secrets ontsleutelen op het device zonder handwerk |
 | A3.7 | Rustige boot | geen kerneldebug over de console |
+| A3.8 | Een install bewust laten mislukken | de melding in de console draagt de **staart van de installatielog**, niet alleen "nixos-anywhere failed" |
 
 A3.3 is de kern van de avond. Kijk in de job zelf, niet in het eindresultaat:
 als het device toevallig al op main stond is de fix niet bewezen.
