@@ -8,11 +8,25 @@ default: ci
 # people the wrong definition of green.
 ci: fmt-check vet lint test coverage-floor build nix-build catalog-check agent-ci
 
+# The logic layer must stay above 70%. Transport, ports, logging and the
+# capability wiring are excluded: they are glue, and counting them lets real
+# coverage rot behind a comfortable average.
+#
+# Written as a plain script rather than a one-liner. The previous version used
+# Make-style $$ escaping, which just does not do - the shell saw $$ and
+# expanded it to a PID, so the recipe printed "coverage: <pid>{total}%" and
+# always failed. Nothing noticed, because CI runs its own steps and never
+# called this.
 coverage-floor:
-    @bash -c 'grep -vE "internal/ports/|/cmd/|platform/logging|platform/capability" "$COV" > "$COV.logic"; \
-      total=$(go tool cover -func="$COV.logic" | tail -1 | awk "{print \$$3}" | tr -d "%"); \
-      echo "logic-layer coverage: $${total}%"; \
-      awk -v t="$$total" "BEGIN { exit (t < 70) ? 1 : 0 }" || (echo "coverage below 70% floor" && exit 1)'
+    #!/usr/bin/env bash
+    set -euo pipefail
+    grep -vE 'internal/ports/|/cmd/|platform/logging|platform/capability' "$COV" > "$COV.logic"
+    total=$(go tool cover -func="$COV.logic" | tail -1 | awk '{print $3}' | tr -d '%')
+    echo "logic-layer coverage: ${total}%"
+    awk -v t="$total" 'BEGIN { exit (t < 70) ? 1 : 0 }' || {
+      echo "coverage below the 70% floor" >&2
+      exit 1
+    }
 
 nix-build:
     nix build .#sextant
