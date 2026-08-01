@@ -60,7 +60,7 @@ func TestDistillGateError(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := distillGateError(c.in); got != c.want {
+			if got := ports.DistillGateError(c.in); got != c.want {
 				t.Fatalf("distillGateError = %q, want %q", got, c.want)
 			}
 		})

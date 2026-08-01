@@ -101,7 +101,10 @@ func (s *RolloutService) ensureRingBuilt(ctx context.Context, st *rollout.State,
 		return true
 	case ports.BuildFailed:
 		st.Status = rollout.Halted
-		st.Reason = "release build failed: " + bs.Detail
+		// Distilled, not raw. A nix failure is mostly "building '/nix/store/...'"
+		// repeated, with the cause on one line somewhere inside it; a halt whose
+		// reason is that noise tells an operator nothing they can act on.
+		st.Reason = "release build failed: " + ports.DistillGateError(bs.Detail)
 		return false
 	default: // building
 		if _, seen := st.BuildRequestedAt[st.Ring]; !seen {

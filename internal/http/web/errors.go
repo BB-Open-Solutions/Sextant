@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
@@ -70,7 +69,7 @@ func classifyActionError(err error) (status int, msg, detail string) {
 	case errors.As(err, &verr):
 		// The gate dumps a multi-line nix trace; show the actionable line and
 		// keep the full trace behind a "technical detail" fold.
-		return http.StatusUnprocessableEntity, distillGateError(verr.Detail), verr.Detail
+		return http.StatusUnprocessableEntity, ports.DistillGateError(verr.Detail), verr.Detail
 	case errors.Is(err, ports.ErrConflict):
 		return http.StatusConflict, "Another change landed first. Reload and try again.", ""
 	case errors.Is(err, ports.ErrUnavailable):
@@ -78,33 +77,4 @@ func classifyActionError(err error) (status int, msg, detail string) {
 	default:
 		return http.StatusBadRequest, err.Error(), ""
 	}
-}
-
-// distillGateError pulls the actionable line out of a nix gate rejection. The
-// eval dump is many lines of trace, but the real cause is the last "error:"
-// line - often "error: device X: unknown hardware profile 'Y'" or a failed
-// assertion's message. Falls back to the whole (bounded) detail.
-func distillGateError(detail string) string {
-	best := ""
-	for _, ln := range strings.Split(detail, "\n") {
-		ln = strings.TrimSpace(ln)
-		i := strings.Index(strings.ToLower(ln), "error:")
-		if i < 0 {
-			continue
-		}
-		cand := strings.TrimSpace(ln[i+len("error:"):])
-		if j := strings.Index(cand, "(stack trace truncated"); j >= 0 {
-			cand = strings.TrimSpace(cand[:j])
-		}
-		if cand != "" {
-			best = cand
-		}
-	}
-	if best != "" {
-		return best
-	}
-	if s := strings.TrimSpace(detail); s != "" {
-		return s
-	}
-	return "The change was rejected by the validation gate."
 }

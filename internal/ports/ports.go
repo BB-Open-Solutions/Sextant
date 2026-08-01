@@ -6,6 +6,7 @@ package ports
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -198,4 +199,37 @@ type RefUpdater interface {
 	PushRef(ctx context.Context, name string) error
 	// Head returns the current HEAD revision.
 	Head(ctx context.Context) (string, error)
+}
+
+// DistillGateError pulls the actionable line out of a gate rejection.
+//
+// A nix failure is mostly progress noise - dozens of "building '/nix/store/...'"
+// lines - and the cause is one "error:" line somewhere in it. Showing the raw
+// detail is technically honest and practically useless: an operator reads
+// twelve identical lines and learns nothing. Lives here rather than in the web
+// layer because the ROLLOUT records the same detail as a halt reason, and a
+// halted run whose reason is build noise cannot be acted on either.
+func DistillGateError(detail string) string {
+	best := ""
+	for _, ln := range strings.Split(detail, "\n") {
+		ln = strings.TrimSpace(ln)
+		i := strings.Index(strings.ToLower(ln), "error:")
+		if i < 0 {
+			continue
+		}
+		cand := strings.TrimSpace(ln[i+len("error:"):])
+		if j := strings.Index(cand, "(stack trace truncated"); j >= 0 {
+			cand = strings.TrimSpace(cand[:j])
+		}
+		if cand != "" {
+			best = cand
+		}
+	}
+	if best != "" {
+		return best
+	}
+	if s := strings.TrimSpace(detail); s != "" {
+		return s
+	}
+	return "The change was rejected by the validation gate."
 }
