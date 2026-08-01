@@ -60,14 +60,31 @@ func (p *Publisher) Publish(ctx context.Context, repoDir string, hosts []string)
 	// Realise first: nix copy does not build, it only copies existing paths.
 	buildArgs := append([]string{"build", "--no-link", "--no-warn-dirty"}, targets...)
 	if out, err := run(ctx, "nix", buildArgs...); err != nil {
-		return &ports.ValidationError{Detail: sanitize(string(out))}
+		return buildFailure(ctx, "building the release", timeout, out)
 	}
 
 	// Copy the closures into the cache, signing every path with the org key.
 	dest := fmt.Sprintf("file://%s?secret-key=%s&compression=zstd", p.CacheDir, p.KeyFile)
 	copyArgs := append([]string{"copy", "--no-warn-dirty", "--to", dest}, targets...)
 	if out, err := run(ctx, "nix", copyArgs...); err != nil {
-		return &ports.ValidationError{Detail: sanitize(string(out))}
+		return buildFailure(ctx, "copying the release into the cache", timeout, out)
 	}
 	return nil
+}
+
+// buildFailure turns a failed nix run into an error that says which KIND of
+// failure it was.
+//
+// Running out of time is not a rejection, and reporting it as one sends an
+// operator hunting for a configuration error that does not exist. It is
+// distinguishable: on a deadline the process is killed mid-stream, so the
+// output ends in progress lines with no "error:" anywhere - which is exactly
+// what a halted rollout showed on 2026-08-01, twelve identical build lines and
+// nothing to act on.
+func buildFailure(ctx context.Context, what string, timeout time.Duration, out []byte) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("%s ran out of time after %s - the release was not rejected, it was cut off. "+
+			"Raise the publisher timeout, or warm the cache so there is less to build", what, timeout)
+	}
+	return &ports.ValidationError{Detail: sanitize(string(out))}
 }

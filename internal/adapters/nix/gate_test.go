@@ -305,3 +305,30 @@ func TestSanitizeStripsStorePathsAndTruncates(t *testing.T) {
 		t.Error("tail (most relevant part) lost")
 	}
 }
+
+// A build failure is a stream of progress with the cause somewhere inside it.
+// Keeping the plain tail - right for an eval, where the error is last - showed
+// twelve identical "building" lines and no cause, which is what a halted
+// rollout reported on 2026-08-01.
+func TestSanitizePrefersTheCauseOverProgress(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("error: device lt-1: unknown hardware profile 'lenovo-t495'\n")
+	for i := 0; i < 40; i++ {
+		b.WriteString("building '/nix/store/00000000000000000000000000000000-x.drv'...\n")
+	}
+	got := sanitize(b.String())
+	if !strings.Contains(got, "unknown hardware profile") {
+		t.Fatalf("the cause was crowded out by progress:\n%s", got)
+	}
+	if strings.Contains(got, "building") {
+		t.Errorf("progress lines survived alongside the cause:\n%s", got)
+	}
+}
+
+// With no recognisable error line there is still something to show: a failure
+// that reports nothing is worse than one that reports the tail.
+func TestSanitizeFallsBackToTheTail(t *testing.T) {
+	if got := sanitize("something odd\nhappened here\n"); got == "" {
+		t.Fatal("sanitize produced nothing for output with no error line")
+	}
+}

@@ -286,6 +286,24 @@ func sanitize(out string) string {
 		keep = append(keep, l)
 	}
 	const maxLines = 12
+	// The tail is the right answer for an eval, where the conclusion is the
+	// last line. It is the wrong answer for a build: nix emits a stream of
+	// progress and the cause can sit well above it, so the tail is twelve
+	// identical "building" lines and nothing to act on - what a halted rollout
+	// reported on 2026-08-01.
+	//
+	// So: keep the tail, UNLESS the tail says nothing while the output as a
+	// whole does. Reaching for error lines unconditionally was worse - it
+	// dropped a final "... rejected" line that carried the verdict without
+	// using any of the words being matched.
+	if len(keep) > maxLines {
+		tail := keep[len(keep)-maxLines:]
+		if len(errorLines(tail)) == 0 {
+			if errs := errorLines(keep); len(errs) > 0 {
+				keep = errs
+			}
+		}
+	}
 	if len(keep) > maxLines {
 		keep = keep[len(keep)-maxLines:]
 	}
@@ -297,4 +315,19 @@ func sanitize(out string) string {
 		return "gate rejected the change (no parsable reason in nix output)"
 	}
 	return strings.Join(keep, "\n")
+}
+
+// errorLines picks out the lines that carry a diagnosis. Empty when there are
+// none, so the caller keeps the tail rather than showing nothing - a failure
+// with no recognisable error line still has to say something.
+func errorLines(lines []string) []string {
+	var out []string
+	for _, l := range lines {
+		low := strings.ToLower(l)
+		if strings.Contains(low, "error") || strings.Contains(low, "assertion") ||
+			strings.Contains(low, "failed") || strings.Contains(low, "cannot") {
+			out = append(out, l)
+		}
+	}
+	return out
 }
