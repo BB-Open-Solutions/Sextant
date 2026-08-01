@@ -9,8 +9,8 @@ default: ci
 ci: fmt-check vet lint test coverage-floor build nix-build catalog-check agent-ci
 
 coverage-floor:
-    @bash -c 'grep -vE "internal/ports/|/cmd/|platform/logging|platform/capability" coverage.out > coverage-logic.out; \
-      total=$(go tool cover -func=coverage-logic.out | tail -1 | awk "{print \$$3}" | tr -d "%"); \
+    @bash -c 'grep -vE "internal/ports/|/cmd/|platform/logging|platform/capability" "$COV" > "$COV.logic"; \
+      total=$(go tool cover -func="$COV.logic" | tail -1 | awk "{print \$$3}" | tr -d "%"); \
       echo "logic-layer coverage: $${total}%"; \
       awk -v t="$$total" "BEGIN { exit (t < 70) ? 1 : 0 }" || (echo "coverage below 70% floor" && exit 1)'
 
@@ -35,11 +35,19 @@ vet:
 lint:
     golangci-lint run ./...
 
+# COV is outside the repository, and that is the whole point. Writing
+# coverage.out into the tree changes the directory's NAR hash while
+# gate_e2e_test.go has that same path pinned as a flake input, so the eval
+# fails partway through the run with a hash mismatch that has nothing to do
+# with the code. Gitignoring it does not help: a path: flake input hashes what
+# is on disk, not what git tracks.
+export COV := "/tmp/sextant-coverage.out"
+
 test:
-    go test -race -coverprofile=coverage.out ./...
+    go test -race -coverprofile="$COV" ./...
 
 cover: test
-    go tool cover -func=coverage.out | tail -1
+    go tool cover -func="$COV" | tail -1
 
 # Regenerate the console stylesheet from the Tailwind sources. The output
 # (internal/http/web/static/app.css) is committed and embedded, like the
