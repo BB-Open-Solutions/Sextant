@@ -35,35 +35,87 @@ magnitude) while a real evaluation ran:
 ```
 
 `file` was 430 MiB against `anon` of 5.08 GiB, so this is evaluator heap, not
-reclaimable page cache. A single validation of two shapes took 38.6s end to
-end. The gate's limit is 6Gi (raising it is not free: 12Gi previously starved
-the node).
+reclaimable page cache. A validation request covering two shapes took 38.6s end
+to end. The gate's limit is 6Gi (raising it is not free: 12Gi previously
+starved the node).
 
-Marginal cost ≈ fixed cost. That is the signature of hosts sharing nothing,
-and it is the single most important number in this document.
+`NIX_SHOW_STATS=1` on one real host says where it goes:
+
+```
+gc.heapSize              1275785216   (1.19 GiB live)
+gc.totalBytes            1715742144   (1.60 GiB allocated)
+gc.cycles                         6
+sets.elements              40122066   in 2617862 attribute sets -> 652 MiB
+values.number              20573755                             -> 471 MiB
+envs.number                 8569234                             -> 164 MiB
+nrThunks                   11546706
+nrOpUpdates                  715170
+nrOpUpdateValuesCopied     28705442
+cpuTime                        7.72s  of which gc 3.11s (39%)
+```
+
+Two things to read out of that. The memory is the module system's own fixpoint —
+2.6 million attribute sets holding 40 million attributes, and 28.7 million
+values copied by fewer than three-quarters of a million `//` operations. And the
+evaluation itself is about **8s of CPU per shape**, not the 35s a request takes:
+the rest is git work, overlay sync and candidate staging.
 
 ## The floor that belongs to NixOS
 
 Evaluating one NixOS system means running the module system's fixpoint over
-roughly ten thousand options. For a realistic workplace configuration that is
-on the order of 1–2 GB and tens of seconds. The evaluator is single-threaded
-and holds the whole value graph, so memory — not CPU — is the binding
-constraint.
+roughly ten thousand options. Measured on one of our own hosts that is a 1.19 GiB
+live heap, 1.60 GiB allocated, ~8s of CPU, and about 3 GiB of RSS once the
+collector's headroom is counted. The evaluator is single-threaded and holds the
+whole value graph, so memory — not CPU — is the binding constraint.
 
-We do not get to remove this. Any design that assumes a system evaluation can
-be made cheap is wrong. What a design CAN do is stop paying for it more often
-than necessary.
+This floor is larger than an earlier draft of this document credited, and it is
+not something we get to engineer away. Any design that assumes a system
+evaluation can be made cheap is wrong. What a design CAN do is stop paying for
+it more often than necessary — which is why the conclusion below is
+architectural rather than a list of optimisations.
 
 ## The costs that belong to us
 
 Everything above that floor is ours, and so is every multiplication of it.
 
-**We instantiate nixpkgs once per host.** `nix/generator.nix` calls
-`nixpkgs.lib.nixosSystem { inherit system; ... }` without passing `pkgs`, so
-each host evaluates the nixpkgs module and imports nixpkgs itself. Every host
-pays in full for an instantiation that is *identical* to every other host's:
-nixpkgs config is set uniformly by the DAWO core and nothing in the overlay
-varies it per host. This is the bulk of the 3GB.
+**We instantiate nixpkgs once per host — but this is a smaller prize than it
+looks.** `nix/generator.nix` calls `nixpkgs.lib.nixosSystem { inherit system;
+... }` without passing `pkgs`, so each host evaluates the nixpkgs module and
+imports nixpkgs itself, even though nixpkgs config is set uniformly by the DAWO
+core and nothing in the overlay varies it per host.
+
+An earlier draft of this document claimed that was the bulk of the 3GB. It is
+not, and the correction matters more than the original claim. Measured on
+synthetic hosts of one shape, peak RSS:
+
+```
+hosts    per-host    shared    marginal per host
+1          827 MiB    827 MiB
+2         1448 MiB   1214 MiB    621 -> 387
+4         2686 MiB   1985 MiB    619 -> 385
+8              -     3333 MiB           337
+```
+
+Sharing removes roughly 38% of the marginal cost. Real, worth taking, not an
+order of magnitude. The dominant cost is the module fixpoint, which the stats
+above show directly.
+
+Worse, the shape of our batching works against sharing by construction: we
+evaluate one representative *per shape*, so every host in a batch is a
+different shape with a different module set. Batches are therefore the case
+where hosts share the least. Beware of benchmarks — including the one above —
+that use hosts of identical shape; they flatter the result.
+
+Sharing is nonetheless safe and worth doing. Both variants were proved to
+produce a byte-identical derivation, and the NixOS module forbids only
+`nixpkgs.config` alongside an external instance (`nixos/modules/misc/nixpkgs.nix`,
+the assertion `opt.pkgs.isDefined -> cfg.config == {}`); overlays still apply
+through `appendOverlays`.
+
+**We leave 39% of evaluation time in the garbage collector.** `GC_INITIAL_HEAP_SIZE`
+is not set on the gate, so Boehm starts small and grows through six collection
+cycles to a 1.19 GiB live heap. Sizing the initial heap to the known working
+set is a configuration line, not a design change.
 
 **We then chunk to work around it.** `chunkSize` was 12 — a number derived from
 "17 hosts OOM'd at 4Gi, so 12 fits under 6Gi", which nobody checked against a
@@ -159,11 +211,11 @@ no shared evaluation slot to queue for.
 is safe only because ring pins gate what devices actually run. If that ever
 stops being true this decision must be revisited first.
 
-**Sharing one `pkgs` costs flexibility.** A host may no longer set
-`nixpkgs.config` or `nixpkgs.overlays`. Today nothing does. The generator must
-group by *distinct* nixpkgs settings rather than assume one global instance, so
-that an overlay which legitimately needs different settings gets its own
-instantiation instead of silently sharing the wrong one.
+**Sharing one `pkgs` costs a little flexibility.** A host may no longer set
+`nixpkgs.config`; overlays still work. Today nothing sets either. The generator
+must group by *distinct* nixpkgs settings rather than assume one global
+instance, so that an overlay which legitimately needs different settings gets
+its own instantiation instead of silently sharing the wrong one.
 
 ## What this does not solve
 
@@ -171,24 +223,41 @@ The per-shape floor stays. An organisation with genuinely many distinct shapes
 pays for them, and the honest advice is that shapes are the thing to keep few —
 a new hardware class costs; a thousand more laptops do not.
 
-Nothing here makes a single evaluation faster. If the 3GB does not drop once
-hosts share an instantiation, the hypothesis in this document is wrong and the
-memory is going somewhere nobody has looked yet. Measure before believing it.
+Nothing here makes a single evaluation much faster. That question was put to
+the test rather than assumed: the first draft blamed per-host nixpkgs
+instantiation, and the measurement cut it down to ~38% of the marginal cost,
+with the module fixpoint accounting for the rest. GC tuning should take a bite
+out of the time, not the memory. Treat any further "make the evaluation cheap"
+proposal the same way — measure it before writing it down, and correct the
+document when the number disagrees.
+
+A residual risk worth naming: the synthetic benchmark above used hosts of a
+single shape, while production batches are one host per shape by construction.
+The 38% is therefore an upper bound on what sharing buys us in practice. It has
+not been measured across genuinely different shapes, because by the time the
+question arose the fleet was down to one device.
 
 ## Order of work
 
-1. Share one nixpkgs instantiation across hosts (#41). One argument in
-   `mkFleet`, verified by re-running the measurement above at 1, 2, 4 and 8
-   hosts. This removes the largest constant before any architectural work
-   starts, and it tells us whether the rest of this document rests on a
-   correct diagnosis.
-2. Raise `chunkSize` from the new measurement, and stop treating small chunks
-   as safety.
-3. Type-check saved settings against `catalog.json`.
-4. Move the evaluation off the write path and key verdicts by
+1. Set `GC_INITIAL_HEAP_SIZE` on the gate. One environment variable against 39%
+   of evaluation time. Measure the before and after; do not assume the whole
+   39% is recoverable.
+2. Type-check saved settings against `catalog.json` (ADR 0005). This is what
+   removes the full evaluation from the path an editor actually waits on, and
+   it depends on nothing else here.
+3. Share one nixpkgs instantiation across hosts (#41). Worth ~38% of the
+   marginal per-host cost, and it needs a change to the DAWO core (the
+   `nixpkgs.config` it sets from a NixOS module must stand down when a caller
+   supplies its own instance) — so: fork and PR, never a direct push.
+4. Re-derive `chunkSize` from measurement after 3, and stop treating small
+   chunks as safety: each chunk re-pays the fixed cost.
+5. Move the evaluation off the write path and key verdicts by
    `(overlay revision, classKey)` (#40).
-5. Split `fleet.json` so an edit invalidates the shapes it touches rather than
+6. Split `fleet.json` so an edit invalidates the shapes it touches rather than
    all of them, letting nix's own eval cache do the memoisation.
 
-Steps 1–3 are independent and each stands on its own. Step 4 is the
-architectural change and should not start before step 1 has been measured.
+Steps 1–4 are optimisations and each stands alone; together they buy a constant
+factor, not a different curve. Steps 5 and 6 are the ones that change the
+curve, and the measurements in this document are the argument for doing them
+rather than continuing to tune: the per-shape cost is a floor, so the only
+lasting win is paying it fewer times.
