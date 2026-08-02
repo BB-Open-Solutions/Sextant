@@ -133,11 +133,25 @@ admission queue of four. Concurrency is therefore 1 by construction, end to
 end: the second editor waits for the first, the fifth is refused. For the SaaS
 direction this is the wall — one slot shared by every tenant.
 
-**We defeat nix's own eval cache.** The gate stages each candidate as a clean
-commit precisely so the eval cache applies. But `fleet.json` is a single blob
-inside the flake source, so *any* fleet edit changes the source hash and every
-shape re-evaluates cold. The cache helps only for repeated evaluations of the
-identical candidate, which is not a case that occurs.
+**Nix's eval cache does not apply to us at all — so we must do the caching.**
+An earlier draft said the gate defeats the cache by putting `fleet.json` in the
+flake source. Measured, that is not the mechanism: the cache never engages for
+this shape of evaluation. Same host, `cpuTime` from `NIX_SHOW_STATS`:
+
+```
+cold, cache directory deleted, clean commit   7.79 s
+immediately again, nothing changed            8.08 s
+after an unrelated edit elsewhere in fleet.json  7.65 s
+```
+
+The middle run changed nothing and cost the same. Nix's flake eval cache covers
+shallow output paths; `nixosConfigurations.<host>.config.system.build.toplevel`
+is neither shallow nor serialisable, so every evaluation is cold by
+construction, clean commit or not.
+
+The consequence is the useful part: memoising verdicts ourselves, keyed by
+`(overlay revision, classKey)`, is not one option among several. It is the only
+caching available to us.
 
 **We use a full system evaluation to answer questions a type check would
 answer.** `catalog.json` publishes every `dawo.*` option with its type
@@ -252,12 +266,33 @@ question arose the fleet was down to one device.
 4. Re-derive `chunkSize` from measurement after 3, and stop treating small
    chunks as safety: each chunk re-pays the fixed cost.
 5. Move the evaluation off the write path and key verdicts by
-   `(overlay revision, classKey)` (#40).
-6. Split `fleet.json` so an edit invalidates the shapes it touches rather than
-   all of them, letting nix's own eval cache do the memoisation.
+   `(overlay revision, classKey)` (#40). Since nix caches nothing for us, this
+   is the whole of our caching strategy rather than a supplement to it.
+
+An earlier draft had a sixth step — split `fleet.json` so nix's eval cache
+survives unrelated edits. The measurement above removed its justification: the
+cache never engages, so there is nothing to preserve. `classKey` is already
+per-shape and precise, which is what that step was really after.
 
 Steps 1–4 are optimisations and each stands alone; together they buy a constant
-factor, not a different curve. Steps 5 and 6 are the ones that change the
-curve, and the measurements in this document are the argument for doing them
-rather than continuing to tune: the per-shape cost is a floor, so the only
-lasting win is paying it fewer times.
+factor, not a different curve. Step 5 is the one that changes the curve, and
+the measurements in this document are the argument for doing it rather than
+continuing to tune: the per-shape cost is a floor, so the only lasting win is
+paying it fewer times.
+
+## A note on measuring this
+
+Two methods gave confidently wrong answers during the work above, both caught
+only by cross-checking:
+
+- `time -v`'s maximum resident set size does not capture `nix eval` on a flake.
+  It reported 44 MiB and 0.13s for an evaluation that `NIX_SHOW_STATS` shows
+  costs 8s of CPU and 7.2 million function calls.
+- `gc.heapSize` is elastic, not a requirement. The same evaluation reports
+  1.28 GiB in the memory-limited gate pod and 3.2 GiB on a laptop with room to
+  spare, because Boehm sizes the heap to what is available. Compare
+  `gc.totalBytes` and cgroup `anon`, and treat `heapSize` as a decision the
+  collector made rather than a number we need.
+
+Use `NIX_SHOW_STATS=1` and the cgroup. Anything else here has already lied
+once.
