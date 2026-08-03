@@ -122,7 +122,8 @@ assert a behaviour somebody could plausibly get wrong, not coverage for its own
 sake. Decisions that shape the product go in an ADR, and we would rather argue
 about a design in writing than discover the disagreement in code review.
 
-See CONTRIBUTING.md for the mechanics.
+See CONTRIBUTING.md for the mechanics, CODE_OF_CONDUCT.md for how we talk to
+each other, and SECURITY.md if what you found should not be a public issue.
 
 ## Where this repository lives
 

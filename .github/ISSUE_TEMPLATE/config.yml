@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security problem
+    url: https://github.com/BB-Open-Solutions/Sextant/blob/main/SECURITY.md
+    about: Do not open a public issue. Mail security@bb-open.com - see SECURITY.md.
+  - name: Canonical repository
+    url: https://code.overheid.nl/MinBZK/DAWO-Sextant
+    about: Development happens on code.overheid.nl. This mirror accepts issues and pull requests; see CONTRIBUTING.md for how they travel back.

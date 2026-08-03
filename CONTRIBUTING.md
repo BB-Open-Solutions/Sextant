@@ -3,6 +3,25 @@
 Sextant shares its contribution standards with its sibling repository
 DAWO-NixOS; the two evolve together.
 
+## Where this project lives
+
+Development happens on **code.overheid.nl/MinBZK/DAWO-Sextant**. That is
+canonical: it is where the Dutch government's code belongs, and where the
+history is authoritative.
+
+**github.com/BB-Open-Solutions/Sextant** is a mirror. It exists because a
+mirror exists to be found, and the people who would contribute to a NixOS fleet
+control plane are already there. What makes this open source is the licence and
+the code, not the address.
+
+A pull request on the mirror is welcome and will not be turned away for being
+in the wrong place. It travels back like this: a maintainer applies it to
+canonical with your authorship intact, canonical is what releases are cut from,
+and the mirror follows. You do not have to do anything for that to happen, and
+you do not need an account on code.overheid.nl to contribute.
+
+Issues are read on both. Security reports go to neither - see SECURITY.md.
+
 ## Before you push
 
 ```
