@@ -280,6 +280,45 @@ the measurements in this document are the argument for doing it rather than
 continuing to tune: the per-shape cost is a floor, so the only lasting win is
 paying it fewer times.
 
+## Most of the builder layer already exists: nix-eval-jobs
+
+We hand-rolled a chunker, an admission semaphore and a single evaluation mutex.
+`nix-eval-jobs` (in nixpkgs) does all of it, and it ran against our own overlay
+unmodified:
+
+```
+nix-eval-jobs --flake '.#nixosConfigurations' \
+  --select 'cfgs: builtins.mapAttrs (n: c: c.config.system.build.toplevel) cfgs' \
+  --no-instantiate --workers N --max-memory-size MB
+```
+
+Five hosts, same clone, same machine:
+
+```
+one process, all five (the old chunkSize 12)     35.6 s
+chunkSize 1, five processes (what runs today)    47.6 s
+nix-eval-jobs, 4 workers, 2500 MB per worker     24.4 s
+```
+
+Our production setting is the slowest of the three — the chunking prediction
+above, confirmed against the thing itself.
+
+The speed is not the important part. `--max-memory-size` is **per worker**, so a
+worker that exceeds it fails its own attribute while the service stays up.
+Memory stops being an emergent property of how many shapes a change happens to
+touch and becomes a number we choose. That is the failure class that took the
+control plane down for an hour on 2026-08-01, closed by construction rather
+than by tuning.
+
+It also streams a JSON line per attribute — per-shape verdicts as they land,
+which is exactly the shape the verdict cache wants — and `--check-cache-status`
+reports whether each derivation is already in a substituter, which is what
+build-before-promote needs in order to build only what is missing.
+
+What it does not do: remove the work. A core update still re-evaluates every
+shape; this parallelises and bounds it. And since nix caches nothing for us,
+the verdict cache remains the only thing that avoids the work altogether.
+
 ## A note on measuring this
 
 Two methods gave confidently wrong answers during the work above, both caught
