@@ -47,7 +47,20 @@ let
   # Engineers still see these options in the overlay source; they are
   # plumbing, not policy.
   managedPrefixes = [
-    [ "autoUpdate" ] # the update funnel Sextant owns (rings/<group>)
+    # The update FUNNEL is Sextant's: the generator points every device at its
+    # ring branch (rings/<group>, ADR 0011), and an operator-facing knob there
+    # would let a settings edit silently detach a device from the funnel that
+    # manages it. So repoUrl and branch stay hidden.
+    #
+    # pollSeconds is not funnel plumbing. It is how fast a device reacts to a
+    # change - a question operators ask constantly, and one the overlay
+    # currently answers by hardcoding 300 (120 for the station) in flake.nix,
+    # where nobody without commit access can see or change it. That is a
+    # setting, and hiding it behind the funnel's skirts was a mistake of
+    # convenience: the whole subtree was excluded because most of it needed to
+    # be.
+    [ "autoUpdate" "options" "repoUrl" ]
+    [ "autoUpdate" "options" "branch" ]
     [ "secureboot" "pkiBundle" ] # sbctl PKI path: a fixed convention, not policy
     [ "diskUnlock" "luksVolume" ] # disko layout name; wrong value bricks unlock
     # usbControl is driven by an overlay-provided surface (dawo.usbDevices),
