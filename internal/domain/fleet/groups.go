@@ -92,12 +92,39 @@ func (f *Fleet) checkClassAllowed(class string, groups []string) error {
 // Retired reports whether the device is parked (audit record only).
 func (d Device) Retired() bool { return d.State == DeviceRetired }
 
+// Provisional reports whether the device is enrolled but has never checked
+// in. See DeviceProvisional: it builds and resolves settings like any other
+// device, and only convergence counting leaves it out.
+func (d Device) Provisional() bool { return d.State == DeviceProvisional }
+
 // ActiveGroupDevices is GroupDevices minus retired devices: the set that
-// builds images, checks in and counts for rollout convergence.
+// builds images, resolves settings and may check in.
+//
+// This deliberately KEEPS provisional devices. They are being installed, so
+// their configuration has to exist and has to pass the gate; leaving them out
+// here would hand a new machine an empty config. Convergence counting is the
+// one place they must not appear - see ConvergingGroupDevices.
 func (f *Fleet) ActiveGroupDevices(group string) []string {
 	var tags []string
 	for _, tag := range f.GroupDevices(group) {
 		if !f.Devices[tag].Retired() {
+			tags = append(tags, tag)
+		}
+	}
+	return tags
+}
+
+// ConvergingGroupDevices is the population a rollout measures itself against:
+// active devices that have been seen at least once.
+//
+// A device that has never checked in cannot converge, so counting it can only
+// drag a wave's percentage down or, when a ring holds nothing else, make the
+// ring unconvergeable forever. That is not hypothetical - it is what four
+// abandoned enrollments of one laptop did on 2026-08-01.
+func (f *Fleet) ConvergingGroupDevices(group string) []string {
+	var tags []string
+	for _, tag := range f.ActiveGroupDevices(group) {
+		if !f.Devices[tag].Provisional() {
 			tags = append(tags, tag)
 		}
 	}
@@ -122,7 +149,9 @@ func (f *Fleet) rolloutRing(group string) *RolloutRing {
 // group at once; a capped wave releases only devices pinned to the ring (the
 // cohort the engine has marked). Order is deterministic (GroupDevices sorts).
 func (f *Fleet) ReleasedGroupDevices(group string) []string {
-	active := f.ActiveGroupDevices(group)
+	// Converging, not merely active: a device that has never checked in has
+	// received nothing, so it cannot be part of what a wave has released.
+	active := f.ConvergingGroupDevices(group)
 	if ring := f.rolloutRing(group); ring == nil || ring.MaxDevices <= 0 {
 		return active // uncapped: the whole group is released
 	}

@@ -31,6 +31,19 @@ func AddDevice(tag string, d Device) Mutation {
 		if err := f.checkClassAllowed(d.Class, d.Groups); err != nil {
 			return err
 		}
+		// A device that has just been enrolled has never reported, so it starts
+		// provisional and becomes active on its first check-in. Defaulted HERE
+		// rather than at the three call sites (station enrolment, the console
+		// form, the API) so a fourth cannot forget and quietly mint a device
+		// that counts toward a rollout it can never satisfy.
+		//
+		// The zero value means Active, and for a brand-new record that was
+		// always a small lie: it claimed a machine was converging before it
+		// existed. An explicit state is still honoured, so importing a fleet
+		// that is already running stays possible.
+		if d.State == DeviceActive {
+			d.State = DeviceProvisional
+		}
 		if f.Devices == nil {
 			f.Devices = map[string]Device{}
 		}
@@ -122,6 +135,16 @@ func RetireDevice(tag string) Mutation {
 // ReactivateDevice returns a retired device to service.
 func ReactivateDevice(tag string) Mutation {
 	return setDeviceState(tag, DeviceActive, DeviceRetired)
+}
+
+// ActivateProvisional promotes a device the moment it first reports: the
+// installation finished, the machine exists, and it may now be counted.
+//
+// It refuses any state other than provisional, which is what makes it safe to
+// call from the check-in path: a retired device that keeps beating does not
+// quietly return to service, and an active one costs nothing.
+func ActivateProvisional(tag string) Mutation {
+	return setDeviceState(tag, DeviceActive, DeviceProvisional)
 }
 
 func setDeviceState(tag, to, from string) Mutation {

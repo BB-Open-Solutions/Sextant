@@ -192,7 +192,9 @@ func (s *RolloutService) releaseCohort(ctx context.Context, ring rollout.Ring, a
 	}
 	f := s.cfg.Fleet()
 	for _, g := range ring.GroupList() {
-		active := f.ActiveGroupDevices(g)
+		// Converging, not active: a cohort cannot release onto a device that
+		// has never checked in - there is nothing installed to release to.
+		active := f.ConvergingGroupDevices(g)
 		released := len(f.ReleasedGroupDevices(g))
 		next := ring.NextRelease(len(active), released)
 		for _, tag := range active[released:next] {
@@ -571,7 +573,9 @@ func (s *RolloutService) cohortFixup(rs rollout.RingStatus, ring rollout.Ring) r
 	rs.Released = rs.Total
 	total := 0
 	for _, g := range ring.GroupList() {
-		total += len(s.cfg.Fleet().ActiveGroupDevices(g))
+		// Same population the wave measures against, so widening cannot aim
+		// at devices that can never report.
+		total += len(s.cfg.Fleet().ConvergingGroupDevices(g))
 	}
 	rs.GroupTotal = total
 	return rs

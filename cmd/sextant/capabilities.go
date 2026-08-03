@@ -221,7 +221,24 @@ func (d *deps) buildConfigPlane() error {
 		}
 		d.cleanup = append(d.cleanup, pg.Close)
 		d.pgStore = pg
-		d.inv = app.NewInventoryService(pg, pg, clock, app.DefaultTenant)
+		d.inv = app.NewInventoryService(pg, pg, clock, app.DefaultTenant).
+			// A device that reports has finished installing, so its provisional
+			// record becomes real and starts counting toward rollouts. Cheap in
+			// the common case: the mutation refuses any state but provisional,
+			// and the in-memory check below means a settled device never
+			// reaches the write path at all.
+			WithSeen(func(ctx context.Context, tag string) {
+				dev, ok := svc.Fleet().Devices[tag]
+				if !ok || !dev.Provisional() {
+					return
+				}
+				msg := "devices: " + tag + " reported for the first time"
+				if err := svc.Apply(ctx, fleet.ActivateProvisional(tag), msg,
+					ports.Author{Name: "sextant-agent", Email: "agent@sextant"}, tag); err != nil {
+					d.log.Warn("first check-in promotion failed; device stays provisional",
+						"tag", tag, "err", err)
+				}
+			})
 		d.tokens = app.NewTokenService(pg.Tokens(), clock, 0)
 		d.devCreds = app.NewDeviceCredentials(pg.Tokens(), clock)
 		d.discovery = app.NewDiscoveryService(pg.Discovered(), clock, app.DefaultTenant)

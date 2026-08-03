@@ -142,6 +142,23 @@ const (
 	// no image builds, no check-ins, no rollout counting. Reactivation is
 	// an explicit, audited step.
 	DeviceRetired = "retired"
+	// DeviceProvisional is enrolled but never seen: a record created when
+	// somebody started an installation, which becomes Active the first time
+	// the device checks in.
+	//
+	// It is NOT a flavour of retired. A provisional device must have its
+	// image built and its settings resolved - there is nothing to install
+	// otherwise - and it must be able to check in, because that is how it
+	// stops being provisional. The one thing it must not do is COUNT toward
+	// a rollout, and that single exclusion is the whole point.
+	//
+	// Why it exists: imaging is where retries are normal, and every attempt
+	// used to mint a permanent record. One laptop produced four of them on
+	// 2026-07-31. All four landed in the same ring, none had ever checked in,
+	// so the ring's present population was zero and no rollout could ever
+	// converge again. A handful of failed installs silently stopped the whole
+	// fleet from receiving updates.
+	DeviceProvisional = "provisional"
 )
 
 // Intent is a pending remote action a device reacts to. It is DATA, not a

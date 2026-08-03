@@ -31,6 +31,20 @@ type InventoryService struct {
 	// audience (the groups that own the fleet).
 	notifier     Notifier
 	wipeAudience []string
+
+	// seen, when wired, promotes a provisional device on its first report.
+	// A plain func rather than a service reference: inventory has no business
+	// knowing about configuration, and this is the one fact it owes it.
+	seen func(ctx context.Context, tag string)
+}
+
+// WithSeen wires the first-check-in promotion: a device enrolled but never
+// heard from is provisional and does not count toward a rollout, and this is
+// what ends that. Optional - without it a device simply stays provisional,
+// which is safe but means it never joins a wave.
+func (s *InventoryService) WithSeen(fn func(ctx context.Context, tag string)) *InventoryService {
+	s.seen = fn
+	return s
 }
 
 // NewInventoryService wires the observed plane for one tenant namespace.
@@ -77,6 +91,18 @@ func (s *InventoryService) CheckIn(ctx context.Context, c observed.CheckIn, fact
 	ackChanged, err := s.status.Upsert(ctx, s.tenant, c, now)
 	if err != nil {
 		return err
+	}
+	// The device has now been seen, so a provisional record becomes real. The
+	// hook is a no-op for a device that is already active, which is every
+	// beat after the first - promotion costs one commit per device lifetime.
+	//
+	// Deliberately AFTER the upsert and deliberately not fatal: the report is
+	// recorded either way. A device whose promotion fails stays provisional
+	// and is promoted by the next beat; losing the report to a failed git
+	// write would be the worse trade. The hook owns its own error handling -
+	// inventory has no logger and should not grow one for this.
+	if s.seen != nil {
+		s.seen(ctx, c.Tag)
 	}
 	if s.notifier != nil && ackChanged && isWipeAck(c.Ack) {
 		s.emitWipe(ctx, c.Tag, c.Ack)
