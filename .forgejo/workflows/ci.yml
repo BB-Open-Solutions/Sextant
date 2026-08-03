@@ -42,6 +42,15 @@ jobs:
           # because nothing here ever looked at the run afterwards.
           mkdir -p "$GITHUB_WORKSPACE/src/.citmp"
           export TMPDIR="$GITHUB_WORKSPACE/src/.citmp"
+          # Root the devshell so the collector cannot take it out from under
+          # us. This is the actual cause of the twenty red commits: the
+          # runner had glibc-2.42-67-bin but not glibc-2.42-67 itself, so
+          # every race binary linked against a loader that was no longer
+          # there. `nix develop --profile` creates a gcroot; a bare `nix
+          # develop` does not, and nix says so ("you did not specify
+          # '--add-root'") to nobody in particular.
+          nix develop --profile "$HOME/.cache/sextant-ci-devshell" --command true
+
           # `go test -race` forces cgo, so every test binary is dynamically
           # linked against a glibc in the nix store. When that path is missing
           # from the runner's store the binaries build fine and then cannot be
