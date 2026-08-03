@@ -56,6 +56,8 @@ const ladderLock = `{
 // in the await-build phase.
 type stubCacheBuilder struct{}
 
+func (stubCacheBuilder) CancelBuilds(context.Context) error { return nil }
+
 func (stubCacheBuilder) EnsureBuilt(context.Context, string, []string) (ports.BuildState, error) {
 	return ports.BuildState{Phase: ports.BuildBuilding}, nil
 }

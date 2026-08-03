@@ -186,13 +186,18 @@ func TestRolloutFullRun(t *testing.T) {
 
 // fakeCacheBuilder scripts the release-build phases the rollout polls.
 type fakeCacheBuilder struct {
-	phase ports.BuildPhase
+	cancelled int
+	phase     ports.BuildPhase
 	// calls records every EnsureBuilt invocation for assertions.
 	calls []struct {
 		Rev   string
 		Hosts []string
 	}
 }
+
+// CancelBuilds records that the rollout asked the runner to stop. Cancelling
+// used to change the bookkeeping and leave the work running.
+func (f *fakeCacheBuilder) CancelBuilds(context.Context) error { f.cancelled++; return nil }
 
 func (f *fakeCacheBuilder) EnsureBuilt(_ context.Context, rev string, hosts []string) (ports.BuildState, error) {
 	f.calls = append(f.calls, struct {
@@ -452,5 +457,25 @@ func TestRolloutCappedCohort(t *testing.T) {
 	clock.Advance(time.Minute)
 	if k := tick(t, rs); k != rollout.Done {
 		t.Fatalf("final = %s, want done", k)
+	}
+}
+
+// Cancelling a run must stop the work, not only the bookkeeping. On
+// 2026-08-01 a cancelled run left its release build going; it finished the job
+// it had been told to abandon and OOM-killed the gate, which stops every path
+// that commits configuration.
+func TestCancelStopsTheReleaseBuild(t *testing.T) {
+	rs, _, _, _, _ := newRolloutStack(t)
+	builder := &fakeCacheBuilder{phase: ports.BuildBuilding}
+	rs.WithCacheBuilder(builder)
+
+	if _, err := rs.Start(context.Background(), "rev-2", ports.Author{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rs.Cancel(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if builder.cancelled != 1 {
+		t.Fatalf("cancel asked the runner to stop %d times, want 1", builder.cancelled)
 	}
 }

@@ -150,6 +150,12 @@ type BuildState struct {
 // caller (the rollout tick) can poll it safely.
 type CacheBuilder interface {
 	EnsureBuilt(ctx context.Context, rev string, hosts []string) (BuildState, error)
+	// CancelBuilds stops any build still running. Cancelling a rollout used
+	// to leave its build going: the run reported cancelled while the work
+	// carried on and OOM-killed the runner anyway (2026-08-01). Best-effort
+	// by nature - the caller has already decided to stop - so a failure here
+	// is worth logging and nothing more.
+	CancelBuilds(ctx context.Context) error
 }
 
 // Clock supplies time so services stay deterministic under test.

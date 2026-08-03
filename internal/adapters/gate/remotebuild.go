@@ -96,3 +96,37 @@ func (b *RemoteBuilder) EnsureBuilt(ctx context.Context, rev string, hosts []str
 		return ports.BuildState{Phase: ports.BuildBuilding, Detail: br.Detail}, nil
 	}
 }
+
+// CancelBuilds implements ports.CacheBuilder: tell the runner to stop any
+// build still going.
+//
+// Best-effort by contract. The caller has already decided to stop the run, so
+// a runner that cannot be reached must not turn a cancel into an error - the
+// worst case is the old behaviour, a build that keeps going, and that is what
+// this exists to reduce rather than to guarantee away.
+func (b *RemoteBuilder) CancelBuilds(ctx context.Context) error {
+	timeout := b.Timeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.URL+"/build/cancel", nil)
+	if err != nil {
+		return fmt.Errorf("cancel builds: build request: %w", err)
+	}
+	if b.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+b.Token)
+	}
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("cancel builds: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("cancel builds: runner answered %s", resp.Status)
+	}
+	return nil
+}

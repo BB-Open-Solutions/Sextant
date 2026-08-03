@@ -47,6 +47,31 @@ func buildKey(rev string, hosts []string) string {
 	return rev + "-" + hex.EncodeToString(sum[:8])
 }
 
+// handleBuildCancel stops every in-flight release build.
+//
+// Coarse on purpose. This runner serves one console, a cancel comes from an
+// operator stopping the rollout that asked for the build, and there is never a
+// second run whose build should survive. Matching on (rev, hosts) would look
+// more precise and would be one more thing to get subtly wrong.
+func (s *server) handleBuildCancel(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="gate-runner"`)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	s.buildMu.Lock()
+	n := len(s.buildCancels)
+	for key, cancel := range s.buildCancels {
+		cancel()
+		delete(s.buildCancels, key)
+	}
+	s.buildMu.Unlock()
+	if n > 0 {
+		s.log.Info("release builds cancelled", "count", n)
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"cancelled": n})
+}
+
 func (s *server) handleBuild(w http.ResponseWriter, r *http.Request) {
 	// Authenticate before any work - a build is far heavier than an eval.
 	if !s.authorized(r) {
@@ -81,7 +106,18 @@ func (s *server) handleBuild(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		job = &buildResponse{Phase: "building"}
 		s.builds[key] = job
-		go s.runBuild(key, req)
+		// Cancellable, and that is the point. A build used to run detached
+		// from every context, so cancelling the rollout that started it
+		// changed nothing: on 2026-08-01 the run went to cancelled and its
+		// build kept going until it OOM-killed the gate anyway.
+		ctx, cancel := context.WithCancel(context.Background())
+		// Lazily created: a server built directly (tests, a future embedding)
+		// must not panic on a nil map for a field it never set.
+		if s.buildCancels == nil {
+			s.buildCancels = map[string]context.CancelFunc{}
+		}
+		s.buildCancels[key] = cancel
+		go s.runBuild(ctx, key, req)
 	}
 	resp := *job // copy under the lock
 	s.buildMu.Unlock()
@@ -92,14 +128,22 @@ func (s *server) handleBuild(w http.ResponseWriter, r *http.Request) {
 // revision into a scratch worktree, publish (build + signed copy), record the
 // verdict. One build at a time - a second job waits for the slot, which is
 // fine: the caller already got "building".
-func (s *server) runBuild(key string, req buildRequest) {
+func (s *server) runBuild(ctx context.Context, key string, req buildRequest) {
 	s.buildSlot <- struct{}{}
 	defer func() { <-s.buildSlot }()
 
-	err := s.buildAtRev(req)
+	err := s.buildAtRev(ctx, req)
 
 	s.buildMu.Lock()
 	defer s.buildMu.Unlock()
+	delete(s.buildCancels, key)
+	// A cancelled build is not a failed release. Reporting it as failed would
+	// halt the next run for a reason that no longer exists.
+	if ctx.Err() != nil {
+		s.log.Info("release build cancelled", "rev", req.Rev)
+		delete(s.builds, key)
+		return
+	}
 	if err != nil {
 		s.log.Error("release build failed", "rev", req.Rev, "err", err)
 		s.builds[key] = &buildResponse{Phase: "failed", Detail: err.Error()}
@@ -111,12 +155,11 @@ func (s *server) runBuild(key string, req buildRequest) {
 
 // buildAtRev materialises the overlay at the revision in a scratch worktree
 // (the main workdir keeps serving /validate) and publishes the hosts from it.
-func (s *server) buildAtRev(req buildRequest) error {
-	// Deliberately detached from any request context: the build job outlives
-	// the HTTP request that kicked it (poll-style API) and must not die when
-	// that request's caller disconnects. The Publisher applies its own
-	// timeout.
-	ctx := context.Background()
+func (s *server) buildAtRev(ctx context.Context, req buildRequest) error {
+	// The context is the JOB's, not the HTTP request's: a poll-style build
+	// outlives the call that started it and must not die when that caller
+	// disconnects. What it must die for is an explicit cancel - see
+	// handleBuildCancel.
 
 	// The revision may be newer than the last sync; fetch under the eval lock
 	// (the workdir's git state is shared with /validate).

@@ -596,7 +596,18 @@ func (s *RolloutService) Cancel(ctx context.Context) (*rollout.State, error) {
 		return nil, fmt.Errorf("no rollout to cancel")
 	}
 	st.Status = rollout.Cancelled
+	st.Note(rollout.Action{Kind: rollout.Done, Reason: "cancelled"}, s.clock.Now())
 	st.Updated = s.clock.Now()
+	// Stop the work, not just the bookkeeping. A cancelled run used to leave
+	// its release build running: on 2026-08-01 the state said cancelled while
+	// the build carried on and OOM-killed the gate anyway, which took every
+	// commit path down with it. Best-effort - the operator has already decided
+	// to stop, so an unreachable runner must not turn a cancel into an error.
+	if s.builder != nil {
+		if err := s.builder.CancelBuilds(ctx); err != nil {
+			s.log.Warn("rollout cancelled but the release build may still be running", "err", err)
+		}
+	}
 	return st, s.store.Put(ctx, st)
 }
 

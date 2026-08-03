@@ -123,13 +123,14 @@ func main() {
 			JobsBin:     *evalJobs,
 			MaxMemoryMB: *evalJobsMem,
 		},
-		sem:        make(chan struct{}, *maxConcurrent),
-		token:      token,
-		cacheToken: os.Getenv("CACHE_TOKEN"),
-		consoleURL: strings.TrimRight(os.Getenv("SEXTANT_CONSOLE_URL"), "/"),
-		verified:   map[string]time.Time{},
-		builds:     map[string]*buildResponse{},
-		buildSlot:  make(chan struct{}, 1),
+		sem:          make(chan struct{}, *maxConcurrent),
+		token:        token,
+		cacheToken:   os.Getenv("CACHE_TOKEN"),
+		consoleURL:   strings.TrimRight(os.Getenv("SEXTANT_CONSOLE_URL"), "/"),
+		verified:     map[string]time.Time{},
+		builds:       map[string]*buildResponse{},
+		buildSlot:    make(chan struct{}, 1),
+		buildCancels: map[string]context.CancelFunc{},
 	}
 	// The release cache is opt-in: both the directory and the signing key must
 	// be configured, or /build answers 501 and /cache stays dark. Half a
@@ -158,6 +159,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /validate", srv.handleValidate)
 	mux.HandleFunc("POST /build", srv.handleBuild)
+	mux.HandleFunc("POST /build/cancel", srv.handleBuildCancel)
 	mux.HandleFunc("POST /parse", srv.handleParse)
 	mux.HandleFunc("POST /bump", srv.handleBump)
 	mux.HandleFunc("GET /cache/", srv.handleCache)
@@ -241,6 +243,9 @@ type server struct {
 	cacheDir  string
 	buildMu   sync.Mutex // guards builds
 	builds    map[string]*buildResponse
+	// buildCancels holds the stop switch for each in-flight build, so a
+	// cancelled rollout can actually stop the work it started.
+	buildCancels map[string]context.CancelFunc
 	// buildSlot serialises actual build work (heavier than an eval) while the
 	// job API stays responsive.
 	buildSlot chan struct{}
