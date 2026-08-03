@@ -42,6 +42,17 @@ jobs:
           # because nothing here ever looked at the run afterwards.
           mkdir -p "$GITHUB_WORKSPACE/src/.citmp"
           export TMPDIR="$GITHUB_WORKSPACE/src/.citmp"
+          # TEMPORARY (2026-08-03): the runner builds every -race test binary
+          # and then cannot exec it. Measure on the machine that fails instead
+          # of guessing from one that works - remove once the cause is known.
+          nix develop --command bash -c '
+            go test -race -c -o "$TMPDIR/probe.test" ./internal/domain/rollout/
+            interp=$(readelf -l "$TMPDIR/probe.test" | grep -oE "/nix/store/[^ ]*ld-linux[^ ]*|/lib64/ld-linux[^ ]*")
+            echo "probe interpreter: $interp"
+            echo "interpreter present: $([ -e "$interp" ] && echo yes || echo NO)"
+            echo "probe runs: $("$TMPDIR/probe.test" -test.run XXX >/dev/null 2>&1 && echo yes || echo NO)"
+            df -h "$TMPDIR" | tail -1
+          '
           nix develop --command go test -race -coverprofile=coverage.out ./...
           nix develop --command bash -c '
             # The floor is measured over the logic layers. Pure-glue packages -
