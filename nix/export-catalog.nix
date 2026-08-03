@@ -122,9 +122,12 @@ in
     let
       classes = lib.attrNames byClass;
       # class -> its entries, keyed by option name.
+      # walk directly rather than through the sibling attribute: these are
+      # members of the returned set, not let-bindings, so they cannot see
+      # each other.
       perClass = lib.mapAttrs (_: opts:
         lib.listToAttrs (map (e: lib.nameValuePair e.name e)
-          (exportCatalogFromOptions opts))) byClass;
+          (walk [ ] (opts.dawo or { })))) byClass;
       names = lib.unique (lib.concatMap lib.attrNames (lib.attrValues perClass));
       definedIn = name:
         lib.filter (c: perClass.${c} ? ${name}) classes;
