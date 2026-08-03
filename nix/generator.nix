@@ -188,6 +188,30 @@ in
 {
   inherit mkModules settingsModule appLists;
 
+  # nixpkgsConfigDrift: what the CORE would set for nixpkgs.config, evaluated
+  # without the shared instance and without the mkForce that discards it.
+  #
+  # Wire it into an overlay's `checks` and compare against the nixpkgsConfig
+  # handed to mkFleet. Sharing one nixpkgs instance means forcing the module's
+  # own definition away, which is silent by construction: add a key to the
+  # core and every host loses it, the shared instance never gains it, and
+  # nothing anywhere fails. The only thing standing between that and a fleet
+  # built on quietly different package settings is this comparison.
+  #
+  # Takes the same coreModules the fleet uses, plus a minimal host so the
+  # module system has something to evaluate.
+  nixpkgsConfigDrift =
+    { nixpkgs, system, modules, specialArgs ? { } }:
+    (nixpkgs.lib.nixosSystem {
+      inherit system specialArgs;
+      modules = modules ++ [{
+        nixpkgs.hostPlatform = system;
+        fileSystems."/" = { device = "/dev/null"; fsType = "ext4"; };
+        boot.loader.grub.devices = [ "nodev" ];
+        system.stateVersion = "25.05";
+      }];
+    }).config.nixpkgs.config;
+
   # mkFleet: nixosConfigurations for every device in the fleet.
   #   nixpkgs          the nixpkgs flake input (for lib.nixosSystem)
   #   system           e.g. "x86_64-linux"
@@ -223,7 +247,47 @@ in
       # catalogKeys: see mkModules. An overlay passes
       # `map (e: e.name) (builtins.fromJSON (builtins.readFile ./catalog.json))`.
     , catalogKeys ? null
+      # nixpkgsConfig: the nixpkgs `config` every host shares. Given, the
+      # generator instantiates nixpkgs ONCE and hands the same instance to
+      # every host instead of each importing its own.
+      #
+      # Measured 2026-08-03: marginal cost per host drops from 621 MiB to
+      # 387 MiB, and the resulting derivation is byte-identical - sharing is
+      # a performance change, not a semantic one. The saving is real but
+      # bounded, and the benchmark used hosts of a single shape while
+      # production batches are one host per SHAPE, which is the case that
+      # shares least. Treat 38% as an upper bound.
+      #
+      # Null keeps per-host instantiation. Passing it asserts that every host
+      # WANTS this config: the NixOS module refuses nixpkgs.config alongside
+      # an external instance, so the generator forces the module's own
+      # definition away - see the mkForce below and the drift note with it.
+    , nixpkgsConfig ? null
     }:
+    let
+      sharedPkgs =
+        if nixpkgsConfig == null then null
+        else import nixpkgs { inherit system; config = nixpkgsConfig; };
+      # nixpkgs refuses an externally created instance ALONGSIDE a
+      # nixpkgs.config definition (nixos/modules/misc/nixpkgs.nix asserts
+      # `opt.pkgs.isDefined -> cfg.config == {}`), and the DAWO core sets one
+      # from a module. Forcing it empty here satisfies that without a change
+      # to the core - verified to produce the same derivation.
+      #
+      # THE HAZARD, and it is why the drift check exists: this discards
+      # whatever the core sets, silently. Add a key to the core's
+      # nixpkgs.config and every host loses it AND the shared instance does
+      # not have it either. Nothing fails; the fleet just quietly builds
+      # against different package settings than the core asked for. The
+      # overlay's nixpkgs-config-drift check is what catches that, and it is
+      # not optional.
+      sharedModules =
+        if sharedPkgs == null then [ ]
+        else [{
+          nixpkgs.pkgs = sharedPkgs;
+          nixpkgs.config = lib.mkForce { };
+        }];
+    in
     # Retired devices keep their audit record in fleet.json but no longer
     # exist as hosts: no image builds, no gate target.
     lib.genAttrs
@@ -236,6 +300,7 @@ in
           inherit system;
           specialArgs = specialArgsFor tag;
           modules = (coreModulesFor tag)
+            ++ sharedModules
             ++ [ hardwareProfiles.${fleet.devices.${tag}.hardware} ]
             ++ mkModules { inherit fleet tag overlaysDir catalogKeys; }
             ++ [{ networking.hostName = lib.mkDefault tag; }]
