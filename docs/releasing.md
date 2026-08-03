@@ -27,6 +27,33 @@ must not receive the push.
 5. verify: rollout status, image tag, /readyz, smoke the new surface
 
 
+## Releasing DAWO-NixOS (upstream, not ours)
+
+DAWO-NixOS belongs to MinBZK and Rutger maintains it. We contribute through a
+fork and a merge request; we never push to it directly. His release rule, and
+it is the one we follow:
+
+**The tag is cut from `main` AFTER the merge request is merged. Never from a
+branch.**
+
+The `release: mark version <v>` commit travels inside the MR like any other
+change. Only the tag waits. Tagging a branch publishes a release nobody
+reviewed, and the tag then points at code that `main` does not contain.
+
+That is not hypothetical - it is what we did with `v0.1.1`. The tag sits on
+code.overheid.nl pointing at `dc1d667`, which is not reachable from `main`;
+`main` is 15 commits behind it. Nothing consumed it (the bb-open overlay pins a
+revision on `refs/heads/main`, `4c15a62`, which is `v0.1.0`), so it is
+correctable rather than load-bearing.
+
+The order, then:
+
+1. branch on the fork, work, push to the fork
+2. open the merge request against MinBZK `main`
+3. Rutger reviews and merges
+4. `git tag -a v<x.y.z> <merge commit on main>` and push the tag
+5. only now does anything downstream pin the new version
+
 ## Commit and style rules
 
 English, ASCII-only, Conventional Commits, no marketing language. Every commit
