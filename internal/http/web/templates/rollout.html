@@ -40,6 +40,15 @@
       <span>{{.}}{{with $.WaitingFor}} <span class="text-text-tertiary">({{.}})</span>{{end}}</span>
     </p>
     {{end}}
+    {{/* The target has fallen behind main. Information, not an error - a soak
+         takes time and main keeps moving - but a run pinned several releases
+         back should say so rather than leave somebody comparing hashes. */}}
+    {{if .Behind}}
+    <p class="mb-0 mt-2 flex items-start gap-2 text-body-sm text-text-tertiary">
+      <span class="material-symbols-outlined msz-18 shrink-0">history</span>
+      <span>{{.L.T "rollout.behind_main"}} {{.Behind}}</span>
+    </p>
+    {{end}}
     {{if .Terminal}}
     <p class="mb-0 mt-3 text-body-sm text-text-secondary">{{.L.T "updates.terminal_hint"}} <a href="/updates" class="text-secondary">{{.L.T "updates.back_to_overview"}}</a></p>
     {{end}}

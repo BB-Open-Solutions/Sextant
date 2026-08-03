@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
@@ -47,8 +48,37 @@ func (s *Server) rolloutMonitorPage(w http.ResponseWriter, r *http.Request, v vi
 	if st != nil {
 		targetRelease = s.svc.Config.ReleaseNumber(r.Context(), st.Target)
 	}
+	// How far the run's target has fallen behind main. Not an error - a soak
+	// takes time and main moves - but a run pinned several releases back is
+	// something an operator should be told rather than have to work out from
+	// two revision hashes. The wait reason wins when both apply: what is
+	// holding the run up matters more than what it is missing.
+	headRelease := s.svc.Config.ReleaseNumber(r.Context(), s.svc.Config.Head(r.Context()))
+	behind := 0
+	if st != nil && targetRelease > 0 && headRelease > targetRelease {
+		behind = headRelease - targetRelease
+	}
 	data := map[string]any{
 		"Title": "Rollout", "Nav": "updates",
+		// What the engine is waiting for, and how long it has been true. Both
+		// come off the state rather than being recomputed here, so the page
+		// cannot disagree with the engine about why a run is not moving.
+		"Waiting": func() string {
+			if st != nil {
+				return st.Waiting
+			}
+			return ""
+		}(),
+		"WaitingFor": func() string {
+			if st == nil {
+				return ""
+			}
+			if d := st.StuckFor(time.Now()); d >= time.Minute {
+				return humanWait(d)
+			}
+			return ""
+		}(),
+		"Behind": behind,
 		"Waves":  waves,
 		"State":  st,
 		"Active": active,

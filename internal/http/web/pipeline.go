@@ -248,24 +248,6 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 			}
 			return ""
 		}(),
-		// What the engine is waiting for, and how long it has been true. Both
-		// come off the state rather than being recomputed here, so the page
-		// cannot disagree with the engine about why a run is not moving.
-		"Waiting": func() string {
-			if st != nil {
-				return st.Waiting
-			}
-			return ""
-		}(),
-		"WaitingFor": func() string {
-			if st == nil {
-				return ""
-			}
-			if d := st.StuckFor(time.Now()); d >= time.Minute {
-				return humanWait(d)
-			}
-			return ""
-		}(),
 		"HasPlan": f.Rollout != nil && len(f.Rollout.Rings) > 0,
 		// Auto-flow (ADR 0012) turns the board into status: the ladder runs as
 		// standing policy, so the button is an override rather than the way
