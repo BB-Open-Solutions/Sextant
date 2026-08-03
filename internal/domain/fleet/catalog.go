@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -217,6 +218,54 @@ func (e CatalogEntry) ParseValue(s string) (any, error) {
 		return out, nil
 	default:
 		return s, nil
+	}
+}
+
+// RawFromValue renders an already-typed value - one the API decoded from JSON -
+// into the string form ParseValue expects, so both transports land in the same
+// validator instead of each having its own idea of what a value is.
+//
+// WHY IT EXISTS. The API used fmt.Sprint for this, which looked like it worked
+// and did not. A JSON list arrived as Go's "[a b]" and ParseValue, splitting on
+// newlines, turned it into a ONE-element list holding that text. The result is
+// a valid list of string, so the gate passed it and the device was configured
+// with nonsense. Three settings are list-typed and one of them is
+// usbDevices.allowlist, so the silent case was a security control.
+//
+// Numbers failed more loudly but no more correctly: JSON has a single number
+// type, so 1000000 decodes to float64 and fmt.Sprint renders it "1e+06", which
+// the integer check then rejects as not an integer.
+func (e CatalogEntry) RawFromValue(v any) (string, error) {
+	switch t := v.(type) {
+	case nil:
+		return "", nil
+	case string:
+		return t, nil
+	case bool:
+		return strconv.FormatBool(t), nil
+	case float64:
+		// 'f' with -1 precision: never an exponent, and no trailing zeros, so
+		// an integer stays spelled as one and a genuine fraction survives to be
+		// rejected by the integer check rather than silently truncated here.
+		return strconv.FormatFloat(t, 'f', -1, 64), nil
+	case []any:
+		out := make([]string, 0, len(t))
+		for i, el := range t {
+			s, ok := el.(string)
+			if !ok {
+				return "", fmt.Errorf("%s: item %d is %T, expected text", e.Name, i+1, el)
+			}
+			// The list form is one item per line, so an item containing a line
+			// break cannot round-trip. Say so instead of silently splitting it
+			// into two items.
+			if strings.ContainsAny(s, "\n\r") {
+				return "", fmt.Errorf("%s: item %d contains a line break, which a list value cannot hold", e.Name, i+1)
+			}
+			out = append(out, s)
+		}
+		return strings.Join(out, "\n"), nil
+	default:
+		return "", fmt.Errorf("%s: cannot take a value of type %T", e.Name, v)
 	}
 }
 

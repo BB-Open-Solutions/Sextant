@@ -189,3 +189,82 @@ func TestCatalogLabel(t *testing.T) {
 		t.Fatalf("unlabelled DisplayName = %q", p.DisplayName())
 	}
 }
+
+// A value that arrives typed from JSON must reach ParseValue in the form it
+// expects. These pin the two ways fmt.Sprint got that wrong, one of them
+// silently: a list rendered as Go's "[a b]" parsed back as a ONE-element list
+// holding that text, which is a valid list of string - so the gate accepted it
+// and the device was configured with nonsense. usbDevices.allowlist is one of
+// the three list-typed settings.
+func TestRawFromValueRoundTripsThroughParseValue(t *testing.T) {
+	list := CatalogEntry{Name: "usbDevices.allowlist", Type: "list of string"}
+	raw, err := list.RawFromValue([]any{"1d6b:0002", "8087:0032"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := list.ParseValue(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, ok := got.([]string)
+	if !ok || len(items) != 2 || items[0] != "1d6b:0002" || items[1] != "8087:0032" {
+		t.Fatalf("list round-tripped as %#v, want the two ids as separate items", got)
+	}
+
+	// JSON has one number type, so every integer decodes to float64. Rendering
+	// must not reach for an exponent: fmt.Sprint(float64(1e6)) is "1e+06",
+	// which the integer check rejects as not an integer.
+	num := CatalogEntry{Name: "autoUpdate.options.pollSeconds", Type: "positive integer, meaning >0"}
+	for _, tc := range []struct {
+		in   float64
+		want int
+	}{{3600, 3600}, {1000000, 1000000}, {86400000, 86400000}} {
+		raw, err := num.RawFromValue(tc.in)
+		if err != nil {
+			t.Fatalf("%v: %v", tc.in, err)
+		}
+		got, err := num.ParseValue(raw)
+		if err != nil {
+			t.Fatalf("%v rendered as %q, which ParseValue refused: %v", tc.in, raw, err)
+		}
+		if got != tc.want {
+			t.Errorf("%v round-tripped to %#v, want %d", tc.in, got, tc.want)
+		}
+	}
+
+	b := CatalogEntry{Name: "apps.comms.enable", Type: "boolean"}
+	if raw, err := b.RawFromValue(true); err != nil || raw != "true" {
+		t.Errorf("bool rendered as %q (%v), want \"true\"", raw, err)
+	}
+}
+
+func TestRawFromValueRefusesWhatItCannotRepresent(t *testing.T) {
+	list := CatalogEntry{Name: "timesync.options.servers", Type: "list of string"}
+
+	// One item per line is the storage form, so an item carrying a line break
+	// would silently become two items.
+	if _, err := list.RawFromValue([]any{"ntp1.example.org\nntp2.example.org"}); err == nil {
+		t.Error("an item containing a line break was accepted; it would split into two")
+	}
+	// A list of the wrong element type must be named, not coerced.
+	if _, err := list.RawFromValue([]any{"ok", 42.0}); err == nil {
+		t.Error("a non-string list item was accepted")
+	}
+	// An object has no string form the catalog understands.
+	if _, err := list.RawFromValue(map[string]any{"a": 1}); err == nil {
+		t.Error("an object was accepted as a setting value")
+	}
+	// A fraction must survive rendering so the integer check can refuse it,
+	// rather than being truncated here into a value the caller never sent.
+	num := CatalogEntry{Name: "n", Type: "positive integer, meaning >0"}
+	raw, err := num.RawFromValue(3.5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw != "3.5" {
+		t.Fatalf("3.5 rendered as %q, want it kept intact for the type check", raw)
+	}
+	if _, err := num.ParseValue(raw); err == nil {
+		t.Error("3.5 was accepted as an integer")
+	}
+}

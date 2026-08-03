@@ -203,18 +203,32 @@ func (a *API) postSetting(w http.ResponseWriter, r *http.Request) error {
 	}
 	// Delegate to the same ConfigService entry point the console uses, so the
 	// API cannot bypass change-request governance, catalog membership, typing
-	// or secret-reference integrity. The value arrives already typed from JSON;
-	// render it to the string the catalog entry parses and validates.
+	// or secret-reference integrity.
+	//
+	// The value arrives already typed from JSON and has to reach that entry
+	// point as the string form the catalog entry parses. RawFromValue does the
+	// rendering; fmt.Sprint used to, and quietly turned a JSON list into Go's
+	// "[a b]" - which ParseValue then stored as a ONE-element list holding that
+	// text. usbDevices.allowlist is one of the list-typed settings, so the
+	// silent case reconfigured a security control.
+	entry, known := a.cfg.Catalog().Lookup(in.Key)
+	if !known {
+		return reject(fmt.Errorf("unknown setting %q (not in catalog)", in.Key))
+	}
+	raw, err := entry.RawFromValue(in.Value)
+	if err != nil {
+		return reject(err)
+	}
 	if err := app.GuardExclusiveSettings(a.cfg, in.Scope,
-		[]app.SettingChange{{Key: in.Key, RawValue: fmt.Sprint(in.Value)}}); err != nil {
+		[]app.SettingChange{{Key: in.Key, RawValue: raw}}); err != nil {
 		return reject(err)
 	}
 	if err := app.GuardBrickingSettings(r.Context(), a.cfg, a.inv, in.Scope,
-		[]app.SettingChange{{Key: in.Key, RawValue: fmt.Sprint(in.Value)}}); err != nil {
+		[]app.SettingChange{{Key: in.Key, RawValue: raw}}); err != nil {
 		return reject(err)
 	}
 	if err := a.cfg.SetSetting(r.Context(), in.Scope, in.Key,
-		fmt.Sprint(in.Value), in.Enforce, author(r)); err != nil {
+		raw, in.Enforce, author(r)); err != nil {
 		return settingErr(err)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "applied"})
