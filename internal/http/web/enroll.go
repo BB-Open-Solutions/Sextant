@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/discovery"
@@ -185,7 +186,7 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 	}
 	mut := func(f *fleet.Fleet) error {
 		for _, p := range items {
-			if err := fleet.AddDevice(p.tag, p.dev)(f); err != nil {
+			if err := fleet.AddDevice(p.tag, p.dev, time.Now())(f); err != nil {
 				return err
 			}
 		}

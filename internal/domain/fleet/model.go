@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Version is the fleet.json schema version this domain reads and writes.
@@ -187,8 +188,13 @@ const (
 
 // Device is one managed machine, keyed by its asset tag.
 type Device struct {
-	// State is the lifecycle position ("" = active, "retired").
+	// State is the lifecycle position ("" = active, "provisional", "retired").
 	State string `json:"state,omitempty"`
+	// Enrolled is when the record was created. It exists so a provisional
+	// device can be aged: an enrolment that never became a machine has to be
+	// reapable, and git's commit history is the wrong place to ask that
+	// question once per device per sweep.
+	Enrolled time.Time `json:"enrolled,omitempty"`
 	// Intent is a pending remote action ("" | "lock" | "wipe").
 	Intent string `json:"intent,omitempty"`
 	// Pin releases this device into a capped rollout wave's cohort (ADR 0013):

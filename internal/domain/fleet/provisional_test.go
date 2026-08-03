@@ -1,6 +1,9 @@
 package fleet
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // The incident these tests exist for: one laptop was enrolled four times by
 // failed installs on 2026-07-31. All four records landed in ring bb-laptops,
@@ -15,7 +18,7 @@ func provisionalFleet(t *testing.T) *Fleet {
 		Devices: map[string]Device{},
 	}
 	for _, tag := range []string{"lt-1", "lt-2"} {
-		if err := AddDevice(tag, Device{Hardware: "t495s", Class: "laptop", Groups: []string{"laptops"}})(f); err != nil {
+		if err := AddDevice(tag, Device{Hardware: "t495s", Class: "laptop", Groups: []string{"laptops"}}, time.Now())(f); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -35,7 +38,7 @@ func TestAddDeviceStartsProvisional(t *testing.T) {
 	// running stays possible.
 	if err := AddDevice("lt-9", Device{
 		Hardware: "t495s", Class: "laptop", Groups: []string{"laptops"}, State: DeviceRetired,
-	})(f); err != nil {
+	}, time.Now())(f); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.Devices["lt-9"].State; got != DeviceRetired {
@@ -93,5 +96,30 @@ func TestFirstReportPromotesAndOnlyFromProvisional(t *testing.T) {
 	f.Devices["lt-2"] = Device{Hardware: "t495s", Groups: []string{"laptops"}, State: DeviceRetired}
 	if err := ActivateProvisional("lt-2")(f); err == nil {
 		t.Error("a retired device was reactivated by a check-in")
+	}
+}
+
+// The reaper is the safety net, not the fix - a provisional device already
+// counts toward nothing - so it may only take records that are genuinely
+// abandoned, and it must never guess.
+func TestAbandonedEnrolmentsOnlyTakesWhatItCanAgeAndProve(t *testing.T) {
+	old := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+	recent := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)
+	cutoff := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+
+	f := &Fleet{Groups: map[string]Group{"laptops": {}}, Devices: map[string]Device{
+		"abandoned":   {Hardware: "hw", State: DeviceProvisional, Enrolled: old},
+		"still-going": {Hardware: "hw", State: DeviceProvisional, Enrolled: recent},
+		// Predates the Enrolled field. Guessing its age would let a sweep
+		// delete a device it knows nothing about.
+		"unstamped": {Hardware: "hw", State: DeviceProvisional},
+		// Reported long ago, so it is a real machine however old the record.
+		"real":    {Hardware: "hw", Enrolled: old},
+		"retired": {Hardware: "hw", State: DeviceRetired, Enrolled: old},
+	}}
+
+	got := f.AbandonedEnrolments(cutoff)
+	if len(got) != 1 || got[0] != "abandoned" {
+		t.Fatalf("reaped %v, want only [abandoned]", got)
 	}
 }

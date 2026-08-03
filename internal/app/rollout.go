@@ -812,6 +812,19 @@ func (s *RolloutService) Run(ctx context.Context, every time.Duration) {
 			if err := s.maybeAutoStart(ctx); err != nil && ctx.Err() == nil {
 				s.log.Error("rollout auto-start check failed", "err", err)
 			}
+			// Housekeeping on the same beat: drop enrolments that were started
+			// and never became a machine. Harmless by then - a provisional
+			// device already counts toward nothing - so this only keeps the
+			// register honest, and a failure is never worth stopping the
+			// engine for.
+			if dropped, err := s.cfg.ReapAbandonedEnrolments(ctx, s.clock.Now(), engineAuthor()); err != nil {
+				if ctx.Err() == nil {
+					s.log.Error("enrolment sweep failed", "err", err)
+				}
+			} else if len(dropped) > 0 {
+				s.log.Info("dropped enrolments that never reported",
+					"count", len(dropped), "tags", strings.Join(dropped, ","))
+			}
 		}
 	}
 }

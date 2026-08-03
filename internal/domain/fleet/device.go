@@ -3,6 +3,7 @@ package fleet
 import (
 	"fmt"
 	"slices"
+	"time"
 )
 
 // device.go: enrollment mutations. Adding a device is the front door of the
@@ -12,7 +13,7 @@ import (
 
 // AddDevice enrolls a new device. Hardware names the overlay's hardware
 // profile and is required; unknown groups are rejected.
-func AddDevice(tag string, d Device) Mutation {
+func AddDevice(tag string, d Device, now time.Time) Mutation {
 	return func(f *Fleet) error {
 		if !ValidateSlug(tag) {
 			return fmt.Errorf("invalid device tag %q (lowercase slug required)", tag)
@@ -43,6 +44,12 @@ func AddDevice(tag string, d Device) Mutation {
 		// that is already running stays possible.
 		if d.State == DeviceActive {
 			d.State = DeviceProvisional
+		}
+		// Stamped here, from a clock the caller passes, so no enrolment path
+		// can produce a provisional record that cannot be aged. An explicit
+		// value survives (importing a fleet keeps its real dates).
+		if d.Enrolled.IsZero() {
+			d.Enrolled = now
 		}
 		if f.Devices == nil {
 			f.Devices = map[string]Device{}
@@ -319,6 +326,41 @@ func GroupMembershipDelta(old, next []string) []string {
 	for g := range nextSet {
 		if !oldSet[g] {
 			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// StaleProvisional is how long an enrolment may sit unconfirmed before it is
+// treated as abandoned.
+//
+// Generous on purpose. An install can legitimately take a long time on slow
+// hardware or a slow link, a station operator can walk away halfway through,
+// and a device enrolled on Friday afternoon may not boot until Monday. The
+// cost of reaping too early is deleting a record somebody is still using; the
+// cost of reaping too late is a stale row in a list. Those are not symmetric.
+const StaleProvisional = 72 * time.Hour
+
+// AbandonedEnrolments lists provisional devices enrolled before cutoff:
+// records created when somebody started an installation that never reported.
+//
+// Returned rather than deleted so the caller decides and the removal stays an
+// ordinary audited mutation. Deterministic order (DeviceTags sorts), so a
+// sweep's commit message reads the same way twice.
+func (f *Fleet) AbandonedEnrolments(cutoff time.Time) []string {
+	var out []string
+	for _, tag := range f.DeviceTags() {
+		d := f.Devices[tag]
+		if !d.Provisional() {
+			continue
+		}
+		// An unstamped record predates the field. Leave it alone: guessing an
+		// age would let a sweep delete a device it knows nothing about.
+		if d.Enrolled.IsZero() {
+			continue
+		}
+		if d.Enrolled.Before(cutoff) {
+			out = append(out, tag)
 		}
 	}
 	return out

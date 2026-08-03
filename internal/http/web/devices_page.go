@@ -410,7 +410,7 @@ func (s *Server) postDeviceEnroll(w http.ResponseWriter, r *http.Request, v view
 		Groups:   groups,
 	}
 	msg := fmt.Sprintf("devices: enroll %s (%s)", tag, d.Hardware)
-	if err := s.svc.Config.Apply(r.Context(), fleet.AddDevice(tag, d), msg, webAuthor(v), tag); err != nil {
+	if err := s.svc.Config.Apply(r.Context(), fleet.AddDevice(tag, d, time.Now()), msg, webAuthor(v), tag); err != nil {
 		return err
 	}
 	// Issue the per-device credential (ADR 0008) and show it once on the

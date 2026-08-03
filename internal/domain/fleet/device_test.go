@@ -3,12 +3,13 @@ package fleet
 import (
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestAddRemoveDevice(t *testing.T) {
 	f := policyFleet(t)
 
-	if err := AddDevice("lt-new", Device{Hardware: "hp-g4", Groups: []string{"frontoffice"}, Class: "laptop"})(f); err != nil {
+	if err := AddDevice("lt-new", Device{Hardware: "hp-g4", Groups: []string{"frontoffice"}, Class: "laptop"}, time.Now())(f); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := f.Devices["lt-new"]; !ok {
@@ -30,7 +31,7 @@ func TestAddRemoveDevice(t *testing.T) {
 		{"ghost-group", Device{Hardware: "hw", Groups: []string{"nope"}}}, // unknown group
 	}
 	for _, tc := range bad {
-		if err := AddDevice(tc.tag, tc.d)(f); err == nil {
+		if err := AddDevice(tc.tag, tc.d, time.Now())(f); err == nil {
 			t.Errorf("AddDevice(%q) accepted", tc.tag)
 		}
 	}

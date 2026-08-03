@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestValidClass(t *testing.T) {
@@ -72,11 +73,11 @@ func TestMembershipRefusedByAllowedClasses(t *testing.T) {
 	apply(t, f, SetGroupAllowedClasses("frontoffice", []string{"laptop"}))
 
 	// AddDevice: a server may not enroll into a laptop-only group.
-	if err := AddDevice("srv-new", Device{Hardware: "msi", Class: "server", Groups: []string{"frontoffice"}})(f); err == nil {
+	if err := AddDevice("srv-new", Device{Hardware: "msi", Class: "server", Groups: []string{"frontoffice"}}, time.Now())(f); err == nil {
 		t.Fatal("AddDevice put a server in a laptop-only group")
 	}
 	// A laptop still enrolls fine.
-	if err := AddDevice("lt-new", Device{Hardware: "hp-g4", Class: "laptop", Groups: []string{"frontoffice"}})(f); err != nil {
+	if err := AddDevice("lt-new", Device{Hardware: "hp-g4", Class: "laptop", Groups: []string{"frontoffice"}}, time.Now())(f); err != nil {
 		t.Fatalf("AddDevice refused an allowed class: %v", err)
 	}
 
@@ -100,7 +101,7 @@ func TestMembershipRefusedByAllowedClasses(t *testing.T) {
 func TestMembershipAllowedWhenGuardrailEmpty(t *testing.T) {
 	f := policyFleet(t)
 	// frontoffice has no guardrail: any class may join.
-	if err := AddDevice("srv-new", Device{Hardware: "msi", Class: "server", Groups: []string{"frontoffice"}})(f); err != nil {
+	if err := AddDevice("srv-new", Device{Hardware: "msi", Class: "server", Groups: []string{"frontoffice"}}, time.Now())(f); err != nil {
 		t.Fatalf("empty guardrail refused a server: %v", err)
 	}
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
@@ -121,7 +122,7 @@ func (a *API) postDevice(w http.ResponseWriter, r *http.Request) error {
 	d := fleet.Device{Hardware: in.Hardware, Class: in.Class, Groups: in.Groups,
 		AssignedUser: in.AssignedUser, Labels: in.Labels}
 	msg := fmt.Sprintf("devices: enroll %s (%s)", in.Tag, in.Hardware)
-	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.AddDevice(in.Tag, d)), msg, author(r), in.Tag); err != nil {
+	if err := a.cfg.Apply(r.Context(), rejectingMut(fleet.AddDevice(in.Tag, d, time.Now())), msg, author(r), in.Tag); err != nil {
 		return err
 	}
 	out := map[string]string{"status": "enrolled", "tag": in.Tag}
