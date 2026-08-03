@@ -70,10 +70,6 @@ type EvalGate struct {
 	// the number that turns memory from something a change happens to cost into
 	// something we choose. Zero leaves nix-eval-jobs' own default.
 	MaxMemoryMB int
-	// GCRootsDir keeps the evaluated derivations rooted, so the collector
-	// cannot remove one between validation and the release build that realises
-	// it. Empty accepts that risk (and nix-eval-jobs' warning about it).
-	GCRootsDir string
 
 	run runner
 }

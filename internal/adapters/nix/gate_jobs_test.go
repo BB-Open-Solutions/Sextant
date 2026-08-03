@@ -42,7 +42,7 @@ func (r *jobsRunner) run(_ context.Context, name string, args ...string) ([]byte
 }
 
 func jobsGate(r *jobsRunner) *EvalGate {
-	return &EvalGate{JobsBin: "nix-eval-jobs", Workers: 3, MaxMemoryMB: 2500, GCRootsDir: "/data/gcroots", run: r.run}
+	return &EvalGate{JobsBin: "nix-eval-jobs", Workers: 3, MaxMemoryMB: 2500, run: r.run}
 }
 
 func okLine(attr string) string {
@@ -57,7 +57,10 @@ func TestJobsGateAcceptsAnOverlayEveryHostEvaluates(t *testing.T) {
 
 	argv := strings.Join(r.args, " ")
 	for _, want := range []string{
-		"nix-eval-jobs", "--workers 3", "--max-memory-size 2500", "--gc-roots-dir /data/gcroots",
+		"nix-eval-jobs", "--workers 3", "--max-memory-size 2500",
+		// Validation asks whether a host evaluates; writing the .drv is work
+		// it does not need, and the release build instantiates separately.
+		"--no-instantiate",
 		// The revision locks the flake reference: the candidate sits on a
 		// detached commit, and getFlake refuses an unlocked ref. Reaching for
 		// --impure instead would hand the expression the runner's environment.

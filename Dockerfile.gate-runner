@@ -46,12 +46,20 @@ FROM docker.io/nixos/nix:2.24.9@sha256:fd7a5c67d396fe6bddeb9c10779d97541ab3a1b2a
 # allowlist is tracked separately since CNP manifests are not owned here.
 RUN mkdir -p /etc/nix /data \
  && printf 'experimental-features = nix-command flakes\nsandbox = true\n' >> /etc/nix/nix.conf \
+ && nix-env -iA nixpkgs.git \
  # nix-eval-jobs evaluates the fleet's hosts in bounded workers: a worker that
  # exceeds -max-memory-size fails ITS OWN host instead of killing this process,
- # which is what took every commit path down for an hour on 2026-08-01. It
- # comes from the image's own channel, so it stays behind the pinned nix here
- # rather than pulling a newer store schema in beside it.
- && nix-env -iA nixpkgs.git nixpkgs.nix-eval-jobs \
+ # which is what took every commit path down for an hour on 2026-08-01.
+ #
+ # PINNED to the same nixpkgs revision the fleet overlay uses, not this image's
+ # channel. The channel ships 2.22.1, which lacks --no-instantiate and is 2.7x
+ # SLOWER than the plain evaluator it was meant to replace (18.3s vs 6.8s for
+ # one host, measured in the pod). A floating `nix-channel --update` would fix
+ # the version and break the reproducibility this file pins its base digest for.
+ #
+ # Verified that this does not disturb the pinned nix beside it: nix 2.24.9
+ # still runs and the store stays readable after the install.
+ && nix-env -iA nix-eval-jobs -f https://github.com/NixOS/nixpkgs/archive/4533d9293756b63904b7238acb84ac8fe4c8c2c4.tar.gz \
  # nix resolves the user's home via getpwuid() on some paths, not just $HOME;
  # uid 65532 has no passwd entry, which fails with "cannot determine user's
  # home directory". Give it one (home = /data) so nix eval runs rootless.

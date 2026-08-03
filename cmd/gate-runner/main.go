@@ -65,7 +65,6 @@ func main() {
 		// absent.
 		evalJobs    = flag.String("eval-jobs", envOr("GATE_EVAL_JOBS", ""), "nix-eval-jobs binary; empty uses the in-process chunker")
 		evalJobsMem = flag.Int("eval-jobs-max-memory-mb", envOrInt("GATE_EVAL_JOBS_MAX_MEMORY_MB", 0), "per-worker memory ceiling for nix-eval-jobs, MB (0 = its default)")
-		gcRootsDir  = flag.String("gc-roots-dir", envOr("GATE_GC_ROOTS_DIR", ""), "directory nix-eval-jobs roots evaluated derivations in, so the collector cannot remove them before the release build")
 	)
 	flag.Parse()
 
@@ -123,7 +122,6 @@ func main() {
 			Workers:     *evalWorkers,
 			JobsBin:     *evalJobs,
 			MaxMemoryMB: *evalJobsMem,
-			GCRootsDir:  *gcRootsDir,
 		},
 		sem:        make(chan struct{}, *maxConcurrent),
 		token:      token,

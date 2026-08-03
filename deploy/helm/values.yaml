@@ -97,10 +97,6 @@ gateRunner:
   # Per-worker ceiling in MB. evalWorkers x this must fit resources.limits
   # below; unlike the chunker, exceeding it costs one host, not the service.
   evalJobsMaxMemoryMB: ""
-  # Where evaluated derivations are rooted, so the collector cannot remove one
-  # between validation and the release build that realises it. Empty accepts
-  # that risk and nix-eval-jobs warns about it.
-  gcRootsDir: ""
   # Release cache (build-before-promote): the runner realises a ring's release
   # and serves it - signed - under /cache, so devices substitute instead of
   # compiling. Enabled by naming the Secret that holds the nix signing secret

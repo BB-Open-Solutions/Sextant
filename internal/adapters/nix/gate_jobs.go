@@ -69,14 +69,21 @@ func (g *EvalGate) evalWithJobs(ctx context.Context, run runner, repoDir string,
 		return err
 	}
 
-	args := []string{"--expr", expr, "--workers", strconv.Itoa(g.workers())}
+	// --no-instantiate: validation asks whether the host EVALUATES, and does
+	// not need the .drv written to prove it. The release build instantiates
+	// separately when it realises the closure. Requires nix-eval-jobs 2.34+ -
+	// the image pins one, and an older binary fails loudly on the unknown flag
+	// rather than quietly doing more work.
+	//
+	// It also makes --gc-roots-dir moot: nothing is written, so there is
+	// nothing for the collector to take.
+	args := []string{
+		"--expr", expr,
+		"--workers", strconv.Itoa(g.workers()),
+		"--no-instantiate",
+	}
 	if mb := g.MaxMemoryMB; mb > 0 {
 		args = append(args, "--max-memory-size", strconv.Itoa(mb))
-	}
-	if g.GCRootsDir != "" {
-		// Without roots the collector may remove a derivation between our
-		// evaluating it and the release build realising it.
-		args = append(args, "--gc-roots-dir", g.GCRootsDir)
 	}
 
 	out, runErr := run(ctx, g.JobsBin, args...)
