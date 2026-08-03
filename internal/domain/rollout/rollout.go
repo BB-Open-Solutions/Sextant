@@ -164,9 +164,48 @@ type State struct {
 	BuildRequestedAt map[int]time.Time `json:"buildRequestedAt,omitempty"`
 	Status           RunStatus         `json:"status"`
 	// Reason explains a halt.
-	Reason  string    `json:"reason,omitempty"`
-	Started time.Time `json:"started"`
-	Updated time.Time `json:"updated"`
+	Reason string `json:"reason,omitempty"`
+	// Waiting is what the engine decided on the last tick, and why: the same
+	// text Decide already produced and the caller used to throw away.
+	//
+	// A run that is not moving is the case an operator most needs explained,
+	// and it was the one case the console said nothing about. On 2026-08-01 a
+	// run sat on a ring whose every device was absent; the engine correctly
+	// computed "this ring cannot converge" every thirty seconds and discarded
+	// it, so the board showed a healthy-looking active run and the operator
+	// concluded there was nothing to promote. Recording it costs a string.
+	//
+	// Empty once the run reaches a terminal state - Reason carries that.
+	Waiting string `json:"waiting,omitempty"`
+	// WaitingSince is when the engine first gave this reason, so the page can
+	// say how long it has been true. A wave that has been soaking for two
+	// minutes and one that has been stuck for two hours read identically
+	// without it.
+	WaitingSince time.Time `json:"waitingSince,omitempty"`
+	Started      time.Time `json:"started"`
+	Updated      time.Time `json:"updated"`
+}
+
+// Note records the engine's latest decision on the run. Called on every tick
+// with what Decide returned; the timestamp only moves when the REASON changes,
+// so "waiting since" measures the current situation rather than the last tick.
+func (s *State) Note(a Action, now time.Time) {
+	if a.Kind == Halt || a.Kind == Done {
+		s.Waiting, s.WaitingSince = "", time.Time{}
+		return
+	}
+	if s.Waiting != a.Reason {
+		s.Waiting, s.WaitingSince = a.Reason, now
+	}
+}
+
+// StuckFor is how long the run has been giving the same reason. Zero when it
+// is not waiting on anything.
+func (s *State) StuckFor(now time.Time) time.Duration {
+	if s.Waiting == "" || s.WaitingSince.IsZero() {
+		return 0
+	}
+	return now.Sub(s.WaitingSince)
 }
 
 // NewState starts a rollout run at ring 0.
@@ -330,6 +369,18 @@ func Decide(rings []Ring, s *State, ringStatus RingStatus, now time.Time) Action
 		return Action{Kind: Halt, Reason: fmt.Sprintf(
 			"ring %d (%s): %d device(s) unhealthy on target exceeds the %d%% failure budget",
 			s.Ring, ring.Group, ringStatus.Broken, 100-ring.minHealthy())}
+	}
+
+	// A cohort that is entirely absent is a different situation from one that
+	// is merely behind, and saying "0/4 healthy" for it misleads: no amount of
+	// waiting can help, because the denominator is zero. Name it, and name the
+	// two ways out - an operator who reads "0/4" waits, and an operator who
+	// reads this does something.
+	if ringStatus.Present() == 0 {
+		return Action{Kind: Wait, Reason: fmt.Sprintf(
+			"ring %d (%s): all %d device(s) absent, so this ring cannot converge. "+
+				"Cancel the run, or retire the devices that are gone",
+			s.Ring, ring.Group, ringStatus.Total)}
 	}
 
 	// Still short of the success threshold? Keep converging; the devices

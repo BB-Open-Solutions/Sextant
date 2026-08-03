@@ -31,6 +31,15 @@
       {{with .State.ChangeTitle}}<span class="text-body-sm text-text-secondary"><span class="material-symbols-outlined msz-14 align-middle text-mint-deep">local_shipping</span> {{$.L.T "updates.delivering"}} {{.}}</span>{{end}}
       {{with .State.Reason}}<span class="text-body-sm text-text-secondary">{{.}}</span>{{end}}
     </div>
+    {{/* What the engine is waiting for. A run that is not moving is the case
+         an operator most needs explained, and it was the one the page stayed
+         silent about. */}}
+    {{with .Waiting}}
+    <p class="mb-0 mt-3 flex items-start gap-2 text-body-sm text-text-secondary">
+      <span class="material-symbols-outlined msz-18 shrink-0 text-text-tertiary">hourglass_top</span>
+      <span>{{.}}{{with $.WaitingFor}} <span class="text-text-tertiary">({{.}})</span>{{end}}</span>
+    </p>
+    {{end}}
     {{if .Terminal}}
     <p class="mb-0 mt-3 text-body-sm text-text-secondary">{{.L.T "updates.terminal_hint"}} <a href="/updates" class="text-secondary">{{.L.T "updates.back_to_overview"}}</a></p>
     {{end}}

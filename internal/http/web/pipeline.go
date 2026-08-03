@@ -2,6 +2,8 @@ package web
 
 import (
 	"net/http"
+	"strconv"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
@@ -246,6 +248,24 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 			}
 			return ""
 		}(),
+		// What the engine is waiting for, and how long it has been true. Both
+		// come off the state rather than being recomputed here, so the page
+		// cannot disagree with the engine about why a run is not moving.
+		"Waiting": func() string {
+			if st != nil {
+				return st.Waiting
+			}
+			return ""
+		}(),
+		"WaitingFor": func() string {
+			if st == nil {
+				return ""
+			}
+			if d := st.StuckFor(time.Now()); d >= time.Minute {
+				return humanWait(d)
+			}
+			return ""
+		}(),
 		"HasPlan": f.Rollout != nil && len(f.Rollout.Rings) > 0,
 		// Auto-flow (ADR 0012) turns the board into status: the ladder runs as
 		// standing policy, so the button is an override rather than the way
@@ -283,4 +303,19 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 		data["Error"] = listErr.Error()
 	}
 	s.render(w, "updates", data, v)
+}
+
+// humanWait renders how long a run has been giving the same reason. Coarser
+// than humanSeconds on purpose: a wave stuck since this morning reads as "4h",
+// not as "247m 13s", and the difference between two minutes and two hours is
+// the whole reason the page shows it.
+func humanWait(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return strconv.Itoa(int(d.Minutes())) + "m"
+	case d < 24*time.Hour:
+		return strconv.Itoa(int(d.Hours())) + "h"
+	default:
+		return strconv.Itoa(int(d.Hours())/24) + "d"
+	}
 }

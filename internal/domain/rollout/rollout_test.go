@@ -389,3 +389,67 @@ func TestStalledForNilState(t *testing.T) {
 		t.Fatalf("StalledFor on nil = %s, want 0", got)
 	}
 }
+
+// A cohort that is entirely absent can never converge, and saying "0/4
+// healthy" for it sends an operator off to wait. This is the case that sat
+// unexplained on 2026-08-01: four devices, all gone, a run that looked active
+// and a board that said nothing.
+func TestAnEntirelyAbsentRingSaysItCannotConverge(t *testing.T) {
+	rings := []Ring{{Group: "bb-laptops", SoakMinutes: 5}}
+	st := NewState("abc123", t0)
+	st.PromotedAt[0] = t0
+
+	act := Decide(rings, st, RingStatus{Total: 4, Absent: 4}, t0)
+	if act.Kind != Wait {
+		t.Fatalf("action = %s, want Wait", act.Kind)
+	}
+	for _, want := range []string{"absent", "cannot converge"} {
+		if !strings.Contains(act.Reason, want) {
+			t.Errorf("reason %q does not mention %q", act.Reason, want)
+		}
+	}
+	// It must not read as a threshold that more waiting could meet.
+	if strings.Contains(act.Reason, "gate ") {
+		t.Errorf("reason reads as a health threshold, which no amount of waiting can meet: %q", act.Reason)
+	}
+}
+
+// The engine's explanation has to survive onto the state, because the caller
+// used to compute it every tick and throw it away.
+func TestNoteKeepsTheReasonAndAgesItFromWhenItStarted(t *testing.T) {
+	st := NewState("abc123", t0)
+
+	st.Note(Action{Kind: Wait, Reason: "ring 0: soaking"}, t0)
+	if st.Waiting != "ring 0: soaking" {
+		t.Fatalf("Waiting = %q, want the engine's reason", st.Waiting)
+	}
+	if got := st.StuckFor(t0.Add(90 * time.Second)); got != 90*time.Second {
+		t.Errorf("StuckFor = %s, want 90s", got)
+	}
+
+	// The same reason on a later tick must not reset the clock: "waiting since"
+	// measures the situation, not how recently the engine looked at it.
+	st.Note(Action{Kind: Wait, Reason: "ring 0: soaking"}, t0.Add(time.Minute))
+	if got := st.StuckFor(t0.Add(90 * time.Second)); got != 90*time.Second {
+		t.Errorf("an unchanged reason reset the clock: StuckFor = %s, want 90s", got)
+	}
+
+	// A different reason is a different situation, so the clock restarts.
+	st.Note(Action{Kind: Wait, Reason: "ring 1: deploying"}, t0.Add(2*time.Minute))
+	if got := st.StuckFor(t0.Add(2 * time.Minute)); got != 0 {
+		t.Errorf("a new reason kept the old clock: StuckFor = %s, want 0", got)
+	}
+}
+
+// A finished run is not waiting for anything; Reason carries the outcome.
+func TestNoteClearsTheWaitOnATerminalAction(t *testing.T) {
+	st := NewState("abc123", t0)
+	st.Note(Action{Kind: Wait, Reason: "ring 0: soaking"}, t0)
+	st.Note(Action{Kind: Done, Reason: "all rings rolled out"}, t0.Add(time.Minute))
+	if st.Waiting != "" {
+		t.Errorf("a completed run still reports waiting for %q", st.Waiting)
+	}
+	if st.StuckFor(t0.Add(time.Hour)) != 0 {
+		t.Error("a completed run reports a stuck duration")
+	}
+}

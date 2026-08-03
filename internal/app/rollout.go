@@ -713,6 +713,10 @@ func (s *RolloutService) Tick(ctx context.Context) (*rollout.Action, *rollout.St
 		st.Reason = act.Reason
 		s.notifyDone(ctx, st.Target)
 	}
+	// Keep the engine's own explanation. Decide produces a precise one every
+	// tick and this loop used to drop it, which is why a wedged run looked
+	// like a healthy one.
+	st.Note(act, now)
 	st.Updated = now
 	if err := s.store.Put(ctx, st); err != nil {
 		return &act, st, err
