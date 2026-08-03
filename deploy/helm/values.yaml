@@ -66,6 +66,19 @@ gateRunner:
   # peak memory multiplies by it: workers x per-batch memory must fit the
   # resources.limits below. Empty = 1 (sequential).
   evalWorkers: ""
+  # Boehm's initial heap, in bytes, as GC_INITIAL_HEAP_SIZE. Left unset, nix
+  # starts small and grows, spending a large share of a system evaluation
+  # collecting. Measured in the pod on 2026-08-03, one host:
+  #
+  #   unset    cpuTime 8.13s  gc 3.14s  21 cycles   peak anon 1477 MiB
+  #   2.0 GB   cpuTime 5.85s  gc 1.00s   1 cycle    peak anon 1778 MiB
+  #   3.5 GB   cpuTime 5.78s  gc 0.98s   1 cycle
+  #
+  # So ~28% off the wall clock for ~300 MiB, and nothing beyond 2 GB - past
+  # that it only reserves memory. This buys TIME, not memory: it raises the
+  # floor the process sits on, so re-measure the peak against resources.limits
+  # whenever either changes. Empty = leave it to the collector.
+  gcInitialHeapSize: ""
   # Release cache (build-before-promote): the runner realises a ring's release
   # and serves it - signed - under /cache, so devices substitute instead of
   # compiling. Enabled by naming the Secret that holds the nix signing secret

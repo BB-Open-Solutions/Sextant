@@ -69,6 +69,11 @@ spec:
           env:
             # git and nix read /data/.netrc for the private overlay remote.
             - { name: HOME, value: /data }
+            {{- with .Values.gateRunner.gcInitialHeapSize }}
+            # Boehm starts small and grows otherwise, which costs a measured
+            # 28% of a system evaluation in collection. See values.yaml.
+            - { name: GC_INITIAL_HEAP_SIZE, value: {{ . | quote }} }
+            {{- end }}
             # Bearer token the console must present to /validate. Optional so a
             # loopback/dev runner may go without; when the key is set in the
             # app secret, a networked runner requires it (fail-closed) and the
