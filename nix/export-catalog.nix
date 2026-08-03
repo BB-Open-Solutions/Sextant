@@ -102,6 +102,45 @@ in
   # system), a finished host evaluation already did the hard part.
   exportCatalogFromOptions = options: walk [ ] (options.dawo or { });
 
+  # exportCatalogFromClassOptions: { <class> = <evaluated host options>; ... }
+  # -> catalog entries tagged with the classes whose IMAGE defines them.
+  #
+  # WHY THIS EXISTS. Exporting from a single host publishes that host's
+  # options as if every device had them. The console's CatalogEntry.AppliesTo
+  # and the generator both promise the opposite - a workplace-only option set
+  # at a scope covering headless machines should configure the laptops and
+  # visibly skip the servers - and neither could keep that promise, because
+  # the data it needs was never in the file. Setting a laptop option at org
+  # scope failed the evaluation of every station in the blast radius, and the
+  # console refused a change the operator had every reason to expect to work.
+  #
+  # An entry every class defines carries NO classes list. That is the
+  # universal case and AppliesTo already reads an empty list that way, so the
+  # common option stays a plain row rather than one tagged with every class
+  # in the organisation.
+  exportCatalogFromClassOptions = byClass:
+    let
+      classes = lib.attrNames byClass;
+      # class -> its entries, keyed by option name.
+      perClass = lib.mapAttrs (_: opts:
+        lib.listToAttrs (map (e: lib.nameValuePair e.name e)
+          (exportCatalogFromOptions opts))) byClass;
+      names = lib.unique (lib.concatMap lib.attrNames (lib.attrValues perClass));
+      definedIn = name:
+        lib.filter (c: perClass.${c} ? ${name}) classes;
+      # The entry itself comes from the first class that defines it, in
+      # attrName order, so the export is deterministic. Description and type
+      # come from the same option in every image, so the choice is arbitrary
+      # only in the sense that it cannot matter.
+      entryFor = name:
+        let owners = definedIn name; in
+        perClass.${lib.head owners}.${name}
+          // (if lib.length owners == lib.length classes
+              then { }
+              else { classes = owners; });
+    in
+    map entryFor (lib.sort (a: b: a < b) names);
+
   # exportCatalog: modules -> [ { name; type; description; default?; riskClass? } ]
   # Evaluate a STANDALONE module set for its option declarations (miniature
   # cores, tests). Full NixOS module sets should use

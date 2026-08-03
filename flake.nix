@@ -18,6 +18,12 @@
           (import ./nix/export-catalog.nix { lib = nixpkgs.lib; }).exportCatalog;
         exportCatalogFromOptions =
           (import ./nix/export-catalog.nix { lib = nixpkgs.lib; }).exportCatalogFromOptions;
+        # Per-class export: an overlay passes one evaluated host per device
+        # class and every entry is tagged with the classes whose image
+        # defines it. This is what makes CatalogEntry.AppliesTo and the
+        # generator's class filtering able to keep their promise.
+        exportCatalogFromClassOptions =
+          (import ./nix/export-catalog.nix { lib = nixpkgs.lib; }).exportCatalogFromClassOptions;
         tests = import ./nix/tests.nix { lib = nixpkgs.lib; };
       };
 
