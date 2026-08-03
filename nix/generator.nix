@@ -17,15 +17,51 @@ let
 
   # settingsModule: resolved settings -> dawo.* option values with the
   # right priority. Built as a nested attrset merged per key.
-  settingsModule = fleet: tag:
+  #
+  # options is the evaluating host's own option tree, and a setting whose
+  # option this IMAGE does not declare is skipped rather than applied.
+  #
+  # WHY. Scopes reach across device classes: an organisation setting covers
+  # laptops and stations alike, and the station's image has no `dawo.apps`.
+  # Applying it anyway fails that host's evaluation, which fails the whole
+  # change - so the console refuses an edit the operator had every reason to
+  # expect to work, and says only that an option does not exist. That is what
+  # happened on 2026-08-03 with apps.comms.enable at org scope.
+  #
+  # Asking the option tree rather than catalog.json on purpose: the image is
+  # ground truth and cannot drift from itself. The catalog's class tags exist
+  # for the CONSOLE, so a person can see which classes a setting reaches
+  # before they save it; this is the safety net underneath that.
+  #
+  # Only existence is read, never a value, so there is no recursion between
+  # what we set and what we check.
+  settingsModule = { options, catalogKeys ? null }: fleet: tag:
     let
       resolved = resolver.resolve fleet tag;
+      declared = key: lib.hasAttrByPath ([ "dawo" ] ++ splitKey key) options;
+      # A key this image does not declare is one of two very different
+      # things, and conflating them is how a typo would sail through:
+      #   - known to the catalog, absent from THIS class's image: skip it,
+      #     which is the whole point of the exercise;
+      #   - known to no image at all: a mistake, and the gate is the last
+      #     line of defence for a fleet.json edited outside the console.
+      # Without catalogKeys the generator cannot tell them apart, so it keeps
+      # the old behaviour and applies everything - loosening silently would be
+      # worse than the problem being fixed.
+      keep = key: _:
+        if declared key then true
+        # No catalog to consult: apply it and let the module system reject an
+        # option that does not exist. That is the pre-2026-08 behaviour, and
+        # skipping instead would quietly swallow typos.
+        else if catalogKeys == null then true
+        else if lib.elem key catalogKeys then false
+        else throw "device ${tag}: setting '${key}' is not an option in any image (typo?)";
       one = key: r:
         lib.setAttrByPath ([ "dawo" ] ++ splitKey key)
           (if r.enforced then lib.mkForce r.value else lib.mkDefault r.value);
     in
     lib.foldl' lib.recursiveUpdate { }
-      (lib.mapAttrsToList one resolved);
+      (lib.mapAttrsToList one (lib.filterAttrs keep resolved));
 
   # additive app lists (apps.go): org + group ancestry + device, unioned.
   appLists = fleet: tag:
@@ -97,6 +133,11 @@ let
     { fleet
     , tag
     , overlaysDir ? null # dir with <name>.nix for repo-defined overlays
+      # catalogKeys: every setting key any image declares (the names in
+      # catalog.json). Lets the generator tell a setting this class does not
+      # have from one that exists nowhere. Null keeps the pre-2026-08 rule:
+      # apply everything, and let an unknown option fail the evaluation.
+    , catalogKeys ? null
     }:
     let
       apps = appLists fleet tag;
@@ -117,8 +158,8 @@ let
     in
     [
       bridgeModule
-      ({ pkgs, ... }: {
-        config = lib.recursiveUpdate (settingsModule fleet tag) {
+      ({ pkgs, options, ... }: {
+        config = lib.recursiveUpdate (settingsModule { inherit options catalogKeys; } fleet tag) {
           sextant.deviceTag = tag;
           sextant.cominBranch = ringBranchFor fleet tag;
           sextant.flatpaks = apps.flatpaks;
@@ -179,6 +220,9 @@ in
       # unlike extraModules, which every host gets. A plain workplace device
       # returns [].
     , extraModulesFor ? (_: [ ])
+      # catalogKeys: see mkModules. An overlay passes
+      # `map (e: e.name) (builtins.fromJSON (builtins.readFile ./catalog.json))`.
+    , catalogKeys ? null
     }:
     # Retired devices keep their audit record in fleet.json but no longer
     # exist as hosts: no image builds, no gate target.
@@ -193,7 +237,7 @@ in
           specialArgs = specialArgsFor tag;
           modules = (coreModulesFor tag)
             ++ [ hardwareProfiles.${fleet.devices.${tag}.hardware} ]
-            ++ mkModules { inherit fleet tag overlaysDir; }
+            ++ mkModules { inherit fleet tag overlaysDir catalogKeys; }
             ++ [{ networking.hostName = lib.mkDefault tag; }]
             ++ extraModules
             ++ extraModulesFor tag;
