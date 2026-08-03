@@ -3,6 +3,7 @@ package fleet
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -364,4 +365,33 @@ func (f *Fleet) AbandonedEnrolments(cutoff time.Time) []string {
 		}
 	}
 	return out
+}
+
+// ProvisionalBySerial finds an unconfirmed enrolment for the same physical
+// machine, so re-imaging updates that record instead of minting another one.
+//
+// Keyed on the chassis serial the imaging station reports, which is a real
+// identity and available BEFORE the install - unlike the host key, which only
+// exists once one has succeeded. A MAC would also be available but is a worse
+// answer: it can belong to a dock or a USB adapter that moves between
+// machines, and the serial cannot.
+//
+// Deliberately narrow. It matches ONLY provisional records: an ACTIVE device
+// with the same serial is a working machine being re-imaged, and whether that
+// should keep its tag, its groups and its settings is an operator's decision,
+// not something to infer from a serial number. And an empty serial matches
+// nothing - specs are enrichment at enrolment, never guaranteed, and "both
+// unknown" is not a reason to believe two machines are one.
+func (f *Fleet) ProvisionalBySerial(serial string) (string, bool) {
+	serial = strings.TrimSpace(serial)
+	if serial == "" {
+		return "", false
+	}
+	for _, tag := range f.DeviceTags() {
+		d := f.Devices[tag]
+		if d.Provisional() && strings.EqualFold(strings.TrimSpace(d.ITAM.Serial), serial) {
+			return tag, true
+		}
+	}
+	return "", false
 }

@@ -184,8 +184,24 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 		items = append(items, pending{mac: mac, tag: names[mac], dev: dev, facter: facter})
 		tags = append(tags, names[mac])
 	}
+	// Re-imaging the same chassis updates its unconfirmed enrolment instead of
+	// minting a second one. Resolved INSIDE the mutation, against the fleet the
+	// write actually sees, so two operators enrolling at once cannot both miss
+	// the same existing record.
+	reused := make([]string, 0, len(items))
 	mut := func(f *fleet.Fleet) error {
+		reused = reused[:0]
 		for _, p := range items {
+			if prior, ok := f.ProvisionalBySerial(p.dev.ITAM.Serial); ok {
+				// Keep the original tag - it is on the operator's label and in
+				// the imaging job - and refresh what the new scan learned.
+				d := f.Devices[prior]
+				d.Hardware, d.Class, d.Groups = p.dev.Hardware, p.dev.Class, p.dev.Groups
+				d.Spec, d.ITAM = p.dev.Spec, p.dev.ITAM
+				f.Devices[prior] = d
+				reused = append(reused, prior)
+				continue
+			}
 			if err := fleet.AddDevice(p.tag, p.dev, time.Now())(f); err != nil {
 				return err
 			}

@@ -123,3 +123,33 @@ func TestAbandonedEnrolmentsOnlyTakesWhatItCanAgeAndProve(t *testing.T) {
 		t.Fatalf("reaped %v, want only [abandoned]", got)
 	}
 }
+
+// Re-imaging the same chassis must update its unconfirmed enrolment rather
+// than mint another. The match is deliberately narrow, and the cases it
+// REFUSES matter more than the one it accepts.
+func TestProvisionalBySerialMatchesOnlyWhatItCanBeSureOf(t *testing.T) {
+	f := &Fleet{Devices: map[string]Device{
+		"lt-first":  {Hardware: "hw", State: DeviceProvisional, ITAM: ITAM{Serial: "PF-1234"}},
+		"lt-live":   {Hardware: "hw", ITAM: ITAM{Serial: "PF-9999"}},
+		"lt-noserl": {Hardware: "hw", State: DeviceProvisional},
+	}}
+
+	if tag, ok := f.ProvisionalBySerial("PF-1234"); !ok || tag != "lt-first" {
+		t.Fatalf("same chassis resolved to (%q,%v), want lt-first", tag, ok)
+	}
+	// Serial numbers are transcribed and reported by different tools; casing
+	// and stray whitespace must not create a second record.
+	if _, ok := f.ProvisionalBySerial("  pf-1234 "); !ok {
+		t.Error("a differently-cased serial minted a second enrolment")
+	}
+	// A working machine being re-imaged is an operator's decision - whether it
+	// keeps its tag, groups and settings is not inferable from a serial.
+	if _, ok := f.ProvisionalBySerial("PF-9999"); ok {
+		t.Error("an ACTIVE device was silently reused as if it were an abandoned enrolment")
+	}
+	// Specs are enrichment at enrolment, never guaranteed. Two unknowns are
+	// not evidence of one machine.
+	if _, ok := f.ProvisionalBySerial(""); ok {
+		t.Error("an empty serial matched; every spec-less enrolment would collapse into one device")
+	}
+}
