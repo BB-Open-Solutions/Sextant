@@ -45,7 +45,9 @@ func (s *Server) deviceRows(ctx context.Context, f *fleet.Fleet) []deviceRow {
 			rw.RAM = pctOf(st.Usage.MemUsedMB, st.Usage.MemTotalMB)
 			rw.Disk = pctOf(st.Usage.DiskUsedGB, st.Usage.DiskTotalGB)
 		}
-		if d.State != fleet.DeviceRetired {
+		// Neither a parked device nor one still being installed carries a
+		// baseline verdict (see BaselineJudge.Verdict).
+		if !d.Retired() && !d.Provisional() {
 			b := judge.Verdict(tag, st, has)
 			if b.Compliant {
 				rw.Baseline = "ok"
@@ -285,7 +287,7 @@ func (s *Server) fleetOnTarget(ctx context.Context, f *fleet.Fleet) bool {
 	}
 	judged := 0
 	for tag, d := range f.Devices {
-		if d.Retired() {
+		if d.Retired() || d.Provisional() {
 			continue
 		}
 		st, has := byTag[tag]
@@ -436,10 +438,14 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 	data := map[string]any{
 		"Title": "Device " + tag, "Nav": "devices",
 		"Tag": tag, "Device": d, "Retired": d.Retired(),
-		"Intent":   d.Intent,
-		"Resolved": f.ResolveSorted(tag),
-		"CanEdit":  v.roleAt("device:" + tag).Meets(identity.Editor),
-		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
+		// A device still being imaged reads as a broken one without this: no
+		// status, no revision, and every panel empty for a reason the page
+		// otherwise does not give.
+		"Provisional": d.Provisional(),
+		"Intent":      d.Intent,
+		"Resolved":    f.ResolveSorted(tag),
+		"CanEdit":     v.roleAt("device:" + tag).Meets(identity.Editor),
+		"CanOwn":      v.roleAt("org").Meets(identity.Owner),
 	}
 	type groupOpt struct {
 		Name   string

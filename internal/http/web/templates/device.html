@@ -6,6 +6,7 @@
       <span class="material-symbols-outlined msz-22 text-text-tertiary">desktop_windows</span>
       <h1 class="mb-0 font-mono tracking-tight">{{.Tag}}</h1>
       {{if .Retired}}<span class="tag bad">{{.L.T "device.retired"}}</span>{{end}}
+      {{if .Provisional}}<span class="tag" title="{{.L.T "device.provisional_hint"}}"><span class="material-symbols-outlined msz-14">hourglass_top</span>{{.L.T "device.provisional"}}</span>{{end}}
     </div>
     <div class="flex flex-wrap items-center gap-4">
       {{if .HasStatus}}

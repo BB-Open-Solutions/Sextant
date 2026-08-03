@@ -78,7 +78,13 @@ func NewBaselineJudge(f *fleet.Fleet, profiles *fleet.Profiles, now time.Time) *
 // not a pass. Retired devices return an empty verdict (nothing to judge).
 func (j *BaselineJudge) Verdict(tag string, st StatusView, hasStatus bool) Baseline {
 	dev, ok := j.f.Devices[tag]
-	if !ok || dev.State == fleet.DeviceRetired {
+	// A retired device is parked, and a provisional one has not been installed
+	// yet. Neither has a baseline to fail. Judging a provisional device used to
+	// report a recency failure the moment it was enrolled - "never seen" is
+	// true, but for a machine that is still being imaged it describes the
+	// process, not a problem. Until this state existed the two were
+	// indistinguishable.
+	if !ok || dev.Retired() || dev.Provisional() {
 		return Baseline{}
 	}
 	var fails []string
