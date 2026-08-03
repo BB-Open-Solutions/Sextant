@@ -62,14 +62,14 @@ spec:
             {{- with .Values.gateRunner.evalWorkers }}
             - --eval-workers={{ . }}
             {{- end }}
-            {{- with .Values.gateRunner.evalJobs }}
-            - --eval-jobs={{ . }}
-            {{- end }}
+            {{- if .Values.gateRunner.evalJobs }}
+            - --eval-jobs={{ .Values.gateRunner.evalJobs }}
             {{- with .Values.gateRunner.evalJobsMaxMemoryMB }}
             - --eval-jobs-max-memory-mb={{ . }}
             {{- end }}
             {{- with .Values.gateRunner.gcRootsDir }}
             - --gc-roots-dir={{ . }}
+            {{- end }}
             {{- end }}
             {{- if .Values.gateRunner.cache.keySecret }}
             - --cache-dir=/cache
