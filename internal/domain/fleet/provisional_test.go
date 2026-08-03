@@ -153,3 +153,36 @@ func TestProvisionalBySerialMatchesOnlyWhatItCanBeSureOf(t *testing.T) {
 		t.Error("an empty serial matched; every spec-less enrolment would collapse into one device")
 	}
 }
+
+// A setting no device in scope can have is not dangerous - the generator skips
+// it per device - but saving it silently would let an operator believe
+// something happened.
+func TestReachesNothingSpeaksUpOnlyWhenItCan(t *testing.T) {
+	f := &Fleet{
+		Groups: map[string]Group{"stations": {}, "laptops": {}, "leeg": {}},
+		Devices: map[string]Device{
+			"st-1": {Hardware: "hw", Class: "station", Groups: []string{"stations"}},
+			"lt-1": {Hardware: "hw", Class: "laptop", Groups: []string{"laptops"}},
+		},
+	}
+	workplace := CatalogEntry{Name: "apps.comms.enable", Classes: []string{"desktop", "laptop", "server"}}
+	universal := CatalogEntry{Name: "ssh.enable"}
+
+	if nothing, classes := f.ReachesNothing(workplace, "group:stations"); !nothing {
+		t.Errorf("a workplace option on a station-only group reported as reaching something (classes %v)", classes)
+	}
+	if nothing, _ := f.ReachesNothing(workplace, "group:laptops"); nothing {
+		t.Error("a workplace option on a laptop group was refused")
+	}
+	if nothing, _ := f.ReachesNothing(workplace, "org"); nothing {
+		t.Error("a mixed org scope was refused; the laptops can have it")
+	}
+	if nothing, _ := f.ReachesNothing(universal, "group:stations"); nothing {
+		t.Error("an untagged (universal) option was refused")
+	}
+	// An empty group is an ordinary place to put a setting before the devices
+	// arrive - refusing there would be worse than saying nothing.
+	if nothing, _ := f.ReachesNothing(workplace, "group:leeg"); nothing {
+		t.Error("a setting on a group with no devices yet was refused")
+	}
+}

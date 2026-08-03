@@ -28,6 +28,14 @@ func (s *ConfigService) SetSetting(ctx context.Context, scope, key, rawValue str
 	if raw == "" {
 		return fmt.Errorf("no value chosen for %s; pick a value, or clear it to inherit", key)
 	}
+	// A setting whose option no device in this scope has is not dangerous -
+	// the generator skips it per device - but it is silently pointless, and an
+	// operator who saves it has every reason to think something happened.
+	// Refuse it here, where we can still say why.
+	if nothing, classes := s.Fleet().ReachesNothing(entry, scope); nothing {
+		return fmt.Errorf("%s applies to %s, and %s has only %s; the setting would reach no device",
+			key, strings.Join(entry.Classes, ", "), scope, strings.Join(classes, ", "))
+	}
 	val, err := entry.ParseValue(raw)
 	if err != nil {
 		return err

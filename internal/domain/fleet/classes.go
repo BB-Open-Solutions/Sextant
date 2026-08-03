@@ -151,3 +151,43 @@ func (f *Fleet) classKey(tag string, d Device) string {
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:16])
 }
+
+// ClassesIn returns the distinct device classes a scope target covers, sorted.
+// A device without a class contributes the empty string, which AppliesTo reads
+// as "applies to everything" - so an unclassified device never makes a setting
+// look inapplicable.
+func (f *Fleet) ClassesIn(target string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, tag := range f.TargetDevices(target) {
+		c := f.Devices[tag].Class
+		if !seen[c] {
+			seen[c] = true
+			out = append(out, c)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ReachesNothing reports whether a catalog entry applies to no device the
+// scope covers, and returns the classes that ARE there so the caller can say
+// what went wrong.
+//
+// The generator already skips a setting a device's image does not declare, so
+// this is not a safety check - it is the difference between an operator being
+// told their edit will do nothing and an operator believing it did something.
+// An empty scope is not "reaches nothing": a group with no devices yet is a
+// perfectly ordinary place to put a setting.
+func (f *Fleet) ReachesNothing(e CatalogEntry, target string) (bool, []string) {
+	classes := f.ClassesIn(target)
+	if len(classes) == 0 {
+		return false, nil
+	}
+	for _, c := range classes {
+		if e.AppliesTo(c) {
+			return false, classes
+		}
+	}
+	return true, classes
+}
