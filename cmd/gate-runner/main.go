@@ -63,8 +63,9 @@ func main() {
 		// runner, every path that commits configuration. Empty keeps the
 		// in-process chunker, so this binary still works where the tool is
 		// absent.
-		evalJobs    = flag.String("eval-jobs", envOr("GATE_EVAL_JOBS", ""), "nix-eval-jobs binary; empty uses the in-process chunker")
-		evalJobsMem = flag.Int("eval-jobs-max-memory-mb", envOrInt("GATE_EVAL_JOBS_MAX_MEMORY_MB", 0), "per-worker memory ceiling for nix-eval-jobs, MB (0 = its default)")
+		evalJobs     = flag.String("eval-jobs", envOr("GATE_EVAL_JOBS", ""), "nix-eval-jobs binary; empty uses the in-process chunker")
+		releaseChunk = flag.Int("release-chunk-size", envOrInt("GATE_RELEASE_CHUNK_SIZE", 0), "host toplevels per nix process on the release build (0 = one invocation)")
+		evalJobsMem  = flag.Int("eval-jobs-max-memory-mb", envOrInt("GATE_EVAL_JOBS_MAX_MEMORY_MB", 0), "per-worker memory ceiling for nix-eval-jobs, MB (0 = its default)")
 	)
 	flag.Parse()
 
@@ -142,6 +143,9 @@ func main() {
 		}
 		srv.cacheDir = *cacheDir
 		srv.publisher = nix.NewPublisher(*cacheDir, *cacheKey)
+		// Batch the realise+copy the same way the eval gate batches: peak
+		// memory is a property of one nix process, not of the work.
+		srv.publisher.ChunkSize = *releaseChunk
 		log.Info("release cache enabled", "dir", *cacheDir)
 	} else if *cacheDir != "" || *cacheKey != "" {
 		log.Error("cache-dir and cache-key must be set together (refusing an unsigned cache)")

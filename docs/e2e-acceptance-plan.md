@@ -90,6 +90,9 @@ bug dan een knop die er niet staat, en de tweede is de bedoeling.
 | A3.6 | Host-key als age-recipient | secrets ontsleutelen op het device zonder handwerk |
 | A3.7 | Rustige boot | geen kerneldebug over de console |
 | A3.8 | Een install bewust laten mislukken | de melding in de console draagt de **staart van de installatielog**, niet alleen "nixos-anywhere failed" |
+| A3.9 | Na A3.8: geen spookapparaat | de mislukte poging staat als **Provisional** en telt niet mee in `RingStatus.Total`; een volgende rollout loopt gewoon door |
+| A3.10 | Opnieuw inspoelen van hetzelfde toestel | werkt de bestaande registratie bij (zelfde chassis-serienummer), mint géén tweede |
+| A3.11 | **Rekey met een echte admin-identiteit** | zodra `/api/v1/hostkeys` niet meer leeg is: `scripts/rekey-secrets.sh -i ~/.ssh/bbuijs -s ../bb-open/secrets`, daarna opent `~/.ssh/bbuijs` de secrets. Dit is de stap die op 31 juli ontbrak en de vloot bijna onopenbaar maakte — hij kan alleen hier, met een vers gemelde host key |
 
 A3.3 is de kern van de avond. Kijk in de job zelf, niet in het eindresultaat:
 als het device toevallig al op main stond is de fix niet bewezen.
