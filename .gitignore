@@ -23,3 +23,4 @@ coverage.html
 docs/design/*.zip
 docs/design/DESIGN-mintlify.md
 docs/handbook/book/
+.citmp/

@@ -32,6 +32,16 @@ jobs:
       - name: Test (race + coverage)
         run: |
           cd "$GITHUB_WORKSPACE/src"
+          # Build scratch on real disk, not the runner's /tmp. `go test -race`
+          # links ~40 race-instrumented binaries and they are large; on a
+          # tmpfs /tmp they were built and then gone by the time go exec'd
+          # them, which reports as:
+          #   fork/exec /tmp/nix-shell.XXXX/go-build.../pkg.test: no such file or directory
+          # Every package with tests failed that way in 0.00s while the build
+          # itself reported no error - and CI stayed red for twenty commits
+          # because nothing here ever looked at the run afterwards.
+          mkdir -p "$GITHUB_WORKSPACE/src/.citmp"
+          export TMPDIR="$GITHUB_WORKSPACE/src/.citmp"
           nix develop --command go test -race -coverprofile=coverage.out ./...
           nix develop --command bash -c '
             # The floor is measured over the logic layers. Pure-glue packages -

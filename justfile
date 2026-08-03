@@ -79,3 +79,8 @@ run: build
 
 clean:
     rm -f sextant sxctl coverage.out coverage.html
+
+# What the FORGE thinks of HEAD. `just ci` passing locally is not the same
+# thing, and assuming it was left CI red for twenty commits.
+ci-status:
+    scripts/ci-status.sh --watch
