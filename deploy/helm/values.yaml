@@ -79,6 +79,28 @@ gateRunner:
   # floor the process sits on, so re-measure the peak against resources.limits
   # whenever either changes. Empty = leave it to the collector.
   gcInitialHeapSize: ""
+  # nix-eval-jobs: the evaluator that makes memory a PARAMETER instead of an
+  # outcome. Its ceiling is per worker, so a host that outgrows its budget
+  # fails that host rather than the runner - and the runner going down stops
+  # every path that commits configuration, which is how a five-device fleet
+  # froze the control plane for an hour on 2026-08-01.
+  #
+  # It is also the faster arrangement, and our chunker was the slow one. Five
+  # hosts, same overlay, same machine: one process for all five 35.6s,
+  # chunkSize 1 in five processes 47.6s, nix-eval-jobs with four workers 24.4s.
+  # Every chunk re-pays the fixed cost of loading nixpkgs and the module system.
+  #
+  # Empty falls back to the in-process chunker, so a console keeps working
+  # against a gate image built before the binary was added. Set it and
+  # chunkSize stops being consulted.
+  evalJobs: "" # e.g. "nix-eval-jobs"
+  # Per-worker ceiling in MB. evalWorkers x this must fit resources.limits
+  # below; unlike the chunker, exceeding it costs one host, not the service.
+  evalJobsMaxMemoryMB: ""
+  # Where evaluated derivations are rooted, so the collector cannot remove one
+  # between validation and the release build that realises it. Empty accepts
+  # that risk and nix-eval-jobs warns about it.
+  gcRootsDir: ""
   # Release cache (build-before-promote): the runner realises a ring's release
   # and serves it - signed - under /cache, so devices substitute instead of
   # compiling. Enabled by naming the Secret that holds the nix signing secret

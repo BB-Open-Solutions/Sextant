@@ -60,6 +60,20 @@ type EvalGate struct {
 	// multiplies by it (Workers x per-batch memory must fit the runner's
 	// limit). Zero or one means sequential.
 	Workers int
+	// JobsBin is the nix-eval-jobs binary. Set, it replaces the chunked path
+	// entirely: nix-eval-jobs bounds memory PER WORKER, so an evaluation that
+	// outgrows its budget fails its own host rather than killing the runner and
+	// with it every path that commits configuration. Empty keeps the chunker,
+	// so a console still works against a gate image built before this existed.
+	JobsBin string
+	// MaxMemoryMB is the per-worker ceiling handed to nix-eval-jobs. This is
+	// the number that turns memory from something a change happens to cost into
+	// something we choose. Zero leaves nix-eval-jobs' own default.
+	MaxMemoryMB int
+	// GCRootsDir keeps the evaluated derivations rooted, so the collector
+	// cannot remove one between validation and the release build that realises
+	// it. Empty accepts that risk (and nix-eval-jobs' warning about it).
+	GCRootsDir string
 
 	run runner
 }
@@ -92,6 +106,15 @@ func (g *EvalGate) Validate(ctx context.Context, repoDir string, hosts []string)
 		// to only retired devices) is vacuously valid: there is nothing whose
 		// toplevel could fail to evaluate.
 		return nil
+	}
+
+	// Prefer nix-eval-jobs when the runtime carries it: it bounds memory per
+	// worker, so an oversized evaluation fails its own attribute instead of the
+	// service (see gate_jobs.go). The chunked path below stays as the fallback,
+	// because the console must keep working against a gate image built before
+	// the binary was added.
+	if g.JobsBin != "" {
+		return g.evalWithJobs(ctx, run, repoDir, names)
 	}
 
 	size := g.ChunkSize
