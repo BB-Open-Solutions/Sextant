@@ -3,6 +3,7 @@ package nix
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
@@ -23,6 +24,17 @@ type Publisher struct {
 	// KeyFile is the path to the nix signing secret key; the copy signs every
 	// published path with it, so devices can pin the matching public key.
 	KeyFile string
+	// ChunkSize caps how many host toplevels one nix invocation realises.
+	//
+	// The evaluation gate has been batched since it OOM-killed the runner;
+	// this path never was, so a ring's release loaded every member's toplevel
+	// into a single evaluator regardless of size. It is the same failure
+	// waiting on a bigger fleet, and worse: when the gate dies mid-build,
+	// nothing in the whole control plane can commit until it comes back.
+	//
+	// Zero means one invocation - today's behaviour, so enabling batching is
+	// a deliberate act and not a silent change of what a release does.
+	ChunkSize int
 
 	run runner
 }
@@ -58,18 +70,40 @@ func (p *Publisher) Publish(ctx context.Context, repoDir string, hosts []string)
 	}
 
 	// Realise first: nix copy does not build, it only copies existing paths.
-	buildArgs := append([]string{"build", "--no-link", "--no-warn-dirty"}, targets...)
-	if out, err := run(ctx, "nix", buildArgs...); err != nil {
-		return buildFailure(ctx, "building the release", timeout, out)
-	}
-
-	// Copy the closures into the cache, signing every path with the org key.
+	// Both steps batch, and both keep going host by host rather than holding
+	// the whole ring in one process.
 	dest := fmt.Sprintf("file://%s?secret-key=%s&compression=zstd", p.CacheDir, p.KeyFile)
-	copyArgs := append([]string{"copy", "--no-warn-dirty", "--to", dest}, targets...)
-	if out, err := run(ctx, "nix", copyArgs...); err != nil {
-		return buildFailure(ctx, "copying the release into the cache", timeout, out)
+	for _, batch := range chunk(targets, p.ChunkSize) {
+		buildArgs := append([]string{"build", "--no-link", "--no-warn-dirty"}, batch...)
+		if out, err := run(ctx, "nix", buildArgs...); err != nil {
+			return buildFailure(ctx, "building the release", timeout, out)
+		}
+		copyArgs := append([]string{"copy", "--no-warn-dirty", "--to", dest}, batch...)
+		if out, err := run(ctx, "nix", copyArgs...); err != nil {
+			return buildFailure(ctx, "copying the release into the cache", timeout, out)
+		}
 	}
 	return nil
+}
+
+// killed reports whether the output looks like a process the kernel or a
+// supervisor stopped, rather than a build that failed on merit.
+//
+// Cheap and deliberately narrow: an OOM kill produces no nix diagnostic, so
+// the tell is the absence of one plus the kernel's own word for it. Guessing
+// more aggressively would relabel real build failures as infrastructure
+// problems, which is the mistake this is fixing, in reverse.
+func killed(out []byte) bool {
+	s := string(out)
+	if strings.Contains(s, "error:") {
+		return false
+	}
+	for _, m := range []string{"signal: killed", "Killed", "out of memory", "Out of memory", "exit status 137"} {
+		if strings.Contains(s, m) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildFailure turns a failed nix run into an error that says which KIND of
@@ -85,6 +119,15 @@ func buildFailure(ctx context.Context, what string, timeout time.Duration, out [
 	if ctx.Err() != nil {
 		return fmt.Errorf("%s ran out of time after %s - the release was not rejected, it was cut off. "+
 			"Raise the publisher timeout, or warm the cache so there is less to build", what, timeout)
+	}
+	// Killed, not rejected. An out-of-memory kill leaves no "error:" line at
+	// all - the process simply stops - and the console reported that to the
+	// operator as "build runner unreachable", which sends somebody looking at
+	// the network for a memory problem. It is the same distinction the timeout
+	// branch above exists for: WHY it stopped decides what to do next.
+	if killed(out) {
+		return fmt.Errorf("%s was killed, most likely out of memory - it was not rejected. "+
+			"Lower the release chunk size or raise the runner's memory limit", what)
 	}
 	return &ports.ValidationError{Detail: sanitize(string(out))}
 }

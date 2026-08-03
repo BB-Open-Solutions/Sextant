@@ -117,15 +117,7 @@ func (g *EvalGate) Validate(ctx context.Context, repoDir string, hosts []string)
 	if size <= 0 {
 		size = defaultChunkSize
 	}
-	var batches [][]string
-	for start := 0; start < len(names); start += size {
-		end := start + size
-		if end > len(names) {
-			end = len(names)
-		}
-		batches = append(batches, names[start:end])
-	}
-	return g.evalBatches(ctx, run, repoDir, batches)
+	return g.evalBatches(ctx, run, repoDir, chunk(names, size))
 }
 
 // evalBatches evaluates the batches with up to Workers nix processes at once.
