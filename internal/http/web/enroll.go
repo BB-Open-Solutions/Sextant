@@ -214,6 +214,21 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 		if err := s.svc.Config.Apply(ctx, mut, msg, author, tags...); err != nil {
 			return err
 		}
+		// The commit that created these devices is what they must be imaged
+		// from, and their rings have to contain it. Refusing here is the
+		// point: a ring carrying a real pending change must be promoted
+		// deliberately, not swept along by somebody imaging a laptop.
+		enrolRev := s.svc.Config.Head(ctx)
+		if s.svc.Rollouts != nil && enrolRev != "" {
+			moved, err := app.EnsureRingsContain(ctx, s.svc.Config, s.svc.Rollouts.Refs(), tags, enrolRev)
+			if err != nil {
+				return err
+			}
+			for _, m := range moved {
+				s.log.Info("ring advanced to the enrolment commit",
+					"group", m.Group, "from", m.From, "to", m.To)
+			}
+		}
 		for _, p := range items {
 			if p.facter != nil && s.svc.Inventory != nil {
 				if err := s.svc.Inventory.RecordFacts(ctx, p.tag, p.facter); err != nil {
@@ -235,19 +250,18 @@ func (s *Server) postEnrollBatch(w http.ResponseWriter, r *http.Request, v view)
 			}
 			// Imaging path: the MAC stays visible with its job and the station
 			// receives a fresh credential when it claims the job.
-			// Install the revision this device's ring is pinned to, so it is
-			// converged at first boot rather than born ahead of its own ring.
-			// Empty when the device is in no ring: the station then falls back
-			// to main, which is the old behaviour and correct for that case.
-			rev := ""
-			if cur := s.svc.Config.Fleet(); cur != nil {
-				if d, ok := cur.Devices[p.tag]; ok {
-					rev = app.TargetRevision(cur, d)
-				}
-			}
+			//
+			// Install the enrolment commit itself. It is the earliest revision
+			// that CONTAINS the device, and enrolRev has already made every
+			// covering ring branch point at it, so the machine boots exactly at
+			// its ring's head - not ahead of it (#16, comin refuses a head that
+			// is not a descendant) and not missing from it (the failure this
+			// replaced: nixos-anywhere could not find the host's attribute at
+			// all). Empty only when HEAD is unreadable, and then the station
+			// falls back to main as it always did.
 			if err := s.svc.Imaging.Dispatch(ctx, imaging.Job{
 				Station: station, MAC: imaging.NormalizeMAC(p.mac), Tag: p.tag, Hardware: hardware,
-				Rev: rev,
+				Rev: enrolRev,
 			}); err != nil {
 				s.log.Warn("batch image: dispatch failed", "station", station, "mac", p.mac, "tag", p.tag, "err", err)
 			}

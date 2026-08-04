@@ -845,3 +845,9 @@ type SystemClock struct{}
 
 // Now implements ports.Clock.
 func (SystemClock) Now() time.Time { return time.Now() }
+
+// Refs exposes the ref updater so enrolment can fast-forward a ring branch to
+// the commit that created a device (enrolment_rings.go). The rollout engine is
+// otherwise the only writer of these branches, which is why this is a narrow
+// accessor rather than a second RefUpdater handed out at wiring time.
+func (s *RolloutService) Refs() ports.RefUpdater { return s.refs }
