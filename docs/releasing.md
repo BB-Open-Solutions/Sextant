@@ -7,25 +7,34 @@ must not receive the push.
 
 ## The steps
 
-1. bump deploy/helm/Chart.yaml + values.yaml, commit, push bbopen
-2. `podman build -q --build-arg VERSION=<v>
-   -t forgejo.bb-open.com/bb-open/sextant:<v> . && podman push ...`
-   (VERSION voedt sextant_build_info; watch disk: `podman image
-   prune -f` if full). No `--target` needed: the server stage is last,
-   so the default build is the lean production image.
-2b. ONLY when a demo instance runs the simulator - build and push the
-   tools image too, or its fleetsim sidecar cannot pull:
-   `podman build -q --target tools
-   -t forgejo.bb-open.com/bb-open/sextant:<v>-tools . && podman push ...`
-   (fleetsim and sxctl live there; the control-plane image deliberately
-   does not carry a fake-device generator)
-3. platform repo apps/sextant/helmrelease.yaml tag -> `git push origin
-   main` (NOT the github-mirror remote - that was a real trap)
+A version TAG is the single lever. `.forgejo/workflows/release.yml` triggers on
+`v*` and builds and pushes every image, so no release reaches the registry from
+a developer laptop.
+
+1. bump `deploy/helm/Chart.yaml` (version AND appVersion), commit, push both
+   remotes
+2. `git tag -a v<x.y.z> -m "release <x.y.z>"` and push the tag to bbopen -
+   that is what starts the build. Watch it with `scripts/ci-status.sh`.
+3. platform repo `apps/sextant/helmrelease.yaml` tag -> `git push origin main`
+   (NOT the github-mirror remote - that was a real trap). `apps/sextant-docs`
+   pins its own image and needs the same bump, or the published handbook keeps
+   serving the build it was pinned at.
 4. `flux reconcile source git flux-system -n flux-system` then
    `kustomization sextant` then `source git sextant` then
    `helmrelease sextant -n sextant`
 5. verify: rollout status, image tag, /readyz, smoke the new surface
 
+**What this replaced, and why it is written down.** These steps used to say
+"podman build ... && podman push" from your own machine. The workflow arrived
+and the runbook did not change, so everyone kept following the runbook. Console
+and gate images were built by hand and reached 0.78.0; `sextant-docs` is the one
+image nobody builds by hand, so it silently stopped at 0.65.9 on 16 July and
+the published handbook froze there. There were no version tags at all between
+v0.65.9 and v0.79.0, so no released image could be traced to a commit.
+
+If you ever need to build by hand again, `--build-arg VERSION=<v>` feeds
+`sextant_build_info`, and the tools image (`--target tools`, carrying fleetsim
+and sxctl) is only needed when a demo instance runs the simulator sidecar.
 
 ## Releasing DAWO-NixOS (upstream, not ours)
 
