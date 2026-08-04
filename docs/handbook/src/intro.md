@@ -1,14 +1,22 @@
-# DAWO Handbook
+# Sextant Fleet Handbook
 
-DAWO is a declarative control-plane for fleets of NixOS devices. Configuration
-is data in a git overlay; Nix turns that data into signed system closures;
-devices pull and converge (comin). Sextant is the human and API surface that
-edits the data safely, proves it builds, stages the rollout, and reports what
-each device actually runs. It is not MDM: declarative pull, no live command
-channel, every change an audited git commit.
+Sextant is a declarative control plane for fleets of NixOS devices.
+Configuration is data in a git overlay; Nix turns that data into system
+closures; devices pull and converge (comin). Sextant is the human and API
+surface that edits the data safely, proves it builds, stages the rollout, and
+reports what each device actually runs. It is not MDM: declarative pull, no
+live command channel, every change an audited git commit.
 
-This handbook is for operators running a DAWO fleet and for engineers working
-on it. It is built with mdBook and served self-hosted; it uses no external CDN.
+Sextant does not ship the devices' operating system - your overlay does, on top
+of a NixOS core. The core it was built against is
+[DAWO](https://code.overheid.nl/MinBZK/DAWO-NixOS), the Dutch government's open
+workplace image, and the two are developed together. Nothing here is specific
+to it: an overlay that publishes `dawo.*` options is what Sextant configures,
+whatever core provides them.
+
+This handbook is for operators running a fleet and for engineers working on
+Sextant itself. It is built with mdBook and served self-hosted; it uses no
+external CDN.
 
 ## The lifecycle at a glance
 
