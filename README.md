@@ -231,22 +231,29 @@ each other, and SECURITY.md if what you found should not be a public issue.
 The ADRs in `docs/adr/` are worth reading even if you never run this: they are
 where the arguments are, including the ones we lost.
 
-## Where this repository lives
+## Where this repository lives, and where it is built
 
 | | |
 |---|---|
-| **github.com/BB-Open-Solutions/Sextant** | Where to read it, clone it, and take part. Issues and pull requests here. |
+| **github.com/BB-Open-Solutions/Sextant** | Where to read it, clone it, and take part today. Issues and pull requests here. |
 | **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical, and where it is published as Dutch government open source. Not publicly readable yet. |
+| **forgejo.bb-open.com** | BB Open's own Forgejo. Where CI runs. |
 
-The canonical repository is the one that counts, and it is not open to the
-public yet - so for now GitHub is the address that actually works for somebody
-who is not us. It is a mirror of the same history, pushed automatically, and it
-is temporary in that sense: once the canonical repository opens, that is where
-to go.
+Every push goes to code.overheid.nl and to BB Open's Forgejo at the same time,
+and Forgejo mirrors on to GitHub. The three carry the same history.
 
-This is not a sovereignty compromise. What makes this open is the code and the
-licence, not the domain it is served from, and an argument nobody can find
-helps nobody.
+**CI runs on BB Open's internal Forgejo**, on a self-hosted runner, and that is
+worth saying plainly rather than leaving a contributor to wonder why a pull
+request shows no checks. The canonical forge does not run our workflows yet and
+GitHub is a mirror rather than a place we build from, so for now the green tick
+lives somewhere you cannot see. If you open a pull request, we run it and report
+back; `.forgejo/workflows/ci.yml` is in this repository, so you can also read
+exactly what it does and run the same checks locally with `just ci`.
+
+**The end state is that all of it happens on code.overheid.nl** - the code, the
+issues, the pull requests and the pipeline. Everything above is scaffolding
+until the canonical repository is open and can build. We would rather describe
+that honestly than present a temporary arrangement as the design.
 
 ## Architecture
 
