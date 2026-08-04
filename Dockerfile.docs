@@ -1,4 +1,4 @@
-# DAWO handbook image: build the mdBook, serve it static via nginx.
+# Sextant Fleet Handbook image: build the mdBook, serve it static via nginx.
 # Self-contained: mdBook bundles its own assets, no external CDN at runtime.
 
 # Base images are pinned by digest (immutable), not by floating tag - same
