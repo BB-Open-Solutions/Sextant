@@ -1,6 +1,6 @@
 [book]
-title = "DAWO Handbook"
-description = "Operator and architecture documentation for the DAWO fleet control-plane (Sextant)."
+title = "Sextant Fleet Handbook"
+description = "Operator and architecture documentation for Sextant, the declarative fleet control plane for NixOS."
 authors = ["BB Open"]
 language = "en"
 src = "src"

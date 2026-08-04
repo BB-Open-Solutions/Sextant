@@ -43,12 +43,27 @@ first slice to build.
 The gate proves a change evaluates before it reaches git (see
 [Safe writes](../concepts/safe-writes.md)). Forcing every host's toplevel in a
 single nix process scales memory with the fleet - a whole-fleet evaluation
-OOM-killed the runner well before 100 hosts. The gate therefore evaluates in
-memory-bounded batches (`chunkSize`, default 50, deployed at 12): peak memory
-is the batch, not the fleet, and every affected host is still evaluated.
+OOM-killed the runner well before 100 hosts. The gate therefore bounds memory
+per unit of work: peak memory is the unit, not the fleet, and every affected
+host is still evaluated.
 
-Batches are independent, which makes them the unit of horizontal scaling.
-Org-wide validation of 10,000 hosts at chunk size 12 and ~45s per chunk:
+> **The numbers below are from July 2026 and predate the measurements.** An
+> earlier version of this page quoted a chunk size of 12 as safe. It was not:
+> one host toplevel peaks at about 1.5 GiB, so the chunker was re-derived from
+> measurement to 1, and then largely superseded by `nix-eval-jobs`, which
+> bounds memory per worker so an oversized evaluation fails its own host
+> instead of killing the runner. Verdicts are now also memoised per
+> configuration shape, so a normal edit re-evaluates only what it changed.
+>
+> For the measured floor - what belongs to NixOS, what belongs to us, and the
+> figures behind each - read
+> [the scale architecture note](https://github.com/BB-Open-Solutions/Sextant/blob/main/docs/architecture/scale.md)
+> in the repository. That document is maintained against measurements; this
+> chapter is the shape of the system around them.
+
+Units of work are independent, which makes them the unit of horizontal scaling.
+The July projection for org-wide validation of 10,000 hosts, at the chunk size
+believed safe at the time and ~45s per chunk:
 
 | Strategy | Wall-clock |
 |---|---|
@@ -105,8 +120,13 @@ they serve. Scaling the build plane is enrolling another worker.
 1. **Build-before-promote** - SHIPPED: the pipeline builds a ring's closures
    into the signed cache before the ring branch flips; devices substitute
    (see [Ship an update](../operators/updates.md)).
-2. **Chunk-parallel gate** - SHIPPED (`--eval-workers`); the pilot deployment
-   runs 1 worker within its memory limit.
+2. **Memory-bounded parallel gate** - SHIPPED. `nix-eval-jobs` bounds memory
+   per worker, pinned to the fleet's own nixpkgs; the chunker remains as the
+   fallback for a gate image built before it existed. The pilot deployment runs
+   1 worker within its memory limit.
+5. **Verdict memoisation** - SHIPPED: a gate verdict is remembered per
+   (source, globals, configuration shape), so an edit costs the shapes it
+   changed rather than every shape in the fleet.
 3. **Equivalence-class sampling** - SHIPPED for every unbounded validation
    (direct writes, change submit, merge revalidation).
 4. **Infra group** - PLANNED: build/eval workers enrolled and managed by
