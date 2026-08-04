@@ -8,6 +8,28 @@ Day to day this is driven from the **Updates** board - see
 [Ship an update](./updates.md) for the full walkthrough and
 [How a rollout ships](../concepts/rollout.md) for the concept behind it.
 
+## Provisional: a device that exists but has not spoken
+
+Enrolling a device creates its record immediately, in the **provisional** state.
+The first successful check-in promotes it to active.
+
+That state exists because an install can fail, and a record left behind by a
+failed attempt used to break more than itself: a ring made up entirely of
+devices that never arrived could not converge by definition, so the whole
+rollout waited for machines that were never coming.
+
+So a provisional device is counted differently. It is a real record - you can
+see it, name it, and re-image the same chassis onto it rather than minting a
+second one - but it does not hold a ring back, because it has never claimed to
+be running anything.
+
+**Abandoned enrolments are listed rather than deleted.** Somebody starts an
+installation that never reports: unfamiliar hardware, a slow link, a station
+operator called away, a laptop enrolled on Friday that does not boot until
+Monday. The console surfaces those as a list for an operator to act on, because
+the two mistakes are not symmetric - reaping too early deletes a record somebody
+is still using, reaping too late leaves a stale row in a list.
+
 ## Retire
 
 Retiring a device keeps its record for audit but stops image builds, check-ins
