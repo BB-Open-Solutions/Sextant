@@ -10,6 +10,7 @@
 - [Ship an update](./operators/updates.md)
 - [Track compliance](./operators/compliance.md)
 - [Update, retire and wipe](./operators/lifecycle.md)
+- [Endpoint controls](./operators/endpoint-controls.md)
 - [Approve a request for privilege](./operators/elevation.md)
 - [Manage secrets](./operators/secrets.md)
 - [Notifications](./operators/notifications.md)
