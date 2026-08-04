@@ -167,9 +167,17 @@ for f in "${age_files[@]}"; do
   todo+=("$f")
 done
 
-if [ "${#todo[@]}" -eq 0 ]; then
+if [ "${#todo[@]}" -eq 0 ] && [ -z "${ADD_NAME:-}" ]; then
   note "all ${#age_files[@]} secrets are already encrypted for this recipient set; nothing to do"
   exit 0
+fi
+# --add with an unchanged recipient set used to exit here, silently doing
+# nothing: the guard above answered "no rekeying needed" and took the creation
+# with it. Adding a secret to a settled fleet is the NORMAL case - the set only
+# changes when a device is enrolled - so the one path somebody reaches for most
+# was the one that could not run.
+if [ "${#todo[@]}" -eq 0 ]; then
+  note "recipient set unchanged; creating $ADD_NAME only"
 fi
 note "rekeying ${#todo[@]} of ${#age_files[@]} secrets"
 
