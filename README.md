@@ -16,7 +16,7 @@
 [Security](SECURITY.md)
 
 </div>
-<div><</div>
+<div></div>
 
 Every device's configuration is data in git. Nix builds it, a gate proves it
 compiles before anyone can merge it, and the fleet rolls forward in rings you
