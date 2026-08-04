@@ -14,6 +14,10 @@
 - [Notifications](./operators/notifications.md)
 - [Integrations](./operators/integrations.md)
 
+# Extending
+
+- [Build your own integration](./extending/integration.md)
+
 # Concepts
 
 - [How a rollout ships](./concepts/rollout.md)

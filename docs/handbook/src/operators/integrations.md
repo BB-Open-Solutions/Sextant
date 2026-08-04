@@ -48,6 +48,10 @@ If a card reads *not published*, the overlay has not exported that
 integration's options yet: add its module to the overlay and regenerate the
 catalog (`nix eval .#catalog --json > catalog.json`).
 
+Want one that does not ship with the overlay? An integration is a NixOS module
+that publishes options - no console change needed. See
+[Build your own integration](../extending/integration.md).
+
 ## Troubleshooting
 
 **A card reads "not published" even though I added the overlay module.**

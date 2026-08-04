@@ -211,8 +211,9 @@ ambitious, and the useful work is not all deep in the domain model.
   contribution with an obvious test: image it.
 - **Translations.** The console ships English and Dutch. Adding a language is
   one map in `internal/http/web/catalog.go`.
-- **Integrations.** They are ordinary fleet settings. If you run something the
-  fleet should know about, the pattern to copy is right there.
+- **Integrations.** They are ordinary fleet settings: a NixOS module that
+  publishes options, with no console change needed. The how-to is
+  [Build your own integration](docs/handbook/src/extending/integration.md).
 - **Run it against your own fleet and tell us what broke.** Honestly the most
   valuable thing anyone can do. The rough edges we know about are named in the
   status section above; the ones we do not are the point.
