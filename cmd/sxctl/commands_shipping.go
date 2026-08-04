@@ -200,3 +200,49 @@ func tokensCmd(c *client, asJSON bool, verb string, rest []string) error {
 }
 
 // slugify makes a token name into a safe id.
+
+// secretsCmd registers, lists and removes SECRET REFERENCES: the names a
+// setting may point at. Never the material - Sextant only ever knows names,
+// and the values live in agenix on the device.
+//
+// This existed only as a browser form until 2026-08-04, which made an
+// onboarding script impossible to finish: scripts/rekey-secrets.sh could
+// create the encrypted secret and the console would then refuse to reference
+// it ("unknown secret reference; register it first").
+func secretsCmd(c *client, asJSON bool, verb string, rest []string) error {
+	switch verb {
+	case "list", "":
+		var out []map[string]any
+		if err := c.do("GET", "/api/v1/secret-refs", nil, &out); err != nil {
+			return err
+		}
+		if asJSON {
+			c.printJSON(out)
+			return nil
+		}
+		rows := make([][]string, 0, len(out))
+		for _, s := range out {
+			rows = append(rows, []string{str(s["name"]), str(s["description"])})
+		}
+		c.table([]string{"NAME", "DESCRIPTION"}, rows)
+		return nil
+	case "add":
+		fs := flag.NewFlagSet("add", flag.ContinueOnError)
+		desc := fs.String("description", "", "what this secret is for")
+		if len(rest) < 1 {
+			return fmt.Errorf("usage: secrets add NAME [-description D]")
+		}
+		name := rest[0]
+		if err := fs.Parse(rest[1:]); err != nil {
+			return err
+		}
+		return c.do("POST", "/api/v1/secret-refs",
+			map[string]any{"name": name, "description": *desc}, nil)
+	case "remove":
+		if len(rest) != 1 {
+			return fmt.Errorf("usage: secrets remove NAME")
+		}
+		return c.do("DELETE", "/api/v1/secret-refs/"+rest[0], nil, nil)
+	}
+	return fmt.Errorf("secrets: unknown verb %q (list | add | remove)", verb)
+}

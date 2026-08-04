@@ -32,6 +32,8 @@ Resources and verbs:
   rollout   status | start TARGET | tick | cancel
   status    [TAG]
   access    list | grant GROUP ROLE SCOPE | revoke GROUP SCOPE
+  secrets   list | add NAME [-description D] | remove NAME
+            (secret REFERENCES - the names settings point at, never values)
   tokens    list | mint NAME [-ceiling R] [-ttl-days N] | revoke ID
   me        [prefs [TIMEZONE LOCALE]]   (who am I; get/set preferences)
   audit     (config commit trail)
@@ -128,6 +130,8 @@ func dispatch(c *client, asJSON bool, args []string) error {
 		return accessCmd(c, asJSON, verb, rest)
 	case "tokens":
 		return tokensCmd(c, asJSON, verb, rest)
+	case "secrets":
+		return secretsCmd(c, asJSON, verb, rest)
 	case "fleet":
 		var out any
 		if err := c.do("GET", "/api/v1/fleet", nil, &out); err != nil {

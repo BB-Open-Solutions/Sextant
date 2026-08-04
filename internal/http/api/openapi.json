@@ -50,6 +50,17 @@
         }
       }
     },
+    "/api/v1/apps": {
+      "put": {
+        "summary": "Replace an app list at a scope",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Body: {scope, kind: packages|flatpaks|overlays, names}. Names pass the injection firewall; the gate validates the result. Editor at the scope."
+      }
+    },
     "/api/v1/assignments": {
       "delete": {
         "summary": "Unassign a policy",
@@ -61,6 +72,124 @@
       },
       "post": {
         "summary": "Assign a policy to a scope",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/assurance": {
+      "put": {
+        "summary": "Configure audit controls",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Body: {requireFourEyes}. Org owner."
+      }
+    },
+    "/api/v1/audit": {
+      "get": {
+        "summary": "Configuration audit trail",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Newest commits on the config repo (?limit=, default 100). Org-wide viewer: commits span every scope."
+      }
+    },
+    "/api/v1/changes": {
+      "get": {
+        "summary": "List change requests",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Open a change request",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/changes/{id}": {
+      "get": {
+        "summary": "One change request",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/changes/{id}/abandon": {
+      "post": {
+        "summary": "Abandon a change",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/changes/{id}/diff": {
+      "get": {
+        "summary": "Unified diff the change would apply",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/changes/{id}/edits": {
+      "post": {
+        "summary": "Apply a gated edit on the change branch",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/changes/{id}/merge": {
+      "post": {
+        "summary": "Merge a ready change (owner)",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/changes/{id}/submit": {
+      "post": {
+        "summary": "Run the build gate",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/devices": {
+      "get": {
+        "summary": "List devices",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Enroll a device",
         "responses": {
           "200": {
             "description": "OK"
@@ -95,6 +224,91 @@
         "description": "Patch hardware, class, assignedUser, groups, labels or itam. Editor at the device scope; new group memberships also need editor there."
       }
     },
+    "/api/v1/devices/{tag}/credential": {
+      "post": {
+        "summary": "Re-issue a device credential",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Replaces the device credential (lost secret, re-image); the new secret is shown once. Editor at the device scope; refused for retired devices."
+      }
+    },
+    "/api/v1/devices/{tag}/intent": {
+      "post": {
+        "summary": "Arm a remote action",
+        "description": "Body: {intent: lock|wipe, force?}. Wipe requires the device to be locked first unless force. Org owner; the intent is an audited commit the device pulls on check-in.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear a remote action",
+        "description": "Cancel a pending intent (a found laptop). Org owner.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{tag}/reactivate": {
+      "post": {
+        "summary": "Reactivate a retired device",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Returns the device to service and issues a fresh credential (shown once). Editor at the device scope."
+      }
+    },
+    "/api/v1/devices/{tag}/retire": {
+      "post": {
+        "summary": "Retire a device",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Parks the device: the audit record stays, image builds, check-ins and rollout counting stop, and its credential is revoked. Editor at the device scope."
+      }
+    },
+    "/api/v1/directory/groups": {
+      "get": {
+        "summary": "Browse IdP directory groups",
+        "description": "Groups matching ?q= (substring) from the configured LDAP directory, for access-binding pickers. Requires owner at some scope; read-only.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/evidence": {
+      "get": {
+        "summary": "Audit evidence export",
+        "description": "Self-contained JSON bundle for a period (?from=&to=, RFC 3339; default last 30 days): configuration commits, change requests with authorship, rollout promotions, and the controls in force. Org-wide viewer.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/facts/{tag}": {
+      "get": {
+        "summary": "Hardware facts of one device",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/filters/{id}": {
       "delete": {
         "summary": "Delete a filter",
@@ -111,6 +325,88 @@
             "description": "OK"
           }
         }
+      }
+    },
+    "/api/v1/fleet": {
+      "get": {
+        "summary": "Full fleet document",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/groups": {
+      "post": {
+        "summary": "Create a group",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{name}": {
+      "patch": {
+        "summary": "Update a group",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Re-parent the group (cycle-safe) and/or change its IdP mapping. Org owner."
+      },
+      "delete": {
+        "summary": "Remove a group",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Only an empty leaf group with no references (devices, subgroups, assignments, bindings, rings) can be removed. Org owner."
+      }
+    },
+    "/api/v1/hostkeys": {
+      "get": {
+        "summary": "SSH host public keys of active devices",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Returns [{tag, hostKey}] for every active, visible device with a recorded host key - the age recipients an overlay rekey run encrypts secrets for. Public key material only."
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "summary": "Who am I",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Identity claims plus the effective role per visible scope, derived live from the current document. Feeds the profile menu."
+      }
+    },
+    "/api/v1/me/preferences": {
+      "get": {
+        "summary": "My preferences",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Personal presentation settings (timezone, locale). Empty fields inherit the organisation default."
+      },
+      "put": {
+        "summary": "Update my preferences",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Body: {timezone?, locale?}. Timezone must be an IANA name; locale one of the shipped UI languages."
       }
     },
     "/api/v1/policies/{id}": {
@@ -157,6 +453,55 @@
         }
       }
     },
+    "/api/v1/rollout/plan": {
+      "put": {
+        "summary": "Replace the rollout ring plan",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "description": "Body: {plan} with rings [{group, soakMinutes, minHealthyPercent}]; null plan clears it. Org owner."
+      }
+    },
+    "/api/v1/rollout/tick": {
+      "post": {
+        "summary": "Advance the rollout engine one step",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/secret-refs": {
+      "get": {
+        "summary": "List registered secret references",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Register a secret reference (a name, never a value)",
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/api/v1/secret-refs/{name}": {
+      "delete": {
+        "summary": "Unregister a secret reference",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/settings": {
       "delete": {
         "summary": "Clear a setting at a scope",
@@ -175,93 +520,6 @@
         }
       }
     },
-    "/api/v1/changes": {
-      "get": {
-        "summary": "List change requests",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "post": {
-        "summary": "Open a change request",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/changes/{id}": {
-      "get": {
-        "summary": "One change request",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/changes/{id}/diff": {
-      "get": {
-        "summary": "Unified diff the change would apply",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/devices": {
-      "get": {
-        "summary": "List devices",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "post": {
-        "summary": "Enroll a device",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/facts/{tag}": {
-      "get": {
-        "summary": "Hardware facts of one device",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/fleet": {
-      "get": {
-        "summary": "Full fleet document",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/hostkeys": {
-      "get": {
-        "summary": "SSH host public keys of active devices",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Returns [{tag, hostKey}] for every active, visible device with a recorded host key - the age recipients an overlay rekey run encrypts secrets for. Public key material only."
-      }
-    },
     "/api/v1/status": {
       "get": {
         "summary": "Observed status of every device",
@@ -275,66 +533,6 @@
     "/api/v1/status/{tag}": {
       "get": {
         "summary": "Observed status of one device",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/changes/{id}/abandon": {
-      "post": {
-        "summary": "Abandon a change",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/changes/{id}/edits": {
-      "post": {
-        "summary": "Apply a gated edit on the change branch",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/changes/{id}/merge": {
-      "post": {
-        "summary": "Merge a ready change (owner)",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/changes/{id}/submit": {
-      "post": {
-        "summary": "Run the build gate",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/groups": {
-      "post": {
-        "summary": "Create a group",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/rollout/tick": {
-      "post": {
-        "summary": "Advance the rollout engine one step",
         "responses": {
           "200": {
             "description": "OK"
@@ -363,176 +561,6 @@
     "/api/v1/tokens/{id}": {
       "delete": {
         "summary": "Revoke an API token",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/devices/{tag}/retire": {
-      "post": {
-        "summary": "Retire a device",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Parks the device: the audit record stays, image builds, check-ins and rollout counting stop, and its credential is revoked. Editor at the device scope."
-      }
-    },
-    "/api/v1/devices/{tag}/reactivate": {
-      "post": {
-        "summary": "Reactivate a retired device",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Returns the device to service and issues a fresh credential (shown once). Editor at the device scope."
-      }
-    },
-    "/api/v1/groups/{name}": {
-      "patch": {
-        "summary": "Update a group",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Re-parent the group (cycle-safe) and/or change its IdP mapping. Org owner."
-      },
-      "delete": {
-        "summary": "Remove a group",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Only an empty leaf group with no references (devices, subgroups, assignments, bindings, rings) can be removed. Org owner."
-      }
-    },
-    "/api/v1/apps": {
-      "put": {
-        "summary": "Replace an app list at a scope",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Body: {scope, kind: packages|flatpaks|overlays, names}. Names pass the injection firewall; the gate validates the result. Editor at the scope."
-      }
-    },
-    "/api/v1/rollout/plan": {
-      "put": {
-        "summary": "Replace the rollout ring plan",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Body: {plan} with rings [{group, soakMinutes, minHealthyPercent}]; null plan clears it. Org owner."
-      }
-    },
-    "/api/v1/assurance": {
-      "put": {
-        "summary": "Configure audit controls",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Body: {requireFourEyes}. Org owner."
-      }
-    },
-    "/api/v1/me": {
-      "get": {
-        "summary": "Who am I",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Identity claims plus the effective role per visible scope, derived live from the current document. Feeds the profile menu."
-      }
-    },
-    "/api/v1/me/preferences": {
-      "get": {
-        "summary": "My preferences",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Personal presentation settings (timezone, locale). Empty fields inherit the organisation default."
-      },
-      "put": {
-        "summary": "Update my preferences",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Body: {timezone?, locale?}. Timezone must be an IANA name; locale one of the shipped UI languages."
-      }
-    },
-    "/api/v1/audit": {
-      "get": {
-        "summary": "Configuration audit trail",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Newest commits on the config repo (?limit=, default 100). Org-wide viewer: commits span every scope."
-      }
-    },
-    "/api/v1/devices/{tag}/credential": {
-      "post": {
-        "summary": "Re-issue a device credential",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "description": "Replaces the device credential (lost secret, re-image); the new secret is shown once. Editor at the device scope; refused for retired devices."
-      }
-    },
-    "/api/v1/directory/groups": {
-      "get": {
-        "summary": "Browse IdP directory groups",
-        "description": "Groups matching ?q= (substring) from the configured LDAP directory, for access-binding pickers. Requires owner at some scope; read-only.",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/evidence": {
-      "get": {
-        "summary": "Audit evidence export",
-        "description": "Self-contained JSON bundle for a period (?from=&to=, RFC 3339; default last 30 days): configuration commits, change requests with authorship, rollout promotions, and the controls in force. Org-wide viewer.",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/devices/{tag}/intent": {
-      "post": {
-        "summary": "Arm a remote action",
-        "description": "Body: {intent: lock|wipe, force?}. Wipe requires the device to be locked first unless force. Org owner; the intent is an audited commit the device pulls on check-in.",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Clear a remote action",
-        "description": "Cancel a pending intent (a found laptop). Org owner.",
         "responses": {
           "200": {
             "description": "OK"
