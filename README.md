@@ -236,7 +236,7 @@ where the arguments are, including the ones we lost.
 | | |
 |---|---|
 | **github.com/BB-Open-Solutions/Sextant** | Where to read it, clone it, and take part today. Issues and pull requests here. |
-| **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical, and where it is published as Dutch government open source. Not publicly readable yet. |
+| **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical, and where it is published as Dutch government open source. No public accounts yet. |
 | **forgejo.bb-open.com** | BB Open's own Forgejo. Where CI runs. |
 
 Every push goes to code.overheid.nl and to BB Open's Forgejo at the same time,
