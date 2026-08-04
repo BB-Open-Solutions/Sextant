@@ -32,3 +32,4 @@
 - [Overview](./architecture/overview.md)
 - [Scaling to 10,000+ devices](./architecture/scale.md)
 - [Decision records](./architecture/adr.md)
+- [Roadmap after 1.0](./architecture/roadmap.md)
