@@ -37,8 +37,8 @@ func (s *Server) deviceRows(ctx context.Context, f *fleet.Fleet) []deviceRow {
 			AssignedUser: d.AssignedUser, Groups: d.Groups,
 			HasStatus: has, Online: st.Online, Revision: st.Revision}
 		changed := s.coreChanged(ctx, st.Revision, app.TargetRevision(f, d))
-		rw.Config = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, has, changed)
-		rw.Verdict = judgeDevice(st.Revision, app.TargetRevision(f, d), st.Online, has, changed)
+		rw.Config = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, has, changed, st.Health.Degraded())
+		rw.Verdict = judgeDevice(st.Revision, app.TargetRevision(f, d), st.Online, has, changed, st.Health.Degraded())
 		if has && st.Usage.Reported() {
 			rw.Reported = true
 			rw.CPU = st.Usage.CPUPct
@@ -233,8 +233,8 @@ type deviceVerdict struct {
 
 // deviceConfigState derives the legacy single chip, kept for the filter and
 // the CSV so both keep one word per device. The page shows the pair.
-func deviceConfigState(revision, target string, online, hasStatus, coreChanged bool) string {
-	v := judgeDevice(revision, target, online, hasStatus, coreChanged)
+func deviceConfigState(revision, target string, online, hasStatus, coreChanged, degraded bool) string {
+	v := judgeDevice(revision, target, online, hasStatus, coreChanged, degraded)
 	switch {
 	case !v.Known:
 		return ""
@@ -258,14 +258,28 @@ func deviceConfigState(revision, target string, online, hasStatus, coreChanged b
 // reads as out of date. Overstating a system change is the safe direction;
 // the cost is a device that looks like it is updating when it was only taking
 // settings, and the reverse cost is an operator who misses a system change.
-func judgeDevice(revision, target string, online, hasStatus, coreChanged bool) deviceVerdict {
+func judgeDevice(revision, target string, online, hasStatus, coreChanged, degraded bool) deviceVerdict {
 	if !hasStatus || revision == "" {
 		return deviceVerdict{}
 	}
+	v := deviceVerdict{Known: true, UpToDate: !coreChanged, OnSpec: false, Moving: online}
 	if target == "" || revision == target {
-		return deviceVerdict{Known: true, UpToDate: true, OnSpec: true}
+		v = deviceVerdict{Known: true, UpToDate: true, OnSpec: true}
 	}
-	return deviceVerdict{Known: true, UpToDate: !coreChanged, OnSpec: false, Moving: online}
+	// systemd reports failed units. A matching revision then proves only that
+	// the device MEANT to run this configuration - measured on hardware
+	// 2026-08-04, where an activation failed after /etc had been switched, so
+	// the revision matched the target while directory login, endpoint security
+	// and secret delivery were all dead. On spec has to mean it works.
+	//
+	// Moving goes false with it: a degraded device is not closing the gap by
+	// itself, and "applying" would tell an operator to wait for something that
+	// is not going to happen.
+	if degraded {
+		v.OnSpec = false
+		v.Moving = false
+	}
+	return v
 }
 
 // fleetOnTarget reports whether every judgeable device runs its target pin -
@@ -295,7 +309,7 @@ func (s *Server) fleetOnTarget(ctx context.Context, f *fleet.Fleet) bool {
 			continue
 		}
 		if deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true,
-			s.coreChanged(ctx, st.Revision, app.TargetRevision(f, d))) != configCurrent {
+			s.coreChanged(ctx, st.Revision, app.TargetRevision(f, d)), st.Health.Degraded()) != configCurrent {
 			return false
 		}
 		judged++
@@ -489,7 +503,7 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 			// operator opens to dig: the release number and the full revision
 			// stay on screen next to it rather than in a hover title.
 			data["Config"] = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true,
-				s.coreChanged(r.Context(), st.Revision, app.TargetRevision(f, d)))
+				s.coreChanged(r.Context(), st.Revision, app.TargetRevision(f, d)), st.Health.Degraded())
 			if st.Revision != "" {
 				data["Release"] = s.svc.Config.ReleaseNumber(r.Context(), st.Revision)
 			}

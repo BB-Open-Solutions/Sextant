@@ -76,6 +76,7 @@ fn main() -> ExitCode {
             _ => ("", 0),
         };
         let usage = collect::collect_usage();
+        let health = collect::collect_health();
         // A collected diagnostics bundle (design 0010) uploads BEFORE the
         // check-in: the standing intent clears on the ack this beat carries,
         // and the upload should not race that clear. Deleted only on a
@@ -101,6 +102,7 @@ fn main() -> ExitCode {
             ack_ts,
             facts: facts.as_ref(),
             usage: Some(&usage),
+            health: Some(&health),
             recovery_key: recovery.as_deref(),
         };
         let (outcome, recovery_stored) = client.send(&beat);

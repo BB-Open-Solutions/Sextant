@@ -52,7 +52,37 @@ type CheckIn struct {
 	Ack string `json:"ack,omitempty"`
 	// Usage is the device's live resource utilisation at this beat (optional).
 	Usage Usage `json:"usage,omitempty"`
+	// Health is what systemd thinks of the machine. A revision says what a
+	// device MEANT to run; this says whether it works.
+	//
+	// It exists because those two came apart on hardware (e2e5, 2026-08-04):
+	// an activation failed after /etc had already been switched, so the
+	// revision marker named the configuration that was attempted, the console
+	// compared it to the target, found them equal, and called the device on
+	// spec - while directory login, endpoint security and secret delivery were
+	// all dead on it. A device that reports failed units is not on spec,
+	// whatever its revision says.
+	Health Health `json:"health,omitempty"`
 }
+
+// Health is systemd's verdict on a device: its overall state and the units
+// that failed. Empty means the agent did not report it (an older agent, or a
+// probe that could not run), and unknown must never read as healthy.
+type Health struct {
+	// State is systemd's own word: "running", "degraded", "starting",
+	// "maintenance", "stopping".
+	State string `json:"state,omitempty"`
+	// FailedUnits names what is broken. The names are the actionable part:
+	// "sssd.service" tells an operator where to look, where "degraded" only
+	// says something is wrong.
+	FailedUnits []string `json:"failedUnits,omitempty"`
+}
+
+// Degraded reports whether the device told us something is broken. Silence is
+// not health: a device that reported nothing returns false here and is judged
+// on its other signals, rather than being accused on a measurement it never
+// made.
+func (h Health) Degraded() bool { return len(h.FailedUnits) > 0 || h.State == "degraded" }
 
 // Usage is a device's live resource utilisation at check-in: a snapshot, not a
 // series. All-zero means the agent did not report it (an older agent or a
@@ -151,6 +181,10 @@ type DeviceStatus struct {
 	Ack string `json:"ack,omitempty"`
 	// Usage is the device's last-reported live resource utilisation.
 	Usage Usage `json:"usage,omitempty"`
+	// Health is systemd's last verdict on the machine. A device with failed
+	// units is not on spec however well its revision matches - the revision
+	// says what it meant to run, this says whether it works.
+	Health Health `json:"health,omitempty"`
 }
 
 // OnlineWindow is how recently a device must have checked in to count as

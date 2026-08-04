@@ -43,7 +43,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 	for _, st := range status {
 		if d, ok := f.Devices[st.Tag]; ok {
 			configState[st.Tag] = deviceConfigState(st.Revision, app.TargetRevision(f, d), st.Online, true,
-				s.coreChanged(r.Context(), st.Revision, app.TargetRevision(f, d)))
+				s.coreChanged(r.Context(), st.Revision, app.TargetRevision(f, d)), st.Health.Degraded())
 		}
 		if st.Online {
 			online++

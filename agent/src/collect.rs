@@ -243,3 +243,119 @@ mod tests {
         assert_eq!(parse_df("Filesystem 1024-blocks Used\n"), None);
     }
 }
+
+/// Health is what systemd thinks of this machine: its overall state and the
+/// units that failed.
+///
+/// WHY THIS IS REPORTED. Found on e2e5, 2026-08-04: an activation can fail
+/// while /etc has already been switched, so the revision marker names the
+/// configuration that was ATTEMPTED. The console compared that to the target,
+/// found them equal, and called the device on spec - with directory login,
+/// endpoint security and secret delivery all dead on the machine.
+///
+/// A revision says what a device meant to run. This says whether it works.
+/// The console needs both, and needs the second to be able to veto the first.
+#[derive(Serialize, Default, Debug, PartialEq)]
+pub struct Health {
+    /// state is systemd's own verdict: "running", "degraded", "starting",
+    /// "maintenance", "stopping". Empty when it could not be read (not
+    /// systemd, or the call failed) - unknown must not read as healthy.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub state: String,
+    /// failed names the units in a failed state, sorted, capped. The names are
+    /// the actionable part: "sssd.service" tells an operator what to look at,
+    /// where "degraded" only says something is wrong.
+    #[serde(rename = "failedUnits", skip_serializing_if = "Vec::is_empty")]
+    pub failed: Vec<String>,
+}
+
+/// maxFailedUnits bounds the report. A machine with more than this is broken
+/// in a way the list will not diagnose, and an unbounded list is a check-in
+/// body an operator's browser has to render.
+const MAX_FAILED_UNITS: usize = 20;
+
+/// collect_health asks systemd. Best-effort: a probe that cannot run leaves
+/// the state empty, which the console reads as unknown rather than healthy.
+pub fn collect_health() -> Health {
+    let mut h = Health::default();
+    if let Ok(out) = Command::new("systemctl").arg("is-system-running").output() {
+        // Deliberately ignoring the exit status: `is-system-running` exits
+        // non-zero precisely when the answer is interesting ("degraded" is
+        // exit 1). Reading stdout regardless is the point.
+        h.state = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    }
+    if let Ok(out) = Command::new("systemctl")
+        .args([
+            "list-units",
+            "--state=failed",
+            "--no-legend",
+            "--plain",
+            "--no-pager",
+        ])
+        .output()
+    {
+        if out.status.success() {
+            h.failed = parse_failed_units(&String::from_utf8_lossy(&out.stdout));
+        }
+    }
+    h
+}
+
+/// parse_failed_units takes the unit name from each row of
+/// `systemctl list-units --no-legend --plain`. Split out so it is testable
+/// without systemd.
+pub fn parse_failed_units(s: &str) -> Vec<String> {
+    let mut out: Vec<String> = s
+        .lines()
+        // A status bullet survives --plain on some systemd versions. It has to
+        // be stripped BEFORE splitting: taking the first token and then
+        // discarding it drops the unit name with it, which is what the first
+        // version of this did.
+        .map(|l| l.trim_start_matches(['\u{25CF}', '*', ' ', '\t']))
+        .filter_map(|l| l.split_whitespace().next())
+        .filter(|n| n.contains('.'))
+        .map(str::to_string)
+        .collect();
+    out.sort();
+    out.dedup();
+    out.truncate(MAX_FAILED_UNITS);
+    out
+}
+
+#[cfg(test)]
+mod health_tests {
+    use super::*;
+
+    #[test]
+    fn parses_unit_names_and_ignores_decoration() {
+        // Real shape of `systemctl list-units --state=failed --no-legend
+        // --plain`, with the bullet some versions still emit.
+        let out = "\
+● sssd.service            loaded failed failed System Security Services Daemon
+  wazuh-agent.service     loaded failed failed Wazuh endpoint security agent
+  openbao-secrets.service loaded failed failed Fetch device secrets from OpenBao
+";
+        assert_eq!(
+            parse_failed_units(out),
+            vec![
+                "openbao-secrets.service",
+                "sssd.service",
+                "wazuh-agent.service"
+            ]
+        );
+    }
+
+    #[test]
+    fn empty_output_is_no_failures() {
+        assert!(parse_failed_units("").is_empty());
+        assert!(parse_failed_units("\n  \n").is_empty());
+    }
+
+    #[test]
+    fn a_healthy_machine_serialises_to_nothing() {
+        // An older console must not see new keys on every beat from a machine
+        // with nothing wrong: both fields skip when empty.
+        let h = Health::default();
+        assert_eq!(serde_json::to_string(&h).unwrap(), "{}");
+    }
+}

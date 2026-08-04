@@ -35,6 +35,11 @@ pub struct CheckIn<'a> {
     pub facts: Option<&'a serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<&'a crate::collect::Usage>,
+    /// health is systemd's verdict on this machine. A revision says what the
+    /// device MEANT to run; this says whether it works, and the console needs
+    /// the second to be able to veto the first (e2e5, 2026-08-04).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub health: Option<&'a crate::collect::Health>,
     /// recoveryKey carries a provisioning-minted LUKS recovery key exactly
     /// until the server confirms sealing it (design 0009); None otherwise.
     #[serde(rename = "recoveryKey", skip_serializing_if = "Option::is_none")]
@@ -222,6 +227,7 @@ mod tests {
             ack_ts: 0,
             facts: None,
             usage: None,
+            health: None,
             recovery_key: None,
         };
         // The plain server sends no X-Recovery-Key-Stored header, so the

@@ -103,7 +103,7 @@ func TestDeviceConfigState(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := deviceConfigState(c.revision, c.target, c.online, c.hasStatus, c.coreChanged); got != c.want {
+			if got := deviceConfigState(c.revision, c.target, c.online, c.hasStatus, c.coreChanged, false); got != c.want {
 				t.Errorf("got %q, want %q", got, c.want)
 			}
 		})
@@ -142,7 +142,7 @@ func TestDeviceVerdictSeparatesSystemFromConfiguration(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			v := judgeDevice(c.revision, c.target, c.online, c.hasStatus, c.coreChanged)
+			v := judgeDevice(c.revision, c.target, c.online, c.hasStatus, c.coreChanged, false)
 			if v.Known != c.wantKnown || v.UpToDate != c.wantUp || v.OnSpec != c.wantSpec {
 				t.Errorf("got known=%v up=%v spec=%v, want %v/%v/%v",
 					v.Known, v.UpToDate, v.OnSpec, c.wantKnown, c.wantUp, c.wantSpec)

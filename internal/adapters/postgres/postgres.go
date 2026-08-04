@@ -119,14 +119,24 @@ func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
 // (standard Postgres semantics for data-modifying CTEs), so this is race-free.
 func (s *Store) Upsert(ctx context.Context, tenant string, c observed.CheckIn, now time.Time) (bool, error) {
 	u := c.Usage
+	// A nil slice is SQL NULL, and the column is NOT NULL - which is every
+	// beat from a healthy device, since "nothing failed" arrives as no list at
+	// all. Normalising here rather than widening the column: the empty array
+	// is the honest value, and NULL would give a third meaning to a field that
+	// already distinguishes "no reading" (empty health_state) from "nothing
+	// failed" (empty array).
+	failed := c.Health.FailedUnits
+	if failed == nil {
+		failed = []string{}
+	}
 	var ackChanged bool
 	err := s.pool.QueryRow(ctx, `
 		WITH prev AS (
 			SELECT ack FROM device_status WHERE tenant = $1 AND tag = $2
 		)
 		INSERT INTO device_status (tenant, tag, revision, phase, error, last_seen, sb_state, tpm2_state, ack,
-			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, health_state, failed_units)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT (tenant, tag) DO UPDATE SET
 			revision   = CASE WHEN EXCLUDED.revision = ''   THEN device_status.revision   ELSE EXCLUDED.revision   END,
 			phase      = CASE WHEN EXCLUDED.phase = ''       THEN device_status.phase      ELSE EXCLUDED.phase      END,
@@ -144,10 +154,19 @@ func (s *Store) Upsert(ctx context.Context, tenant string, c observed.CheckIn, n
 			mem_used_mb   = CASE WHEN EXCLUDED.mem_total_mb = 0  THEN device_status.mem_used_mb   ELSE EXCLUDED.mem_used_mb   END,
 			mem_total_mb  = CASE WHEN EXCLUDED.mem_total_mb = 0  THEN device_status.mem_total_mb  ELSE EXCLUDED.mem_total_mb  END,
 			disk_used_gb  = CASE WHEN EXCLUDED.disk_total_gb = 0 THEN device_status.disk_used_gb  ELSE EXCLUDED.disk_used_gb  END,
-			disk_total_gb = CASE WHEN EXCLUDED.disk_total_gb = 0 THEN device_status.disk_total_gb  ELSE EXCLUDED.disk_total_gb END
+			disk_total_gb = CASE WHEN EXCLUDED.disk_total_gb = 0 THEN device_status.disk_total_gb  ELSE EXCLUDED.disk_total_gb END,
+			-- health_state is the flag for "this beat carried a health
+			-- reading": an agent that reports health always sets it. So both
+			-- fields move together and only when it is present - otherwise an
+			-- older agent's beat would clear a real list of failed units and
+			-- make a broken device look healthy, which is the exact failure
+			-- this column exists to catch.
+			health_state = CASE WHEN EXCLUDED.health_state = '' THEN device_status.health_state ELSE EXCLUDED.health_state END,
+			failed_units = CASE WHEN EXCLUDED.health_state = '' THEN device_status.failed_units ELSE EXCLUDED.failed_units END
 		RETURNING (SELECT ack FROM prev) IS DISTINCT FROM ack`,
 		tenant, c.Tag, c.Revision, string(c.Phase), c.Error, now, string(c.SB), string(c.TPM2), c.Ack,
 		u.CPUPct, u.MemUsedMB, u.MemTotalMB, u.DiskUsedGB, u.DiskTotalGB,
+		c.Health.State, failed,
 	).Scan(&ackChanged)
 	return ackChanged, err
 }
@@ -158,10 +177,11 @@ func (s *Store) Get(ctx context.Context, tenant, tag string) (observed.DeviceSta
 	var phase, sb, tpm2 string
 	err := s.pool.QueryRow(ctx, `
 		SELECT tag, revision, phase, error, last_seen, sb_state, tpm2_state, ack,
-			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb
+			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, health_state, failed_units
 		FROM device_status WHERE tenant = $1 AND tag = $2`, tenant, tag).
 		Scan(&st.Tag, &st.Revision, &phase, &st.Error, &st.LastSeen, &sb, &tpm2, &st.Ack,
-			&st.Usage.CPUPct, &st.Usage.MemUsedMB, &st.Usage.MemTotalMB, &st.Usage.DiskUsedGB, &st.Usage.DiskTotalGB)
+			&st.Usage.CPUPct, &st.Usage.MemUsedMB, &st.Usage.MemTotalMB, &st.Usage.DiskUsedGB, &st.Usage.DiskTotalGB,
+			&st.Health.State, &st.Health.FailedUnits)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return observed.DeviceStatus{}, false, nil
 	}
@@ -177,7 +197,7 @@ func (s *Store) Get(ctx context.Context, tenant, tag string) (observed.DeviceSta
 func (s *Store) List(ctx context.Context, tenant string) ([]observed.DeviceStatus, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT tag, revision, phase, error, last_seen, sb_state, tpm2_state, ack,
-			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb
+			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, health_state, failed_units
 		FROM device_status WHERE tenant = $1 ORDER BY tag`, tenant)
 	if err != nil {
 		return nil, err
@@ -188,7 +208,8 @@ func (s *Store) List(ctx context.Context, tenant string) ([]observed.DeviceStatu
 		var st observed.DeviceStatus
 		var phase, sb, tpm2 string
 		if err := rows.Scan(&st.Tag, &st.Revision, &phase, &st.Error, &st.LastSeen, &sb, &tpm2, &st.Ack,
-			&st.Usage.CPUPct, &st.Usage.MemUsedMB, &st.Usage.MemTotalMB, &st.Usage.DiskUsedGB, &st.Usage.DiskTotalGB); err != nil {
+			&st.Usage.CPUPct, &st.Usage.MemUsedMB, &st.Usage.MemTotalMB, &st.Usage.DiskUsedGB, &st.Usage.DiskTotalGB,
+			&st.Health.State, &st.Health.FailedUnits); err != nil {
 			return nil, err
 		}
 		st.Phase = observed.Phase(phase)
