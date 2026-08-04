@@ -292,9 +292,27 @@ in-memory and per-process on purpose: a restart, a second replica or an evicted
 entry costs one evaluation and changes no outcome, whereas a persisted verdict
 could outlive the reasoning that produced it.
 
-The second half — taking the evaluation off the write path entirely, so editors
-do not block each other — is still open. Memoisation makes the common edit
-cheap; it does not make a cold one asynchronous.
+**The second half turned out not to be needed yet, and that is a measurement
+rather than a judgement.** The complaint was that editors block each other: the
+write lock is held across validation, so the second editor waits for the first
+and the fifth is refused. Timed with the memo in place, against a gate stubbed
+at the measured cost of one cold shape:
+
+```
+cold edit, gate runs      818 ms
+warm edit, memo hit        15 ms
+```
+
+An ordinary edit holds the write lock for fifteen milliseconds. Building an
+asynchronous validation queue now would optimise a path that is already fast,
+and it would change what saving means to an operator, from "saved" to "queued",
+for a queue nobody is standing in.
+
+What remains true is narrower: an edit that changes a shape nobody has proved
+still blocks for the length of one evaluation, and at SaaS scale one gate slot
+shared across tenants turns one org's cold edit into everybody's wait. That is
+the case worth solving, and it is about isolating tenants rather than about
+making a single console asynchronous.
 
 An earlier draft had a sixth step — split `fleet.json` so nix's eval cache
 survives unrelated edits. The measurement above removed its justification: the
