@@ -22,13 +22,39 @@ type client struct {
 	out   io.Writer
 }
 
+// writeTimeout bounds a request that may run the Nix gate.
+//
+// A write is validated before it is committed, and validation costs one
+// evaluation per configuration SHAPE the edit touches - about eight seconds
+// each, and every shape when something invalidates the verdict memo (a core
+// bump, a rekey). Thirty seconds covered a couple of shapes and then reported
+// "context deadline exceeded" for an edit the server was still applying and
+// would apply successfully. A write that looks failed and is not is the worst
+// possible answer: the obvious response is to run it again.
+//
+// Reads keep a short bound - they touch a snapshot and are either quick or
+// genuinely wrong.
+const (
+	readTimeout  = 30 * time.Second
+	writeTimeout = 5 * time.Minute
+)
+
 func newClient(base, token string, out io.Writer) *client {
 	return &client{
 		base:  strings.TrimRight(base, "/"),
 		token: token,
-		http:  &http.Client{Timeout: 30 * time.Second},
+		http:  &http.Client{Timeout: readTimeout},
 		out:   out,
 	}
+}
+
+// timeoutFor picks the bound from the method: anything that mutates may have
+// to wait for the gate.
+func timeoutFor(method string) time.Duration {
+	if method == http.MethodGet {
+		return readTimeout
+	}
+	return writeTimeout
 }
 
 // apiError carries the server's error body and status.
@@ -56,6 +82,7 @@ func (c *client) do(method, path string, in, out any) error {
 	if err != nil {
 		return err
 	}
+	c.http.Timeout = timeoutFor(method)
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")

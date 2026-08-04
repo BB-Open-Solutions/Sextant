@@ -124,7 +124,17 @@ func TestSecureCookieRoundTripAndTamper(t *testing.T) {
 	// Tampering breaks authentication.
 	r2 := httptest.NewRequest("GET", "/", nil)
 	tampered := *ck
-	tampered.Value = "x" + tampered.Value[1:]
+	// Flip the first byte to something it demonstrably is not. Substituting a
+	// FIXED character silently did nothing whenever the value already started
+	// with it - a base64 value starts with any given character about one time
+	// in sixty-four, so this test failed roughly 1.5% of runs while claiming a
+	// tampered cookie had been accepted. A security check that is flaky gets
+	// re-run until it is green, which is worse than not having it.
+	flip := byte('x')
+	if tampered.Value[0] == flip {
+		flip = 'y'
+	}
+	tampered.Value = string(flip) + tampered.Value[1:]
 	r2.AddCookie(&tampered)
 	if err := c.get(r2, &out); err == nil {
 		t.Fatal("tampered cookie accepted")
