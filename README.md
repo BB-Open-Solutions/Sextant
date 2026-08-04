@@ -235,13 +235,18 @@ where the arguments are, including the ones we lost.
 
 | | |
 |---|---|
-| **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical. Published here as Dutch government open source. |
-| **github.com/BB-Open-Solutions/Sextant** | Public mirror, and where participation happens: issues and pull requests here. Opens at 1.0.0. |
+| **github.com/BB-Open-Solutions/Sextant** | Where to read it, clone it, and take part. Issues and pull requests here. |
+| **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical, and where it is published as Dutch government open source. Not publicly readable yet. |
 
-The canonical repository is not open to the public yet, which is why the mirror
-exists at all. GitHub is where the people who would contribute to this already
-are, and a sovereignty argument that nobody can find helps nobody - the code
-and its licence are what make this open, not the address it is served from.
+The canonical repository is the one that counts, and it is not open to the
+public yet - so for now GitHub is the address that actually works for somebody
+who is not us. It is a mirror of the same history, pushed automatically, and it
+is temporary in that sense: once the canonical repository opens, that is where
+to go.
+
+This is not a sovereignty compromise. What makes this open is the code and the
+licence, not the domain it is served from, and an argument nobody can find
+helps nobody.
 
 ## Architecture
 
