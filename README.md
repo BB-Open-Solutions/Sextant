@@ -4,10 +4,10 @@
 
 **Manage a fleet of NixOS workstations the way you manage code.**
 
-[![License: EUPL 1.2](https://img.shields.io/badge/license-EUPL--1.2-1f6feb.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/status-beta-0ea5a4.svg)](#status-beta)
-[![Go](https://img.shields.io/badge/go-1.25-00ADD8.svg)](go.mod)
-[![Docs](https://img.shields.io/badge/docs-sextant.bb--open.com-333.svg)](https://docs.sextant.bb-open.com)
+[![license: EUPL-1.2](docs/img/badge/license.svg)](LICENSE)
+[![status: beta](docs/img/badge/status.svg)](#status-beta)
+[![go: 1.25](docs/img/badge/go.svg)](go.mod)
+[![docs: sextant.bb-open.com](docs/img/badge/docs.svg)](https://docs.sextant.bb-open.com)
 
 [Documentation](https://docs.sextant.bb-open.com) ·
 [Quickstart](#quickstart) ·
