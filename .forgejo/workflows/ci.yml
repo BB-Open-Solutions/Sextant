@@ -55,9 +55,18 @@ jobs:
             if [ ! -e "$interp" ]; then
               echo "the race build links against $interp, which is not in this store." >&2
               echo "the runner store is incomplete - repair it:" >&2
-              echo "  nix-store --verify --check-contents --repair" >&2
+              echo "  nix-store --realise $interp" >&2
               exit 1
             fi
+            # Root the loader the binaries ACTUALLY link against, which is not
+            # the same thing as rooting the devshell. Measured 2026-08-04: the
+            # rooted devshell carried glibc-2.42-67 as ias8xacs..., while the
+            # runner failed on 8kvxvr3p... - same version, different derivation,
+            # so the profile root protected a path nothing was linking to. The
+            # store path is what nix keys on, so strip everything from /lib
+            # onwards to get the package root rather than the loader file.
+            nix-store --realise --add-root "$HOME/.cache/sextant-ci-loader" --indirect \
+              "${interp%/lib/*}" >/dev/null
           '
           nix develop --command go test -race -coverprofile=coverage.out ./...
           nix develop --command bash -c '
