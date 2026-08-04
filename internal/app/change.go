@@ -59,6 +59,21 @@ type ChangeService struct {
 	mu sync.Mutex // serializes the whole change flow (branch/worktree ops)
 }
 
+// verdictCache is the console's memo of gate acceptances, shared with the
+// change flow's incremental edits (verdicts.go). Nil-safe: a ChangeService
+// built without a ConfigService simply gets no memoisation.
+//
+// Deliberately NOT used by Submit. An edit memoises a shape against the source
+// it was proved on; a submit re-proves the whole branch, because a branch
+// behind main or carrying an out-of-band commit is exactly the case a
+// remembered verdict would wave through.
+func (s *ChangeService) verdictCache() *verdictCache {
+	if s.cfg == nil {
+		return nil
+	}
+	return s.cfg.verdicts
+}
+
 // NewChangeService wires the change flow.
 func NewChangeService(repo ChangeRepo, store ports.ChangeStore, gate ports.Gate,
 	builder ports.Builder, clock ports.Clock, open OpenWorktree, cfg *ConfigService) *ChangeService {
@@ -194,7 +209,10 @@ func (s *ChangeService) Edit(ctx context.Context, id string, mut fleet.Mutation,
 	if err != nil {
 		return err
 	}
-	if _, err := applyTx(ctx, wt, s.gate, mut, msg, a, hosts); err != nil {
+	// The worktree is a second checkout of the same repo, so a shape proved
+	// there is proved for a direct edit too - same source, same globals. Share
+	// the console's memo rather than giving the change flow a cold one.
+	if _, err := applyTx(ctx, wt, s.gate, mut, msg, a, hosts, s.verdictCache()); err != nil {
 		return err
 	}
 	// Track the change's blast radius so Submit gates the whole branch

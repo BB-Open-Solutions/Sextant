@@ -5,6 +5,8 @@ package git
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -389,6 +391,54 @@ func (r *Repo) Head(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// SourceKey fingerprints the committed tree EXCLUDING one path: every blob the
+// flake evaluates from, minus the file the caller is about to change.
+//
+// It exists so a gate verdict can be memoised. HEAD moves on every config
+// commit, so keying a verdict on HEAD would invalidate the whole cache with
+// each edit and prove nothing was gained. What actually decides a device's
+// evaluation, apart from its own resolved settings, is the REST of the tree:
+// flake.lock (which pins the core and nixpkgs), the generator, the hardware
+// profiles, the catalog. Those change on their own commits, and when they do
+// every verdict must fall.
+//
+// The hash is over the `<mode> <type> <sha> <path>` lines git already
+// computes, so it is exact rather than heuristic and costs one process.
+//
+// HEAD alone would not be enough. The gate evaluates the WORKING TREE, and a
+// caller memoising against this key is asserting that the tree differs from
+// HEAD in the excluded path only. So the uncommitted state goes into the hash
+// too: any other modified or untracked file moves the key and every verdict
+// falls, which is the safe direction. Without that, an overlay file left dirty
+// by another path would change what nix evaluates while the key stood still.
+func (r *Repo) SourceKey(ctx context.Context, exclude string) (string, error) {
+	tree, err := exec.CommandContext(ctx, "git", "-C", r.dir, "ls-tree", "-r", "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("git ls-tree HEAD: %w", err)
+	}
+	// --porcelain is the stable machine format; its `XY path` lines cover
+	// modified, staged, deleted and (with -uall) untracked files.
+	status, err := exec.CommandContext(ctx, "git", "-C", r.dir, "status", "--porcelain", "-uall").Output()
+	if err != nil {
+		return "", fmt.Errorf("git status --porcelain: %w", err)
+	}
+	h := sha256.New()
+	for _, section := range []string{string(tree), string(status)} {
+		for _, line := range strings.Split(section, "\n") {
+			// A tree line ends in \t<path>; a status line ends in <space><path>.
+			// Skipping the excluded path in both is what makes an edit to it
+			// invisible here - that is the whole point of the exclusion.
+			if line == "" || strings.HasSuffix(line, "\t"+exclude) || strings.HasSuffix(line, " "+exclude) {
+				continue
+			}
+			h.Write([]byte(line))
+			h.Write([]byte{'\n'})
+		}
+		h.Write([]byte{'\x00'})
+	}
+	return hex.EncodeToString(h.Sum(nil)[:16]), nil
 }
 
 // RemoteHead resolves the HEAD revision of an arbitrary remote without a

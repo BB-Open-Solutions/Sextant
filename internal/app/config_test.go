@@ -246,20 +246,26 @@ func TestApplyForwardsAffectedHostsToGate(t *testing.T) {
 	f := svc.Fleet()
 	author := ports.Author{Name: "Ada", Email: "ada@x"}
 
+	// Each edit sets a DIFFERENT key, so each genuinely changes lt-1's
+	// resolved state. Setting the same key at three scopes would leave the
+	// device resolving to the same value all three times (the device scope
+	// wins), and the verdict memo would correctly skip the last two - making
+	// this a test of memoisation rather than of host scoping.
+
 	// Device scope gates exactly that host.
 	if err := svc.Apply(ctx, fleet.SetScopeSetting("device:lt-1", "apps.office", true),
 		"device edit", author, AffectedHosts(f, "device:lt-1")...); err != nil {
 		t.Fatalf("device edit: %v", err)
 	}
 	// Group scope gates the group's active members (only lt-1 here).
-	if err := svc.Apply(ctx, fleet.SetScopeSetting("group:pilot", "apps.office", true),
+	if err := svc.Apply(ctx, fleet.SetScopeSetting("group:pilot", "apps.design", true),
 		"group edit", author, AffectedHosts(f, "group:pilot")...); err != nil {
 		t.Fatalf("group edit: %v", err)
 	}
 	// Org scope has an unbounded blast radius: the gate receives one
 	// representative per configuration-shape class (sampling), never nil -
 	// the seed fleet has one active device, so the sample is exactly it.
-	if err := svc.Apply(ctx, fleet.SetScopeSetting("org", "apps.office", true),
+	if err := svc.Apply(ctx, fleet.SetScopeSetting("org", "apps.media", true),
 		"org edit", author, AffectedHosts(f, "org")...); err != nil {
 		t.Fatalf("org edit: %v", err)
 	}

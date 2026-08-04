@@ -50,6 +50,11 @@ type ConfigService struct {
 	// read with (see coreversion.go).
 	coreCache atomic.Pointer[coreEntry]
 
+	// verdicts memoises gate acceptances per (source, globals, shape), so an
+	// edit costs the configuration shapes it changed rather than every shape
+	// in the fleet (verdicts.go).
+	verdicts *verdictCache
+
 	// snap is the copy-on-write read snapshot: the fleet document and its
 	// settings vocabulary (catalog.json, ADR 0005) from the same working
 	// tree state, swapped as ONE pointer so readers can never observe a
@@ -71,7 +76,7 @@ type configSnapshot struct {
 
 // NewConfigService loads the initial snapshot and returns the service.
 func NewConfigService(repo ports.ConfigRepo, gate ports.Gate) (*ConfigService, error) {
-	s := &ConfigService{repo: repo, gate: gate}
+	s := &ConfigService{repo: repo, gate: gate, verdicts: newVerdictCache()}
 	if err := s.reload(); err != nil {
 		return nil, fmt.Errorf("load %s: %w", FleetFile, err)
 	}
@@ -268,7 +273,7 @@ func (passGate) Validate(context.Context, string, []string) error { return nil }
 // applyOnce runs the shared transaction against the service repo and
 // refreshes the snapshot on success.
 func (s *ConfigService) applyOnce(ctx context.Context, mut fleet.Mutation, msg string, a ports.Author, hosts []string, gate ports.Gate) error {
-	f, err := applyTx(ctx, s.repo, gate, mut, msg, a, hosts)
+	f, err := applyTx(ctx, s.repo, gate, mut, msg, a, hosts, s.verdicts)
 	if err != nil {
 		return err
 	}
@@ -334,7 +339,7 @@ func (s *ConfigService) SyncLoop(ctx context.Context, every time.Duration, log *
 // change-request edits (which run it against a worktree repo):
 // load -> mutate -> write -> gate -> commit. Gate failure rolls the working
 // file back to its original bytes; nothing invalid ever gets committed.
-func applyTx(ctx context.Context, repo ports.ConfigRepo, gate ports.Gate, mut fleet.Mutation, msg string, a ports.Author, hosts []string) (*fleet.Fleet, error) {
+func applyTx(ctx context.Context, repo ports.ConfigRepo, gate ports.Gate, mut fleet.Mutation, msg string, a ports.Author, hosts []string, verdicts *verdictCache) (*fleet.Fleet, error) {
 	orig, err := repo.ReadFile(FleetFile)
 	if err != nil {
 		return nil, err
@@ -374,7 +379,21 @@ func applyTx(ctx context.Context, repo ports.ConfigRepo, gate ports.Gate, mut fl
 	} else {
 		hosts = f.SampleHosts(hosts)
 	}
-	if err := gate.Validate(ctx, repo.Dir(), hosts); err != nil {
+	// Second narrowing: drop the shapes already proved clean against this
+	// exact source and these exact globals (verdicts.go). An edit then costs
+	// the shapes it changed, not every shape in the fleet.
+	todo, keys := partitionHosts(ctx, repo, verdicts, f, hosts)
+	// An empty host list means "discover and evaluate the whole fleet" to the
+	// gate, so a fully-memoised sample must skip the call outright rather than
+	// hand it a list that reads as everything. Only a sample that HAD hosts
+	// can be skipped: an empty sample is the pre-existing whole-fleet path.
+	if len(hosts) > 0 && len(todo) == 0 {
+		if err := repo.Commit(ctx, msg, a, FleetFile); err != nil {
+			return nil, err
+		}
+		return f, nil
+	}
+	if err := gate.Validate(ctx, repo.Dir(), todo); err != nil {
 		if werr := repo.WriteFile(FleetFile, orig); werr != nil {
 			// The working tree now holds the rejected edit, which would
 			// become the base of the next write. Surface it loudly.
@@ -382,6 +401,8 @@ func applyTx(ctx context.Context, repo ports.ConfigRepo, gate ports.Gate, mut fl
 		}
 		return nil, err
 	}
+	// Only now, with the gate's acceptance in hand, are these shapes proved.
+	verdicts.record(keys)
 	if err := repo.Commit(ctx, msg, a, FleetFile); err != nil {
 		return nil, err
 	}

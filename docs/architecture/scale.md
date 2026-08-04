@@ -269,6 +269,33 @@ question arose the fleet was down to one device.
    `(overlay revision, classKey)` (#40). Since nix caches nothing for us, this
    is the whole of our caching strategy rather than a supplement to it.
 
+**Step 5, first half, is built** (`internal/app/verdicts.go`). Verdicts are
+memoised on `(sourceKey, globalsKey, classKey)` and an edit now costs the
+shapes it changed:
+
+- `sourceKey` — the committed tree minus `fleet.json`, plus the uncommitted
+  state of everything else. `flake.lock`, the generator, the hardware profiles
+  and the catalog all live here, so a core bump drops every verdict. HEAD
+  itself would have been useless as a key: it moves on every config commit, so
+  the cache would empty itself exactly when it should be paying off.
+- `globalsKey` — the document fields outside the resolver's reach. This one is
+  not theoretical. `nix/generator.nix` reads `fleet.rollout.rings` in
+  `ringBranchFor` to decide which comin branch a device follows, and no
+  device's resolved settings record that; keying only on `classKey` would let a
+  ring edit ride in on stale verdicts. The key is built by *removing* the
+  resolver's inputs rather than by listing what to include, so a field added to
+  `fleet.json` later lands in it automatically instead of quietly falling out.
+- `classKey` — the existing shape fingerprint, unchanged.
+
+Only a PASS is recorded, so a rejection is re-proved every time. The memo is
+in-memory and per-process on purpose: a restart, a second replica or an evicted
+entry costs one evaluation and changes no outcome, whereas a persisted verdict
+could outlive the reasoning that produced it.
+
+The second half — taking the evaluation off the write path entirely, so editors
+do not block each other — is still open. Memoisation makes the common edit
+cheap; it does not make a cold one asynchronous.
+
 An earlier draft had a sixth step — split `fleet.json` so nix's eval cache
 survives unrelated edits. The measurement above removed its justification: the
 cache never engages, so there is nothing to preserve. `classKey` is already

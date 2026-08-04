@@ -92,6 +92,59 @@ func (f *Fleet) SampleHosts(tags []string) []string {
 	return out
 }
 
+// ClassKeyOf returns the configuration-shape fingerprint of one device, or ""
+// for a device that does not build (unknown or retired). It is the same key
+// the partitioner groups on, exported so the application layer can memoise a
+// gate verdict against the shape it was proved for.
+func (f *Fleet) ClassKeyOf(tag string) string {
+	d, ok := f.Devices[tag]
+	if !ok || d.Retired() {
+		return ""
+	}
+	return f.classKey(tag, d)
+}
+
+// resolverInputs are the top-level fleet.json fields the resolver consumes and
+// classKey therefore already folds into a device's fingerprint, through
+// ResolveSorted/ResolveApps and the group ancestry walk.
+var resolverInputs = []string{"org", "groups", "devices", "policies", "assignments", "filters"}
+
+// GeneratorGlobalsKey fingerprints everything in the document that a device's
+// evaluation can depend on but its class key does NOT cover: the fields
+// outside the resolver's reach. `rollout` is the one that matters today -
+// nix/generator.nix reads `fleet.rollout.rings` in ringBranchFor to decide
+// which comin branch a device follows, so editing a ring changes what devices
+// build without changing any device's resolved state.
+//
+// It is built by REMOVAL rather than by listing what to include: a field added
+// to the document later lands in this key automatically, which fails toward
+// re-validating too much. Listing what to include would let a new field slip
+// out of the key silently, and a verdict trusted for a shape whose inputs
+// changed is exactly the failure this must not have.
+func (f *Fleet) GeneratorGlobalsKey() string {
+	raw, err := json.Marshal(f)
+	if err != nil {
+		// A fleet that will not marshal cannot be fingerprinted, and a
+		// constant key would make every shape look cached. Return a value
+		// that can never match a recorded verdict.
+		return fmt.Sprintf("!unhashable:%v", err)
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return fmt.Sprintf("!unhashable:%v", err)
+	}
+	for _, k := range resolverInputs {
+		delete(doc, k)
+	}
+	// json.Marshal sorts map keys, so the encoding is canonical.
+	rest, err := json.Marshal(doc)
+	if err != nil {
+		return fmt.Sprintf("!unhashable:%v", err)
+	}
+	sum := sha256.Sum256(rest)
+	return hex.EncodeToString(sum[:16])
+}
+
 // classKey derives a device's configuration-shape fingerprint from its
 // resolved (effective) state.
 func (f *Fleet) classKey(tag string, d Device) string {
