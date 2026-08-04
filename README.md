@@ -7,9 +7,9 @@
 [![license: EUPL-1.2](docs/img/badge/license.svg)](LICENSE)
 [![status: beta](docs/img/badge/status.svg)](#status-beta)
 [![go: 1.25](docs/img/badge/go.svg)](go.mod)
-[![docs: sextant.bb-open.com](docs/img/badge/docs.svg)](https://docs.sextant.bb-open.com)
+[![docs: docs.sextantfleet.com](docs/img/badge/docs.svg)](https://docs.sextantfleet.com)
 
-[Documentation](https://docs.sextant.bb-open.com) ·
+[Documentation](https://docs.sextantfleet.com) ·
 [Quickstart](#quickstart) ·
 [Decision records](docs/adr/) ·
 [Contributing](CONTRIBUTING.md) ·
@@ -260,7 +260,7 @@ end, and the console works without JavaScript. The design is in
 `docs/architecture.md`; how it holds up at fleet scale, with the measurements,
 is in `docs/architecture/scale.md`.
 
-## License, and where the commercial line runs
+## License
 
 **EUPL 1.2, and that is settled** - see LICENSE. BB Open is the steward, not
 the owner: the licence is what makes this yours to run, fork and keep running
@@ -274,21 +274,15 @@ own console owes nobody anything. That is deliberate. A control plane you
 cannot run privately is not sovereign.
 
 So the whole product is here. There is no crippled edition, no feature held
-back to force a conversation, and nothing in this repository stops at a
-paywall. If you want to run a fleet on it yourself, everything you need is in
-this repository and you never have to talk to us.
+back, and nothing in this repository stops at a paywall. If you want to run a
+fleet on it yourself, everything you need is in this repository and you never
+have to talk to us.
 
-What BB Open sells is work, not permission:
-
-- **Hosting.** Somebody else runs the console, the gate and the cache, keeps
-  them current and answers the phone at eight in the morning.
-- **Support and onboarding.** Getting a first ring imaged, a directory wired
-  up, an existing fleet migrated.
-- **Hardware enablement we may not redistribute.** Some vendor components come
-  under licences that forbid us publishing them. DisplayLink docks are the
-  clearest case: we support them, we cannot ship them here. That is the
-  vendor's restriction, not ours, and where it applies we say so rather than
-  quietly leaving a gap.
+One honest gap: some vendor components come under licences that forbid us
+redistributing them. DisplayLink docks are the clearest case - the fleet
+supports them, this repository cannot carry them. That is the vendor's
+restriction rather than ours, and where it applies we say so instead of quietly
+leaving a hole.
 
 If you are weighing this up for a public body, the question worth asking is
 what happens if the supplier goes away. Here the answer is that you keep the
