@@ -9,7 +9,7 @@ there is nothing else to wire.
 
 ## What you need
 
-- **An overlay repository** - a git repo that consumes the DAWO core flake and
+- **An overlay repository** - a git repo that consumes a NixOS core flake and
   holds your `fleet.json`. One repo per organisation (tenant). It is the same
   repo the devices follow via comin.
 - **Postgres** - the observed plane (check-ins, tokens, image jobs, prefs). A
@@ -50,7 +50,7 @@ the devices in that ring.
 
 ## First deploy, end to end
 
-1. Create the overlay repo from the DAWO core (a `fleet.json` with your org and
+1. Create the overlay repo from your NixOS core (a `fleet.json` with your org and
    the core as a flake input). Push it to your forge.
 2. Deploy the console (Helm chart, container, or the NixOS module) with the
    `gitRemote`, `gateMode`, `oidc` and Postgres settings above. Behind TLS,

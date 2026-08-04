@@ -8,7 +8,7 @@ src = "src"
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "navy"
-git-repository-url = "https://forgejo.bb-open.com/bb-open/DAWO-Sextant"
+git-repository-url = "https://github.com/BB-Open-Solutions/Sextant"
 # Self-hosted, no external CDN: mdBook bundles its own assets. Keep it that way.
 no-section-label = false
 additional-js = ["mermaid.min.js", "mermaid-init.js"]
