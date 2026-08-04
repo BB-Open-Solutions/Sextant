@@ -168,6 +168,37 @@ internal/platform  config, logging, metrics, server lifecycle
 Server-rendered HTML and form posts. No framework, no build step for the
 front end, and the console works without JavaScript.
 
-## License
+## License, and where the commercial line runs
 
-EUPL 1.2 - see LICENSE.
+**EUPL 1.2, and that is settled** - see LICENSE. BB Open is the steward, not
+the owner: the licence is what makes this yours to run, fork and keep running
+if we disappear.
+
+What the EUPL requires is worth being precise about, because people assume
+either more or less than it says. It is copyleft on DISTRIBUTION: ship a
+modified Sextant to somebody and they get the source under the same terms.
+Running it as a service is not distribution, so an organisation operating its
+own console owes nobody anything. That is deliberate. A control plane you
+cannot run privately is not sovereign.
+
+So the whole product is here. There is no crippled edition, no feature held
+back to force a conversation, and nothing in this repository stops at a
+paywall. If you want to run a fleet on it yourself, everything you need is in
+this repository and you never have to talk to us.
+
+What BB Open sells is work, not permission:
+
+- **Hosting.** Somebody else runs the console, the gate and the cache, keeps
+  them current and answers the phone at eight in the morning.
+- **Support and onboarding.** Getting a first ring imaged, a directory wired
+  up, an existing fleet migrated.
+- **Hardware enablement we may not redistribute.** Some vendor components come
+  under licences that forbid us publishing them. DisplayLink docks are the
+  clearest case: we support them, we cannot ship them here. That is the
+  vendor's restriction, not ours, and where it applies we say so rather than
+  quietly leaving a gap.
+
+If you are weighing this up for a public body, the question worth asking is
+what happens if the supplier goes away. Here the answer is that you keep the
+code, the licence, the data in your own git repository, and a fleet that keeps
+converging without us.
