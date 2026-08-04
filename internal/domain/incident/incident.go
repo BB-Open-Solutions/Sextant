@@ -278,21 +278,31 @@ func Detect(obs []Observation, now time.Time) []Incident {
 				diff := o.TargetRelease - o.DeployedRelease
 				switch {
 				case diff > 0:
-					detail = fmt.Sprintf("On release %d, target is release %d (%d behind).",
-						o.DeployedRelease, o.TargetRelease, diff)
+					// No release numbers. Only the CORE carries a version; a
+					// configuration is on spec or it is not (ADR 0017, and the
+					// version model of #21). "On release 274, target 275" put a
+					// number on the config plane that means nothing to anyone
+					// and invited the question "which release am I on", which
+					// is the question the model exists to retire.
+					detail = fmt.Sprintf("Not on spec: running %s, its ring is pinned to %s.",
+						short(o.Deployed), short(o.Target))
 				case diff < 0:
 					title = o.Tag + " is ahead of its target"
 					detail = fmt.Sprintf("Running %s; its ring is pinned to %s, which is older.",
 						short(o.Deployed), short(o.Target))
 					advice = "The device runs something the rollout did not stage: an out-of-band change, or a stale pin. Check the pin."
-					// Ahead ON THIS FLEET'S OWN LINEAGE is the ordinary state of
-					// a freshly imaged device, not a fault. Imaging installs
-					// from main, and the engine records each promotion as a
-					// commit on main, so a new device is always at least one
-					// commit ahead of the ring it is about to join. Calling
-					// that "out-of-band" trains an operator to ignore the one
-					// message that should mean somebody built a generation by
-					// hand.
+					// Ahead ON THIS FLEET'S OWN LINEAGE is not a fault, and
+					// calling it "out-of-band" trains an operator to ignore the
+					// one message that should mean somebody built a generation
+					// by hand.
+					//
+					// It used to be the ordinary state of a freshly imaged
+					// device, because imaging installed from main while the ring
+					// lagged. Since 2026-08-04 enrolment fast-forwards the ring
+					// to the commit that created the device and installs that,
+					// so a new machine starts exactly AT its ring. This branch
+					// now covers the cases that were always the interesting
+					// ones: a stale pin, or a generation built by hand.
 					if o.HeadRelease > 0 && o.DeployedRelease <= o.HeadRelease {
 						title = o.Tag + " is waiting for its ring to catch up"
 						detail = fmt.Sprintf(

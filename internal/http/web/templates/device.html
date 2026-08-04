@@ -16,9 +16,6 @@
         <span class="flex items-center gap-1.5 text-label-md font-medium text-text-tertiary"><span class="h-2 w-2 rounded-full bg-surface-container-highest"></span>{{.L.T "common.offline"}}</span>
         {{end}}
         <span class="flex items-center gap-1 text-body-sm text-text-tertiary"><span class="material-symbols-outlined msz-16">schedule</span>{{.L.T "device.last_seen"}} {{.L.TimeSec .Status.LastSeen}}</span>
-        {{/* Version: the chip an operator acts on, with the release number and
-             the full revision beside it - forensics stay reachable here even
-             though the device list keeps them in a hover title. */}}
         {{/* State, not a revision. A hash tells an end user nothing - the
              question they have is "is this machine as it should be", and the
              answer is yes or no. Engineers who need the revision find it in
