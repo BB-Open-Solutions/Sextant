@@ -20,6 +20,7 @@
 
 # Concepts
 
+- [Policies, and how they differ from settings](./concepts/policies.md)
 - [How a rollout ships](./concepts/rollout.md)
 - [Approval flows](./concepts/approvals.md)
 - [Safe writes and the Nix gate](./concepts/safe-writes.md)
