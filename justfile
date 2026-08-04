@@ -77,6 +77,25 @@ build:
 run: build
     ./sextant --addr 127.0.0.1:8080
 
+# A console you can click through in under a minute, on an example fleet.
+#
+# The config plane is a git working tree, so a demo needs one: this copies
+# examples/overlay somewhere writable and commits it. Everything unsafe is
+# explicit rather than defaulted - --dev-auth mints a synthetic owner session
+# (loopback only), --gate none skips the Nix validation, and
+# --allow-unvalidated makes you say out loud that you meant it.
+demo DIR="/tmp/sextant-demo": build
+    rm -rf {{DIR}}
+    cp -r examples/overlay {{DIR}}
+    git -C {{DIR}} init -q -b main
+    git -C {{DIR}} add -A
+    git -C {{DIR}} -c user.name=demo -c user.email=demo@localhost commit -qm "example fleet"
+    @echo
+    @echo "  console: http://127.0.0.1:8080   fleet: {{DIR}}"
+    @echo
+    ./sextant --addr 127.0.0.1:8080 --repo {{DIR}} \
+        --dev-auth --gate none --allow-unvalidated --write
+
 clean:
     rm -f sextant sxctl coverage.out coverage.html
 

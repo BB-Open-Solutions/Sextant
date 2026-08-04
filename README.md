@@ -1,14 +1,62 @@
+<div align="center">
+
 # Sextant
 
 **Manage a fleet of NixOS workstations the way you manage code.**
 
+[![License: EUPL 1.2](https://img.shields.io/badge/license-EUPL--1.2-1f6feb.svg)](LICENSE)
+[![Status: Beta](https://img.shields.io/badge/status-beta-0ea5a4.svg)](#status-beta)
+[![Go](https://img.shields.io/badge/go-1.25-00ADD8.svg)](go.mod)
+[![Docs](https://img.shields.io/badge/docs-sextant.bb--open.com-333.svg)](https://docs.sextant.bb-open.com)
+
+[Documentation](https://docs.sextant.bb-open.com) ·
+[Quickstart](#quickstart) ·
+[Decision records](docs/adr/) ·
+[Contributing](CONTRIBUTING.md) ·
+[Security](SECURITY.md)
+
+</div>
+
 Every device's configuration is data in git. Nix builds it, a gate proves it
 compiles before anyone can merge it, and the fleet rolls forward in rings you
-control. The console shows you what each machine *actually* runs, not what you
-hoped it would.
+control. The console shows you what each machine **actually** runs, not what
+you hoped it would.
 
-Licensed under the EUPL 1.2. Built for public bodies, useful to anyone who has
-ever wondered what a laptop in the field is really running.
+![The fleet overview: devices, compliance and live check-ins](docs/img/console-overview.png)
+
+## Quickstart
+
+Two commands and a browser. No database, no cluster, no account.
+
+```sh
+git clone https://github.com/BB-Open-Solutions/Sextant.git && cd Sextant
+just demo          # builds, seeds an example fleet, serves on :8080
+```
+
+Then open **http://127.0.0.1:8080**. You get a working console on the example
+fleet in `examples/overlay`: enroll a device, change a setting, watch the
+change become a git commit.
+
+<details>
+<summary>No <code>just</code>?</summary>
+
+```sh
+go build -o sextant ./cmd/sextant
+
+# the config plane is a git working tree, so give the demo one
+cp -r examples/overlay /tmp/sextant-demo
+git -C /tmp/sextant-demo init -q -b main
+git -C /tmp/sextant-demo add -A
+git -C /tmp/sextant-demo -c user.name=demo -c user.email=demo@localhost commit -qm "example fleet"
+
+./sextant --repo /tmp/sextant-demo --dev-auth --gate none --allow-unvalidated --write
+```
+
+`--dev-auth` mints a synthetic owner session and only works on loopback;
+`--gate none` skips Nix validation, which is why it makes you say
+`--allow-unvalidated` out loud. Neither belongs anywhere near a real fleet.
+
+</details>
 
 ## Why this exists
 
@@ -27,9 +75,30 @@ us, not by anyone who gets in.
 
 That is the conviction: **a fleet you can explain is a fleet you control.**
 
+## How a change reaches a device
+
+```mermaid
+flowchart LR
+    A["Operator<br/>edits a setting"] --> B["Nix gate<br/>does it build?"]
+    B -->|rejected| A
+    B -->|proved| C["git commit<br/>in your repo"]
+    C --> D["Ring 1<br/>soak + health"]
+    D --> E["Ring 2"]
+    E --> F["Rest of fleet"]
+    D -.->|"device pulls"| G["Device converges<br/>nixos-rebuild"]
+    E -.-> G
+    F -.-> G
+```
+
+Nothing is pushed. A ring's branch moves only after the change builds and the
+previous ring stayed healthy through its soak, and each device picks up its own
+ring's revision on its own schedule.
+
 ## What it does
 
-**Configuration**
+<details open>
+<summary><b>Configuration</b> - settings that resolve org → group → device, with locks</summary>
+
 - Settings resolve along organisation → group → device, with locks so a higher
   scope can hold a value a lower one may not weaken.
 - Policies are the layer above: a name and a reason an auditor can read,
@@ -41,7 +110,11 @@ That is the conviction: **a fleet you can explain is a fleet you control.**
 - Every option your overlay publishes appears in the console by itself. There
   is no second list to keep in step.
 
-**Change and rollout**
+</details>
+
+<details>
+<summary><b>Change and rollout</b> - a gate that must pass, then rings</summary>
+
 - Submit a change, a gate builds it, and nobody merges what does not compile.
   Four-eyes approval when you want it.
 - Rollouts run in rings: soak times, health thresholds, device caps, pins,
@@ -50,7 +123,11 @@ That is the conviction: **a fleet you can explain is a fleet you control.**
   holding it up, instead of waiting silently forever.
 - High-risk changes ask for an explicit extra confirmation.
 
-**Devices**
+</details>
+
+<details>
+<summary><b>Devices</b> - imaging, intents rather than remote control, secrets</summary>
+
 - Imaging from a provisioning station, installing the revision that device's
   ring is pinned to - not whatever `main` happens to be that afternoon.
 - Remote *intents*, never remote control: lock a session, collect diagnostics,
@@ -60,7 +137,11 @@ That is the conviction: **a fleet you can explain is a fleet you control.**
   a recipient automatically - otherwise the classic silent failure.
 - Disk-encryption recovery keys escrowed, every reveal in the audit log.
 
-**Fleet health**
+</details>
+
+<details>
+<summary><b>Fleet health</b> - one board of things that need a person</summary>
+
 - One board of action items: never checked in, offline, errored, running an
   unrecognised configuration, failing a policy condition.
 - A configuration that lags is a warning. A *system* that lags becomes a real
@@ -69,73 +150,39 @@ That is the conviction: **a fleet you can explain is a fleet you control.**
 - Devices read as matching or not matching. Revision hashes are there for the
   operator who asks, not for everyone who looks.
 
-**Integrations, as ordinary fleet settings**
+</details>
+
+<details>
+<summary><b>Integrations</b> - mesh, directory, endpoint security, as ordinary settings</summary>
+
 - NetBird mesh, directory login over LDAP/LDAPS with SSSD, Wazuh endpoint
   security, OpenBao, and any SMTP server for notifications.
 - Endpoint controls: USB device control with an allowlist, printing, and
   per-capability user rights - so somebody can join a WiFi network or approve a
   dock without anyone handing out an administrator password.
 
-**Evidence**
+</details>
+
+<details>
+<summary><b>Evidence</b> - the auditor's cross-reference, and scoped access</summary>
+
 - Audit log of who changed what and when, an evidence export, CSV exports, and
   per-policy BIO/ISO control annotations: the auditor's cross-reference from a
   framework to the thing that actually enforces it.
 - Access is scoped, so an operator responsible for a few groups sees those
   groups.
 
-## Getting started
+</details>
 
-```
-git clone <this repo> && cd DAWO-Sextant
-just ci      # fmt-check, vet, lint, test -race, build
-just run     # the console, locally
-```
+![The device inventory, with status, baseline and hardware per device](docs/img/console-devices.png)
 
-No `just`? `go test -race ./... && go build ./...` does the same work.
+## Who this is for
 
-Documentation lives at **https://docs.sextant.bb-open.com**, the decisions in
-`docs/adr/`, and the design in `docs/architecture.md`. The ADRs are worth
-reading even if you never run this: they are where the arguments are, including
-the ones we lost.
-
-## Contributing
-
-We would genuinely like the company. This is a small project doing something
-ambitious, and the useful work is not all deep in the domain model.
-
-**Good places to start**
-- **Hardware profiles.** Every laptop model needs a disk layout and imaging
-  notes. If you have a machine we do not, that is a self-contained
-  contribution with an obvious test: image it.
-- **Translations.** The console ships English and Dutch. Adding a language is
-  one map in `internal/http/web/catalog.go`.
-- **Integrations.** They are ordinary fleet settings. If you run something the
-  fleet should know about, the pattern to copy is right there.
-- **Run it against your own fleet and tell us what broke.** Honestly the most
-  valuable thing anyone can do. The rough edges we know about are named in the
-  README's status section; the ones we do not are the point.
-- **Documentation.** If a page assumed knowledge you did not have, that is a
-  bug and we would like the report.
-
-**How we work.** Small commits that explain *why* rather than what. Tests that
-assert a behaviour somebody could plausibly get wrong, not coverage for its own
-sake. Decisions that shape the product go in an ADR, and we would rather argue
-about a design in writing than discover the disagreement in code review.
-
-See CONTRIBUTING.md for the mechanics, CODE_OF_CONDUCT.md for how we talk to
-each other, and SECURITY.md if what you found should not be a public issue.
-
-## Where this repository lives
-
-| | |
-|---|---|
-| **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical. Published here as Dutch government open source. |
-| **github.com/BB-Open-Solutions/Sextant** | Public mirror, and where participation happens: issues and pull requests here. Opens at 1.0.0. |
-
-The canonical repository is not open to the public yet, which is why the mirror
-exists at all. GitHub is where the people who would contribute to this already
-are, and a sovereignty argument that nobody can find helps nobody - the code
-and its licence are what make this open, not the address it is served from.
+Written for public bodies running managed NixOS workstations, and useful to
+anyone who has ever wondered what a laptop in the field is really running. If
+you have a handful of machines, plain NixOS and a git repo already serve you
+well - Sextant starts paying off when a person has to answer for what the fleet
+is doing.
 
 ## Status: Beta
 
@@ -152,7 +199,50 @@ say which those are rather than pretend otherwise.
 to ask whether this fits what you are doing, contact Bram Buijs at
 **b.buijs@bb-open.com**.
 
-## Architecture (short)
+## Contributing
+
+We would genuinely like the company. This is a small project doing something
+ambitious, and the useful work is not all deep in the domain model.
+
+**Good places to start**
+
+- **Hardware profiles.** Every laptop model needs a disk layout and imaging
+  notes. If you have a machine we do not, that is a self-contained
+  contribution with an obvious test: image it.
+- **Translations.** The console ships English and Dutch. Adding a language is
+  one map in `internal/http/web/catalog.go`.
+- **Integrations.** They are ordinary fleet settings. If you run something the
+  fleet should know about, the pattern to copy is right there.
+- **Run it against your own fleet and tell us what broke.** Honestly the most
+  valuable thing anyone can do. The rough edges we know about are named in the
+  status section above; the ones we do not are the point.
+- **Documentation.** If a page assumed knowledge you did not have, that is a
+  bug and we would like the report.
+
+**How we work.** Small commits that explain *why* rather than what. Tests that
+assert a behaviour somebody could plausibly get wrong, not coverage for its own
+sake. Decisions that shape the product go in an ADR, and we would rather argue
+about a design in writing than discover the disagreement in code review.
+
+See CONTRIBUTING.md for the mechanics, CODE_OF_CONDUCT.md for how we talk to
+each other, and SECURITY.md if what you found should not be a public issue.
+
+The ADRs in `docs/adr/` are worth reading even if you never run this: they are
+where the arguments are, including the ones we lost.
+
+## Where this repository lives
+
+| | |
+|---|---|
+| **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical. Published here as Dutch government open source. |
+| **github.com/BB-Open-Solutions/Sextant** | Public mirror, and where participation happens: issues and pull requests here. Opens at 1.0.0. |
+
+The canonical repository is not open to the public yet, which is why the mirror
+exists at all. GitHub is where the people who would contribute to this already
+are, and a sovereignty argument that nobody can find helps nobody - the code
+and its licence are what make this open, not the address it is served from.
+
+## Architecture
 
 Hexagonal: pure domain, use-case services, ports, adapters, thin transport.
 
@@ -165,8 +255,10 @@ internal/http      SSR web (html/template, form-POST) and /api/v1 JSON
 internal/platform  config, logging, metrics, server lifecycle
 ```
 
-Server-rendered HTML and form posts. No framework, no build step for the
-front end, and the console works without JavaScript.
+Server-rendered HTML and form posts. No framework, no build step for the front
+end, and the console works without JavaScript. The design is in
+`docs/architecture.md`; how it holds up at fleet scale, with the measurements,
+is in `docs/architecture/scale.md`.
 
 ## License, and where the commercial line runs
 
