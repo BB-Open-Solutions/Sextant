@@ -165,6 +165,56 @@ there, but it is worth a decision rather than an assumption.
 observed→config. The odd one out was the dashboard, which is the first
 screen an operator sees and the one that sets whether they believe the rest.
 
+## Every DAWO core update failed the gate
+
+**Symptom.** On the production console, 2026-08-05: both core updates in the
+review queue sat at **Failed** with
+
+```
+gate-runner error (status 500): {"ok":false,"error":"staging candidate failed"}
+```
+
+Nothing on the page said more. The changes could not be merged, and the two
+that were visible were not a coincidence — every core update fails this way.
+
+**Cause.** The gate stages the candidate `fleet.json` as a throwaway commit in
+a scratch worktree and evaluates that, because a clean tree is what keeps the
+eval cache alive (a dirty flake is copied to the store whole on every eval).
+The commit was made without `--allow-empty`. A **core** update moves the
+flake's core pin and leaves `fleet.json` byte-identical, so the candidate
+equals its base, `git commit` exits 1 with "nothing to commit, working tree
+clean", staging fails, and the console reports a 500.
+
+An unchanged candidate is a perfectly ordinary request. The gate is asked
+whether a configuration evaluates, and "the same one that already evaluates"
+is a fine thing to be asked.
+
+**Fixed by**: `--allow-empty` on the staging commit
+(`cmd/gate-runner/main.go`), with `cmd/gate-runner/stage_test.go` covering an
+unchanged candidate, a changed one, and the reused-worktree path that
+production actually runs. Mutation-checked: removing the flag fails two of the
+three.
+
+**Why it took a pod log to find, which is the more useful half.** The runner
+logs the real cause and deliberately returns only a fixed string. So the
+console showed `staging candidate failed` and the actual sentence — "nothing
+to commit, working tree clean" — existed solely in
+`kubectl logs sextant-gate`. Note the asymmetry: a *validation* verdict does
+return its detail (`handleValidate` passes `err.Error()` straight through on
+422). Only infrastructure failures are opaque, and those are exactly the ones
+an operator cannot reason about from the outside.
+
+This is the same defect the acceptance plan already names for imaging at
+A3.8 — "the message carries the tail of the install log, not just
+`nixos-anywhere failed`". The rule was written down for one surface and not
+applied to the other.
+
+**Not fixed here**, because it is a judgement call rather than a bug: whether
+the 500 should carry its cause to the console. It would have turned a
+pod-log expedition into a glance, and the console already shows the operator
+that a gate-runner 500 happened. Against that, the underlying error can name
+internal paths, which the threat model treats as infrastructure disclosure.
+
 ## Two smaller things the run surfaced
 
 These were found while working on the local-admin CLI (`#50`) during the same

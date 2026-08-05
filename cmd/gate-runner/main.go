@@ -353,9 +353,21 @@ func (s *server) stageCandidate(ctx context.Context, fleetDoc string) (string, e
 	if err := s.git(ctx, scratch, "add", "fleet.json"); err != nil {
 		return "", err
 	}
+	// --allow-empty, because a candidate identical to the base is a normal
+	// request and not an error. Every DAWO core update is exactly that: it
+	// moves the flake's core pin and leaves fleet.json byte-identical, so
+	// without this git exits 1 with "nothing to commit, working tree clean",
+	// staging fails, and the console shows the change as Failed with a
+	// gate-runner 500. Measured on production 2026-08-05: every core update
+	// in the review queue had failed this way.
+	//
+	// The empty commit still matters. The eval needs a CLEAN tree - nix copies
+	// a dirty flake's whole source to the store on every eval and disables its
+	// eval cache - so the commit is what makes the worktree evaluable, whether
+	// or not it carries a diff.
 	if err := s.git(ctx, scratch,
 		"-c", "user.name=gate-runner", "-c", "user.email=gate@localhost",
-		"commit", "--quiet", "--no-verify", "-m", "candidate"); err != nil {
+		"commit", "--quiet", "--no-verify", "--allow-empty", "-m", "candidate"); err != nil {
 		return "", err
 	}
 	return scratch, nil
