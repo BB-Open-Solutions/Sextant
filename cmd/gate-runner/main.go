@@ -269,6 +269,31 @@ type validateRequest struct {
 type validateResponse struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
+	// Detail carries the underlying cause of an INFRASTRUCTURE failure, so an
+	// operator can act on it without reading the runner's pod log. Error stays
+	// the stable, short classification; Detail is the sentence underneath.
+	//
+	// Deliberately not set for every failure. A sync failure talks to the
+	// private overlay remote and its git output names that host and repository
+	// path, which is disclosure to anyone who can view a change. Staging is
+	// purely local git - worktree add, checkout, add, commit - so its output
+	// carries container paths at worst. That is the only class opened up here.
+	Detail string `json:"detail,omitempty"`
+}
+
+// maxDetail bounds what travels to the console. Enough for git's last
+// sentence, short of a screenful of a runaway error.
+const maxDetail = 500
+
+// shortDetail trims an internal error to something a console can render: the
+// tail, because the useful sentence in a git failure is the last one, not the
+// argv that precedes it.
+func shortDetail(err error) string {
+	s := strings.TrimSpace(err.Error())
+	if len(s) > maxDetail {
+		s = "..." + s[len(s)-maxDetail:]
+	}
+	return s
 }
 
 func (s *server) handleValidate(w http.ResponseWriter, r *http.Request) {
@@ -320,7 +345,8 @@ func (s *server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	scratch, err := s.stageCandidate(r.Context(), req.Fleet)
 	if err != nil {
 		s.log.Error("staging candidate failed", "err", err)
-		writeJSON(w, http.StatusInternalServerError, validateResponse{Error: "staging candidate failed"})
+		writeJSON(w, http.StatusInternalServerError, validateResponse{
+			Error: "staging candidate failed", Detail: shortDetail(err)})
 		return
 	}
 

@@ -2,11 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -125,5 +130,91 @@ func TestStageCandidateIsReusable(t *testing.T) {
 	}
 	if string(got) != baseFleet {
 		t.Fatalf("second candidate did not replace the first:\n%s", got)
+	}
+}
+
+// failingGit is a server whose git calls fail on the named subcommand, so a
+// handler's error path can be exercised without a real repository.
+func serverFailingOn(t *testing.T, sub string) *server {
+	t.Helper()
+	root := t.TempDir()
+	// scratch is sibling to workdir; create it so the candidate write lands
+	// somewhere even though every git call is stubbed.
+	if err := os.MkdirAll(filepath.Join(root, "validate"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return &server{
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		workdir: filepath.Join(root, "overlay"),
+		branch:  "main",
+		sem:     make(chan struct{}, 1),
+		gitRun: func(_ context.Context, _ string, args ...string) error {
+			for _, a := range args {
+				if a == sub {
+					return fmt.Errorf("git %v: exit status 1: %s failed for a reason worth reading", args, sub)
+				}
+			}
+			return nil
+		},
+	}
+}
+
+func postValidate(t *testing.T, s *server) *httptest.ResponseRecorder {
+	t.Helper()
+	body := `{"fleet":"{\"version\":3}","hosts":["lt-1"]}`
+	req := httptest.NewRequest(http.MethodPost, "/validate", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.handleValidate(rec, req)
+	return rec
+}
+
+// TestValidateStagingFailureCarriesItsCause: an operator reading the console
+// must get the sentence the runner already wrote to its log. Before this, the
+// response was a fixed string and the cause lived only in `kubectl logs`.
+func TestValidateStagingFailureCarriesItsCause(t *testing.T) {
+	rec := postValidate(t, serverFailingOn(t, "commit"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d\n%s", rec.Code, rec.Body.String())
+	}
+	var vr validateResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &vr); err != nil {
+		t.Fatal(err)
+	}
+	if vr.Error != "staging candidate failed" {
+		t.Fatalf("classification changed: %q", vr.Error)
+	}
+	if !strings.Contains(vr.Detail, "commit failed for a reason worth reading") {
+		t.Fatalf("cause did not travel: %q", vr.Detail)
+	}
+}
+
+// TestValidateSyncFailureStaysOpaque: the other half of the same decision.
+// Sync talks to the private overlay remote, and git names that host and path
+// when it fails, so this one keeps its cause to the pod log on purpose.
+func TestValidateSyncFailureStaysOpaque(t *testing.T) {
+	rec := postValidate(t, serverFailingOn(t, "fetch"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d\n%s", rec.Code, rec.Body.String())
+	}
+	var vr validateResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &vr); err != nil {
+		t.Fatal(err)
+	}
+	if vr.Error != "overlay sync failed" {
+		t.Fatalf("classification = %q", vr.Error)
+	}
+	if vr.Detail != "" {
+		t.Fatalf("sync detail leaked to the caller: %q", vr.Detail)
+	}
+}
+
+// TestShortDetailIsBounded: a runaway error must not become the page.
+func TestShortDetailIsBounded(t *testing.T) {
+	got := shortDetail(fmt.Errorf("%s", strings.Repeat("x", maxDetail*3)))
+	if len(got) > maxDetail+3 {
+		t.Fatalf("detail not bounded: %d chars", len(got))
+	}
+	if !strings.HasPrefix(got, "...") {
+		t.Fatal("a trimmed detail should say it was trimmed")
 	}
 }

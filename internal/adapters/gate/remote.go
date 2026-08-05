@@ -54,6 +54,10 @@ type validateRequest struct {
 type validateResponse struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
+	// Detail is the runner's underlying cause for an infrastructure failure.
+	// Optional: an older runner does not send it, and the message degrades to
+	// the classification alone rather than breaking.
+	Detail string `json:"detail,omitempty"`
 }
 
 // Validate implements ports.Gate. It reads the candidate fleet.json the
@@ -123,6 +127,18 @@ func (g *RemoteGate) Validate(ctx context.Context, repoDir string, hosts []strin
 		}
 		return &ports.ValidationError{Detail: detail}
 	default:
+		// An infrastructure failure, not a verdict. Render the runner's own
+		// words rather than the JSON document: the operator who sees this is
+		// the one who has to act on it, and a raw body sends them to the pod
+		// log to find the sentence that was already in it.
+		var vr validateResponse
+		if err := json.Unmarshal(raw, &vr); err == nil && vr.Error != "" {
+			msg := vr.Error
+			if vr.Detail != "" {
+				msg += ": " + vr.Detail
+			}
+			return fmt.Errorf("gate-runner error (status %d): %s", resp.StatusCode, msg)
+		}
 		return fmt.Errorf("gate-runner error (status %d): %s", resp.StatusCode, string(raw))
 	}
 }

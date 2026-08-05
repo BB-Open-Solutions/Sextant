@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
@@ -87,5 +88,49 @@ func TestRemoteGateMissingFleet(t *testing.T) {
 	g := NewRemoteGate("http://example.invalid")
 	if err := g.Validate(context.Background(), t.TempDir(), nil); err == nil {
 		t.Fatal("missing fleet.json must error")
+	}
+}
+
+// TestRemoteGateSurfacesInfraDetail: an infrastructure failure must arrive at
+// the operator carrying its cause. Finding this on production cost a pod-log
+// expedition for a sentence the runner had already written down; the console
+// showed only the JSON document and its fixed classification.
+//
+// Still an error, not a rejection: a broken runner is not a verdict.
+func TestRemoteGateSurfacesInfraDetail(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"ok":false,"error":"staging candidate failed","detail":"nothing to commit, working tree clean"}`))
+	}))
+	defer srv.Close()
+
+	err := NewRemoteGate(srv.URL).Validate(context.Background(), repoWithFleet(t), []string{"lt-1"})
+	if err == nil {
+		t.Fatal("a 500 must not read as acceptance")
+	}
+	var ve *ports.ValidationError
+	if errors.As(err, &ve) {
+		t.Fatal("an infrastructure failure must not be reported as a gate rejection")
+	}
+	if !strings.Contains(err.Error(), "nothing to commit") {
+		t.Fatalf("the cause did not reach the operator: %v", err)
+	}
+	if strings.Contains(err.Error(), `{"ok"`) {
+		t.Fatalf("the raw JSON document is still being rendered: %v", err)
+	}
+}
+
+// TestRemoteGateOlderRunnerWithoutDetail: a runner that predates the detail
+// field must still produce a readable message rather than an empty one.
+func TestRemoteGateOlderRunnerWithoutDetail(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"ok":false,"error":"overlay sync failed"}`))
+	}))
+	defer srv.Close()
+
+	err := NewRemoteGate(srv.URL).Validate(context.Background(), repoWithFleet(t), []string{"lt-1"})
+	if err == nil || !strings.Contains(err.Error(), "overlay sync failed") {
+		t.Fatalf("classification lost: %v", err)
 	}
 }

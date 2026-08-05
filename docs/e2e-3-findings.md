@@ -209,11 +209,27 @@ A3.8 — "the message carries the tail of the install log, not just
 `nixos-anywhere failed`". The rule was written down for one surface and not
 applied to the other.
 
-**Not fixed here**, because it is a judgement call rather than a bug: whether
-the 500 should carry its cause to the console. It would have turned a
-pod-log expedition into a glance, and the console already shows the operator
-that a gate-runner 500 happened. Against that, the underlying error can name
-internal paths, which the threat model treats as infrastructure disclosure.
+**Then fixed too, after looking at what actually travels.** The first
+assessment here called it a judgement call between operability and
+infrastructure disclosure. Reading the code narrows it: `sync` — the call
+that talks to the private overlay remote and whose git output names that
+host and repository path — already has its own fixed message
+(`"overlay sync failed"`). Only `stageCandidate` was being flattened, and
+that is local git alone: worktree add, checkout, add, commit. Its output
+carries container paths at worst, to a reader who is already logged in with
+at least Viewer on a scope.
+
+So the 500 now carries a bounded `detail` (`cmd/gate-runner/main.go`,
+`shortDetail`, 500 characters, tail-trimmed because the useful sentence in a
+git failure is the last one). Sync stays opaque, deliberately and with a test
+that fails if it ever starts leaking. The console renders the runner's words
+instead of the JSON document (`internal/adapters/gate/remote.go`), and an
+older runner that sends no detail still produces a readable message.
+
+Note the asymmetry that made the original framing wrong: the 422 validation
+path already returns `err.Error()` unfiltered, and that is the class shaped by
+user input — strictly more exposed than a local git failure. The caution was
+being applied to the safer of the two.
 
 ## Two smaller things the run surfaced
 
