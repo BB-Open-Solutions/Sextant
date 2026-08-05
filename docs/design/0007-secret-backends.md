@@ -1,6 +1,15 @@
 # 0007 - Secret backends beyond agenix (key vault)
 
-Status: draft for the vault experiment (task list #14). No code yet.
+Status: the experiment below WAS built and is deployed - `dawo.openbao.*`
+in the bb-open overlay fetches named secrets on boot and hourly, into
+tmpfs, with the agenix-path symlink that keeps the secret-ref contract
+backend-agnostic. The backend decision now lives in **ADR 0018**, which
+chose this path and adds the rule this document never stated: one secret
+names exactly one backend.
+
+This status line read "No code yet" until 2026-08-05, months after the
+code landed, and an ADR was drafted on the strength of it. Kept as a
+reminder that a design document is a claim about the past, not evidence.
 
 ## Where we stand
 

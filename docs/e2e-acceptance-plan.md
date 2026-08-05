@@ -165,7 +165,7 @@ hij niet kan meten, leert operators de hele categorie te negeren.
 | A7.3 | Gate laten falen | change is niet te mergen |
 | A7.4 | Vierogen aanzetten | eigen change niet zelf goed te keuren |
 | A7.5 | Tweede goedkeurder | merge lukt |
-| A7.6 | Change intrekken | branch weg, geen wees in de lijst |
+| A7.6 | Change intrekken | **OK** (5 aug, 0.82.0). Drie verouderde core updates afgewezen om 17:54:11/12/14; alle drie `abandoned`. In de repo daarna **geen enkele `cr/`-branch** meer en `git worktree list` toont alleen `/data/overlay [main]`. Van beide kanten gemeten: console én git |
 | A7.7 | Twee changes tegelijk | tweede rebaset of weigert netjes |
 
 ## A8. Rollout

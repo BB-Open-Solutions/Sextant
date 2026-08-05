@@ -70,6 +70,14 @@ already known to be wrong; it simply has not mattered on a fleet of two.
   ability to recover, does.* The mechanism already exists as `riskClass` in the
   catalog and is used on exactly two options today.
 
+- **A reseller portal.** Cell provisioning stays manual for 1.0 - a
+  template directory and a runbook, `cp` and `sed`, decided 2026-07-28
+  and reconfirmed 2026-08-05. What replaces it is not a scaffolder for
+  us but a portal where customers create and manage their own
+  environments. That is a different product surface with its own
+  tenancy boundary, so it waits until the cell shape has been proven by
+  provisioning and retiring real ones by hand.
+
 ## 1.3 - reach
 
 **Trigger: an operator who is not at their desk when the notification arrives.**
