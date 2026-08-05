@@ -6,9 +6,11 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/identity"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/imaging"
 )
 
 // stationCredCookie stages a just-minted station credential for the station
@@ -29,6 +31,77 @@ func setStationCredCookie(w http.ResponseWriter, secret string) {
 // station.go: the imaging-station (inspoelstraat) surface. A station reports
 // devices it has discovered over PXE; an operator enrolls one into the fleet,
 // and an org owner registers stations and mints their report credentials.
+
+// stationRow is one registered station with the numbers that decide where an
+// operator goes next: how many devices are waiting to be enrolled, how much
+// imaging is actually moving, and what is stuck waiting on a person.
+//
+// Counted, not guessed: an unreadable plane sets Unknown rather than leaving a
+// zero behind. A zero and "we could not look" render identically otherwise,
+// and the one that reads as "nothing to do here" would be the wrong one.
+type stationRow struct {
+	Tag        string
+	Info       fleet.Station
+	Discovered int
+	Active     int
+	Attention  int
+	LastSeen   time.Time
+	Unknown    bool
+}
+
+// stationRows summarises every registered station. It costs two store reads per
+// station, which is fine at the scale this is designed for - one inspoelstraat,
+// a handful at most (design 0011, "no multi-site station orchestration").
+func (s *Server) stationRows(r *http.Request, full *fleet.Fleet) []stationRow {
+	tags := make([]string, 0, len(full.Stations))
+	for tag := range full.Stations {
+		tags = append(tags, tag)
+	}
+	sort.Strings(tags)
+
+	rows := make([]stationRow, 0, len(tags))
+	for _, tag := range tags {
+		row := stationRow{Tag: tag, Info: full.Stations[tag]}
+		discovered, err := s.svc.Discovery.List(r.Context(), tag)
+		if err != nil {
+			s.log.Warn("station summary: list discovered failed", "station", tag, "err", err)
+			row.Unknown = true
+		}
+		row.Discovered = len(discovered)
+		// The station itself has no heartbeat of its own: it is known to be
+		// alive only through what it reports. So the freshest discovery is the
+		// liveness signal, and a station with nothing to report is legitimately
+		// silent rather than down - which is why this is labelled "last report"
+		// and not "online".
+		for _, d := range discovered {
+			if d.LastSeen.After(row.LastSeen) {
+				row.LastSeen = d.LastSeen
+			}
+		}
+		if s.svc.Imaging != nil {
+			jobs, err := s.svc.Imaging.List(r.Context(), tag)
+			if err != nil {
+				s.log.Warn("station summary: list jobs failed", "station", tag, "err", err)
+				row.Unknown = true
+			}
+			for _, j := range jobs {
+				switch {
+				case j.Status.Terminal():
+					// Done or canceled: finished, and not the operator's problem.
+				case j.Status == imaging.Failed || j.Status == imaging.SBPending:
+					// Both wait on a person - a failure to read, or a machine
+					// standing at its firmware prompt. Neither advances on its
+					// own, so neither belongs in "in flight".
+					row.Attention++
+				default:
+					row.Active++
+				}
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
 
 // reportURL is the endpoint a station posts discoveries to, built from the
 // request so the console shows the operator exactly what to configure.
@@ -53,19 +126,15 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request, v view) {
 		return
 	}
 	full := s.svc.Config.Fleet()
-	stations := make([]string, 0, len(full.Stations))
-	for tag := range full.Stations {
-		stations = append(stations, tag)
-	}
-	sort.Strings(stations)
+	rows := s.stationRows(r, full)
 
-	// The selected station comes from the query, so a plain dropdown+button
-	// GET form navigates here; the enroll/mint actions carry it in the path.
+	// The selected station comes from the query, so a row's link navigates
+	// here; the enroll/mint actions carry it in the path.
 	station := strings.TrimSpace(r.URL.Query().Get("tag"))
 	data := map[string]any{
 		"Title": "Imaging stations", "Nav": "station",
-		"Stations": stations,
-		"CanOwn":   v.roleAt("org").Meets(identity.Owner),
+		"Rows":   rows,
+		"CanOwn": v.roleAt("org").Meets(identity.Owner),
 	}
 
 	// The Stations page is station ADMIN only: register/remove a station, mint
@@ -78,8 +147,13 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request, v view) {
 		data["StationInfo"] = st
 		data["ReportURL"] = reportURL(r, station)
 
-		if discovered, err := s.svc.Discovery.List(r.Context(), station); err == nil {
-			data["SeenCount"] = len(discovered)
+		// Reuse the row the list already counted rather than reading the
+		// discovery plane a second time for the same station.
+		for _, row := range rows {
+			if row.Tag == station && !row.Unknown {
+				data["SeenCount"] = row.Discovered
+				break
+			}
 		}
 		// One-shot station credential (just minted): show once, then clear.
 		if c, err := r.Cookie(stationCredCookie); err == nil && c.Value != "" {

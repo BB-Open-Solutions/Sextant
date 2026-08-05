@@ -3,18 +3,39 @@
   <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">lan</span>{{.L.T "station.title"}}</h1>
   <p class="mb-4 max-w-2xl text-body-md text-text-tertiary">{{.L.T "station.intro"}} <a href="/enroll">{{.L.T "enroll.title"}}</a>.</p>
 
-  {{if .Stations}}
-  <form method="get" action="/station" class="!items-end">
-    <div class="flex flex-col gap-1">
-      <label for="tag">{{.L.T "station.station_label"}}</label>
-      <select id="tag" name="tag">
-        <option value="" disabled {{if not .Station}}selected{{end}}>{{.L.T "station.choose_station"}}</option>
-        {{$sel := .Station}}
-        {{range .Stations}}<option value="{{.}}" {{if eq . $sel}}selected{{end}}>{{.}}</option>{{end}}
-      </select>
-    </div>
-    <button type="submit">{{.L.T "station.open_station"}}</button>
-  </form>
+  {{if .Rows}}
+  <div class="rounded-lg border border-border-hairline bg-canvas shadow-sm">
+    <table>
+      <tr>
+        <th class="!px-6">{{.L.T "station.station_label"}}</th>
+        <th>{{.L.T "station.col_discovered"}}</th>
+        <th>{{.L.T "station.col_active"}}</th>
+        <th>{{.L.T "station.col_attention"}}</th>
+        <th>{{.L.T "station.col_last_report"}}</th>
+        <th class="text-right !px-6">{{.L.T "common.actions"}}</th>
+      </tr>
+      {{$sel := .Station}}
+      {{range .Rows}}
+      <tr class="group hover:bg-surface-bright transition-colors {{if eq .Tag $sel}}bg-surface-bright{{end}}">
+        <td class="!px-6">
+          <a href="/station?tag={{.Tag}}" class="font-mono text-code-inline text-ink">{{.Tag}}</a>
+          {{with .Info.Site}}<span class="ml-2 text-label-md text-text-tertiary">{{.}}</span>{{end}}
+        </td>
+        {{/* Unknown means a store read failed. Showing 0 there would read as
+             "nothing waiting", which is the one wrong answer. */}}
+        {{if .Unknown}}
+        <td colspan="3" class="text-label-md text-text-tertiary">{{$.L.T "station.counts_unavailable"}}</td>
+        {{else}}
+        <td>{{if .Discovered}}{{.Discovered}}{{else}}<span class="muted">-</span>{{end}}</td>
+        <td>{{if .Active}}<span class="tag"><span class="material-symbols-outlined msz-14">sync</span>{{.Active}}</span>{{else}}<span class="muted">-</span>{{end}}</td>
+        <td>{{if .Attention}}<span class="tag bad"><span class="material-symbols-outlined msz-14">pan_tool</span>{{.Attention}}</span>{{else}}<span class="muted">-</span>{{end}}</td>
+        {{end}}
+        <td class="text-label-md text-text-tertiary">{{if .LastSeen.IsZero}}{{$.L.T "station.never_reported"}}{{else}}{{$.L.TimeSec .LastSeen}}{{end}}</td>
+        <td class="text-right !px-6"><a href="/enroll?station={{.Tag}}" class="btn !px-3 !py-1.5"><span class="material-symbols-outlined msz-18">cable</span>{{$.L.T "station.go_to_enrollment"}}</a></td>
+      </tr>
+      {{end}}
+    </table>
+  </div>
   {{else}}
   <p class="muted">{{.L.T "station.no_stations"}} {{if .CanOwn}}{{.L.T "station.register_first_below"}}{{else}}{{.L.T "station.owner_must_register"}}{{end}}</p>
   {{end}}

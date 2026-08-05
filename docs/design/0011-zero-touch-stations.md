@@ -1,8 +1,29 @@
 # 0011 - Zero-touch provisioning: the station surface
 
-Status: draft for review. Decided 1.0-blocking 2026-07-28
-(`docs/1.0-fit-gap.md` 5b). Largest of the four gaps and coupled to
-physical hardware access; scheduled last.
+Status: **console port built (2026-08-05); station migration open.**
+Decided 1.0-blocking 2026-07-28 (`docs/1.0-fit-gap.md` 5b). Last of the
+four Intune-parity gaps and coupled to physical hardware access.
+
+**What this document got wrong, recorded rather than quietly edited.** It
+claimed the console surface "was never ported" and that "operators are
+blind". By the time it was picked up, two of the three surfaces already
+existed: the discovered queue with approve-to-enroll (`/enroll`,
+`enrollPage` + `postEnrollBatch`) and job progress over the full state
+machine including the SB/TPM2 steps (`templates/enroll.html`, the wizard
+at `/enroll/{station}/wizard`, which polls itself live via
+`data-poll`). The dispatch feedback the design asks for was there too:
+`postEnrollBatch` redirects into the wizard with the new jobs visible.
+
+Only the **stations list** was genuinely missing, and the page was worse
+than absent - it was a dropdown that named the stations and said nothing
+about any of them. That is now a table: per station the discovered count,
+jobs in flight, jobs waiting on a person, and the last report
+(`stationRows` in `internal/http/web/station.go`,
+`internal/http/web/station_list_test.go`).
+
+The lesson is the same one the fit-gap just learned: a design document
+that is not re-read against the code before the work starts will send
+somebody to rebuild what exists.
 
 ## Problem
 
