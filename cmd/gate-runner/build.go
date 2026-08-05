@@ -171,13 +171,21 @@ func (s *server) buildAtRev(ctx context.Context, req buildRequest) error {
 	}
 
 	scratch := filepath.Join(filepath.Dir(s.workdir), "build-"+req.Rev)
-	// A leftover worktree from a crashed run: remove and re-create.
+	// A leftover worktree from a crashed run: remove and re-create. This one
+	// stays silent on purpose - the normal case is that there is nothing to
+	// remove, and a warning that fires on the happy path teaches its reader to
+	// skip warnings.
 	_ = s.git(ctx, s.workdir, "worktree", "remove", "--force", scratch)
 	if err := s.git(ctx, s.workdir, "worktree", "add", "--detach", scratch, req.Rev); err != nil {
 		return fmt.Errorf("checkout %s: %w", req.Rev, err)
 	}
 	defer func() {
-		_ = s.git(ctx, s.workdir, "worktree", "remove", "--force", scratch)
+		// This one is different: it removes a worktree this call just created,
+		// so a failure means a leaked checkout on the runner's disk, once per
+		// build, with nothing to notice it by.
+		if err := s.git(ctx, s.workdir, "worktree", "remove", "--force", scratch); err != nil {
+			s.log.Warn("build: scratch worktree not removed", "dir", scratch, "err", err)
+		}
 	}()
 
 	if s.publishFn != nil {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -92,5 +93,76 @@ func TestDiagnosticsSealRetentionAndRetire(t *testing.T) {
 	var off *DiagnosticsService
 	if err := off.Delete(ctx, "lt-1"); err != nil {
 		t.Fatalf("nil-service delete: %v", err)
+	}
+}
+
+// failDeleteDiagStore refuses deletions, which is the case that used to be
+// invisible: the delete error was discarded and the caller was told the bundle
+// was gone.
+type failDeleteDiagStore struct {
+	*memDiagStore
+	deletes int
+}
+
+func (s *failDeleteDiagStore) Delete(context.Context, string, string) error {
+	s.deletes++
+	return errors.New("store refuses to delete")
+}
+
+// TestExpiredBundleThatCannotBeDeletedIsNotReportedGone: retention here is
+// enforced at every exit and by no sweeper, so a failed delete is never
+// retried by anything. Reporting "no bundle" would tell an operator that a
+// device's journal - personal data - is gone while it is still stored, and
+// nothing anywhere would ever contradict that.
+//
+// This is the class of defect the abandoned-branch orphan belonged to, found
+// by looking for the same discarded-error shape rather than by another
+// accident.
+func TestExpiredBundleThatCannotBeDeletedIsNotReportedGone(t *testing.T) {
+	store := &failDeleteDiagStore{memDiagStore: newMemDiagStore()}
+	clock := newFakeClock(testT0)
+	svc := NewDiagnosticsService(store, testSealer(t), clock, "")
+	ctx := context.Background()
+
+	if err := svc.Put(ctx, "lt-1", []byte("journal")); err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(DiagnosticsRetention + time.Hour)
+
+	if _, _, ok, err := svc.Get(ctx, "lt-1"); err == nil {
+		t.Fatalf("Get reported the bundle as absent (ok=%v) while the delete failed", ok)
+	}
+	if _, ok, err := svc.Meta(ctx, "lt-1"); err == nil {
+		t.Fatalf("Meta reported the bundle as absent (ok=%v) while the delete failed", ok)
+	}
+	if store.deletes != 2 {
+		t.Fatalf("deletes attempted = %d, want one per read", store.deletes)
+	}
+	// And the ciphertext is genuinely still there - the whole reason the
+	// answer had to change.
+	if _, still := store.ciph["lt-1"]; !still {
+		t.Fatal("test is not exercising what it claims: the bundle did get deleted")
+	}
+}
+
+// TestExpiredBundleIsDeletedAndReadsAbsent: the ordinary path is unchanged - a
+// successful expiry still reads as "no bundle", not as an error.
+func TestExpiredBundleIsDeletedAndReadsAbsent(t *testing.T) {
+	store := newMemDiagStore()
+	clock := newFakeClock(testT0)
+	svc := NewDiagnosticsService(store, testSealer(t), clock, "")
+	ctx := context.Background()
+
+	if err := svc.Put(ctx, "lt-1", []byte("journal")); err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(DiagnosticsRetention + time.Hour)
+
+	_, _, ok, err := svc.Get(ctx, "lt-1")
+	if err != nil || ok {
+		t.Fatalf("expired read = ok:%v err:%v, want absent and no error", ok, err)
+	}
+	if _, still := store.ciph["lt-1"]; still {
+		t.Fatal("retention not enforced: the ciphertext is still in the store")
 	}
 }

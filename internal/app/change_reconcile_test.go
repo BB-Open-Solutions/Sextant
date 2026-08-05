@@ -7,6 +7,7 @@ import (
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
@@ -226,5 +227,61 @@ func TestReconcileLeavesSettledChangesWithoutBranchesAlone(t *testing.T) {
 	}
 	if got.Status != change.Abandoned {
 		t.Fatalf("status = %s", got.Status)
+	}
+}
+
+// TestMergeAndAbandonLeaveNoBranchBehind: assert the EFFECT, not the record.
+//
+// This is the test that was missing. The change flow's own comment says "the
+// git branch is the change itself", and every test around it checked only the
+// recorded status - so a cleanup that silently failed left an orphan branch in
+// production for nineteen days without a single red test. A contract with a
+// side effect outside the store has to be measured outside the store.
+func TestMergeAndAbandonLeaveNoBranchBehind(t *testing.T) {
+	cs, _, dir := newChangeStack(t, nil)
+	ctx := context.Background()
+	repo, err := git.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := func(branch string) bool {
+		_, err := repo.BranchMerged(ctx, branch)
+		return err != nil
+	}
+
+	// Abandon: opened, edited (so it really has a worktree), then dropped.
+	if _, err := cs.Open(ctx, "cr-drop", "dropped", submitAuthor); err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.Edit(ctx, "cr-drop", fleet.SetScopeSetting("org", "dawo.office.enable", true),
+		"settings: office on", submitAuthor); err != nil {
+		t.Fatal(err)
+	}
+	if gone("cr/cr-drop") {
+		t.Fatal("the branch was never there; this test would prove nothing")
+	}
+	if _, err := cs.Abandon(ctx, "cr-drop"); err != nil {
+		t.Fatal(err)
+	}
+	if !gone("cr/cr-drop") {
+		t.Error("abandon left its branch behind")
+	}
+
+	// Merge: the same promise on the other exit.
+	if _, err := cs.Open(ctx, "cr-land", "landed", submitAuthor); err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.Edit(ctx, "cr-land", fleet.SetScopeSetting("org", "dawo.office.enable", false),
+		"settings: office off", submitAuthor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.Submit(ctx, "cr-land"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.Merge(ctx, "cr-land", ports.Author{Name: "approver", Subject: "s-approver"}); err != nil {
+		t.Fatal(err)
+	}
+	if !gone("cr/cr-land") {
+		t.Error("merge left its branch behind")
 	}
 }

@@ -61,7 +61,15 @@ func (s *Server) authed(w http.ResponseWriter, r *http.Request) (view, bool) {
 			// #nosec G118 - deliberate detached context: this best-effort address-book write must outlive the request, so it must not be canceled when the page returns.
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_ = s.svc.Users.RecordUser(ctx, app.DefaultTenant, u.Subject, u.Email, u.Name, u.Groups)
+			// Best-effort, but not silent. This table is what
+			// EmailsForAudience resolves an approver group against, so a write
+			// that keeps failing means somebody simply never receives the mail
+			// saying a change is waiting on them - and there is no symptom
+			// anywhere that points at this line.
+			if err := s.svc.Users.RecordUser(ctx, app.DefaultTenant, u.Subject, u.Email, u.Name, u.Groups); err != nil {
+				s.log.Warn("address book: login not recorded; this user may not receive notification mail",
+					"subject", u.Subject, "err", err)
+			}
 		}(u)
 	}
 	v := view{User: u, CSRF: csrf, L: l, rv: rv}

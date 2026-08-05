@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/platform/secretbox"
@@ -61,6 +62,7 @@ func (s *DiagnosticsService) Put(ctx context.Context, tag string, bundle []byte)
 
 // Get opens a device's bundle. An expired bundle is deleted on sight and
 // reads as absent - retention is enforced at every exit, not by a sweeper.
+// If that deletion fails the read fails with it: see expire.
 func (s *DiagnosticsService) Get(ctx context.Context, tag string) ([]byte, ports.DiagnosticsMeta, bool, error) {
 	if !s.Enabled() {
 		return nil, ports.DiagnosticsMeta{}, false, nil
@@ -70,7 +72,9 @@ func (s *DiagnosticsService) Get(ctx context.Context, tag string) ([]byte, ports
 		return nil, ports.DiagnosticsMeta{}, false, err
 	}
 	if s.expired(meta) {
-		_ = s.store.Delete(ctx, s.tenant, tag)
+		if err := s.expire(ctx, tag); err != nil {
+			return nil, ports.DiagnosticsMeta{}, false, err
+		}
 		return nil, ports.DiagnosticsMeta{}, false, nil
 	}
 	bundle, err := s.sealer.Open(sealed)
@@ -90,10 +94,32 @@ func (s *DiagnosticsService) Meta(ctx context.Context, tag string) (ports.Diagno
 		return ports.DiagnosticsMeta{}, false, err
 	}
 	if s.expired(meta) {
-		_ = s.store.Delete(ctx, s.tenant, tag)
+		if err := s.expire(ctx, tag); err != nil {
+			return ports.DiagnosticsMeta{}, false, err
+		}
 		return ports.DiagnosticsMeta{}, false, nil
 	}
 	return meta, true, nil
+}
+
+// expire deletes a bundle whose retention window has passed.
+//
+// The error is RETURNED, not swallowed. Retention here is enforced at every
+// exit and by no sweeper (see the file comment), so a delete that fails is
+// never retried by anything - and the caller used to be told the bundle was
+// absent while a device's journal stayed in the store. That is not an
+// inconvenience like a leaked git branch: it is the console reporting that
+// personal data is gone when it is not, and nothing would ever contradict it.
+//
+// An error surfaces as a failed read instead. An operator who cannot open a
+// bundle asks why; an operator told "no bundle" does not.
+func (s *DiagnosticsService) expire(ctx context.Context, tag string) error {
+	if err := s.store.Delete(ctx, s.tenant, tag); err != nil {
+		slog.Error("diagnostics: expired bundle could not be deleted; retention not enforced",
+			"device", tag, "err", err)
+		return fmt.Errorf("delete expired diagnostics bundle for %s: %w", tag, err)
+	}
+	return nil
 }
 
 // Delete removes a device's bundle (retire, or an operator cleaning up).

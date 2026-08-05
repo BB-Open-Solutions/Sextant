@@ -365,6 +365,10 @@ func (s *server) handleValidate(w http.ResponseWriter, r *http.Request) {
 func (s *server) stageCandidate(ctx context.Context, fleetDoc string) (string, error) {
 	scratch := filepath.Join(filepath.Dir(s.workdir), "validate")
 	if _, err := os.Stat(filepath.Join(scratch, ".git")); err != nil {
+		// Speculative: this branch runs precisely when the worktree is absent
+		// or broken, so the removal is EXPECTED to fail in the common case and
+		// stays silent. Contrast the deferred removal in build.go, which tears
+		// down a worktree that call just created and does say so on failure.
 		_ = s.git(ctx, s.workdir, "worktree", "remove", "--force", scratch)
 		if err := s.git(ctx, s.workdir, "worktree", "add", "--detach", scratch, "origin/"+s.branch); err != nil {
 			return "", err
