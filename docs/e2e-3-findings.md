@@ -312,6 +312,51 @@ the operator who merged is by definition already at the console. If a fleet
 ever wants them back, that is one line in `mailWorthy` — but it should be a
 decision, which is why it is written here.
 
+## An abandoned change kept its branch for nineteen days
+
+Found while taking a baseline for A7.6 — before running the row, which is
+the useful part: the acceptance plan's evidence line for "change intrekken" is
+*"branch weg, geen wees in de lijst"*, and the wees was already there.
+
+**Symptom.** The config repository held four `cr/*` branches. Three belonged to
+core updates still in review. The fourth, `cr/cfg-device-dawo-inspoelstraat-10`,
+belonged to a change recorded **abandoned on 2026-07-17** — with its linked
+worktree still attached at `/data/overlay/.cr/...`.
+
+**Cause.** `Abandon` has called `cleanup` since the change flow was written
+(2026-07-09), so the cleanup ran on 17 July and failed. Both its errors were
+discarded:
+
+```go
+_ = s.repo.RemoveWorktree(ctx, s.worktreeDir(cr.ID))
+_ = s.repo.DeleteBranch(ctx, cr.Branch)
+```
+
+The two are coupled — git refuses to delete a branch still checked out in a
+worktree — so a failed worktree removal guarantees a failed branch deletion,
+and neither said a word. Why that first removal failed cannot be reconstructed,
+and that is the defect rather than a detail of it. Two other changes abandoned
+in the same period were cleaned up correctly, which is what kept this
+invisible: it is intermittent, and nothing was watching.
+
+**Why it matters beyond tidiness.** An abandoned change that still owns a
+branch is a branch somebody can still merge by hand, carrying edits a reviewer
+decided against.
+
+**Fixed by**: `cleanup` logs both failures with the change and branch named,
+and `Reconcile` — which already runs at every startup to align recorded status
+with git — now also sweeps branches still owned by settled (abandoned or
+merged) changes. The existing orphan clears on the next console restart.
+
+**One thing the fix immediately taught us.** Adding the log lines showed
+`worktree remove` also failing for changes that never had a worktree at all:
+`Open` does not create one, `ensureWorktree` does lazily on first edit. A
+warning there would fire on every ordinary abandon of an unedited change, and a
+log that cries on the happy path teaches its readers to skip warnings — the
+same failure e2e-2 recorded about a test that observed an anomaly and argued it
+away. The removal is now attempted only when the directory exists, and the test
+run was checked for spurious warnings rather than assumed clean.
+
 ## Two smaller things the run surfaced
 
 These were found while working on the local-admin CLI (`#50`) during the same

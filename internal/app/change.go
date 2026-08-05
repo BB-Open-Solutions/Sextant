@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -504,9 +505,47 @@ func (s *ChangeService) ensureWorktree(ctx context.Context, cr change.CR) (ports
 
 // cleanup removes a finished change's worktree and branch (best effort:
 // a leaked worktree is an inconvenience, not a correctness problem).
+// branchExists asks git whether a branch is still there, using the one port
+// method that answers for it: BranchMerged errors for a branch that does not
+// exist ("gone" and "not merged" are different answers, and only git knows
+// which). An error is therefore read as "no branch to clean up" - which is
+// also the safe direction, since a git that cannot answer is not grounds for
+// deleting anything.
+func (s *ChangeService) branchExists(ctx context.Context, branch string) bool {
+	_, err := s.repo.BranchMerged(ctx, branch)
+	return err == nil
+}
+
 func (s *ChangeService) cleanup(ctx context.Context, cr change.CR) {
-	_ = s.repo.RemoveWorktree(ctx, s.worktreeDir(cr.ID))
-	_ = s.repo.DeleteBranch(ctx, cr.Branch)
+	// Best-effort stays best-effort: a leaked worktree must not fail an
+	// abandon or a merge that already happened in git. But it is no longer
+	// SILENT. Both errors used to be discarded, and the two are coupled - git
+	// refuses to delete a branch that is still checked out in a worktree, so a
+	// failed worktree removal guarantees a failed branch deletion, and neither
+	// said a word.
+	//
+	// Measured on production 2026-08-05: change cfg-device-dawo-inspoelstraat-10
+	// was abandoned on 17 July and its branch and worktree were still there
+	// nineteen days later. Why it failed cannot be reconstructed, because the
+	// error was thrown away - which is the actual defect. Reconcile now sweeps
+	// such leftovers at startup, and these log lines are how the next one gets
+	// diagnosed instead of discovered by accident.
+	// A change that was opened and never edited has no worktree: ensureWorktree
+	// creates it lazily on the first edit. Removing one that was never there
+	// fails with "is not a working tree", and warning about that would fire on
+	// an entirely ordinary path - which is how a log teaches its readers to
+	// skip warnings.
+	dir := s.worktreeDir(cr.ID)
+	if _, statErr := os.Stat(dir); statErr == nil {
+		if err := s.repo.RemoveWorktree(ctx, dir); err != nil {
+			slog.Warn("change cleanup: worktree not removed",
+				"change", cr.ID, "dir", dir, "err", err)
+		}
+	}
+	if err := s.repo.DeleteBranch(ctx, cr.Branch); err != nil {
+		slog.Warn("change cleanup: branch not deleted",
+			"change", cr.ID, "branch", cr.Branch, "err", err)
+	}
 }
 
 // Reconcile brings recorded change status back in line with git.
@@ -535,6 +574,21 @@ func (s *ChangeService) Reconcile(ctx context.Context) error {
 		return fmt.Errorf("reconcile: list changes: %w", err)
 	}
 	for _, cr := range all {
+		// A settled change should own no branch and no worktree. When cleanup
+		// failed at the time - silently, until 2026-08-05 - the leftovers sat
+		// there indefinitely: an abandoned change whose branch still exists is
+		// the "orphan in the list" the acceptance plan tests for at A7.6, and
+		// it is also a branch somebody could still merge by hand. Re-running
+		// cleanup is safe: removing an absent worktree or branch is a no-op
+		// that only logs.
+		if cr.Status == change.Abandoned || cr.Status == change.Merged {
+			if cr.Branch != "" && s.branchExists(ctx, cr.Branch) {
+				slog.Info("reconcile: settled change still owned a branch; cleaning up",
+					"change", cr.ID, "status", cr.Status, "branch", cr.Branch)
+				s.cleanup(ctx, cr)
+			}
+			continue
+		}
 		if cr.Status != change.Ready {
 			continue
 		}

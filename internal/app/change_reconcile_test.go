@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
@@ -150,5 +151,80 @@ func TestReconcileIsIdempotent(t *testing.T) {
 		if err := cs.Reconcile(ctx); err != nil {
 			t.Fatalf("reconcile on an empty store: %v", err)
 		}
+	}
+}
+
+// TestReconcileSweepsAnOrphanedBranch: found on the production console,
+// 2026-08-05. Change cfg-device-dawo-inspoelstraat-10 was abandoned on 17 July
+// and nineteen days later its branch and worktree were still in the repository.
+// Abandon has called cleanup since the change flow was written, so the cleanup
+// ran and failed - and both its errors were discarded, so nothing recorded why.
+//
+// An abandoned change that still owns a branch is the "orphan in the list" the
+// acceptance plan tests for at A7.6, and it is also a branch somebody can still
+// merge by hand.
+func TestReconcileSweepsAnOrphanedBranch(t *testing.T) {
+	cs, _, dir := newChangeStack(t, nil)
+	ctx := context.Background()
+	repo, err := git.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := cs.Open(ctx, "cr-orphan", "left behind", submitAuthor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.Abandon(ctx, "cr-orphan"); err != nil {
+		t.Fatal(err)
+	}
+	// Recreate the branch: the state a failed cleanup leaves behind, which is
+	// what production was actually in.
+	if err := repo.CreateBranch(ctx, "cr/cr-orphan"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.BranchMerged(ctx, "cr/cr-orphan"); err != nil {
+		t.Fatalf("the orphan branch was not set up: %v", err)
+	}
+
+	if err := cs.Reconcile(ctx); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if _, err := repo.BranchMerged(ctx, "cr/cr-orphan"); err == nil {
+		t.Fatal("an abandoned change still owns its branch after reconcile")
+	}
+	// And the change itself is untouched: sweeping leftovers is not a reason
+	// to rewrite history.
+	got, _, err := cs.Get(ctx, "cr-orphan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != change.Abandoned {
+		t.Fatalf("status = %s, want abandoned", got.Status)
+	}
+}
+
+// TestReconcileLeavesSettledChangesWithoutBranchesAlone: the sweep must be a
+// no-op in the ordinary case, which is every settled change in a healthy
+// repository. Reconcile runs at every startup.
+func TestReconcileLeavesSettledChangesWithoutBranchesAlone(t *testing.T) {
+	cs, _, _ := newChangeStack(t, nil)
+	ctx := context.Background()
+	if _, err := cs.Open(ctx, "cr-tidy", "cleanly abandoned", submitAuthor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cs.Abandon(ctx, "cr-tidy"); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if err := cs.Reconcile(ctx); err != nil {
+			t.Fatalf("reconcile over a tidy store: %v", err)
+		}
+	}
+	got, _, err := cs.Get(ctx, "cr-tidy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != change.Abandoned {
+		t.Fatalf("status = %s", got.Status)
 	}
 }
