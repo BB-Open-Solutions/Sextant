@@ -356,7 +356,11 @@ func (d *deps) buildConfigPlane() error {
 	var up *app.UpstreamService
 	if cfg.UpstreamRepo != "" {
 		up = app.NewUpstreamService(cfg.UpstreamRepo, git.RemoteHead, d.changes.Open,
-			st.Upstream(), log).WithNotifier(d.notify, cfg.OwnerGroups)
+			st.Upstream(), log).WithNotifier(d.notify, cfg.OwnerGroups).
+			// Core updates are a sequence, not a menu: a newer head retires the
+			// ones it overtakes, so the queue never offers a pin that walks the
+			// fleet's core backwards.
+			WithSupersede(d.changes.List, d.changes.Abandon)
 		// Phase two needs the runner's nix: only a remote gate can compute
 		// the flake bump. With an in-process gate the CR stays a draft.
 		if rg, ok := gate.(*gateadapter.RemoteGate); ok {

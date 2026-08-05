@@ -188,3 +188,52 @@ func TestNotifyServiceReadFlow(t *testing.T) {
 		t.Fatalf("want 0 unread after mark-all, got %d", n)
 	}
 }
+
+// TestMailWorthyKeepsTheInboxUsable: measured on production 2026-08-05,
+// approving one core update produced six e-mails. The generic progress
+// notifications fire on a change submit AND again on its merge, on top of the
+// change flow's own more specific messages. An operator who gets six mails for
+// one click filters the folder, and then misses the one that mattered.
+//
+// Everything is still delivered in-app. This decides only what also leaves the
+// console, and the test is whether it needs somebody who is NOT looking at it.
+func TestMailWorthyKeepsTheInboxUsable(t *testing.T) {
+	worthy := []notify.Kind{
+		notify.ApprovalNeeded,     // a review is waiting on a person
+		notify.ElevationRequested, // somebody is standing at a machine
+		notify.GateFailed,         // a write was refused
+		notify.WipeExecuted,       // a device destroyed its keys
+	}
+	for _, k := range worthy {
+		if !mailWorthy(k) {
+			t.Errorf("%s should reach an inbox", k)
+		}
+	}
+	// Addressed to the person who just clicked, who is already looking at the
+	// console - and superseded by their own outcome seconds later.
+	for _, k := range []notify.Kind{notify.WritePending, notify.WriteApplied} {
+		if mailWorthy(k) {
+			t.Errorf("%s should stay in-app", k)
+		}
+	}
+}
+
+// TestEmitStoresEverythingEvenUnmailedKinds: the filter must narrow e-mail
+// only. An in-app notification that stopped being recorded because it is not
+// worth an e-mail would be a worse bug than the noise it fixes.
+func TestEmitStoresEverythingEvenUnmailedKinds(t *testing.T) {
+	store := newFakeNotifyStore()
+	mailer := &recordingMailer{}
+	svc := NewNotifyService(store, clockAt{time.Unix(0, 0).UTC()}, "default").
+		WithMail(mailer, fakeUserDir{
+			emailBySubject: map[string]string{"u": "u@example.com"},
+		}, "https://console.example.com")
+
+	if err := svc.Emit(context.Background(), notify.Notification{
+		Recipient: "u", Kind: notify.WritePending, Title: "validating"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.added) != 1 {
+		t.Fatal("an unmailed kind must still be recorded in-app")
+	}
+}

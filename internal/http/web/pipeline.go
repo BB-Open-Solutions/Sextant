@@ -2,7 +2,9 @@ package web
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
@@ -199,6 +201,19 @@ func barBucket(onTarget, total int) string {
 	return barClass((onTarget*100 + total/2) / total)
 }
 
+// newestFirst orders each queue by creation time, newest at the top.
+//
+// The change store lists in filename order, and for the upstream watcher's own
+// ids ("core-<shortsha>") that is a hex prefix: an order that looks deliberate
+// and carries no meaning. Measured on production 2026-08-05 with four core
+// updates queued, an operator could not tell which was current - the cards
+// showed no date either, so there was nothing to work it out from.
+func newestFirst(lists ...[]change.CR) {
+	for _, list := range lists {
+		sort.Slice(list, func(i, j int) bool { return list[i].Created.After(list[j].Created) })
+	}
+}
+
 func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 	if err := s.requireWeb(v, "org", identity.Viewer); err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -216,6 +231,7 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 			ready = append(ready, cr)
 		}
 	}
+	newestFirst(draft, building, ready)
 
 	f := s.svc.Config.Fleet()
 	st, ringStatus := s.rolloutStatus(r.Context())
@@ -230,9 +246,17 @@ func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request, v view) {
 	if st != nil {
 		targetRelease = s.svc.Config.ReleaseNumber(r.Context(), st.Target)
 	}
+	// A submit or merge that outran the grace window is still running when the
+	// browser lands back here, so the change still reads Draft or Ready and the
+	// page looks untouched - the "did my click do anything" problem design 0011
+	// already named for imaging. The redirect carries what is in flight, and
+	// Live turns on polling so the answer arrives without a manual refresh.
+	pending := strings.TrimSpace(r.URL.Query().Get("pending"))
 	data := map[string]any{
 		"Title": "Updates", "Nav": "updates",
-		"Draft": draft, "Building": building, "Ready": ready,
+		"Pending": pending,
+		"Live":    pending != "" || len(building) > 0,
+		"Draft":   draft, "Building": building, "Ready": ready,
 		"Waves":   waves,
 		"State":   st,
 		"Active":  active,

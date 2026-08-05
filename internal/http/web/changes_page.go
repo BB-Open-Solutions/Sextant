@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
@@ -74,14 +75,26 @@ func (s *Server) postChangeSubmit(w http.ResponseWriter, r *http.Request, v view
 	// milliseconds. Grace-window: the board shows the card moving, the
 	// outcome lands as a notification.
 	id := r.PathValue("id")
-	if err := s.runGated(r, v, "change "+id+" submitted", func(ctx context.Context) error {
+	detached, err := s.runGatedDetached(r, v, "change "+id+" submitted", func(ctx context.Context) error {
 		_, err := s.svc.Changes.Submit(ctx, id)
 		return err
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/updates", http.StatusSeeOther)
+	http.Redirect(w, r, updatesURL(detached, id), http.StatusSeeOther)
 	return nil
+}
+
+// updatesURL lands the operator on the board, naming what is still running
+// when the write outran the grace window. Without it the redirect returns a
+// page that still shows the pre-write state, which reads as a click that did
+// nothing - and the second click is how a change gets submitted twice.
+func updatesURL(detached bool, id string) string {
+	if !detached {
+		return "/updates"
+	}
+	return "/updates?pending=" + url.QueryEscape(id)
 }
 
 // postChangeMerge approves a change - or, without confirmed=1, renders a
@@ -130,13 +143,14 @@ func (s *Server) postChangeMerge(w http.ResponseWriter, r *http.Request, v view)
 	// The merge re-validates the merged result through the nix gate before
 	// committing - same grace-window treatment as any gated write.
 	author := webAuthor(v)
-	if err := s.runGated(r, v, "change "+id+" merged", func(ctx context.Context) error {
+	detached, err := s.runGatedDetached(r, v, "change "+id+" merged", func(ctx context.Context) error {
 		_, err := s.svc.Changes.Merge(ctx, id, author)
 		return err
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	http.Redirect(w, r, "/updates", http.StatusSeeOther)
+	http.Redirect(w, r, updatesURL(detached, id), http.StatusSeeOther)
 	return nil
 }
 

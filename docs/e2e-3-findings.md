@@ -262,6 +262,56 @@ queue. The gap only appears when you ask what happens to the operator who is
 not watching, which is the normal case and the one the test would never have
 covered.
 
+## Four things one core update taught us about the review queue
+
+All found on the production console within an hour of deploying 0.81.0, by
+approving a single core update and watching what happened. None of them was a
+crash; all four made the console harder to trust than the machinery underneath
+it deserves.
+
+**The queue offered a pin that walks the fleet backwards.** Four core updates
+sat in review — staged 11:35, 12:05, 12:35 and 13:05 — each carrying a Submit
+button and nothing marking any of them stale. They are not alternatives: the
+watcher stages one per upstream head, and each pins the core to the revision it
+was staged for. Merging an older one after a newer one moves the fleet's core
+backwards, or collides on the lock file. Neither is something a review queue
+should offer without saying so. The watcher now retires the ones a new head
+overtakes, before staging the new one, so two live core updates never coexist.
+Only ids it minted itself (`core-`) are touched, and a failure to tidy never
+blocks the staging.
+
+**Nothing said which one was current.** The store lists changes in filename
+order; for `core-<shortsha>` that is a hex prefix, an order that looks
+deliberate and means nothing. The CR has carried `Created` and `Updated` since
+it was written, and the cards showed neither. Now sorted newest-first, with the
+timestamp on every card.
+
+**A merge looked like a click that did nothing.** Merge runs through the
+grace window: after three seconds it detaches and the browser is redirected
+back to a board where the change still reads Ready, because it genuinely is
+until the background merge finishes. Measured: staged 13:05, merged 15:19. The
+redirect now names what is still running and the page polls itself until the
+answer arrives — polling only while something is actually in flight, so an idle
+tab left open does not re-fetch forever. This is the same lesson design 0011
+wrote down for imaging ("start imaging must never look like nothing
+happened"), unapplied one surface over.
+
+**Six e-mails for one approval.** `WritePending` and `WriteApplied` are generic
+progress notifications for a slow settings write, and they fire on a change
+submit and again on its merge, on top of the change flow's own more specific
+messages. Everything emitted was also mailed. E-mail is now limited to the
+kinds that need somebody who is *not* looking at the console: a review is
+waiting, a person is standing at a machine, the gate refused a write, a device
+was wiped. Everything still arrives in-app, and that is asserted separately —
+an in-app notification that stopped being recorded because it is not worth an
+e-mail would be a worse bug than the noise it fixed.
+
+**Note for whoever reads this next.** `ChangeMerged` and `RolloutDone` are
+deliberately no longer mailed. They are milestones rather than requests, and
+the operator who merged is by definition already at the console. If a fleet
+ever wants them back, that is one line in `mailWorthy` — but it should be a
+decision, which is why it is written here.
+
 ## Two smaller things the run surfaced
 
 These were found while working on the local-admin CLI (`#50`) during the same

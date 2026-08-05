@@ -68,13 +68,37 @@ func (s *NotifyService) Emit(ctx context.Context, n notify.Notification) error {
 	return nil
 }
 
+// mailWorthy reports whether a kind is worth leaving the console for.
+//
+// Everything is still delivered in-app; this decides only what also lands in
+// somebody's inbox. Measured on production 2026-08-05: approving a single core
+// update produced six e-mails, because the generic progress notifications
+// (WritePending, WriteApplied) fire on a change submit and again on its merge -
+// on top of the change flow's own, more specific messages. An operator who
+// gets six mails for one click learns to filter the folder, and then misses
+// the one that mattered.
+//
+// The test is whether the message needs somebody who is NOT looking at the
+// console: a review is waiting, a person is standing at a machine, the gate
+// refused a write, a device was wiped. "Validation is still running" fails
+// that test - it is addressed to the person who just clicked, who is already
+// there, and it is superseded within seconds by its own outcome.
+func mailWorthy(k notify.Kind) bool {
+	switch k {
+	case notify.ApprovalNeeded, notify.ElevationRequested,
+		notify.GateFailed, notify.WipeExecuted:
+		return true
+	}
+	return false
+}
+
 // deliverEmail resolves a notification's audience to e-mail addresses and
 // sends it, off the caller's goroutine so an SMTP stall never holds the change
 // or rollout lock the emitter runs under. Entirely best-effort: no mailer, no
 // directory, no recipients, or a send error all end quietly - the in-app
 // notification is the source of truth.
 func (s *NotifyService) deliverEmail(n notify.Notification) {
-	if s.mailer == nil || s.dir == nil {
+	if s.mailer == nil || s.dir == nil || !mailWorthy(n.Kind) {
 		return
 	}
 	go func() {

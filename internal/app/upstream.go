@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
@@ -44,6 +45,26 @@ type UpstreamService struct {
 
 	// checked observes a completed check (metrics); nil-safe optional.
 	checked func(time.Time)
+
+	// list and abandon retire core updates that a newer one supersedes.
+	// Optional: without them the older CRs simply stay open, which is what
+	// happened until 2026-08-05 - four core updates in the review queue, three
+	// of them pointing at upstream revisions already overtaken, each still
+	// offering a Submit button with nothing saying it was stale.
+	list    func(ctx context.Context) ([]change.CR, error)
+	abandon func(ctx context.Context, id string) (change.CR, error)
+}
+
+// WithSupersede lets the watcher retire core updates that a newer upstream
+// head has overtaken. They are not alternatives to choose between: each one pins
+// the core to the revision it was staged for, so merging an older one after a
+// newer one walks the fleet's core backwards - or collides on the lock file.
+// Neither outcome is something a review queue should offer silently.
+func (s *UpstreamService) WithSupersede(
+	list func(context.Context) ([]change.CR, error),
+	abandon func(context.Context, string) (change.CR, error)) *UpstreamService {
+	s.list, s.abandon = list, abandon
+	return s
 }
 
 // WithCheckMetric records each completed check's time, so operators can
@@ -109,6 +130,9 @@ func (s *UpstreamService) CheckOnce(ctx context.Context) error {
 	id := "core-" + short
 	title := "Core update " + short
 	author := ports.Author{Name: "sextant-upstream", Email: "upstream@sextant"}
+	// Retire the ones this head overtakes BEFORE staging the new one, so the
+	// queue never shows two live core updates at once - not even briefly.
+	s.supersede(ctx, id)
 	if _, err := s.open(ctx, id, title, author); err != nil {
 		// "already exists" means an operator (or an earlier run whose seen-
 		// write was lost) staged it: record and move on rather than error.
@@ -128,6 +152,40 @@ func (s *UpstreamService) CheckOnce(ctx context.Context) error {
 		}
 	}
 	return s.seen.PutUpstream(ctx, head)
+}
+
+// supersede abandons every still-open core update except keep. Best-effort:
+// failing to tidy the queue must not stop the new core update from being
+// staged, because the stale entry is the lesser problem of the two.
+//
+// Only core updates (the "core-" prefix the watcher itself mints) are touched.
+// A human's change that happens to be open is none of this function's business.
+func (s *UpstreamService) supersede(ctx context.Context, keep string) {
+	if s.list == nil || s.abandon == nil {
+		return
+	}
+	crs, err := s.list(ctx)
+	if err != nil {
+		s.log.Warn("supersede: cannot list changes", "err", err)
+		return
+	}
+	for _, cr := range crs {
+		if cr.ID == keep || !strings.HasPrefix(cr.ID, "core-") {
+			continue
+		}
+		// Merged and abandoned are already settled; Building is mid-flight and
+		// abandoning it would race the worker that is proving it.
+		switch cr.Status {
+		case change.Draft, change.Failed, change.Ready:
+		default:
+			continue
+		}
+		if _, err := s.abandon(ctx, cr.ID); err != nil {
+			s.log.Warn("supersede: cannot abandon", "id", cr.ID, "err", err)
+			continue
+		}
+		s.log.Info("core update superseded", "id", cr.ID, "by", keep)
+	}
 }
 
 // deliver fills the staged CR (phase two): runner computes the lock, the

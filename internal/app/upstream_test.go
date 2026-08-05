@@ -154,3 +154,110 @@ func TestUpstreamDeliveryBumpFailureLeavesDraft(t *testing.T) {
 		t.Fatalf("submitted after failed bump: %v", submitted)
 	}
 }
+
+// TestSupersedeRetiresOvertakenCoreUpdates: found on the production console,
+// 2026-08-05, with four core updates in the review queue - three of them
+// pointing at upstream revisions already overtaken, each still offering a
+// Submit button and nothing marking it stale.
+//
+// They are a sequence, not a menu. Each pins the core to the revision it was
+// staged for, so merging an older one after a newer one walks the fleet's core
+// backwards or collides on the lock file.
+func TestSupersedeRetiresOvertakenCoreUpdates(t *testing.T) {
+	crs := []change.CR{
+		{ID: "core-aaaaaaaaaaaa", Status: change.Failed},
+		{ID: "core-bbbbbbbbbbbb", Status: change.Ready},
+		{ID: "core-cccccccccccc", Status: change.Draft},
+		// Settled and in-flight ones are left alone.
+		{ID: "core-dddddddddddd", Status: change.Merged},
+		{ID: "core-eeeeeeeeeeee", Status: change.Building},
+		// A human's change is none of the watcher's business.
+		{ID: "printer-fix", Status: change.Ready},
+	}
+	var abandoned []string
+	// Deliberately unrelated to any id in crs: the new head must not collide
+	// with a queue entry, or the test would pass by accident.
+	head := "9999999999999999999999999999999999999999"
+	svc := NewUpstreamService("https://example/core.git",
+		func(context.Context, string) (string, error) { return head, nil },
+		func(_ context.Context, id, _ string, _ ports.Author) (change.CR, error) {
+			return change.CR{ID: id}, nil
+		},
+		&memUpstream{rev: "0000000000000000000000000000000000000000"},
+		slog.New(slog.NewTextHandler(io.Discard, nil))).
+		WithSupersede(
+			func(context.Context) ([]change.CR, error) { return crs, nil },
+			func(_ context.Context, id string) (change.CR, error) {
+				abandoned = append(abandoned, id)
+				return change.CR{ID: id}, nil
+			})
+
+	if err := svc.CheckOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"core-aaaaaaaaaaaa": true, "core-bbbbbbbbbbbb": true, "core-cccccccccccc": true}
+	if len(abandoned) != len(want) {
+		t.Fatalf("abandoned = %v, want the three open core updates", abandoned)
+	}
+	for _, id := range abandoned {
+		if !want[id] {
+			t.Errorf("abandoned %q, which it had no business touching", id)
+		}
+	}
+}
+
+// TestSupersedeKeepsTheOneBeingStaged: the new core update must survive its
+// own tidy-up. It shares the "core-" prefix with everything it retires.
+func TestSupersedeKeepsTheOneBeingStaged(t *testing.T) {
+	head := "1111111111111111111111111111111111111111"
+	// The queue already holds the CR for this very head (a restart whose
+	// seen-write was lost re-runs the same check).
+	crs := []change.CR{{ID: "core-111111111111", Status: change.Ready}}
+	var abandoned []string
+	svc := NewUpstreamService("https://example/core.git",
+		func(context.Context, string) (string, error) { return head, nil },
+		func(_ context.Context, id, _ string, _ ports.Author) (change.CR, error) {
+			return change.CR{ID: id}, nil
+		},
+		&memUpstream{rev: "0000000000000000000000000000000000000000"},
+		slog.New(slog.NewTextHandler(io.Discard, nil))).
+		WithSupersede(
+			func(context.Context) ([]change.CR, error) { return crs, nil },
+			func(_ context.Context, id string) (change.CR, error) {
+				abandoned = append(abandoned, id)
+				return change.CR{ID: id}, nil
+			})
+
+	if err := svc.CheckOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(abandoned) != 0 {
+		t.Fatalf("the watcher abandoned the update it was staging: %v", abandoned)
+	}
+}
+
+// TestSupersedeFailureStillStages: tidying is best-effort. A stale entry in
+// the queue is the lesser problem; not staging the new core update at all is
+// the greater one.
+func TestSupersedeFailureStillStages(t *testing.T) {
+	head := "2222222222222222222222222222222222222222"
+	var opened []string
+	svc := NewUpstreamService("https://example/core.git",
+		func(context.Context, string) (string, error) { return head, nil },
+		func(_ context.Context, id, _ string, _ ports.Author) (change.CR, error) {
+			opened = append(opened, id)
+			return change.CR{ID: id}, nil
+		},
+		&memUpstream{rev: "0000000000000000000000000000000000000000"},
+		slog.New(slog.NewTextHandler(io.Discard, nil))).
+		WithSupersede(
+			func(context.Context) ([]change.CR, error) { return nil, fmt.Errorf("store down") },
+			func(context.Context, string) (change.CR, error) { return change.CR{}, nil })
+
+	if err := svc.CheckOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 1 {
+		t.Fatalf("a failed tidy-up blocked staging: %v", opened)
+	}
+}
