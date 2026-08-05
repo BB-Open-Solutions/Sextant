@@ -12,8 +12,23 @@ anders niet toe te wijzen: een device dat niet convergeert terwijl SSSD,
 NetBird en Wazuh tegelijk aan staan levert vier verdachten en geen dader. Dat
 is precies hoe e2e-2 tijd verloor.
 
-Versie onder test: **console 0.75.0** (prod), overlay `bb-open` main, core
-DAWO-NixOS zoals gepind in de ring.
+Versie onder test: **console 0.79.0 → 0.80.0** (prod), overlay `bb-open` main,
+core DAWO-NixOS zoals gepind in de ring. De run begon op 0.79.0; drie
+bevindingen leidden tot fixes die nog dezelfde avond in 0.80.0 uitgingen, dus
+de latere rijen zijn op 0.80.0 gemeten. Noteer per rij op welke van de twee je
+keek als dat uitmaakt.
+
+## Stand van de run
+
+**Run A staat bij A3.11.** Sessie 4 augustus 2026: P1 t/m A3.11 gelopen, met
+de rekey met een echte admin-identiteit als laatste stap. Die stap speelt A4
+(convergentie) en A5 (settings) vrij — zonder ontsleutelbare secrets op het
+toestel convergeert het niet, precies het faalbeeld uit e2e-2. **A4 t/m A17
+zijn nog te doen.**
+
+De drie bevindingen uit die sessie staan in `docs/e2e-3-findings.md`. De
+devices heetten `e2e4` en `e2e5`; dat zijn de labels waarop de commits te
+vinden zijn.
 
 ## Hoe je dit invult
 

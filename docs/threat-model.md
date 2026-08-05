@@ -272,8 +272,21 @@ store are encrypted to device host keys.
    moves it from "runtime secret" to "published".
 2. Put the cache behind the mesh, or behind the credential devices already
    carry. Nix substituters support netrc auth, and every device already holds a
-   per-device credential, so this needs no new secret. This is the real
-   remaining mitigation and it is not done.
+   per-device credential, so this needs no new secret. **Built (0.79.0,
+   commit `dcce76e`), not yet switched on.** The cache endpoint answers 401
+   with a
+   `WWW-Authenticate` challenge when the caller is not authorised
+   (`cmd/gate-runner/build.go:190-216`), authorisation is either a shared
+   `CACHE_TOKEN` or a per-device credential verified against the console
+   (`cmd/gate-runner/main.go:563-635`), and an unreachable console **fails
+   closed** (`main.go:620-621`). The chart ships it off —
+   `gateRunner.cache.requireAuth: false` (`deploy/helm/values.yaml:135`) —
+   deliberately, because the order is not negotiable: the netrc must be on
+   every device *before* the server demands the token. A device that cannot
+   authenticate does not fail loudly; it quietly builds its own closure,
+   which costs hours and looks like a slow rollout rather than an access
+   problem. Flipping it is acceptance-plan section A17, and it is the one
+   mitigation whose *ordering* is the risk, not its implementation.
 3. Do not treat the signing key as access control. It proves integrity, not
    confidentiality: a signature stops somebody serving you a tampered closure,
    it does not stop them reading yours.
