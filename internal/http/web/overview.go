@@ -28,6 +28,16 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 	if s.svc.Inventory != nil {
 		all, _ := s.svc.Inventory.StatusAll(r.Context())
 		for _, st := range all {
+			// The config plane decides what exists; the observed plane only
+			// says what was last heard from. Removing a device deletes its
+			// record here and leaves its check-in history behind - deliberately,
+			// it is audit material - so a page that walks the observed plane
+			// keeps listing machines that are gone. Every other surface joins
+			// the other way round (devices list, compliance, baseline all walk
+			// f.Devices), which is why this was the one place ghosts appeared.
+			if _, exists := f.Devices[st.Tag]; !exists {
+				continue
+			}
 			if v.canView("device:"+st.Tag) && inScope(st.Tag) {
 				status = append(status, st)
 			}

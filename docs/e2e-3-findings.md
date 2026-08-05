@@ -122,6 +122,49 @@ Two earlier fixes both looked complete from the web layer and both left the
 domain untouched, and only a human reading the actual screen on real hardware
 caught it the third time.
 
+## The dashboard listed machines that no longer existed
+
+**Symptom.** On the production console, 2026-08-05: the DEVICES card read
+**2** and the inventory below it listed exactly two machines, while "Recent
+device activity" on the same page listed **eight** — `test9`, `test10`,
+`test12`, `test13`, `test14`, `test15` alongside the two real ones. The
+ghosts showed a dash for their revision and "offline", so they read as
+neglected fleet members rather than as records of machines that had been
+removed.
+
+**Cause.** Direction of the join. Every other surface starts at the config
+plane and looks up observed state per device — the devices list and its CSV
+(`internal/http/web/devices_page.go:33` walks `f.DeviceTags()`), compliance
+(`internal/app/compliance.go:65` walks `f.Devices`), the policy counter
+(`internal/http/web/policies_page.go:137` guards on `f.Devices[tag]`). The
+overview did the opposite: it walked `Inventory.StatusAll` and admitted
+anything the viewer could see, and at org scope `scopeFilter` passes
+everything. Removing a device deletes its config record and deliberately
+leaves its check-in history behind, so every device ever removed came back
+on the dashboard and stayed there.
+
+The online counter had the same defect one line further on: it counted
+`status`, so a removed machine still checking in would have been counted
+online, and the console could report more machines online than it had. That
+did not show here only because these particular ghosts were all offline.
+
+**Fixed by**: the overview drops observed rows with no
+config record (`internal/http/web/overview.go`). Asserted with
+`internal/http/web/overview_ghost_test.go`, which seeds two removed devices
+into the observed plane — one of them freshly checked in, so the online
+count is pinned too. Mutation-checked: removing the guard fails all three
+assertions.
+
+**Not changed, deliberately.** The check-in history itself stays. It is
+audit material, and the console's job is to not present it as a live fleet.
+`GET /api/v1/status` still returns observed rows for removed devices; that
+is the observed plane's own API and raw history is a defensible answer
+there, but it is worth a decision rather than an assumption.
+
+**The lesson.** Three surfaces joined config→observed and one joined
+observed→config. The odd one out was the dashboard, which is the first
+screen an operator sees and the one that sets whether they believe the rest.
+
 ## Two smaller things the run surfaced
 
 These were found while working on the local-admin CLI (`#50`) during the same
