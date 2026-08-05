@@ -15,10 +15,23 @@ a developer laptop.
    remotes
 2. `git tag -a v<x.y.z> -m "release <x.y.z>"` and push the tag to bbopen -
    that is what starts the build. Watch it with `scripts/ci-status.sh`.
-3. platform repo `apps/sextant/helmrelease.yaml` tag -> `git push origin main`
-   (NOT the github-mirror remote - that was a real trap). `apps/sextant-docs`
-   pins its own image and needs the same bump, or the published handbook keeps
-   serving the build it was pinned at.
+3. platform repo `apps/sextant/helmrelease.yaml` tag -> `git push origin main`.
+   Bump BOTH tags in that file: the console image and `gateRunner.image`,
+   which is a separate image and stays behind if you only change the first.
+   `apps/sextant-docs` pins its own image in `deployment.yaml` and needs the
+   same bump, or the published handbook keeps serving the build it was pinned
+   at. It is also a separate Flux Kustomization, so it rolls on its own
+   schedule - check the pod, not the commit.
+
+   **On the mirror.** This step used to say "NOT the github-mirror remote -
+   that was a real trap". Measured on 2026-08-05: `origin` in the platform
+   repo carries TWO pushurls (`git config --get-regexp remote.origin.pushurl`),
+   forgejo and `github.com/brambuijs/bb-open-platform-v2`. So the documented
+   command reaches GitHub whether or not you name the mirror remote, and has
+   been doing so for previous releases too. Following the warning does not
+   avoid what it warns about. Either the config is intended and this note
+   should say so plainly, or the pushurl should go - but the instruction as it
+   stood described something that was not happening.
 4. `flux reconcile source git flux-system -n flux-system` then
    `kustomization sextant` then `source git sextant` then
    `helmrelease sextant -n sextant`

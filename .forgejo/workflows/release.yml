@@ -41,7 +41,7 @@ jobs:
           export PATH="/run/wrappers/bin:$PATH"
           nix shell nixpkgs#podman --command bash -c "
             set -euo pipefail
-            podman login -u release-bot -p \"\$REGISTRY_TOKEN\" $REGISTRY
+            printf '%s' \"\$REGISTRY_TOKEN\" | podman login -u release-bot --password-stdin $REGISTRY
             for spec in 'sextant:Dockerfile' 'sextant-gate:Dockerfile.gate-runner' 'sextant-docs:Dockerfile.docs'; do
               name=\${spec%%:*}; file=\${spec#*:}
               img=$REGISTRY/bb-open/\$name:$VERSION
@@ -92,7 +92,7 @@ jobs:
           mkdir -p sbom
           nix shell nixpkgs#syft nixpkgs#oras --command bash -c "
             set -euo pipefail
-            oras login -u release-bot -p \"\$REGISTRY_TOKEN\" $REGISTRY
+            printf '%s' \"\$REGISTRY_TOKEN\" | oras login -u release-bot --password-stdin $REGISTRY
             for name in sextant sextant-gate sextant-docs sextant:tools; do
               tag=$VERSION
               case \$name in sextant:tools) name=sextant; tag=$VERSION-tools;; esac
