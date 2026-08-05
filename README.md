@@ -177,6 +177,34 @@ ring's revision on its own schedule.
 
 ![The device inventory, with status, baseline and hardware per device](docs/img/console-devices.png)
 
+## Running it for real
+
+The quickstart above is a demo on your laptop: no database, no cluster, and
+validation switched off. A real instance needs four things, and it is worth
+knowing that before you invest an afternoon:
+
+| | |
+|---|---|
+| **An overlay repository** | A git repo that consumes a NixOS core flake and holds your `fleet.json`. One per organisation. This is the same repo the devices follow, so it is the product's actual source of truth - not a copy of one. |
+| **Postgres** | The observed plane: check-ins, tokens, image jobs, preferences, notifications. A single instance beside the console is enough. |
+| **An OIDC identity provider** | Console login, mapped to roles by directory group. LDAP optionally supplies the group picker. |
+| **A validation gate** | The nix evaluation that proves a change builds before it can be committed. In production this runs out-of-process in a small gate-runner, fail-closed, because the console image deliberately ships no nix. |
+
+Deployment is one Helm release plus a secret (`deploy/helm`), or the NixOS
+module, or a plain container. The devices need
+[DAWO-NixOS](https://code.overheid.nl/MinBZK/DAWO-NixOS) or your own core flake,
+and they pull with comin - the console never connects to a device.
+
+The full walk-through, including the values that matter and the ones that bite,
+is [Install and configure Sextant](docs/handbook/src/operators/deploy.md).
+
+**Platforms.** The flake builds for `x86_64-linux` and `aarch64-linux`, but the
+released container images are single-architecture: they are built on an x86_64
+runner with no multi-arch manifest, so on arm you build from the flake. Managed
+devices are NixOS. Nothing here targets macOS or Windows, now or planned - the
+configuration model is Nix, and that is the point rather than a gap to fill in
+later.
+
 ## Who this is for
 
 Written for public bodies running managed NixOS workstations, and useful to
