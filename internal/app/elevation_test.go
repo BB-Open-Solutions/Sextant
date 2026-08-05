@@ -2,10 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/elevation"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/notify"
 )
 
 // memElevation is an in-memory store. Pending returns everything, on purpose:
@@ -170,5 +173,98 @@ func TestRaiseRefusesAnAnonymousAsk(t *testing.T) {
 	}
 	if _, err := svc.Raise(ctx, "", "bbuijs", "", ""); err == nil {
 		t.Fatal("a request with no device was accepted")
+	}
+}
+
+// capturingNotifier records what an emitter sent, and can fail on demand.
+type capturingNotifier struct {
+	sent []notify.Notification
+	err  error
+}
+
+func (c *capturingNotifier) Emit(_ context.Context, n notify.Notification) error {
+	c.sent = append(c.sent, n)
+	return c.err
+}
+
+// TestRaiseTellsTheApprovers: a request expires in five minutes, so a queue
+// nobody is told about is a queue nobody answers. Before this the only way an
+// operator learned of a request was having /elevation open at the moment it
+// arrived.
+func TestRaiseTellsTheApprovers(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := newElevationStack()
+	n := &capturingNotifier{}
+	svc.WithNotifier(n, []string{"platform-owners", "second-line"})
+
+	if _, err := svc.Raise(ctx, "lt-1", "bbuijs", "install printer driver", "new floor printer"); err != nil {
+		t.Fatal(err)
+	}
+	if len(n.sent) != 2 {
+		t.Fatalf("every approver audience should hear about it, got %d", len(n.sent))
+	}
+	got := n.sent[0]
+	if got.Kind != notify.ElevationRequested {
+		t.Errorf("kind = %q", got.Kind)
+	}
+	if got.Audience != "platform-owners" {
+		t.Errorf("audience = %q", got.Audience)
+	}
+	if got.Link != "/elevation" {
+		t.Errorf("link does not point at the queue: %q", got.Link)
+	}
+	// An operator decides on who, where and what. A message that omits them
+	// costs a page load before it means anything.
+	for _, want := range []string{"bbuijs", "lt-1"} {
+		if !strings.Contains(got.Title, want) {
+			t.Errorf("title %q does not carry %q", got.Title, want)
+		}
+	}
+	for _, want := range []string{"install printer driver", "new floor printer"} {
+		if !strings.Contains(got.Body, want) {
+			t.Errorf("body %q does not carry %q", got.Body, want)
+		}
+	}
+}
+
+// TestRaiseSurvivesABrokenNotifier: somebody is standing at a machine with a
+// dialog open on a five-minute clock. A notification store or SMTP server
+// having a bad day must not turn that into a failed request.
+func TestRaiseSurvivesABrokenNotifier(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := newElevationStack()
+	svc.WithNotifier(&capturingNotifier{err: errors.New("store down")}, []string{"owners"})
+
+	r, err := svc.Raise(ctx, "lt-1", "bbuijs", "mount usb", "")
+	if err != nil {
+		t.Fatalf("a broken notifier failed the request: %v", err)
+	}
+	// And the request is genuinely queued, not merely returned.
+	pending, err := svc.Pending(ctx)
+	if err != nil || len(pending) != 1 || pending[0].ID != r.ID {
+		t.Fatalf("request not queued: %v %v", pending, err)
+	}
+}
+
+// TestRaiseWithoutANotifierStillWorks: notifications are optional wiring (no
+// Postgres, no notifications), and the queue must not depend on them.
+func TestRaiseWithoutANotifierStillWorks(t *testing.T) {
+	svc, _ := newElevationStack()
+	if _, err := svc.Raise(context.Background(), "lt-1", "bbuijs", "mount usb", ""); err != nil {
+		t.Fatalf("unwired notifier broke the request: %v", err)
+	}
+}
+
+// TestAMissingReasonReadsAsASentence: a device may send no reason, and an
+// empty pair of brackets reads like something went missing.
+func TestAMissingReasonReadsAsASentence(t *testing.T) {
+	svc, _ := newElevationStack()
+	n := &capturingNotifier{}
+	svc.WithNotifier(n, []string{"owners"})
+	if _, err := svc.Raise(context.Background(), "lt-1", "bbuijs", "mount usb", ""); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(n.sent[0].Body, "no reason given") {
+		t.Fatalf("body = %q", n.sent[0].Body)
 	}
 }

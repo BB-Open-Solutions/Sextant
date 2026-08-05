@@ -276,6 +276,11 @@ func (d *deps) buildConfigPlane() error {
 		// notifications do: a request that vanished on restart leaves somebody
 		// staring at a dialog that will never be answered.
 		d.elevation = app.NewElevationService(pg.Elevation(), clock, app.DefaultTenant)
+		// A request expires in five minutes, so the queue cannot be pull-only:
+		// an operator who happens not to have /elevation open would never learn
+		// of it in time. Same audience as a change review - answering either is
+		// the same authority.
+		d.elevation.WithNotifier(d.notify, cfg.OwnerGroups)
 		// Deliver notifications by e-mail too: the seen-users directory (pg)
 		// resolves a recipient or audience to addresses; ConsoleURL makes the
 		// mail clickable. Delivery is best-effort and off the emitter's path.

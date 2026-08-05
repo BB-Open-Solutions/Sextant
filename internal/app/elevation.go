@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/elevation"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/notify"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
@@ -20,11 +21,26 @@ type ElevationService struct {
 	store  ports.ElevationStore
 	clock  ports.Clock
 	tenant string
+
+	// notifier and approvers are optional, exactly as in the change flow: with
+	// them set, a raised request reaches the people who can answer it instead
+	// of waiting to be noticed.
+	notifier  Notifier
+	approvers []string
 }
 
 // NewElevationService wires the queue.
 func NewElevationService(store ports.ElevationStore, clock ports.Clock, tenant string) *ElevationService {
 	return &ElevationService{store: store, clock: clock, tenant: tenant}
+}
+
+// WithNotifier tells the approver groups when a request is raised. approvers
+// are the audiences that receive it - the same groups the change flow asks to
+// review, because answering an elevation is the same authority.
+func (s *ElevationService) WithNotifier(n Notifier, approvers []string) *ElevationService {
+	s.notifier = n
+	s.approvers = approvers
+	return s
 }
 
 // Raise records a device's ask and returns it. The tag comes from the caller's
@@ -51,7 +67,41 @@ func (s *ElevationService) Raise(ctx context.Context, tag, user, action, reason 
 	if err := s.store.Put(ctx, s.tenant, r); err != nil {
 		return elevation.Request{}, err
 	}
+	s.announce(ctx, r)
 	return r, nil
+}
+
+// announce tells the approver groups that somebody is waiting. Best-effort by
+// construction: the device is holding a dialog open on a five-minute clock, so
+// a notification store or an SMTP server having a bad day must not turn into a
+// failed request. The queue at /elevation remains the source of truth; this is
+// the nudge toward it.
+//
+// The subject line carries the user, the machine and what they are trying to
+// do, because an operator decides on those three and a message that says only
+// "a request is waiting" costs a page load to become useful.
+func (s *ElevationService) announce(ctx context.Context, r elevation.Request) {
+	if s.notifier == nil {
+		return
+	}
+	for _, g := range s.approvers {
+		_ = s.notifier.Emit(ctx, notify.Notification{
+			Audience: g, Kind: notify.ElevationRequested,
+			Title: fmt.Sprintf("%s needs approval on %s", r.User, r.Tag),
+			Body: fmt.Sprintf("%s (%s). Expires in %s.",
+				r.Action, reasonOrNone(r.Reason), elevation.TTL),
+			Link: "/elevation",
+		})
+	}
+}
+
+// reasonOrNone keeps the body a sentence when a device sent no reason: an
+// empty pair of brackets reads like something went missing.
+func reasonOrNone(reason string) string {
+	if strings.TrimSpace(reason) == "" {
+		return "no reason given"
+	}
+	return reason
 }
 
 // Poll is what the waiting device asks, repeatedly. It returns the request

@@ -231,6 +231,37 @@ path already returns `err.Error()` unfiltered, and that is the class shaped by
 user input — strictly more exposed than a local git failure. The caution was
 being applied to the safer of the two.
 
+## An approval queue nobody was told about
+
+Not a defect that broke something, and worth the same weight anyway: it came
+out of one question while preparing A16 — do four-eyes approvals reach a
+mailbox?
+
+**What was true.** Change approvals do: a change reaching Ready emits
+`ApprovalNeeded` to the owner groups (`internal/app/change.go:334`), and every
+emitted notification is also mailed, resolving the audience to addresses
+through the seen-users directory (`cmd/sextant/capabilities.go:282`).
+
+Elevation requests did not. `NewElevationService` had no notifier at all, in
+the service or the domain. The only way an operator learned that somebody was
+standing at a machine with a dialog open was to have `/elevation` open at that
+moment — which the acceptance plan states as an instruction at A16.2 ("kijk in
+de console op `/elevation`"). Against `elevation.TTL` of **five minutes**, that
+is not an arrangement, it is a coincidence.
+
+**Changed**: a raised request now emits `ElevationRequested` to the same
+approver groups, in-app and by mail, carrying who, which machine, what they are
+trying to do and when it expires — the three things the decision is made on,
+so the message is useful without opening a page. Best-effort by construction:
+a broken notification store or SMTP server cannot fail a request that somebody
+is waiting on, and that is asserted rather than assumed.
+
+**Why it belongs in an e2e findings document.** Nothing here was broken; A16
+would have passed row by row with an operator who was already watching the
+queue. The gap only appears when you ask what happens to the operator who is
+not watching, which is the normal case and the one the test would never have
+covered.
+
 ## Two smaller things the run surfaced
 
 These were found while working on the local-admin CLI (`#50`) during the same

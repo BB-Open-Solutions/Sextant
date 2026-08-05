@@ -44,6 +44,10 @@ func notifPresent(n notify.Notification) notifRow {
 		icon, tone = "hourglass_top", "text-text-secondary"
 	case notify.WriteApplied:
 		icon, tone = "task_alt", "text-mint-deep"
+	case notify.ElevationRequested:
+		// Warn tone, not neutral: this is the only kind with a clock somebody
+		// is standing in front of, and it stops mattering after five minutes.
+		icon, tone = "pan_tool", "text-status-warn"
 	}
 	return notifRow{ID: n.ID, Icon: icon, Tone: tone, Title: n.Title,
 		Body: n.Body, Link: n.Link, Read: n.Read, When: n.CreatedAt}

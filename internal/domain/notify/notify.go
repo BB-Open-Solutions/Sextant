@@ -23,13 +23,20 @@ const (
 	WipeExecuted   Kind = "wipe-executed"   // a device carried out a crypto-wipe
 	WritePending   Kind = "write-pending"   // a slow validation continues in the background
 	WriteApplied   Kind = "write-applied"   // a background-validated write committed
+	// ElevationRequested is somebody standing at a machine with a dialog open,
+	// and it is the only kind with a deadline the recipient cannot extend: the
+	// request expires in five minutes (elevation.TTL). Until this existed the
+	// queue was pull-only - an operator learned of a request by happening to
+	// have /elevation open - which is not an arrangement that survives a
+	// five-minute window.
+	ElevationRequested Kind = "elevation-requested"
 )
 
 // Valid reports whether k is a known kind.
 func (k Kind) Valid() bool {
 	switch k {
 	case ApprovalNeeded, ChangeMerged, RolloutDone, GateFailed, WipeExecuted,
-		WriteApplied, WritePending:
+		WriteApplied, WritePending, ElevationRequested:
 		return true
 	}
 	return false
