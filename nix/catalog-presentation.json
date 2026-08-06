@@ -15,41 +15,136 @@
     "integers and open-ended lists need nothing here."
   ],
   "options": {
-    "apps.comms.enable": { "label": "Communication apps" },
-    "apps.creative.enable": { "label": "Creative apps" },
-    "apps.dev.enable": { "label": "Developer tools" },
-    "apps.media.enable": { "label": "Media apps" },
-    "apps.office.enable": { "label": "Office apps" },
-    "apps.office.suite": { "label": "Office suite" },
-    "autoUpdate.enable": { "label": "Automatic updates" },
-    "autoUpdate.options.pollSeconds": { "label": "Check interval (seconds)" },
-    "bootstrapUser.enable": { "label": "Bootstrap admin account" },
-    "desktop.gnome.enable": { "label": "GNOME desktop" },
-    "desktop.plasma.enable": { "label": "KDE Plasma desktop" },
-    "diskUnlock.tpm2.device": { "label": "LUKS mapper" },
-    "diskUnlock.tpm2.enable": { "label": "TPM2 disk unlock" },
-    "identity.bindDN": { "label": "Directory bind account" },
-    "identity.bindSecret": { "label": "Directory bind password" },
-    "identity.domain": { "label": "Directory domain" },
-    "identity.enable": { "label": "Directory login" },
-    "identity.ldapUri": { "label": "Directory address" },
-    "identity.provider": { "label": "Directory type" },
-    "identity.searchBase": { "label": "Directory search base" },
-    "netbird.enable": { "label": "NetBird mesh" },
-    "netbird.managementUrl": { "label": "NetBird management URL" },
-    "netbird.setupKey": { "label": "NetBird setup key" },
-    "secureboot.enable": { "label": "Secure Boot" },
-    "ssh.enable": { "label": "SSH access" },
-    "ssh.options.maxAuthTries": { "label": "Max authentication attempts" },
-    "sysctlBaseline.enable": { "label": "Kernel hardening baseline" },
-    "timesync.enable": { "label": "Time synchronisation" },
-    "timesync.options.servers": { "label": "NTP servers", "widget": "fixedlist" },
-    "tools.diagnostics.enable": { "label": "Diagnostic tools" },
-    "updates.maintenanceWindow": { "label": "Maintenance window", "widget": "timerange" },
-    "wazuh.agentGroup": { "label": "Wazuh agent group" },
-    "wazuh.enable": { "label": "Endpoint security (Wazuh)" },
-    "wazuh.enrollmentSecret": { "label": "Wazuh enrolment secret" },
-    "wazuh.manager": { "label": "Wazuh manager" },
-    "zsh.enable": { "label": "Zsh shell" }
+    "apps.comms.enable": {
+      "label": "Communication apps"
+    },
+    "apps.creative.enable": {
+      "label": "Creative apps"
+    },
+    "apps.dev.enable": {
+      "label": "Developer tools"
+    },
+    "apps.media.enable": {
+      "label": "Media apps"
+    },
+    "apps.office.enable": {
+      "label": "Office apps"
+    },
+    "apps.office.suite": {
+      "label": "Office suite"
+    },
+    "apps.security.enable": {
+      "label": "Password manager and security apps"
+    },
+    "audio.enable": {
+      "label": "Audio"
+    },
+    "autoUpdate.enable": {
+      "label": "Automatic updates"
+    },
+    "autoUpdate.options.pollSeconds": {
+      "label": "Check interval (seconds)"
+    },
+    "bootstrapUser.enable": {
+      "label": "Bootstrap admin account"
+    },
+    "desktop.gnome.enable": {
+      "label": "GNOME desktop"
+    },
+    "desktop.plasma.enable": {
+      "label": "KDE Plasma desktop"
+    },
+    "desktop.plasma.socialClient": {
+      "label": "Chat client"
+    },
+    "diskUnlock.tpm2.device": {
+      "label": "LUKS mapper"
+    },
+    "diskUnlock.tpm2.enable": {
+      "label": "TPM2 disk unlock"
+    },
+    "identity.bindDN": {
+      "label": "Directory bind account"
+    },
+    "identity.bindSecret": {
+      "label": "Directory bind password"
+    },
+    "identity.domain": {
+      "label": "Directory domain"
+    },
+    "identity.enable": {
+      "label": "Directory login"
+    },
+    "identity.ldapUri": {
+      "label": "Directory address"
+    },
+    "identity.provider": {
+      "label": "Directory type"
+    },
+    "identity.searchBase": {
+      "label": "Directory search base"
+    },
+    "netbird.enable": {
+      "label": "NetBird mesh"
+    },
+    "netbird.managementUrl": {
+      "label": "NetBird management URL"
+    },
+    "netbird.setupKey": {
+      "label": "NetBird setup key"
+    },
+    "printing.discover": {
+      "label": "Discover network printers"
+    },
+    "printing.drivers": {
+      "label": "Printer drivers"
+    },
+    "printing.enable": {
+      "label": "Printing"
+    },
+    "scanning.enable": {
+      "label": "Scanning"
+    },
+    "secureboot.enable": {
+      "label": "Secure Boot"
+    },
+    "ssh.enable": {
+      "label": "SSH access"
+    },
+    "ssh.options.maxAuthTries": {
+      "label": "Max authentication attempts"
+    },
+    "sysctlBaseline.enable": {
+      "label": "Kernel hardening baseline"
+    },
+    "timesync.enable": {
+      "label": "Time synchronisation"
+    },
+    "timesync.options.servers": {
+      "label": "NTP servers",
+      "widget": "fixedlist"
+    },
+    "tools.diagnostics.enable": {
+      "label": "Diagnostic tools"
+    },
+    "updates.maintenanceWindow": {
+      "label": "Maintenance window",
+      "widget": "timerange"
+    },
+    "wazuh.agentGroup": {
+      "label": "Wazuh agent group"
+    },
+    "wazuh.enable": {
+      "label": "Endpoint security (Wazuh)"
+    },
+    "wazuh.enrollmentSecret": {
+      "label": "Wazuh enrolment secret"
+    },
+    "wazuh.manager": {
+      "label": "Wazuh manager"
+    },
+    "zsh.enable": {
+      "label": "Zsh shell"
+    }
   }
 }
