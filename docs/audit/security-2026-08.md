@@ -92,6 +92,35 @@ ontbrekende Postgres-backup: de escrow-sleutels hebben geen tweede kopie.
 Stap 1 raakt de inspoelstraat en dus hardware; dit is geen wijziging om
 zonder toezicht uit te rollen.
 
+**Stand 6 augustus, 23:00 - stap 1 en 2 gedaan, met een vondst ertussen.**
+
+Het station heeft nu een eigen device-credential. Gemeten: het token
+`device-dawo-inspoelstraat` is voor het laatst gebruikt op 21:00:06.06 en
+`device_status.last_seen` staat op 21:00:06.11 - dezelfde check-in, dus het
+station authenticeert zich als zichzelf. Voor `e2e5` is die drift ook nul.
+Geen van beide apparaten leunt nog op de brug.
+
+Bij het uitvoeren van stap 2 bleek de fallback erger dan hierboven staat.
+`authorized()` probeerde het device-credential eerst en viel bij ELKE
+mislukking terug op het gedeelde token - ook voor een tag die allang een
+eigen credential had. Het token was dus geen migratiepad maar een
+vloot-brede impersonatiesleutel: credentials uitgeven veranderde niets aan
+de blootstelling zolang de brug open stond. Alle drie de gevolgen hierboven
+golden onverkort voor `e2e5`, dat het "sterke pad" al gebruikte.
+
+Hetzelfde gold voor `POST /api/station/{tag}/report`
+(`internal/http/api/station.go`), dat bovendien geen enkele test op het
+brug-token had - de reden dat het onopgemerkt bleef.
+
+Beide paden accepteren de brug nu alleen nog voor een subject **zonder**
+eigen credential, en falen gesloten als de tokenstore die vraag niet kan
+beantwoorden. Wat overblijft is een gewaarschuwde, per subject naar een uur
+afgeknepen logregel, zodat het antwoord op "gebruikt nog iets dit token"
+een meting is en geen gok. Twee tests per pad; ze zijn geverifieerd door de
+guard weg te halen en rood te zien worden.
+
+Stap 3 (R2 sluiten in het threat model) staat nog open.
+
 ### M1 — Dertien geldige credentials van apparaten die niet meer bestaan
 
 **Gemeten in productie.** `api_tokens` bevat **15** niet-verlopen
@@ -135,6 +164,51 @@ tag niet in het vlootdocument staat, en dat luid loggen.
 **Advies.** De dertien nu intrekken, en de verzoening inbouwen zodat het
 niet opnieuw sluipt. Overwegen om `boundCredTTL` te verlagen: vijf jaar is
 lang voor iets waarvan het intrekken aantoonbaar kan mislukken.
+
+**Stand 6 augustus, 23:00.** De verzoening is gebouwd
+(`DeviceCredentials.ReconcileWithFleet`) en zat in 0.83.0 - maar draaide
+niet. De aanroep stond achter `if d.devCreds != nil`, veertig regels boven
+de plek waar `devCreds` wordt toegewezen, dus de guard vond altijd nil.
+Gemeten na de deploy: nog steeds 15 credentials bij 2 apparaten en geen
+logregel.
+
+Dat is dezelfde foutklasse als de rest van dit document, deze keer in de
+reparatie zelf: een groene test over de verkeerde laag. De test dekte de
+service, niet de bedrading. De aanroep staat nu in het Postgres-blok zonder
+guard - daar bestaat de afhankelijkheid per constructie en levert
+terugverplaatsen een luide start-panic op - en hij logt altijd, ook
+`revoked=0`, zodat "deed niets" en "draaide niet" niet meer op elkaar
+lijken. Na te meten zodra 0.84.0 draait.
+
+### H2 — De console pusht als een persoon, niet als een machine
+
+**Gemeten.** De netrc in de console-pod authenticeert bij
+`forgejo.bb-open.com` met `login bram.buijs`. Dat is het credential waarmee
+de rollout-engine ring-branches force-pusht en waarmee elke commit uit de
+console de forge bereikt.
+
+**Waarom dit meer is dan R4 zegt.** `threat-model.md:151-157` beschrijft R4
+als "no second factor at the git layer" en adviseert *"a dedicated
+least-privilege deploy token scoped to ring refs"*. De werkelijkheid is niet
+"nog niet least-privilege" maar "het account van een mens":
+
+1. **Blast radius.** Het credential draagt alles wat die persoon op de forge
+   mag, niet alleen ring-refs. Wie de pod leest, heeft dat.
+2. **Het auditspoor liegt.** Elke automatische push - elke ring-promotie -
+   staat in de forge op naam van een mens die op dat moment misschien niets
+   deed. De vraag "wie heeft deze ring verzet" is daarmee onbeantwoordbaar,
+   en dat is precies het soort vraag waarvoor een auditspoor bestaat.
+3. **Sleutelpersoon-afhankelijkheid.** Vertrekt die persoon, of roteert het
+   wachtwoord, dan stopt de vloot met uitrollen tot iemand het merkt.
+
+Voor een gemeente is "de automatisering gebruikt het account van de
+hoofdontwikkelaar" een bevinding in elke ISO 27001-toets, los van of het
+technisch misgaat.
+
+**Advies.** Een machine-account op de forge met schrijfrechten op deze ene
+repository, en de netrc daarop. Dat is geen groot werk en het lost alle
+drie de punten tegelijk op. R4 herschrijven naar wat er staat, niet naar
+wat het zou moeten zijn.
 
 ### M2 — Het threat model verklaart zichzelf veilig op een voorwaarde die niet geldt
 
