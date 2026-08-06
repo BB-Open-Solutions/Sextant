@@ -388,11 +388,28 @@ that mattered.
 `fleet.json` is invisible to the remote gate. That includes the custom overlay
 editor (ADR 0014), whose whole point is committing Nix that must evaluate.
 
-**Not fixed in this release.** The shape of the fix is clear - the validate
-request should name the ref to evaluate, and the runner should check that out
-instead of `origin/main`, since it already has the same remote - but changing
-what the gate evaluates is not a change to make in the same hour as the
-incident it explains.
+**Not fixed in this release, and the obvious fix does not work.** The first
+idea was to let the validate request name a ref and have the runner check that
+out instead of `origin/main`, on the reasoning that it already has the same
+remote. It does - but the branch is not there. Measured 2026-08-06:
+`git ls-remote <overlay> 'refs/heads/cr/*'` returns **nothing**. Change
+branches live only in the console's own clone and are never pushed, so there is
+no ref for the runner to fetch.
+
+That leaves three routes, and each is a decision rather than an implementation
+detail:
+
+1. **Push change branches to the overlay remote.** Makes the ref approach work.
+   Also makes every draft visible in the repository devices follow, which is a
+   change to what that repository means.
+2. **Send the content instead of a reference** - every file the change touches,
+   not just `fleet.json`. Keeps the runner stateless; turns the validate
+   protocol from one document into a file set.
+3. **Have the runner fetch from the console.** Most plumbing, and it inverts
+   the current direction: today the runner pulls everything from the forge
+   itself.
+
+All three touch ADR 0012's shape. None is an afternoon.
 
 **What made it visible.** Nothing in the console. The overlay was pinned to a
 core from 24 June and the jump to 5 August carried five weeks of changes; the
