@@ -124,7 +124,7 @@ repair too easy.
 Measured over the first minutes after the restart: two check-ins, both 204,
 exactly sixty seconds apart, **zero** 401s and **zero** bridge lines.
 
-Step 3 (closing R2 in the threat model) is still open.
+Step 3 done 7 August: R2 is closed in the threat model, and the register no longer clears itself on an untested precondition (see M2).
 
 ### M1 - Thirteen valid credentials for devices that no longer exist
 
