@@ -1,430 +1,434 @@
-# Acceptatiedraaiboek e2e-3 en e2e-4 (weg naar 1.0.0)
+# Acceptance script for e2e-3 and e2e-4 (the road to 1.0.0)
 
-Twee runs over dezelfde console en hetzelfde device:
+Two runs over the same console and the same device:
 
-- **Run A — e2e-3, zonder integraties.** Bewijst dat Sextant op eigen benen
-  staat: enrollen, inspoelen, convergeren, besturen, aantonen. Geen NetBird,
-  geen LDAP, geen Wazuh, geen OpenBao.
-- **Run B — e2e-4, met integraties.** Zelfde device, integraties erbij.
+- **Run A - e2e-3, without integrations.** Proves Sextant stands on its own
+  feet: enrol, image, converge, control, demonstrate. No NetBird, no LDAP,
+  no Wazuh, no OpenBao.
+- **Run B - e2e-4, with integrations.** Same device, integrations added.
 
-De volgorde is niet vrijblijvend. Run A eerst, want elke storing in Run B is
-anders niet toe te wijzen: een device dat niet convergeert terwijl SSSD,
-NetBird en Wazuh tegelijk aan staan levert vier verdachten en geen dader. Dat
-is precies hoe e2e-2 tijd verloor.
+The order is not optional. Run A first, because otherwise no failure in
+Run B can be attributed: a device that will not converge while SSSD, NetBird
+and Wazuh are all on gives you four suspects and no culprit. That is exactly
+how e2e-2 lost time.
 
-Versie onder test: **console 0.79.0 → 0.80.0** (prod), overlay `bb-open` main,
-core DAWO-NixOS zoals gepind in de ring. De run begon op 0.79.0; drie
-bevindingen leidden tot fixes die nog dezelfde avond in 0.80.0 uitgingen, dus
-de latere rijen zijn op 0.80.0 gemeten. Noteer per rij op welke van de twee je
-keek als dat uitmaakt.
+Version under test: **console 0.79.0 -> 0.80.0** (prod), overlay `bb-open`
+main, core DAWO-NixOS as pinned in the ring. The run started on 0.79.0;
+three findings led to fixes that shipped in 0.80.0 the same evening, so the
+later rows were measured on 0.80.0. Note per row which of the two you were
+looking at where it matters.
 
-## Stand van de run
+## Where the run stands
 
-**Run A staat bij A3.11.** Sessie 4 augustus 2026: P1 t/m A3.11 gelopen, met
-de rekey met een echte admin-identiteit als laatste stap. Die stap speelt A4
-(convergentie) en A5 (settings) vrij — zonder ontsleutelbare secrets op het
-toestel convergeert het niet, precies het faalbeeld uit e2e-2. **A4 t/m A17
-zijn nog te doen.**
+**Run A stopped sequentially at A3.11.** Session of 4 August 2026: P1
+through A3.11 walked, ending with the rekey under a real admin identity.
+That step unblocks A4 (convergence) and A5 (settings) - without decryptable
+secrets on the machine it will not converge, exactly the failure picture
+from e2e-2. **A4 through A17 are still to do.**
 
-De drie bevindingen uit die sessie staan in `docs/e2e-3-findings.md`. De
-devices heetten `e2e4` en `e2e5`; dat zijn de labels waarop de commits te
-vinden zijn.
+One row out of sequence is already recorded: **A7.6 was verified on
+5 August** against 0.82.0, from both sides. It is filled in below.
 
-## Hoe je dit invult
+The three findings from that session are in `docs/e2e-3-findings.md`. The
+devices were called `e2e4` and `e2e5`; those are the labels the commits are
+filed under.
 
-Elke regel heeft een **actie** en een **bewijs**. Het bewijs is wat je
-opschrijft — niet "werkt", maar wat je zag. Een stap zonder waarneembaar
-bewijs is niet getest, ook niet als er niets misging.
+## How to fill this in
 
-Noteer per regel: `OK`, `FOUT` (+ wat je zag), of `NVT` (+ waarom). Bevindingen
-komen in `docs/e2e-3-findings.md` respectievelijk `docs/e2e-4-findings.md`, in
-dezelfde vorm als `e2e-2-findings.md`: symptoom, oorzaak, bewijs, fix.
+Every row has an **action** and a **proof**. The proof is what you write
+down - not "works", but what you saw. A step with no observable proof has
+not been tested, even when nothing went wrong.
 
-Twee valkuilen uit eerdere rondes, expliciet omdat ze allebei geld kostten:
+Record per row: `OK`, `FAIL` (plus what you saw), or `N/A` (plus why).
+Findings go into `docs/e2e-3-findings.md` and `docs/e2e-4-findings.md`
+respectively, in the same shape as `e2e-2-findings.md`: symptom, cause,
+evidence, fix.
 
-1. **Meet één ding per keer.** In e2e-2 gingen er vijf fixes in vóór één
-   meting; welke van de vijf het deed is nooit vastgesteld.
-2. **Geloof de melding niet, meet de toestand.** `flux reconcile` meldt
-   "applied" en `kubectl rollout status` meldt "rolled out" terwijl de oude
-   pod blijft draaien. Vraag de image-tag op, niet de status.
+Two traps from earlier rounds, spelled out because both cost money:
 
-## Voorbereiding (eenmalig, vóór Run A)
+1. **Measure one thing at a time.** In e2e-2, five fixes went in before one
+   measurement; which of the five did it was never established.
+2. **Do not believe the message, measure the state.** `flux reconcile`
+   reports "applied" and `kubectl rollout status` reports "rolled out" while
+   the old pod keeps running. Ask for the image tag, not the status.
 
-| # | Actie | Bewijs |
+## Preparation (once, before Run A)
+
+| # | Action | Proof |
 |---|---|---|
-| P1 | Console-versie vaststellen | footer of orgpagina toont de versie na inloggen; van buiten geven `/status` en `/metrics` een 404 |
-| P2 | Device volledig wissen | disk gewist, firmware in setup mode als Secure Boot in scope is |
-| P3 | Ring-pin bewust achterlaten op main | de ring wijst naar een oudere revisie dan main — dit is de #16-conditie |
-| P4 | Testgroep en testring leeg opzetten | groep zichtbaar in `/groups`, ring in `/updates/rollout` |
-| P5 | Alle integratie-settings uit | `/integrations` toont alles uit op org en op de testgroep |
+| P1 | Establish the console version | the footer or the org page shows the version once logged in; from outside, `/status` and `/metrics` both 404 |
+| P2 | Wipe the device completely | disk wiped, firmware in setup mode if Secure Boot is in scope |
+| P3 | Deliberately leave the ring pin behind main | the ring points at an older revision than main - this is the #16 condition |
+| P4 | Set up an empty test group and test ring | group visible in `/groups`, ring in `/updates/rollout` |
+| P5 | All integration settings off | `/integrations` shows everything off at org level and on the test group |
 
-P3 is geen detail. Een device dat wordt ingespoeld terwijl zijn ring
-achterloopt op main werd tot 0.69.0 geboren op de verkeerde revisie en kwam er
-zelf niet meer uit. Dat is de enige taak die nog niet op hardware is bewezen,
-dus de opstelling moet die conditie afdwingen in plaats van erop te hopen.
+P3 is not a detail. Up to 0.69.0, a device imaged while its ring lagged
+behind main was born on the wrong revision and could not get out of it by
+itself. That is the one task still unproven on hardware, so the setup has to
+force the condition rather than hope for it.
 
 ---
 
-# Run A — zonder integraties
+# Run A - without integrations
 
-## A1. Console en toegang
+## A1. Console and access
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A1.1 | Inloggen via Zitadel | eigen naam op `/profile`, rol zichtbaar |
-| A1.2 | Elke pagina openen | 200, volledig document, geen lege secties |
-| A1.3 | Inloggen als lezer (niet-editor) | bewerkknoppen afwezig, niet alleen uitgegrijsd |
-| A1.4 | Groep-scoped gebruiker | ziet alleen eigen groep in `/devices` en `/compliance` |
-| A1.5 | Uitloggen | sessie weg, `/devices` stuurt naar login |
-| A1.6 | `/status` en `/metrics` van buiten opvragen | **404** — allebei alleen op de interne poort; een publieke console hoort zijn versie niet te noemen |
-| A1.7 | Build-identiteit in de footer en op de orgpagina | zichtbaar zodra je bent ingelogd |
+| A1.1 | Log in through Zitadel | own name on `/profile`, role visible |
+| A1.2 | Open every page | 200, complete document, no empty sections |
+| A1.3 | Log in as a reader (non-editor) | edit buttons absent, not merely greyed out |
+| A1.4 | Group-scoped user | sees only their own group in `/devices` and `/compliance` |
+| A1.5 | Log out | session gone, `/devices` redirects to login |
+| A1.6 | Request `/status` and `/metrics` from outside | **404** - both on the internal port only; a public console should not announce its version |
+| A1.7 | Build identity in the footer and on the org page | visible once logged in |
 
-A1.3 vraagt om echt kijken: een knop die er staat maar 403 geeft is een andere
-bug dan een knop die er niet staat, en de tweede is de bedoeling.
+A1.3 asks for actually looking: a button that is present but returns 403 is
+a different bug from a button that is absent, and the second is the intent.
 
-## A2. Enrollment
+## A2. Enrolment
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A2.1 | `/enroll` wizard doorlopen | device verschijnt in `/devices` met status "nooit gezien" |
-| A2.2 | Hardwareprofiel kiezen | profiel op de devicepagina, disko-notities kloppen |
-| A2.3 | Aan testgroep koppelen | `/groups` telt het device mee |
-| A2.4 | Enrolltoken hergebruiken | tweede gebruik geweigerd |
-| A2.5 | Device zonder groep | valt terug op org-scope, geen crash |
+| A2.1 | Walk the `/enroll` wizard | device appears in `/devices` with status "never seen" |
+| A2.2 | Pick a hardware profile | profile on the device page, disko notes correct |
+| A2.3 | Attach to the test group | `/groups` counts the device |
+| A2.4 | Reuse the enrolment token | second use refused |
+| A2.5 | Device with no group | falls back to org scope, no crash |
 
-## A3. Inspoelen (station)
+## A3. Imaging (station)
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A3.1 | Station opstarten, device aanmelden | station zichtbaar in `/station`, job claimbaar |
-| A3.2 | Imagingjob starten | job krijgt status "claimed" |
-| A3.3 | **Revisie in de job controleren** | de job draagt de **ring-pin**, niet main — dit is #16 |
-| A3.3b | Rev in de claim-respons van het station | `rev` staat erin en is gelijk aan de ring-pin — de plek waar hij tot 0.74.0 wegviel |
-| A3.4 | Installatie afronden | device boot, geen handmatige stap |
-| A3.5 | Eerste check-in | device meldt zich met de ring-revisie |
-| A3.6 | Host-key als age-recipient | secrets ontsleutelen op het device zonder handwerk |
-| A3.7 | Rustige boot | geen kerneldebug over de console |
-| A3.8 | Een install bewust laten mislukken | de melding in de console draagt de **staart van de installatielog**, niet alleen "nixos-anywhere failed" |
-| A3.9 | Na A3.8: geen spookapparaat | de mislukte poging staat als **Provisional** en telt niet mee in `RingStatus.Total`; een volgende rollout loopt gewoon door |
-| A3.10 | Opnieuw inspoelen van hetzelfde toestel | werkt de bestaande registratie bij (zelfde chassis-serienummer), mint géén tweede |
-| A3.11 | **Rekey met een echte admin-identiteit** | zodra `/api/v1/hostkeys` niet meer leeg is: `scripts/rekey-secrets.sh -i ~/.ssh/bbuijs -s ../bb-open/secrets`, daarna opent `~/.ssh/bbuijs` de secrets. Dit is de stap die op 31 juli ontbrak en de vloot bijna onopenbaar maakte — hij kan alleen hier, met een vers gemelde host key |
+| A3.1 | Boot the station, register the device | station visible in `/station`, job claimable |
+| A3.2 | Start an imaging job | job reaches status "claimed" |
+| A3.3 | **Check the revision in the job** | the job carries the **ring pin**, not main - this is #16 |
+| A3.3b | Rev in the station's claim response | `rev` is present and equals the ring pin - the place it fell away until 0.74.0 |
+| A3.4 | Finish the install | device boots, no manual step |
+| A3.5 | First check-in | device reports with the ring revision |
+| A3.6 | Host key as an age recipient | secrets decrypt on the device with no handwork |
+| A3.7 | Quiet boot | no kernel debug over the console |
+| A3.8 | Deliberately fail an install | the message in the console carries the **tail of the install log**, not just "nixos-anywhere failed" |
+| A3.9 | After A3.8: no ghost device | the failed attempt stands as **Provisional** and does not count toward `RingStatus.Total`; a following rollout proceeds normally |
+| A3.10 | Re-image the same machine | updates the existing registration (same chassis serial), does not mint a second |
+| A3.11 | **Rekey under a real admin identity** | as soon as `/api/v1/hostkeys` is no longer empty: `scripts/rekey-secrets.sh -i ~/.ssh/bbuijs -s ../bb-open/secrets`, after which `~/.ssh/bbuijs` opens the secrets. This is the step that was missing on 31 July and nearly made the fleet unopenable - it is only possible here, with a freshly reported host key |
 
-A3.3 is de kern van de avond. Kijk in de job zelf, niet in het eindresultaat:
-als het device toevallig al op main stond is de fix niet bewezen.
+A3.3 is the heart of the evening. Look inside the job itself, not at the end
+result: if the device happened to be on main already, the fix is not proven.
 
-## A4. Convergentie
+## A4. Convergence
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A4.1 | Setting wijzigen, mergen | device pakt hem binnen het interval |
-| A4.2 | comin-status | draait op de juiste config; guard heeft niet hoeven ingrijpen |
-| A4.3 | comin-config-guard forceren | stale config → guard herstart comin binnen een uur |
-| A4.4 | Device uitzetten tijdens rollout | komt na aanzetten alsnog bij |
-| A4.5 | Kapotte config aanbieden | device weigert en blijft op de oude generatie |
+| A4.1 | Change a setting, merge | the device picks it up within the interval |
+| A4.2 | comin status | running on the right config; the guard did not have to intervene |
+| A4.3 | Force comin-config-guard | stale config -> the guard restarts comin within the hour |
+| A4.4 | Power the device off during a rollout | it catches up once powered on |
+| A4.5 | Offer a broken config | the device refuses and stays on the old generation |
 
-A4.5 hoort er expliciet in: een device dat een kapotte generatie *wel*
-activeert is gevaarlijker dan een device dat achterloopt.
+A4.5 is in here explicitly: a device that *does* activate a broken
+generation is more dangerous than a device that lags behind.
 
 ## A5. Settings
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A5.1 | Org-setting zetten | overerft naar groep en device |
-| A5.2 | Groep overschrijft org | groepswaarde wint op het device |
-| A5.3 | Device overschrijft groep | devicewaarde wint |
-| A5.4 | Org-setting vergrendelen | groep kan hem niet meer verzwakken |
-| A5.5 | Afhankelijke optie zonder zijn enable | grijs, met uitleg wanneer hij landt |
-| A5.6 | Image-time optie wijzigen | zegt dat hij bij het inspoelen landt, niet nu |
-| A5.7 | Lijstwaarde (bv. tijdservers) | regel per regel bewerkbaar, komt goed aan |
-| A5.8 | Waarde terug op "overerven" | valt terug, blijft niet hangen |
+| A5.1 | Set an org setting | inherits to group and device |
+| A5.2 | Group overrides org | the group value wins on the device |
+| A5.3 | Device overrides group | the device value wins |
+| A5.4 | Lock an org setting | the group can no longer weaken it |
+| A5.5 | A dependent option without its enable | greyed out, with an explanation of when it lands |
+| A5.6 | Change an image-time option | says it lands at imaging, not now |
+| A5.7 | A list value (e.g. time servers) | editable line by line, arrives correctly |
+| A5.8 | Set a value back to "inherit" | falls back, does not stick |
 
-## A6. Policies en condities
+## A6. Policies and conditions
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A6.1 | Policy maken met settings | verschijnt in `/policies` |
-| A6.2 | Toewijzen aan groep | devices in die groep krijgen de waarden |
-| A6.3 | Sleutel in policy vergrendelen | lagere scope kan hem niet overschrijven |
-| A6.4 | **Settings-editor openen op die groep** | de rij noemt de policy; vergrendeld staat als vergrendeld |
-| A6.5 | Compliance-controls invullen (BIO/ISO) | tags op de policy-pagina, terug in de CSV-export |
-| A6.6 | Conditie toevoegen (`disk.free_percent >= 15`) | policy accepteert hem |
-| A6.7 | Kapotte conditie proberen | geweigerd bij opslaan, niet stil genegeerd |
-| A6.8 | Device onder de drempel brengen | bevinding op `/compliance` mét de meting |
-| A6.9 | Device dat niets meldt | **geen** bevinding — ongemeten is geen overtreding |
-| A6.10 | Conditie weer halen | bevinding verdwijnt |
+| A6.1 | Create a policy with settings | appears in `/policies` |
+| A6.2 | Assign to a group | devices in that group get the values |
+| A6.3 | Lock a key in the policy | a lower scope cannot override it |
+| A6.4 | **Open the settings editor on that group** | the row names the policy; locked shows as locked |
+| A6.5 | Fill in compliance controls (BIO/ISO) | tags on the policy page, and back in the CSV export |
+| A6.6 | Add a condition (`disk.free_percent >= 15`) | the policy accepts it |
+| A6.7 | Try a broken condition | refused on save, not silently ignored |
+| A6.8 | Push a device below the threshold | a finding on `/compliance`, with the measurement |
+| A6.9 | A device that reports nothing | **no** finding - unmeasured is not a violation |
+| A6.10 | Remove the condition again | the finding disappears |
 
-A6.9 is de regel die het gedrag draagt: een vloot die machines beschuldigt die
-hij niet kan meten, leert operators de hele categorie te negeren.
+A6.9 is the rule that carries the behaviour: a fleet that accuses machines
+it cannot measure teaches operators to ignore the whole category.
 
-## A7. Changes en gate
+## A7. Changes and the gate
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A7.1 | Wijziging indienen | verschijnt in `/changes` met diff |
-| A7.2 | Gate draait | bouwt, uitslag op de change |
-| A7.3 | Gate laten falen | change is niet te mergen |
-| A7.4 | Vierogen aanzetten | eigen change niet zelf goed te keuren |
-| A7.5 | Tweede goedkeurder | merge lukt |
-| A7.6 | Change intrekken | **OK** (5 aug, 0.82.0). Drie verouderde core updates afgewezen om 17:54:11/12/14; alle drie `abandoned`. In de repo daarna **geen enkele `cr/`-branch** meer en `git worktree list` toont alleen `/data/overlay [main]`. Van beide kanten gemeten: console én git |
-| A7.7 | Twee changes tegelijk | tweede rebaset of weigert netjes |
+| A7.1 | Submit a change | appears in `/changes` with a diff |
+| A7.2 | The gate runs | builds, verdict on the change |
+| A7.3 | Make the gate fail | the change cannot be merged |
+| A7.4 | Turn on four-eyes | you cannot approve your own change |
+| A7.5 | Second approver | the merge succeeds |
+| A7.6 | Withdraw a change | **OK** (5 Aug, 0.82.0). Three stale core updates rejected at 17:54:11/12/14; all three `abandoned`. Afterwards **no `cr/` branch at all** in the repo, and `git worktree list` shows only `/data/overlay [main]`. Measured from both sides: console and git |
+| A7.7 | Two changes at once | the second rebases or refuses cleanly |
 
 ## A8. Rollout
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A8.1 | Ringen definiëren | `/updates/rollout` toont het plan |
-| A8.2 | Wave promoten | alleen ring 1 krijgt de revisie |
-| A8.3 | Soak afwachten | promoveert niet vóór de tijd om is |
-| A8.4 | Gezondheidsdrempel niet gehaald | promotie stopt |
-| A8.5 | Wave laten vastlopen | na het stall-venster een incident dat de devices noemt |
-| A8.6 | `[risk:high]` in een change | extra bevestiging vereist |
-| A8.7 | Auto-flow aan | promoveert vanzelf tot de laatste ring |
-| A8.8 | Ring terugzetten (pin) | devices gaan terug, zonder handwerk |
+| A8.1 | Define rings | `/updates/rollout` shows the plan |
+| A8.2 | Promote a wave | only ring 1 gets the revision |
+| A8.3 | Wait out the soak | does not promote before the time is up |
+| A8.4 | Health threshold not met | promotion stops |
+| A8.5 | Let a wave stall | after the stall window, an incident naming the devices |
+| A8.6 | `[risk:high]` in a change | extra confirmation required |
+| A8.7 | Auto-flow on | promotes by itself up to the last ring |
+| A8.8 | Roll a ring back (pin) | devices go back, with no handwork |
 
-## A9. Updatesbord en incidenten
+## A9. Update board and incidents
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A9.1 | Device op de ring-revisie | staat als "komt overeen" — geen revisiehashes |
-| A9.2 | Config-achterstand | **waarschuwing**, geen issue |
-| A9.3 | Core-achterstand binnen de gratieperiode | waarschuwing |
-| A9.4 | Core-achterstand voorbij 14 dagen | **issue** |
-| A9.5 | Device offline > 2 weken | incident |
-| A9.6 | Device dat nooit meldde | incident |
-| A9.7 | Device met bouwfout | incident met de foutmelding |
-| A9.8 | Onbekende revisie | incident, en niet verward met "nog niet geteld" |
-| A9.9 | Vers ingespoeld device | **geen** melding van een out-of-band wijziging |
+| A9.1 | Device on the ring revision | shows as "matches" - no revision hashes |
+| A9.2 | Config lag | **warning**, not an issue |
+| A9.3 | Core lag within the grace period | warning |
+| A9.4 | Core lag beyond 14 days | **issue** |
+| A9.5 | Device offline > 2 weeks | incident |
+| A9.6 | Device that never reported | incident |
+| A9.7 | Device with a build error | incident carrying the error message |
+| A9.8 | Unknown revision | incident, and not confused with "not counted yet" |
+| A9.9 | Freshly imaged device | **no** report of an out-of-band change |
 
-A9.2 tegen A9.4 is de splitsing die je gevraagd hebt: een config die
-achterloopt is een waarschuwing, een systeem dat achterloopt wordt na verloop
-van tijd een echt probleem.
+A9.2 against A9.4 is the split you asked for: a config that lags is a
+warning, a system that lags becomes a real problem in time.
 
-## A10. Acties op afstand
+## A10. Remote actions
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A10.1 | Diagnostiek opvragen | rapport terug op de devicepagina |
-| A10.2 | Recovery key onthullen | onthulling in de audit, key klopt |
-| A10.3 | Wipe-intent zetten op ongewapend device | device weigert, console meldt "geweigerd" |
-| A10.4 | Wipe wapenen en uitvoeren | device bevestigt, disk-key vernietigd |
-| A10.5 | Wipe die niet afrondt | incident "wipe niet voltooid" |
+| A10.1 | Request diagnostics | report comes back on the device page |
+| A10.2 | Reveal a recovery key | the reveal is in the audit, the key is right |
+| A10.3 | Set a wipe intent on an unarmed device | the device refuses, the console reports "refused" |
+| A10.4 | Arm and execute a wipe | the device confirms, the disk key is destroyed |
+| A10.5 | A wipe that does not complete | incident "wipe not completed" |
 
-A10.3 en A10.5 zijn de belangrijkste van deze groep: een wipe die stil faalt
-is het ergste dat dit product kan doen.
+A10.3 and A10.5 are the most important of this group: a wipe that fails
+silently is the worst thing this product can do.
 
 ## A11. Secrets
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A11.1 | Secret toevoegen | versleuteld in git, klaartekst nergens |
-| A11.2 | Nieuw device krijgt het | ontsleutelt zonder handmatige rekey |
-| A11.3 | Rekey draaien | alle recipients bij, oude weg |
-| A11.4 | Secret intrekken | device kan hem niet meer lezen |
+| A11.1 | Add a secret | encrypted in git, plaintext nowhere |
+| A11.2 | A new device receives it | decrypts without a manual rekey |
+| A11.3 | Run a rekey | all recipients included, old ones gone |
+| A11.4 | Revoke a secret | the device can no longer read it |
 
-## A12. Aantoonbaarheid
+## A12. Demonstrability
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A12.1 | Audit-log | elke wijziging met wie, wat, wanneer |
-| A12.2 | Evidence-export | bestand met de assurance-configuratie |
-| A12.3 | Devices-CSV | klopt met het scherm |
-| A12.4 | Policies-CSV | controls staan erin |
-| A12.5 | Service-account maken en gebruiken | werkt, staat in de audit |
-| A12.6 | Notificatie afvuren | komt aan (of mail is bewust uit — dan NVT) |
+| A12.1 | Audit log | every change with who, what, when |
+| A12.2 | Evidence export | a file with the assurance configuration |
+| A12.3 | Devices CSV | matches the screen |
+| A12.4 | Policies CSV | controls are in it |
+| A12.5 | Create and use a service account | works, appears in the audit |
+| A12.6 | Fire a notification | it arrives (or mail is deliberately off - then N/A) |
 
-## A13. USB-control en printen
+## A13. USB control and printing
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A13.1 | Allowlist vullen **via een policy** | regels landen in de config; de settings-editor biedt de sleutel niet meer aan |
-| A13.2 | USB-control aanzetten in dezelfde policy | wat bij boot inzit blijft werken |
-| A13.2b | Proberen de sleutel tóch via settings te zetten | geweigerd (403) — verbergen is geen handhaving |
-| A13.3 | Toegestaan apparaat inpluggen | werkt |
-| A13.4 | Niet-toegestaan apparaat inpluggen | geblokkeerd |
-| A13.5 | Toetsenbord uit de allowlist laten | **vooraf bedacht**: dit sluit je buiten — alleen testen met een tweede weg naar binnen |
-| A13.6 | Printen aanzetten | printer gevonden, testpagina eruit |
+| A13.1 | Fill the allowlist **through a policy** | rules land in the config; the settings editor no longer offers the key |
+| A13.2 | Turn on USB control in the same policy | whatever is plugged in at boot keeps working |
+| A13.2b | Try to set the key through settings anyway | refused (403) - hiding is not enforcement |
+| A13.3 | Plug in an allowed device | works |
+| A13.4 | Plug in a device that is not allowed | blocked |
+| A13.5 | Leave the keyboard out of the allowlist | **thought through in advance**: this locks you out - only test with a second way in |
+| A13.6 | Turn on printing | printer found, test page comes out |
 
-A13.5 met opzet als waarschuwing en niet als stap. De optie is `riskClass:
-high` juist omdat een allowlist die het toetsenbord mist niet op afstand te
-herstellen is.
+A13.5 is deliberately a warning rather than a step. The option is
+`riskClass: high` precisely because an allowlist that misses the keyboard
+cannot be repaired remotely.
 
-## A14. Lokaal beheerdersaccount
+## A14. Local administrator account
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A14.1 | Aanzetten met naam + secret | inloggen lukt lokaal |
-| A14.2 | Gereserveerde naam proberen | geweigerd bij het opslaan |
-| A14.3 | Uitzetten | account op slot, inloggen lukt niet meer |
+| A14.1 | Turn on with a name plus a secret | local login succeeds |
+| A14.2 | Try a reserved name | refused on save |
+| A14.3 | Turn off | account locked, login no longer possible |
 
-## A15. Gebruikersrechten
+## A15. User rights
 
-Log in als **`bbuijs` (directory-gebruiker)**, niet als de lokale beheerder.
-Dat is het hele punt: dit werd gevonden doordat een LDAP-gebruiker in geen
-enkele lokale groep zit, en met de lokale beheerder merk je er niets van.
+Log in as **`bbuijs` (a directory user)**, not as the local administrator.
+That is the whole point: this was found because an LDAP user is in no local
+group at all, and as the local administrator you notice nothing.
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A15.1 | Wifi aan/uit zetten | gaat direct, geen dialoog |
-| A15.2 | Netwerk kiezen uit de lijst | verbindt, geen dialoog |
-| A15.3 | **Netwerk opslaan voor alle gebruikers** | vraagt om **je eigen** wachtwoord, niet om een beheerderswachtwoord |
-| A15.4 | Meteen een tweede beveiligde actie | vraagt het niet opnieuw (het onthoudt kort) |
-| A15.5 | Tijdzone wijzigen | gaat direct |
-| A15.6 | **Klok handmatig zetten** | **geweigerd** — tijd komt van de vloot |
-| A15.7 | **Hostnaam wijzigen** | **geweigerd** — die hoort bij de vloot |
-| A15.8 | USB-stick koppelen | gaat direct |
-| A15.9 | Dok aanmelden (raakt #18) | gaat direct, geen beheerder nodig |
-| A15.10 | **Gebruikersbeheer openen (account toevoegen)** | **geweigerd** — nooit verleenbaar |
-| A15.11 | Via SSH inloggen en `nmcli` een netwerk laten opslaan | **geweigerd** — geen zitplaats, dus geen recht |
-| A15.12 | Printer toevoegen | **geweigerd** (printen staat uit op deze groep; recht is bewust niet verleend) |
+| A15.1 | Turn wifi on and off | happens directly, no dialog |
+| A15.2 | Pick a network from the list | connects, no dialog |
+| A15.3 | **Save a network for all users** | asks for **your own** password, not for an administrator password |
+| A15.4 | A second privileged action right away | does not ask again (it remembers briefly) |
+| A15.5 | Change the timezone | happens directly |
+| A15.6 | **Set the clock by hand** | **refused** - time comes from the fleet |
+| A15.7 | **Change the hostname** | **refused** - that belongs to the fleet |
+| A15.8 | Mount a USB stick | happens directly |
+| A15.9 | Register a dock (touches #18) | happens directly, no administrator needed |
+| A15.10 | **Open user management (add an account)** | **refused** - never grantable |
+| A15.11 | Log in over SSH and have `nmcli` save a network | **refused** - no seat, so no right |
+| A15.12 | Add a printer | **refused** (printing is off on this group; the right is deliberately not granted) |
 
-A15.11 is de belangrijkste van de reeks. `session` betekent "wie fysiek aan de
-machine zit", niet "wie een shell heeft". Slaagt dit wél, dan is de
-`subject.local && subject.active`-clausule stuk en is elke andere regel hier
-ook niets waard.
+A15.11 is the most important of the series. `session` means "who is
+physically at the machine", not "who has a shell". If this one succeeds, the
+`subject.local && subject.active` clause is broken and every other rule here
+is worthless too.
 
-A15.6, A15.7 en A15.10 zijn negatieve tests. Een uitslag "gaat direct" is
-daar een **fout**, geen succes — makkelijk verkeerd af te vinken als je door
-de lijst raast.
+A15.6, A15.7 and A15.10 are negative tests. A result of "happens directly"
+is a **failure** there, not a success - easy to tick off wrongly when you
+race through the list.
 
-Loopt er iets anders dan verwacht, kijk dan op het toestel mee terwijl je het
-opnieuw probeert:
+If something behaves other than expected, watch along on the machine while
+you retry:
 
 ```
 journalctl -f -u polkit
 ```
 
-Dat noemt het actie-id dat geweigerd wordt, zodat we niet hoeven te gissen
-welk recht ontbreekt.
+That names the action id being refused, so we do not have to guess which
+right is missing.
 
-## A16. Verzoek om verhoogde rechten
+## A16. Elevation requests
 
-Log in als **`bbuijs`**. Zet een recht dat op `off` staat (bijvoorbeeld
-`firmware`) even aan als testdoel, of gebruik een actie die nog om een
-beheerder vraagt.
+Log in as **`bbuijs`**. Turn on a right that is `off` (for example
+`firmware`) as a test target, or use an action that still asks for an
+administrator.
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A16.1 | Actie uitvoeren die om een beheerder vraagt | dialoog verschijnt |
-| A16.2 | Kijk in de console op `/elevation` | verzoek staat er, met gebruiker, toestel en de wachttijd |
-| A16.3 | Goedkeuren | dialoog op de laptop gaat door, **zonder** dat je een wachtwoord typte |
-| A16.4 | Tweede verzoek, nu **weigeren** | dialoog valt terug op het wachtwoordveld |
-| A16.5 | Derde verzoek, niets doen | na vijf minuten verlopen; verdwijnt uit de wachtrij |
-| A16.6 | Verzoek doen met de console onbereikbaar | valt terug op het wachtwoordpad; dialoog blijft **niet** hangen |
-| A16.7 | Gemelde actie op de kaart | staat er met het label "gemeld" — context, geen bewijs |
+| A16.1 | Perform an action that asks for an administrator | the dialog appears |
+| A16.2 | Look at `/elevation` in the console | the request is there, with user, machine and waiting time |
+| A16.3 | Approve | the dialog on the laptop proceeds, **without** you typing a password |
+| A16.4 | Second request, now **deny** | the dialog falls back to the password field |
+| A16.5 | Third request, do nothing | expires after five minutes; disappears from the queue |
+| A16.6 | Make a request with the console unreachable | falls back to the password path; the dialog does **not** hang |
+| A16.7 | A reported action on the card | present with the label "reported" - context, not proof |
 
-A16.6 is de belangrijkste. De hele constructie is `sufficient` en additief:
-faalt hij, dan hoort het dialoog zich te gedragen zoals vóórdat deze functie
-bestond. Blijft hij hangen, dan is dat erger dan een weigering — dan kun je
-niet eens meer een wachtwoord intypen.
+A16.6 is the most important. The whole construction is `sufficient` and
+additive: if it fails, the dialog should behave the way it did before this
+feature existed. If it hangs, that is worse than a refusal - then you cannot
+even type a password any more.
 
-A16.4 hoort óók door te vallen naar het wachtwoordveld. Een weigering door de
-operator sluit de gebruiker niet buiten; het zegt alleen dat er langs deze weg
-geen goedkeuring komt.
+A16.4 must **also** fall through to the password field. A refusal by the
+operator does not lock the user out; it only says no approval is coming by
+this route.
 
-## A17. Release-cache achter een credential
+## A17. Release cache behind a credential
 
-Volgorde is dwingend. Het netrc moet op het toestel staan **voordat** de server
-het token eist, want een toestel dat niet kan authenticeren faalt niet luid —
-het gaat z'n eigen closure bouwen. Dat is uren, en het ziet eruit als een trage
-uitrol in plaats van een toegangsprobleem.
+The order is binding. The netrc has to be on the machine **before** the
+server demands the token, because a machine that cannot authenticate does
+not fail loudly - it starts building its own closure. That is hours, and it
+looks like a slow rollout rather than an access problem.
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| A17.1 | `cacheAuth.enable` aan, convergeren | `/run/sextant/netrc` bestaat (mode 0600) en `nix.conf` noemt `netrc-file` |
-| A17.2 | Inhoud van het netrc | wachtwoord = het device-credential; géén nieuw geheim uitgerold |
-| A17.3 | Cache anoniem opvragen van buiten | **401** |
-| A17.4 | Cache opvragen met het device-credential | 200 |
-| A17.5 | Device intrekken in de console, opnieuw proberen | **401** binnen vijf minuten — dit is wat een gedeeld token niet kan |
-| A17.6 | Een wave uitrollen | device **substitueert**, bouwt niet zelf — kijk naar de duur, niet naar het eindresultaat |
-| A17.7 | Credential op het toestel bewust fout maken | device valt terug op zelf bouwen; bewijs dat het faalgedrag traag is en niet luid |
-| A17.8 | Console tijdelijk onbereikbaar maken voor de gate | cache weigert (**faalt dicht**), device bouwt zelf — niet: cache gaat open |
+| A17.1 | `cacheAuth.enable` on, converge | `/run/sextant/netrc` exists (mode 0600) and `nix.conf` names `netrc-file` |
+| A17.2 | Contents of the netrc | password = the device credential; no new secret was rolled out |
+| A17.3 | Request the cache anonymously from outside | **401** |
+| A17.4 | Request the cache with the device credential | 200 |
+| A17.5 | Revoke the device in the console, try again | **401** within five minutes - this is what a shared token cannot do |
+| A17.6 | Roll out a wave | the device **substitutes**, does not build - look at the duration, not the end result |
+| A17.7 | Deliberately corrupt the credential on the machine | the device falls back to building itself; proof that the failure mode is slow and not loud |
+| A17.8 | Make the console temporarily unreachable for the gate | the cache refuses (**fails closed**), the device builds itself - not: the cache opens up |
 
-A17.6 is de rij die telt. Een geslaagde uitrol bewijst niets: een toestel dat
-zijn hele systeem zelf compileert komt óók aan. Meet de tijd, of kijk in
-`journalctl -u nix-daemon` of er gesubstitueerd is.
+A17.6 is the row that counts. A successful rollout proves nothing: a machine
+that compiles its whole system itself also arrives. Measure the time, or
+look in `journalctl -u nix-daemon` for whether anything was substituted.
 
-A17.7 doe je bewust één keer, zodat je het faalbeeld herkent als het je later
-per ongeluk overkomt.
+A17.7 you do deliberately once, so you recognise the failure picture when it
+happens to you by accident later.
 
 ---
 
-# Run B — met integraties
+# Run B - with integrations
 
-Zet ze **één voor één** aan, met een check-in ertussen. Alles tegelijk
-aanzetten is hoe e2e-2 vier storingen tegelijk kreeg en er drie van miste.
+Turn them on **one at a time**, with a check-in in between. Turning
+everything on at once is how e2e-2 got four failures at once and missed
+three of them.
 
-## B1. NetBird (eerst — de rest loopt erover)
+## B1. NetBird (first - the rest runs over it)
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| B1.1 | `netbird.enable` + setup-key op de groep | device verschijnt als peer in het dashboard |
-| B1.2 | Route naar de clusterdiensten | device bereikt het interne adres |
-| B1.3 | Herstart | peer komt vanzelf terug |
-| B1.4 | Console blijft bereikbaar | check-ins lopen door |
+| B1.1 | `netbird.enable` plus a setup key on the group | the device appears as a peer in the dashboard |
+| B1.2 | Route to the cluster services | the device reaches the internal address |
+| B1.3 | Restart | the peer comes back by itself |
+| B1.4 | The console stays reachable | check-ins continue |
 
 ## B2. Identity (LDAP/SSSD)
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| B2.1 | `identity.enable` met LDAPS | `getent passwd <user>` vindt de gebruiker |
-| B2.2 | Inloggen als LDAP-gebruiker | sessie op het device |
-| B2.3 | Homedir | wordt aangemaakt |
-| B2.4 | Verkeerd certificaat aanbieden | verbinding **geweigerd** — de strikte weg moet strikt zijn |
-| B2.5 | LDAP tijdelijk onbereikbaar | offline login werkt binnen de geldigheidsduur |
-| B2.6 | Instellingen wijzigen | nsncd ververst; geen oude gebruikersnaam blijft hangen |
+| B2.1 | `identity.enable` with LDAPS | `getent passwd <user>` finds the user |
+| B2.2 | Log in as an LDAP user | a session on the device |
+| B2.3 | Home directory | gets created |
+| B2.4 | Present a wrong certificate | connection **refused** - the strict path must be strict |
+| B2.5 | LDAP temporarily unreachable | offline login works within its validity period |
+| B2.6 | Change settings | nsncd refreshes; no old username lingers |
 
-B2.4 en B2.6 komen allebei uit e2e-2. SSSD zet `ldap_id_use_start_tls`
-standaard aan en nscd/nsncd hield oude antwoorden vast — twee stille lagen die
-er als een werkende opstelling uitzagen.
+B2.4 and B2.6 both come out of e2e-2. SSSD turns on `ldap_id_use_start_tls`
+by default and nscd/nsncd held on to old answers - two silent layers that
+looked like a working setup.
 
 ## B3. Wazuh
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| B3.1 | `wazuh.enable` op de groep | agent registreert, manager toont hem **Active** |
-| B3.2 | Agent-queue | overleeft een herstart |
-| B3.3 | Gebeurtenis afvuren | komt aan bij de manager |
-| B3.4 | Manager tijdelijk weg | agent hervat vanzelf |
+| B3.1 | `wazuh.enable` on the group | the agent registers, the manager shows it **Active** |
+| B3.2 | Agent queue | survives a restart |
+| B3.3 | Fire an event | it arrives at the manager |
+| B3.4 | Manager away temporarily | the agent resumes by itself |
 
-B3.2 staat erin omdat precies dat in e2e-2 stukging: systemd zette de
-rechten van de state-directory terug vóór élke start terwijl de binaries naar
-de `wazuh`-gebruiker afschalen.
+B3.2 is in here because exactly that broke in e2e-2: systemd reset the
+permissions of the state directory before *every* start, while the binaries
+drop down to the `wazuh` user.
 
 ## B4. OpenBao
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| B4.1 | Inschakelen | device haalt zijn materiaal op |
-| B4.2 | Token intrekken | toegang stopt |
+| B4.1 | Enable | the device fetches its material |
+| B4.2 | Revoke the token | access stops |
 
 ## B5. Mail
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| B5.1 | SMTP invullen | testbericht komt aan |
-| B5.2 | Notificatie op een incident | mail met bruikbare inhoud |
+| B5.1 | Fill in SMTP | a test message arrives |
+| B5.2 | Notification on an incident | mail with usable content |
 
-## B6. Alles tegelijk
+## B6. Everything at once
 
-| # | Actie | Bewijs |
+| # | Action | Proof |
 |---|---|---|
-| B6.1 | Vol device opnieuw inspoelen | komt met alle integraties op zonder handwerk |
-| B6.2 | Volledige rollout over de ringen | geen integratie breekt bij een generatiewissel |
-| B6.3 | Compliance-beeld | schoon, of alleen bevindingen die je verwacht |
+| B6.1 | Re-image a fully loaded device | comes up with every integration, no handwork |
+| B6.2 | Full rollout across the rings | no integration breaks on a generation switch |
+| B6.3 | Compliance picture | clean, or only findings you expect |
 
-B6.1 is de eigenlijke productvraag: "gemeente koopt bundel" betekent dat een
-lege laptop met één inspoelactie op alles aangesloten is.
+B6.1 is the actual product question: "a municipality buys the bundle" means
+an empty laptop is connected to everything after one imaging action.
 
 ---
 
-## Afronden
+## Wrapping up
 
-| # | Actie |
+| # | Action |
 |---|---|
-| C1 | Bevindingen wegschrijven per run |
-| C2 | Elke FOUT wordt een taak, met symptoom en bewijs |
-| C3 | Blokkerend voor 1.0.0 markeren |
-| C4 | Draaiboek bijwerken waar een stap onduidelijk bleek |
+| C1 | Write up the findings per run |
+| C2 | Every FAIL becomes a task, with symptom and evidence |
+| C3 | Mark what blocks 1.0.0 |
+| C4 | Update this script wherever a step turned out to be unclear |
 
-C4 is geen formaliteit: elke stap waarbij je moest nadenken over wat "goed"
-betekent, is een stap die de volgende keer verkeerd wordt uitgevoerd.
+C4 is not a formality: every step where you had to think about what "good"
+means is a step that will be executed wrongly next time.

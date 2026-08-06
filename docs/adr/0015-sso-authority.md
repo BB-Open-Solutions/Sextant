@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted 2026-07-28 (Bram): "LDAP is de source of truth als het op
-users en hun wachtwoorden aankomt - zo doet Univention dat ook."
+Accepted 2026-07-28 (Bram): "LDAP is the source of truth where users and
+their passwords are concerned - that is how Univention does it too."
 Originally drafted after the 2026-07-20 discussion. Settles which
 identity component issues tokens when a deployment combines Sextant, a
 directory and one or more IdP-capable products.

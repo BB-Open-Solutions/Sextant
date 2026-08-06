@@ -2,10 +2,9 @@
 
 ## Status
 
-Accepted 2026-08-07 (Bram): "We moeten bij de deploy dus een mogelijkheid
-hebben om de user van sextant op git mee te geven met minimale rechten.
-Daarnaast moet het wachtwoord en key rouleerbaar zijn in de interface voor
-een admin."
+Accepted 2026-08-07 (Bram): "At deploy time we need a way to supply the git
+user Sextant runs as, with minimal rights. On top of that, an admin has to
+be able to rotate the password and the key from the interface."
 
 Closes audit finding H2 (`docs/audit/security-2026-08.md`). Does not change
 ADR 0012's fail-closed gate or ADR 0005's config-as-data rule.

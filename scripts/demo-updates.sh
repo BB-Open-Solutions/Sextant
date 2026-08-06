@@ -53,7 +53,7 @@ for i in $(seq 1 60); do
   fi
   sleep 1
 done
-[ "$ok" -ge 2 ] || { echo "postgres kwam niet op"; exit 1; }
+[ "$ok" -ge 2 ] || { echo "postgres did not come up"; exit 1; }
 
 say "overlay-repo seeden met $DEVICES fake devices..."
 REPO="$DEMO_DIR/overlay"
@@ -73,7 +73,7 @@ SEXTANT_REPO="$REPO" SEXTANT_GATE=none SEXTANT_ADDR="$ADDR" \
 CONSOLE_PID=$!
 for i in $(seq 1 30); do
   curl -fsS -o /dev/null "http://$ADDR/healthz" 2>/dev/null && break
-  kill -0 "$CONSOLE_PID" 2>/dev/null || { echo "console stierf bij het opstarten (zie log hierboven)"; exit 1; }
+  kill -0 "$CONSOLE_PID" 2>/dev/null || { echo "the console died during start-up (see the log above)"; exit 1; }
   sleep 1
 done
 

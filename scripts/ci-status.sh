@@ -43,7 +43,7 @@ while :; do
               | "  gefaald: \(.summary) (na \(.duration))"' 2>/dev/null || true
       fi
       exit 1 ;;
-    "") echo "geen run voor $sha (nog niet opgepikt)" ;;
+    "") echo "no run for $sha (not picked up yet)" ;;
     *) echo "CI ${status}…" ;;
   esac
   [ "${1:-}" = "--watch" ] || exit 2

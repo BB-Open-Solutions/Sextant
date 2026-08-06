@@ -7,14 +7,14 @@ shape.
 
 Bram's brief, verbatim:
 
-> "settings aanpassen of upstream dawo update --> change request --> Test -->
-> merge --> rollout"
+> "change a setting, or an upstream dawo update --> change request --> Test
+> --> merge --> rollout"
 >
-> "Als je alleen een groep update wil je dat ook in waves kunnen doen. Nu zet
-> je er eentje neer."
+> "If you update just one group you want to be able to do that in waves too.
+> Right now you just drop one in."
 >
-> "simpeler en beter" / "het testproces van een update zit er niet in" / "We
-> moeten dit soort processen echt mega goed uitdenken."
+> "simpler and better" / "the test process for an update is not in there" /
+> "we really have to think processes like this through properly."
 
 ## 1. Problem statement
 
@@ -45,7 +45,7 @@ just the finance group": today that path is `fleet.SetGroupPin` applied
 directly (`RolloutService.Tick`'s `Promote` case calls it per ring, but a
 standalone group update goes through `ConfigService.Apply` with no rings at
 all) - one commit, one shot, no soak, no health floor, no canary. Bram's
-"nu zet je er eentje neer" names exactly this: the wave machinery
+"right now you just drop one in" names exactly this: the wave machinery
 (`rollout.Ring.SoakMinutes` / `MinHealthyPercent` / `MaxDevices` /
 `RequireApproval`) exists but is wired to the whole-fleet plan only. A
 scoped change - one group, one device class - has no waved path at all.
@@ -318,20 +318,20 @@ rollouts, (4) ring 0 structural with only a logged per-rollout owner skip,
 (5) upstream updates auto-open a CR up to ready-for-review, (6) the
 per-host gate proof is never skipped - urgency shortens soaks, never proof.
 
-## 9. Upstream auto-CR (besluit 5)
+## 9. Upstream auto-CR (decision 5)
 
-Fase 1 (gebouwd): de console pollt de core-repo (`SEXTANT_UPSTREAM_REPO`,
-elke 30 min, `git ls-remote HEAD`). Een nieuwe revisie staget precies één
-change request (`core-<rev12>`) en notificeert de owners
-(approval-needed → /updates). De laatst verwerkte revisie staat in de
-state-store, dus een herstart of een handmatig geopende CR leidt nooit
-tot duplicaten.
+Phase 1 (built): the console polls the core repo (`SEXTANT_UPSTREAM_REPO`,
+every 30 minutes, `git ls-remote HEAD`). A new revision stages exactly one
+change request (`core-<rev12>`) and notifies the owners (approval-needed ->
+/updates). The last processed revision lives in the state store, so a
+restart or a manually opened CR never produces duplicates.
 
-Fase 2 (te bouwen): de INHOUD van de CR — de flake-input-bump — vergt nix
-en netwerk en hoort dus bij de gate-runner, niet in de console-pod. Plan:
-een job-type "bump" naast de bestaande build-jobs; de runner checkt de
-CR-branch uit, draait `nix flake update <core-input>`, commit het lock-
-bestand op de branch en meldt klaar. Daarna doorloopt de CR het gewone
-pad: gate bouwt, kanban toont "ready", mens keurt (vier-ogen), merge →
-testwave → ladder. Urgente core-fixes combineren met de spoedprocedure
-(§8/expedited): kortere soak, zelfde bewijs.
+Phase 2 (to build): the CONTENT of the CR - the flake input bump - needs nix
+and network, and therefore belongs to the gate-runner rather than the
+console pod. Plan: a job type "bump" alongside the existing build jobs; the
+runner checks out the CR branch, runs `nix flake update <core-input>`,
+commits the lock file on the branch and reports done. After that the CR
+follows the ordinary path: the gate builds, the kanban shows "ready", a
+human approves (four-eyes), merge -> test wave -> ladder. Urgent core fixes
+combine this with the expedited procedure (§8/expedited): shorter soak, same
+proof.

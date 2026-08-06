@@ -2,10 +2,10 @@
 
 ## Status
 
-Accepted 2026-08-06 (Bram): "Ik wil in Sextant eigenlijk dit een soort
-standaard overlay gaan maken met alleen de mogelijkheid om de integraties
-aan/uit te zetten. Dit vooral omdat die overlays in de praktijk weinig tot
-niet aan zullen worden gepast."
+Accepted 2026-08-06 (Bram): "What I really want is to make this a kind of
+standard overlay in Sextant, with only the ability to switch the
+integrations on and off - mainly because in practice those overlays will
+barely be adjusted, if at all."
 
 ## Context
 

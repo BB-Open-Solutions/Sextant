@@ -1,76 +1,81 @@
-# UI-spec: Updates & uitrol (voor Stitch-redesign)
+# UI spec: updates and rollout (for the Stitch redesign)
 
-Doel: het updates-beheer zo helder als de inspoelstraat. Model = Intune/Autopatch
-(bewezen), interface gelikter, plus onze eigen features (soak, drempels, pauze,
-stragglers, boot-rollback). Zie docs/design/delivery-process.md §7-8 voor de
-besluiten; dit document beschrijft alleen de schermen.
+Goal: make update management as clear as the imaging station. The model is
+Intune/Autopatch (proven), the interface slicker, plus our own features
+(soak, thresholds, pause, stragglers, boot rollback). See
+docs/design/delivery-process.md §7-8 for the decisions; this document
+describes the screens only.
 
-## Begrippenkader (belangrijk voor alle schermen)
+## Vocabulary (matters for every screen)
 
-Twee soorten wijzigingen, twee reizen:
+Two kinds of change, two journeys:
 
-- **Updates** (core/image: nieuwe NixOS-release, security-patches) raken ALLE
-  devices → volledige uitrol-ladder: testdevices eerst, daarna percentage-waves.
-- **Changes** (instellingen: org/groep/device-scope) raken alleen hun scope →
-  testwave eerst, daarna alleen de geraakte scope. Géén vloot-ladder.
+- **Updates** (core/image: a new NixOS release, security patches) touch ALL
+  devices -> the full rollout ladder: test devices first, then percentage
+  waves.
+- **Changes** (settings: org/group/device scope) touch only their scope ->
+  test wave first, then only the affected scope. No fleet ladder.
 
-De per-groep-ladder als primair begrip verdwijnt uit de UI; groepen zijn een
-implementatiedetail van de percentage-waves (een wave bestaat uit hele groepen,
-kleinste eerst, tot het percentage bereikt is).
+The per-group ladder disappears from the UI as a primary concept; groups are
+an implementation detail of the percentage waves (a wave consists of whole
+groups, smallest first, until the percentage is reached).
 
-## Scherm 1: Org → tegel "Updates-beleid" (/org/updates)
+## Screen 1: Org -> "Update policy" tile (/org/updates)
 
-Set-en-forget; drie keuzes, verder niets. Structuur (genummerde stappen):
+Set and forget; three choices and nothing else. Structure (numbered steps):
 
-1. **Card "Testdevices"** (stap 1)
-   - Eén select: kies de testgroep. Helptekst: "Deze devices krijgen elke
-     update altijd eerst, op echte hardware, met handmatig aftekenen voordat de
-     vloot volgt. Meestal ICT's eigen machines."
-   - Badge toont huidige testgroep + aantal devices.
-2. **Card "Uitrol-ladder"** (stap 2)
-   - Percentage-invoer met presets als klikbare chips: `10 · 30 · 60`
-     (aanbevolen), `10 · 20 · 30 · 40`, `25 · 75`, en "eigen verdeling"
-     (vrij veld). Eén knop: "Plan afleiden".
-   - **Live plan-preview** daaronder: per wave een rij met wave-naam
-     ("Wave 1 · 10%"), de groepen die erin vallen, het aantal devices en het
-     ECHTE percentage (groepsgranulariteit ≈ gevraagd percentage). Testwave
-     bovenaan, visueel onderscheiden (groen accent + aftekenen-icoon).
-3. **Card "Onderhoudsvenster"** (stap 3 — nog te bouwen UI)
-   - Per groep een venster "HH:MM–HH:MM" (bestaat al als setting
-     dawo.updates.maintenanceWindow); default "altijd".
-4. **Card "Governance"** — de drie vinkjes (change-request verplicht,
-   vier-ogen, testwave verplicht). Blijft zoals nu.
-5. **Details "Geavanceerd"** — handmatige wave-ladder (alleen voor
-   vloot-brede uitzonderingen). Ingeklapt, bewust onopvallend.
+1. **Card "Test devices"** (step 1)
+   - One select: pick the test group. Help text: "These devices always get
+     every update first, on real hardware, with manual sign-off before the
+     fleet follows. Usually IT's own machines."
+   - A badge shows the current test group and its device count.
+2. **Card "Rollout ladder"** (step 2)
+   - A percentage input with presets as clickable chips: `10 · 30 · 60`
+     (recommended), `10 · 20 · 30 · 40`, `25 · 75`, and "custom split" (free
+     field). One button: "Derive plan".
+   - **Live plan preview** below it: one row per wave with the wave name
+     ("Wave 1 · 10%"), the groups that fall into it, the device count and
+     the REAL percentage (group granularity ≈ the requested percentage). The
+     test wave sits on top, visually distinct (green accent plus a sign-off
+     icon).
+3. **Card "Maintenance window"** (step 3 - UI still to be built)
+   - A window per group, "HH:MM-HH:MM" (already exists as the setting
+     dawo.updates.maintenanceWindow); defaults to "always".
+4. **Card "Governance"** - the three checkboxes (change request required,
+   four-eyes, test wave required). Stays as it is.
+5. **Details "Advanced"** - the manual wave ladder (for fleet-wide
+   exceptions only). Collapsed, deliberately inconspicuous.
 
-Onzichtbare defaults (NIET in de UI): drempel 95%, soak 60/30 min,
-scatter, max-in-flight, boot-health-rollback (geen uit-knop).
+Invisible defaults (NOT in the UI): threshold 95%, soak 60/30 min, scatter,
+max-in-flight, boot-health rollback (no off switch).
 
-## Scherm 2: Sidebar "Updates" (/updates) — overzicht
+## Screen 2: Sidebar "Updates" (/updates) - overview
 
-- Bovenaan: samenvattingscard van de lopende uitrol (badge
-  Actief/Gepauzeerd/—, actieve wave, knop "Bekijk uitrol") of een
-  start-knop als er niets loopt.
-- Bij starten: toon wat er uitgerold wordt en of het een **update** (hele
-  vloot, volledige ladder) of een **change** (scope X, testwave + scope) is.
-- Daaronder: wijzigingen-kanban (CR's) zoals nu.
+- At the top: a summary card for the running rollout (badge
+  Active/Paused/-, the active wave, a "View rollout" button), or a start
+  button when nothing is running.
+- On starting: show what is being rolled out and whether it is an **update**
+  (whole fleet, full ladder) or a **change** (scope X, test wave plus that
+  scope).
+- Below that: the changes kanban (CRs) as it is now.
 
-## Scherm 3: /updates/rollout — monitoring
+## Screen 3: /updates/rollout - monitoring
 
-- Status-regel + Goedkeuren/Pauzeer/Hervat/Stop.
-- Wave-kaarten in wizard-idioom: actieve wave gemarkeerd, progressbar,
-  "Nu:"-regel in leek-taal, stragglers-uitklap (device + reden).
-- Wave-labels = de ladder-namen ("Testgroep", "Wave 1 · 10%", ...).
+- Status line plus Approve/Pause/Resume/Stop.
+- Wave cards in the wizard idiom: the active wave marked, a progress bar, a
+  "Now:" line in plain language, a stragglers expander (device plus reason).
+- Wave labels are the ladder names ("Test group", "Wave 1 · 10%", ...).
 
-## Motor (al gebouwd, 17 jul)
+## Engine (already built, 17 July)
 
-- Een wave kan meerdere groepen omvatten (`groups` naast `group`).
-- Plan-afleiding: testgroep + percentages → waves met hele groepen,
-  kleinste eerst (`derivePlan`), gevalideerd (groep in één wave).
-- Convergentie/stragglers tellen over alle groepen van de wave.
+- A wave can span several groups (`groups` alongside `group`).
+- Plan derivation: test group plus percentages -> waves of whole groups,
+  smallest first (`derivePlan`), validated (a group appears in one wave).
+- Convergence and stragglers count across all groups in the wave.
 
-## Nog te bouwen (na Stitch)
+## Still to build (after Stitch)
 
-- Chips/presets (nu: één tekstveld), onderhoudsvenster-card,
-  changes-vs-updates-classificatie bij het starten, scoped-rollout-afleiding
-  (testwave + alleen geraakte scope), #88 auto-CR voor upstream-updates.
+- Chips/presets (today: one text field), the maintenance-window card,
+  change-vs-update classification when starting, scoped rollout derivation
+  (test wave plus the affected scope only), #88 auto-CR for upstream
+  updates.

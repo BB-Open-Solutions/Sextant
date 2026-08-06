@@ -72,7 +72,7 @@ type Assurance struct {
 	RequireChangeRequest bool `json:"requireChangeRequest,omitempty"`
 	// RequireTestWave forbids starting a rollout whose plan has no gated test
 	// wave (a first ring with a manual approval gate). An org owner may skip
-	// it for a specific rollout ("hoeft niet, direct doorvoeren").
+	// it for a specific rollout ("not needed here, push it straight through").
 	RequireTestWave bool `json:"requireTestWave,omitempty"`
 	// ManualRolloutOnly opts OUT of delivery-on-merge: with it set, merging a
 	// change stages nothing and an operator starts every run by hand. Off by
