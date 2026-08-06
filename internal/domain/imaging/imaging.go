@@ -193,7 +193,13 @@ func (j Job) Validate() error {
 	return nil
 }
 
-// NormalizeMAC lower-cases and trims a MAC so equal addresses compare equal.
+// NormalizeMAC lower-cases, trims, and accepts the separator a station
+// happens to use. Hyphens are the other common spelling (Windows, and some
+// dnsmasq lease dumps), so a station using them would otherwise have its
+// WHOLE report rejected - Validate demands the canonical colon form, and a
+// report is validated as one unit. This function's job is to make equal
+// addresses compare equal; the strictness lives in Validate, where a caller
+// can see it.
 func NormalizeMAC(mac string) string {
-	return strings.ToLower(strings.TrimSpace(mac))
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(mac)), "-", ":")
 }

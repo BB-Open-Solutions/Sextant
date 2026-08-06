@@ -121,3 +121,31 @@ func TestReportValidateBoundsBatch(t *testing.T) {
 		t.Fatal("oversized batch accepted")
 	}
 }
+
+// TestReportAcceptsAHyphenatedStation covers what NormalizeMAC's comment
+// always claimed and did not do. A report is validated as one unit, and
+// Validate demands the canonical colon form - so before 2026-08-07 a station
+// that spelled MACs with hyphens (Windows, some dnsmasq lease dumps) had its
+// WHOLE report rejected, not just the offending entry.
+func TestReportAcceptsAHyphenatedStation(t *testing.T) {
+	r := Report{Devices: []Discovered{
+		{MAC: "AA-BB-CC-DD-EE-01", Phase: "pxe"},
+		{MAC: "aa:bb:cc:dd:ee:02", Phase: "pxe"},
+	}}
+	if err := r.Validate(); err != nil {
+		t.Fatalf("a hyphenated report was rejected: %v", err)
+	}
+	if r.Devices[0].MAC != "aa:bb:cc:dd:ee:01" {
+		t.Errorf("MAC normalised to %q", r.Devices[0].MAC)
+	}
+	// And the duplicate check still works ACROSS spellings: the same address
+	// twice in two formats is one device, and letting it through would give a
+	// station two lease entries for one machine.
+	dup := Report{Devices: []Discovered{
+		{MAC: "AA-BB-CC-DD-EE-01", Phase: "pxe"},
+		{MAC: "aa:bb:cc:dd:ee:01", Phase: "pxe"},
+	}}
+	if err := dup.Validate(); err == nil {
+		t.Error("the same MAC in two spellings passed the duplicate check")
+	}
+}
