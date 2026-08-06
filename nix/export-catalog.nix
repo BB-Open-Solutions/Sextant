@@ -85,15 +85,25 @@ let
   # label: an option annotated `// { label = "LUKS mapper"; }` shows that
   # human name in the console instead of the raw dotted path (which stays
   # visible as the technical identity - Name remains the API key).
-  label = opt:
-    if (opt.label or "") != "" then { label = opt.label; } else { };
-  # widget: an option annotated `// { widget = "timerange"; }` picks the
-  # control the console renders. Only for what a TYPE cannot imply - a string
-  # that is really a from and a to, a list that is really a few named slots.
-  # Anything derivable (boolean, integer, enum, list) needs no annotation, and
-  # an unknown name falls back to the type rather than rendering nothing.
-  widget = opt:
-    if (opt.widget or "") != "" then { widget = opt.widget; } else { };
+  # presentation: the label/widget layer Sextant owns (ADR 0019). Half the
+  # settings surface is declared in DAWO-NixOS upstream, where annotating an
+  # option needs a fork and a merge request, and on 2026-08-06 that showed as
+  # 36 of 69 options rendering as raw dotted paths. An upstream label always
+  # wins; an entry here is a catch-up to be deleted once the core carries it.
+  presentation = (builtins.fromJSON (builtins.readFile ./catalog-presentation.json)).options;
+  presentationFor = name: presentation.${name} or { };
+  label = opt: name:
+    let up = opt.label or ""; in
+    if up != "" then { label = up; }
+    else if (presentationFor name) ? label then { label = (presentationFor name).label; }
+    else { };
+  # widget names the control when the TYPE cannot imply it. Upstream may set
+  # it directly; otherwise the presentation layer may.
+  widget = opt: name:
+    let up = opt.widget or ""; in
+    if up != "" then { widget = up; }
+    else if (presentationFor name) ? widget then { widget = (presentationFor name).widget; }
+    else { };
   walk = prefix: opts:
     lib.concatLists (lib.mapAttrsToList
       (name: v:
@@ -109,10 +119,52 @@ let
               if lib.isString v.description
               then v.description
               else v.description.text or "";
-          } // plainDefault v // riskClass v // secret v // label v // widget v)
+          } // plainDefault v // riskClass v // secret v
+            // label v (lib.concatStringsSep "." path)
+            // widget v (lib.concatStringsSep "." path))
         else if lib.isAttrs v then walk path v
         else [ ])
       opts);
+  # checked enforces the two rules that keep the presentation layer honest
+  # (ADR 0019). Both throw at export rather than warn, because a mechanism
+  # that relies on somebody noticing is how 36 unlabelled options shipped.
+  #
+  #   1. Every exported option has a label - upstream or from the layer. A new
+  #      core option cannot arrive as a dotted path.
+  #   2. No entry in the layer names an option that is not exported. This is
+  #      the RENAME guard: without it an upstream rename silently drops the
+  #      label and the option quietly reverts to its dotted path. With it, a
+  #      rename is one orphan plus one unlabelled option - two loud failures
+  #      instead of one silent regression.
+  #
+  # Rule 2 is scoped to the names this export actually walked, so a layer
+  # covering options an overlay does not install is not an error: an entry is
+  # orphaned only when NOTHING in the export defines it.
+  checked = entries:
+    let
+      unlabelled = lib.filter (e: (e.label or "") == "") entries;
+      exported = lib.listToAttrs (map (e: lib.nameValuePair e.name true) entries);
+      orphans = lib.filter (n: !(exported ? ${n})) (lib.attrNames presentation);
+      names = l: lib.concatStringsSep ", " l;
+    in
+    if unlabelled != [ ] then
+      throw ''
+        catalog export: ${toString (lib.length unlabelled)} option(s) have no label:
+          ${names (map (e: e.name) unlabelled)}
+        Add `// { label = "..."; }` where the option is declared, or an entry in
+        nix/catalog-presentation.json when it is declared upstream (ADR 0019).
+        An operator should never be shown a raw dotted path.
+      ''
+    else if orphans != [ ] then
+      throw ''
+        catalog export: nix/catalog-presentation.json names ${toString (lib.length orphans)} option(s)
+        that this export does not define:
+          ${names orphans}
+        Either the option was renamed upstream - fix the key, and check whether
+        the new name now needs a label - or it is gone and the entry should be
+        deleted (ADR 0019).
+      ''
+    else entries;
 in
 {
   # exportCatalogFromOptions: options -> catalog entries. Takes the option
@@ -120,7 +172,7 @@ in
   # full NixOS module sets export without re-evaluating them standalone -
   # evalModules cannot handle real NixOS blocks (they need the whole module
   # system), a finished host evaluation already did the hard part.
-  exportCatalogFromOptions = options: walk [ ] (options.dawo or { });
+  exportCatalogFromOptions = options: checked (walk [ ] (options.dawo or { }));
 
   # exportCatalogFromClassOptions: { <class> = <evaluated host options>; ... }
   # -> catalog entries tagged with the classes whose IMAGE defines them.
@@ -162,7 +214,7 @@ in
               then { }
               else { classes = owners; });
     in
-    map entryFor (lib.sort (a: b: a < b) names);
+    checked (map entryFor (lib.sort (a: b: a < b) names));
 
   # exportCatalog: modules -> [ { name; type; description; default?; riskClass? } ]
   # Evaluate a STANDALONE module set for its option declarations (miniature
