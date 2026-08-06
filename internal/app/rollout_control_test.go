@@ -147,3 +147,73 @@ func TestStragglersIsSilentWhenTheSourceCannotAnswer(t *testing.T) {
 		t.Errorf("stragglers from a source that cannot answer = %v, want nil", got)
 	}
 }
+
+// TestStartScopedNarrowsTheLadderToTheScope covers the scoped-rollout path.
+// A settings change that touches one group must not walk the whole fleet
+// ladder: doing so would move every ring for a change most of the fleet does
+// not have, and the wait would teach operators to bypass the ladder entirely.
+//
+// The test group still goes first. That is the property that must survive the
+// narrowing - a scoped run is smaller, not unproven.
+func TestStartScopedNarrowsTheLadderToTheScope(t *testing.T) {
+	rs, _, _, _, _ := newRolloutStack(t)
+	ctx := context.Background()
+
+	st, err := rs.StartScoped(ctx, "rev-2", "fleet", ports.Author{})
+	if err != nil {
+		t.Fatalf("StartScoped: %v", err)
+	}
+	if st == nil {
+		t.Fatal("StartScoped returned no state")
+	}
+
+	// The run stores its own ring snapshot, which is what the engine walks.
+	if len(st.Rings) != 2 {
+		t.Fatalf("scoped run has %d rings, want the test wave plus the scope", len(st.Rings))
+	}
+	if got := st.Rings[0].GroupList(); len(got) != 1 || got[0] != "canary" {
+		t.Errorf("first wave = %v, want the test group; a scoped run must still be proven first", got)
+	}
+	if got := st.Rings[1].GroupList(); len(got) != 1 || got[0] != "fleet" {
+		t.Errorf("second wave = %v, want only the scope", got)
+	}
+}
+
+// TestStartScopedOnTheTestGroupIsASingleWave: when the scope IS the test
+// group, a second identical wave would ask an operator to approve the same
+// devices twice.
+func TestStartScopedOnTheTestGroupIsASingleWave(t *testing.T) {
+	rs, _, _, _, _ := newRolloutStack(t)
+	ctx := context.Background()
+	st, err := rs.StartScoped(ctx, "rev-2", "canary", ports.Author{})
+	if err != nil {
+		t.Fatalf("StartScoped: %v", err)
+	}
+	if len(st.Rings) != 1 {
+		t.Errorf("scoping to the test group produced %d waves, want one", len(st.Rings))
+	}
+}
+
+func TestStartScopedRefusesWhatItCannotHonour(t *testing.T) {
+	rs, _, _, _, _ := newRolloutStack(t)
+	ctx := context.Background()
+
+	// An unknown group must fail loudly. Silently falling back to the full
+	// ladder would roll a scoped change across the whole fleet - the exact
+	// opposite of what the caller asked for.
+	if _, err := rs.StartScoped(ctx, "rev-2", "no-such-group", ports.Author{}); err == nil {
+		t.Error("scoping to an unknown group was accepted")
+	}
+	// And an empty target is refused before anything is stored.
+	if _, err := rs.StartScoped(ctx, "", "fleet", ports.Author{}); err == nil {
+		t.Error("an empty target was accepted")
+	}
+	// Neither attempt may have left a run behind.
+	st, _, err := rs.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st != nil {
+		t.Errorf("a refused start left a run in the store: %+v", st)
+	}
+}

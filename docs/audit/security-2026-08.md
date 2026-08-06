@@ -312,6 +312,40 @@ makes the one after that distrustful.
 **Closed 7 August**, together with M2: the paragraph carrying that reference
 was rewritten when R2 closed, and the reference went with it.
 
+### L2 - One write path takes a settings key the catalog has never heard of
+
+**Measured.** Three paths write a setting, and they do not agree on whether
+the key has to exist:
+
+- The settings page iterates `cat.Entries` and reads only `v:<name>` fields
+  (`internal/http/web/settings.go:399`), so an unknown key cannot appear. The
+  guarantee is structural.
+- The API looks the key up and refuses what it does not find
+  (`internal/http/api/handlers.go:215`).
+- **The device page does neither.** `postDeviceSetting`
+  (`internal/http/web/devices_page.go:580`) takes a free-form `key` form
+  field and writes it straight through the gate.
+
+**Impact: low, and worth saying why it is not nothing.** This is not a
+privilege escalation - the handler is Editor-scoped on that device like every
+other write, and the nix gate still has to accept the resulting document. The
+cost is that a typo becomes a setting that governs nothing, stored in the one
+document whose entire purpose is to state what governs. An operator reading
+`apps.ofice: true` on a device page has no way to tell it from a setting that
+works, and neither has the next reviewer.
+
+It is the same shape as R3: a rule two paths enforce and a third relies on
+nobody exercising.
+
+**Advice.** Have `postDeviceSetting` look the key up the way the API does.
+Deliberately NOT done at the moment of discovery (02:00, 2026-08-07): it
+tightens a write path, and if a deployment's `catalog.json` is incomplete it
+would start refusing writes an operator has been making. Small change, but it
+wants daylight and a look at what is actually stored first.
+
+A test pins the current behaviour (`device_ops_more_test.go`) so that closing
+this is a deliberate change with a failing test rather than a silent drift.
+
 ## Checked and sound
 
 - **Authorisation per request.** Every mutating web handler calls
