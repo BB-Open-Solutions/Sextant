@@ -1,203 +1,196 @@
-# Security audit, augustus 2026
+# Security audit, August 2026
 
-Gelezen tegen `main` op 2026-08-06, vóór 1.0.0 en vóór Zaanstad. Elke
-bevinding verwijst naar `file:line` en is nagemeten in de draaiende
-productie waar dat kon. Bevindingen zonder bewijs staan er niet in.
+Read against `main` on 2026-08-06, before 1.0.0 and before Zaanstad. Every
+finding cites `file:line` and was measured against running production
+wherever that was possible. Findings without evidence are not in here.
 
-Werkwijze: adversarieel lezen per pad, niet per bestand. Waar een pad langs
-een claim in `docs/threat-model.md` kwam, is die claim tegen de code
-gehouden.
+Method: read adversarially per path, not per file. Where a path crossed a
+claim in `docs/threat-model.md`, that claim was held against the code.
 
-## Bevindingen
+## Findings
 
-### H1 — Het gedeelde bridge-token staat aan, en het station kan niet zonder
+### H1 - The shared bridge token is on, and the station cannot do without it
 
-**Wat.** `POST /api/checkin` accepteert twee bewijzen van identiteit
-(`internal/http/api/checkin.go:324-333`). Het eerste is een per-device
-credential dat aan de tag gebonden is - een credential van apparaat A wordt
-voor tag B geweigerd, en dat is correct. Het tweede is een **gedeeld token
-dat aan niets gebonden is**: wie het heeft, mag inchecken als elke tag.
+**What.** `POST /api/checkin` accepts two proofs of identity
+(`internal/http/api/checkin.go:324-333`). The first is a per-device
+credential bound to the tag - device A's credential is refused for tag B,
+which is correct. The second is a **shared token bound to nothing**: whoever
+holds it may check in as any tag.
 
-Gemeten in productie: `SEXTANT_CHECKIN_TOKEN` staat in het secret
-`sextant-v2` en komt via `envFrom` in de pod terecht (64 tekens, gezet).
+Measured in production: `SEXTANT_CHECKIN_TOKEN` is in the secret
+`sextant-v2` and reaches the pod through `envFrom` (64 characters, set).
 
-**Waarom dit een bevinding is en geen bekend restrisico.** `threat-model.md`
-beschrijft dit als R2 en noemt de sluitvoorwaarde: *"retire the shared
+**Why this is a finding and not a known residual risk.** `threat-model.md`
+describes it as R2 and names the closing condition: *"retire the shared
 bridge token once every device is enrolled with its own credential"*.
 
-Die voorwaarde is **niet** gehaald, en het is het waard om te weten welk
-apparaat hem tegenhoudt. Gemeten:
+That condition is **not** met, and it is worth knowing which device holds it
+open. Measured:
 
-- `e2e5` heeft `device-e2e5` en checkt in via het sterke pad.
-- `dawo-inspoelstraat` heeft **geen** device-credential. Wel een
-  `station-dawo-inspoelstraat` van soort `station`, en
-  `authenticateBound` weigert op `tok.Kind != want`
-  (`internal/app/cred.go:46`) - een station-credential authenticeert dus
-  geen device-check-in.
-- Het station checkte vandaag om 19:14 nog in (`device_status`).
+- `e2e5` has `device-e2e5` and checks in over the strong path.
+- `dawo-inspoelstraat` has **no** device credential. It has a
+  `station-dawo-inspoelstraat` of kind `station`, and `authenticateBound`
+  refuses on `tok.Kind != want` (`internal/app/cred.go:46`) - so a station
+  credential does not authenticate a device check-in.
+- The station checked in today at 19:14 (`device_status`).
 
-Daaruit volgt dat het station zich met het **gedeelde token**
-authenticeert. Het weghalen breekt zijn check-in per direct.
+It follows that the station authenticates with the **shared token**.
+Removing it breaks its check-in immediately.
 
-De oorzaak ligt niet bij de credential maar bij de levensloop: het station
-is *geregistreerd* als station, nooit *ingespoeld* als apparaat, dus het
-kreeg nooit de credential die de inspoelstraat uitdeelt. Dat is dezelfde
-wortel als waarom het geen netrc heeft voor cache-authenticatie.
+The cause is not the credential but the lifecycle: the station is
+*registered* as a station and was never *imaged* as a device, so it never
+received the credential the imaging station hands out. Same root as why it
+has no netrc for cache authentication.
 
-Deze correctie stond eerst andersom in dit document ("die voorwaarde is
-gehaald"), op grond van de agent-code in plaats van de draaiende vloot. Ze
-staat er zo omdat een securitydocument dat verkeerd ligt gevaarlijker is
-dan geen document.
+This correction first stood the other way round in this document ("that
+condition is met"), on the strength of the agent source rather than the
+running fleet. It reads this way because a security document that is wrong
+is more dangerous than no document.
 
-**Wat het geeft aan wie het heeft**, en dit is meer dan R2 beschrijft
+**What it gives whoever holds it**, and this is more than R2 describes
 ("can report as any device"):
 
-1. **De escrow-sleutel van elk apparaat overschrijven.** Een check-in met
-   een `recoveryKey`-veld schrijft door naar `device_secrets` met
+1. **Overwrite any device's escrow key.** A check-in carrying a
+   `recoveryKey` field writes through to `device_secrets` with
    `ON CONFLICT ... DO UPDATE SET ciphertext=EXCLUDED.ciphertext`
-   (`internal/adapters/postgres/device_secrets.go:28-33`). Er is geen
-   toestandscontrole - alleen een lengtegrens van 256. Het apparaat wist
-   zijn eigen kopie zodra de server `X-Recovery-Key-Stored: 1` teruggeeft
-   (`checkin.go:283-289`), dus de escrow is de enige kopie. Eén verzoek per
-   apparaat maakt de LUKS-herstelsleutel van de hele vloot onbruikbaar.
-2. **Een wipe vervalsen als uitgevoerd.** De wipe-intent rijdt mee op het
-   antwoord van de check-in, inclusief een server-ondertekende nonce
-   (`checkin.go:305-311`). Wie als tag X incheckt, krijgt die nonce en kan
-   hem in de volgende beat echoën als ack. `verifyIntentNonce` slaagt, want
-   de nonce is echt. Gevolg: de console meldt een gestolen laptop als
-   gewist terwijl het toestel intact is. De replay-guard beschermt tegen
-   hergebruik van een oude nonce, niet tegen iemand die zich als het
-   apparaat kan authenticeren.
-3. **Compliance-verklaringen vervalsen** - posture, systemd-health en
-   revisie zijn allemaal zelfgerapporteerd.
+   (`internal/adapters/postgres/device_secrets.go:28-33`). There is no state
+   check - only a 256 length bound. The device erases its own copy as soon
+   as the server returns `X-Recovery-Key-Stored: 1` (`checkin.go:283-289`),
+   so the escrow is the only copy. One request per device makes the whole
+   fleet's LUKS recovery keys useless.
+2. **Forge a wipe as executed.** The wipe intent rides on the check-in
+   response, including a server-signed nonce (`checkin.go:305-311`). Whoever
+   checks in as tag X receives that nonce and can echo it back as an ack on
+   the next beat. `verifyIntentNonce` succeeds, because the nonce is
+   genuine. Consequence: the console reports a stolen laptop as wiped while
+   the machine is intact. The replay guard protects against reuse of an old
+   nonce, not against somebody who can authenticate as the device.
+3. **Forge compliance statements** - posture, systemd health and revision
+   are all self-reported.
 
-**Ernst: hoog, maar begrensd.** Uitbuiten vraagt het token, en dat staat
-alleen in het cluster-secret - niet op apparaten. Wie dat secret kan lezen
-heeft cluster-toegang en daarmee al grotere mogelijkheden. Het blijft de
-moeite waard omdat het een gratis verwijdering is die een heel
-aanvalsoppervlak dichttrekt, en omdat gevolg 1 samenvalt met het
-ontbrekende Postgres-backup: de escrow-sleutels hebben geen tweede kopie.
+**Severity: high, but bounded.** Exploiting it requires the token, and that
+lives only in the cluster secret, not on devices. Whoever can read that
+secret has cluster access and therefore larger options already. It is still
+worth doing because it is a free removal that closes a whole attack surface,
+and because consequence 1 coincides with the missing Postgres backup: the
+escrow keys have no second copy.
 
-**Advies, in deze volgorde - de eerste stap is niet over te slaan.**
+**Advice, in this order - the first step cannot be skipped.**
 
-1. Het station een eigen device-credential geven. Zolang dat niet gebeurd
-   is, sluit het gedeelde token de inspoelstraat buiten.
-2. Daarna `SEXTANT_CHECKIN_TOKEN` leeghalen **en** de fallback in
-   `authorized()` verwijderen, zodat een per ongeluk teruggezet token hem
-   niet opnieuw opent.
-3. R2 sluiten in het threat model, en gevolg 1 en 2 daar benoemen - zolang
-   R2 alleen "report as any device" zegt, leest hij als hinderlijk in plaats
-   van als verlies van herstelsleutels.
+1. Give the station a device credential of its own. Until that happens,
+   removing the shared token locks the imaging station out.
+2. Then empty `SEXTANT_CHECKIN_TOKEN` **and** remove the fallback in
+   `authorized()`, so a token put back by accident does not reopen it.
+3. Close R2 in the threat model, and name consequences 1 and 2 there - while
+   R2 says only "report as any device" it reads as a nuisance rather than as
+   loss of recovery keys.
 
-Stap 1 raakt de inspoelstraat en dus hardware; dit is geen wijziging om
-zonder toezicht uit te rollen.
+Step 1 touches the imaging station and therefore hardware; this is not a
+change to roll out unattended.
 
-**Stand 6 augustus, 23:00 - stap 1 en 2 gedaan, met een vondst ertussen.**
+**Status 6 August, 23:00 - steps 1 and 2 done, with a discovery in between.**
 
-Het station heeft nu een eigen device-credential. Gemeten: het token
-`device-dawo-inspoelstraat` is voor het laatst gebruikt op 21:00:06.06 en
-`device_status.last_seen` staat op 21:00:06.11 - dezelfde check-in, dus het
-station authenticeert zich als zichzelf. Voor `e2e5` is die drift ook nul.
-Geen van beide apparaten leunt nog op de brug.
+The station now has its own device credential. Measured: the token
+`device-dawo-inspoelstraat` was last used at 21:00:06.06 and
+`device_status.last_seen` reads 21:00:06.11 - the same check-in, so the
+station authenticates as itself. For `e2e5` that drift is zero too. Neither
+device leans on the bridge any more.
 
-Bij het uitvoeren van stap 2 bleek de fallback erger dan hierboven staat.
-`authorized()` probeerde het device-credential eerst en viel bij ELKE
-mislukking terug op het gedeelde token - ook voor een tag die allang een
-eigen credential had. Het token was dus geen migratiepad maar een
-vloot-brede impersonatiesleutel: credentials uitgeven veranderde niets aan
-de blootstelling zolang de brug open stond. Alle drie de gevolgen hierboven
-golden onverkort voor `e2e5`, dat het "sterke pad" al gebruikte.
+Carrying out step 2 showed the fallback to be worse than described above.
+`authorized()` tried the device credential first and fell back to the shared
+token on EVERY failure - including for a tag that had held its own
+credential for weeks. The token was therefore not a migration path but a
+fleet-wide impersonation key: issuing credentials changed nothing about the
+exposure while the bridge was up. All three consequences above applied in
+full to `e2e5`, which was already using the "strong path".
 
-Hetzelfde gold voor `POST /api/station/{tag}/report`
-(`internal/http/api/station.go`), dat bovendien geen enkele test op het
-brug-token had - de reden dat het onopgemerkt bleef.
+The same held for `POST /api/station/{tag}/report`
+(`internal/http/api/station.go`), which additionally had no test at all on
+the bridge token - the reason it went unnoticed.
 
-Beide paden accepteren de brug nu alleen nog voor een subject **zonder**
-eigen credential, en falen gesloten als de tokenstore die vraag niet kan
-beantwoorden. Wat overblijft is een gewaarschuwde, per subject naar een uur
-afgeknepen logregel, zodat het antwoord op "gebruikt nog iets dit token"
-een meting is en geen gok. Twee tests per pad; ze zijn geverifieerd door de
-guard weg te halen en rood te zien worden.
+Both paths now accept the bridge only for a subject **without** a credential
+of its own, and fail closed when the token store cannot answer that
+question. What remains is a warning, throttled to once an hour per subject,
+so that the answer to "is anything still using this token" is a measurement
+rather than a guess. Two tests per path; both were verified by removing the
+guard and watching them go red.
 
-**Gesloten 7 augustus, 00:00.** `SEXTANT_CHECKIN_TOKEN` is uit het secret
-`sextant-v2` verwijderd en de console herstart. De waarde is bewust NIET
-bewaard: als iets erop blijkt te leunen is de juiste reparatie dat ding een
-eigen sleutel geven, en een kopie maakt de verkeerde reparatie te makkelijk.
+**Closed 7 August, 00:00.** `SEXTANT_CHECKIN_TOKEN` has been removed from
+the secret `sextant-v2` and the console restarted. The value was
+deliberately NOT kept: if something turns out to lean on it, the right
+repair is to give that thing a key of its own, and a copy makes the wrong
+repair too easy.
 
-Nagemeten over de eerste minuten na de herstart: twee check-ins, beide 204,
-precies zestig seconden uit elkaar, **nul** 401's en **nul** brugregels.
+Measured over the first minutes after the restart: two check-ins, both 204,
+exactly sixty seconds apart, **zero** 401s and **zero** bridge lines.
 
-Stap 3 (R2 sluiten in het threat model) staat nog open.
+Step 3 (closing R2 in the threat model) is still open.
 
-### M1 — Dertien geldige credentials van apparaten die niet meer bestaan
+### M1 - Thirteen valid credentials for devices that no longer exist
 
-**Gemeten in productie.** `api_tokens` bevat **15** niet-verlopen
-device-credentials; `fleet.json` bevat **2** apparaten. Dertien horen bij
-tags die uit de vloot verwijderd zijn. Ze zijn gemint op 2026-07-13 en
-lopen af op **2031-07-12**: `boundCredTTL` is vijf jaar
-(`internal/app/cred.go:19`), met de redenering dat apparaten lang leven en
-bij herinspoelen roteren in plaats van verlopen. Dat klopt voor een
-apparaat dat blijft bestaan.
+**Measured in production.** `api_tokens` holds **15** unexpired device
+credentials; `fleet.json` holds **2** devices. Thirteen belong to tags that
+were removed from the fleet. They were minted on 2026-07-13 and expire on
+**2031-07-12**: `boundCredTTL` is five years (`internal/app/cred.go:19`), on
+the reasoning that devices are long-lived and rotate on re-imaging rather
+than expiring. That holds for a device that continues to exist.
 
-**Waarom ze er nog zijn.** Niet omdat het intrekken vergeten is: beide
-verwijderpaden roepen `Revoke` aan (`internal/http/web/device_ops.go:103`,
-`internal/http/api/handlers.go:156`). Ze zijn er omdat de
-credential-levenscyclus aan die twee handlers hangt en **niet aan het
-vlootdocument**. Elke andere manier waarop een apparaat uit `fleet.json`
-verdwijnt - een change request, een commit in de overlay, een terugzetting
-- laat de credential staan, en niets verzoent dat achteraf.
+**Why they are still there.** Not because revocation was forgotten: both
+removal paths call `Revoke` (`internal/http/web/device_ops.go:103`,
+`internal/http/api/handlers.go:156`). They are there because the credential
+lifecycle hangs off those two handlers and **not off the fleet document**.
+Every other way a device leaves `fleet.json` - a change request, a commit in
+the overlay, a restore - leaves the credential behind, and nothing
+reconciles that afterwards.
 
-**Impact, eerlijk begrensd.** Een credential is aan zijn eigen tag gebonden,
-dus hij kan zich niet voordoen als een bestaand apparaat. Wat hij wel kan is
-inchecken als een spookapparaat en waarnemingen injecteren voor een tag die
-niet in de vloot zit. Dat is precies het beeld dat vanochtend op het
-overzicht stond: verwijderde apparaten die zich terugmelden. Dit is het
-mechanisme dat ze blijft produceren.
+**Impact, honestly bounded.** A credential is bound to its own tag, so it
+cannot impersonate an existing device. What it can do is check in as a ghost
+device and inject observations for a tag that is not in the fleet. That is
+exactly the picture that was on the overview this morning: removed devices
+reporting back. This is the mechanism that keeps producing them.
 
-**Dit is de derde keer vandaag dat hetzelfde patroon opduikt**, en dat is de
-eigenlijke bevinding: de configuratie-plane en een zijstore lopen uit
-elkaar, en er is geen verzoening.
+**This is the third time today the same pattern appears**, and that is the
+real finding: the configuration plane and a side store drift apart, and
+there is no reconciliation.
 
-| | zijstore | gevonden |
+| | side store | found |
 |---|---|---|
-| Spookapparaten op het overzicht | observed plane | gefixt, `7cf2558` |
-| Weesbranches van ingetrokken changes | git | gefixt, `32aa7bd` |
-| Credentials van verwijderde apparaten | token store | **open** |
+| Ghost devices on the overview | observed plane | fixed, `7cf2558` |
+| Orphaned branches of withdrawn changes | git | fixed, `32aa7bd` |
+| Credentials of removed devices | token store | **open** |
 
-De eerste twee zijn opgelost door bij het lezen te filteren, respectievelijk
-door bij het opstarten na te vegen. Voor deze derde ligt de tweede vorm
-voor de hand: bij het opstarten elke device-credential intrekken waarvan de
-tag niet in het vlootdocument staat, en dat luid loggen.
+The first two were solved by filtering at read time and by sweeping at
+start-up respectively. For this third one the second shape is the obvious
+fit: at start-up, revoke every device credential whose tag is not in the
+fleet document, and say so loudly.
 
-**Advies.** De dertien nu intrekken, en de verzoening inbouwen zodat het
-niet opnieuw sluipt. Overwegen om `boundCredTTL` te verlagen: vijf jaar is
-lang voor iets waarvan het intrekken aantoonbaar kan mislukken.
+**Advice.** Revoke the thirteen now, and build the reconciliation so it
+cannot creep back. Consider lowering `boundCredTTL`: five years is long for
+something whose revocation can demonstrably fail.
 
-**Stand 6 augustus, 23:00.** De verzoening is gebouwd
-(`DeviceCredentials.ReconcileWithFleet`) en zat in 0.83.0 - maar draaide
-niet. De aanroep stond achter `if d.devCreds != nil`, veertig regels boven
-de plek waar `devCreds` wordt toegewezen, dus de guard vond altijd nil.
-Gemeten na de deploy: nog steeds 15 credentials bij 2 apparaten en geen
-logregel.
+**Status 6 August, 23:00.** The reconciliation was built
+(`DeviceCredentials.ReconcileWithFleet`) and shipped in 0.83.0 - but it did
+not run. The call sat behind `if d.devCreds != nil`, forty lines above where
+`devCreds` is assigned, so the guard always found nil. Measured after the
+deploy: still 15 credentials against 2 devices, and no log line.
 
-Dat is dezelfde foutklasse als de rest van dit document, deze keer in de
-reparatie zelf: een groene test over de verkeerde laag. De test dekte de
-service, niet de bedrading. De aanroep staat nu in het Postgres-blok zonder
-guard - daar bestaat de afhankelijkheid per constructie en levert
-terugverplaatsen een luide start-panic op - en hij logt altijd, ook
-`revoked=0`, zodat "deed niets" en "draaide niet" niet meer op elkaar
-lijken.
+That is the same class of error as the rest of this document, this time in
+the repair itself: a green test over the wrong layer. The test covered the
+service, not the wiring. The call now sits in the Postgres block without a
+guard - the dependency exists there by construction, and moving it back
+earns a loud start-up panic - and it logs every time, including
+`revoked=0`, so "did nothing" and "never ran" no longer look alike.
 
-**Gesloten 7 augustus, 00:00.** 0.84.0 draait en de sweep liep bij het
-starten: **14 wezen ingetrokken**, elk met de tag erbij, gevolgd door
+**Closed 7 August, 00:00.** 0.84.0 is running and the sweep ran at start-up:
+**14 orphans revoked**, each named with its tag, followed by
 `device credentials reconciled against the fleet revoked=14`. `api_tokens`
-gaat van 16 naar 2 device-credentials, gelijk aan het aantal apparaten in
-het vlootdocument.
+goes from 16 to 2 device credentials, equal to the number of devices in the
+fleet document.
 
-### H3 — Wachtwoorden van medewerkers gaan in platte tekst over het clusternetwerk
+### H3 - Staff passwords cross the cluster network in the clear
 
-**Gemeten.** `identity.ldapUri` staat in `fleet.json` op `ldap://10.43.76.5`.
-Op die tak zet de overlay-module drie dingen
+**Measured.** `identity.ldapUri` in `fleet.json` reads `ldap://10.43.76.5`.
+On that branch the overlay module sets three things
 (`modules/integrations.nix:334-357`):
 
 ```nix
@@ -206,209 +199,213 @@ ldap_auth_disable_tls_never_use_in_production = true;
 ldap_id_use_start_tls = false;
 ```
 
-De middelste is niet onze naamgeving; zo heet de optie bij SSSD. Hij staat
-aan, op draaiende hardware.
+The middle one is not our naming; that is what SSSD calls the option. It is
+on, on running hardware.
 
-**Waarom dit telt.** Een SSSD simple bind draagt het **wachtwoord van de
-medewerker**, niet een hash of een token. De redenering waarom dat mocht
-(route-besluit 2026-07-27) was dat de directory alleen via de WireGuard-mesh
-bereikbaar is. Dat dekt het traject apparaat-naar-cluster. Van de routing
-peer naar de OpenLDAP-pod gaat het verkeer plat over het podnetwerk, en
-alles wat daar kan meelezen - een gecompromitteerde sidecar, een node,
-`kubectl debug` - leest wachtwoorden mee terwijl ze worden ingetypt.
+**Why this counts.** An SSSD simple bind carries the **end user's
+password**, not a hash and not a token. The reasoning for why that was
+acceptable (route decision 2026-07-27) was that the directory is only
+reachable through the WireGuard mesh. That covers the device-to-cluster leg.
+From the routing peer to the OpenLDAP pod the traffic is plaintext on the
+pod network, and anything that can capture there - a compromised sidecar, a
+node, `kubectl debug` - reads passwords as they are typed.
 
-**Ernst: hoog.** Het gaat om het sterkste inloggegeven in het systeem, van
-elke medewerker die inlogt, en het is niet begrensd tot wie clustertoegang
-al heeft: meelezen op het podnetwerk is een lagere drempel dan het uitlezen
-van een secret.
+**Severity: high.** This is the strongest credential in the system, for
+every member of staff who logs in, and it is not bounded to whoever already
+has cluster access: capturing on the pod network is a lower bar than reading
+a secret.
 
-**Advies.** ADR 0021 besluit het: LDAPS is de ondersteunde transportlaag,
-plat LDAP moet expliciet erkend worden.
+**Advice.** ADR 0021 settles it: LDAPS is the supported transport, and plain
+LDAP must be explicitly acknowledged.
 
-**Stand 6 augustus, 23:50.** De module dwingt het af (overlay `db23306`).
-Gemeten aan beide kanten op `dawo-inspoelstraat`: zonder de erkenning
-weigert de evaluatie met een bericht dat de optie noemt, met de erkenning
-evalueert hij en verschijnt de waarschuwing.
+**Status 6 August, 23:50.** The module enforces it (overlay `db23306`).
+Measured both ways on `dawo-inspoelstraat`: without the acknowledgement the
+evaluation refuses with a message naming the option, with it the evaluation
+succeeds and the warning appears.
 
-bb-open heeft de erkenning nu aan staan, want de directory draait vandaag
-op `ldap://10.43.76.5`. **Daarmee is de bevinding niet gesloten** - hij is
-zichtbaar gemaakt en staat in het vlootdocument in plaats van in een
-comment. Sluiten vraagt een certificaat op de OpenLDAP-dienst en dan
-`ldaps://`; dat is platformwerk. De console-bind
-(`ldap://openldap.ldap-bb-open:389`) gaat in dezelfde beweging mee - die
-draagt het `cn=sextant-ro`-wachtwoord, smaller maar niet anders van aard.
+bb-open now has the acknowledgement on, because the directory runs on
+`ldap://10.43.76.5` today. **That does not close the finding** - it makes it
+visible, and puts it in the fleet document instead of in a comment. Closing
+it requires a certificate on the OpenLDAP service and then `ldaps://`; that
+is platform work. The console's own bind
+(`ldap://openldap.ldap-bb-open:389`) moves in the same step - it carries the
+`cn=sextant-ro` password, narrower but no different in kind.
 
-### H2 — De console pusht als een persoon, niet als een machine
+### H2 - The console pushes as a person, not as a machine
 
-**Gemeten.** De netrc in de console-pod authenticeert bij
-`forgejo.bb-open.com` met `login bram.buijs`. Dat is het credential waarmee
-de rollout-engine ring-branches force-pusht en waarmee elke commit uit de
-console de forge bereikt.
+**Measured.** The netrc in the console pod authenticates to
+`forgejo.bb-open.com` with `login bram.buijs`. That is the credential the
+rollout engine force-pushes ring branches with, and with which every commit
+from the console reaches the forge.
 
-**Waarom dit meer is dan R4 zegt.** `threat-model.md:151-157` beschrijft R4
-als "no second factor at the git layer" en adviseert *"a dedicated
-least-privilege deploy token scoped to ring refs"*. De werkelijkheid is niet
-"nog niet least-privilege" maar "het account van een mens":
+**Why this is more than R4 says.** `threat-model.md:151-157` describes R4 as
+"no second factor at the git layer" and advises *"a dedicated
+least-privilege deploy token scoped to ring refs"*. The reality is not "not
+least-privilege yet" but "a human being's account":
 
-1. **Blast radius.** Het credential draagt alles wat die persoon op de forge
-   mag, niet alleen ring-refs. Wie de pod leest, heeft dat.
-2. **Het auditspoor liegt.** Elke automatische push - elke ring-promotie -
-   staat in de forge op naam van een mens die op dat moment misschien niets
-   deed. De vraag "wie heeft deze ring verzet" is daarmee onbeantwoordbaar,
-   en dat is precies het soort vraag waarvoor een auditspoor bestaat.
-3. **Sleutelpersoon-afhankelijkheid.** Vertrekt die persoon, of roteert het
-   wachtwoord, dan stopt de vloot met uitrollen tot iemand het merkt.
+1. **Blast radius.** The credential carries everything that person may do on
+   the forge, not only ring refs. Whoever reads the pod has that.
+2. **The audit trail lies.** Every automatic push - every ring promotion -
+   appears in the forge under the name of a person who may have been doing
+   nothing at the time. "Who moved this ring" is therefore unanswerable, and
+   that is exactly the kind of question an audit trail exists for.
+3. **Key-person dependency.** If that person leaves, or the password
+   rotates, the fleet stops rolling out until somebody notices.
 
-Voor een gemeente is "de automatisering gebruikt het account van de
-hoofdontwikkelaar" een bevinding in elke ISO 27001-toets, los van of het
-technisch misgaat.
+For a municipality, "the automation uses the lead developer's account" is a
+finding in any ISO 27001 assessment, regardless of whether it ever goes
+wrong technically.
 
-**Advies.** Een machine-account op de forge met schrijfrechten op deze ene
-repository, en de netrc daarop. Dat is geen groot werk en het lost alle
-drie de punten tegelijk op. R4 herschrijven naar wat er staat, niet naar
-wat het zou moeten zijn.
+**Advice.** A machine account on the forge with write access to this one
+repository, and the netrc pointing at it. That is not much work and it
+solves all three points at once. Rewrite R4 to say what is there rather than
+what it ought to be.
 
-**Stand 7 augustus, 01:00 - mechanisme gebouwd, bevinding NOG NIET GESLOTEN.**
+**Status 7 August, 01:00 - mechanism built, finding NOT YET CLOSED.**
 
-ADR 0022. De console kan haar eigen forge-gegeven opslaan (verzegeld, per
-tenant) en schrijft de netrc zelf op haar eigen volume. Een beheerder
-vervangt hem op `/org/forge`; git leest het bestand per aanroep, dus het
-geldt vanaf de volgende push zonder herstart. Wie hem wanneer verving staat
-erbij. Zonder opgeslagen gegeven verandert er niets: de gemounte secret
-blijft gelden.
+ADR 0022. The console can store its own forge credential (sealed, per
+tenant) and writes the netrc onto its own volume. An admin replaces it at
+`/org/forge`; git reads the file per invocation, so it takes effect on the
+next push with no restart. Who replaced it and when is recorded. With
+nothing stored, nothing changes: the mounted secret still governs.
 
-Wat de bevinding sluit is niet het mechanisme maar het gebruik: er moet een
-machine-account op de forge komen met schrijfrechten op alleen de
-overlay-repository, dat ingevoerd worden, en er moet een echte change onder
-die naam gepusht zijn. Tot die push staat H2 open en pusht bb-open nog steeds
-als een persoon.
+What closes the finding is not the mechanism but the use: a machine account
+has to be created on the forge with write access to the overlay repository
+only, it has to be entered, and a real change has to be pushed under that
+name. Until that push, H2 is open and bb-open still pushes as a person.
 
-### M2 — Het threat model verklaart zichzelf veilig op een voorwaarde die niet geldt
+### M2 - The threat model clears itself on a precondition that does not hold
 
-`docs/threat-model.md:310-312` sluit het risicoregister af met:
+`docs/threat-model.md:310-312` closes the risk register with:
 
 > *"None of R1-R8 is a live exploit against the deployed configuration
 > (store enabled, **per-device credentials issued**, owners trusted)"*
 
-Die tweede voorwaarde is niet waar. `dawo-inspoelstraat` heeft geen
-device-credential (zie H1), en dat is precies de voorwaarde waarop R2
-"geen live exploit" heet. De zin klopt voor `e2e5` en niet voor de vloot.
+That second condition is untrue. `dawo-inspoelstraat` has no device
+credential (see H1), and that is precisely the condition on which R2 is
+called "no live exploit". The sentence is right for `e2e5` and wrong for the
+fleet.
 
-Dit is geen woordkwestie. Het is de enige zin in het document die een lezer
-- een auditor, een gemeente, een collega - vertelt of de opgesomde randen
-theorie of praktijk zijn, en hij is nooit tegen de draaiende omgeving
-gehouden.
+This is not a wording issue. It is the one sentence in the document that
+tells a reader - an auditor, a municipality, a colleague - whether the
+listed edges are theory or practice, and it had never been held against the
+running environment.
 
-**Advies.** De zin vervangen door iets dat per risico zegt of zijn
-voorwaarde geldt, en die controle onderdeel maken van de release in plaats
-van van iemands geheugen. Een register dat zijn eigen aannames niet toetst,
-veroudert precies zoals `1.0-fit-gap.md` deed.
+**Advice.** Replace the sentence with something that states per risk whether
+its precondition holds, and make that check part of the release rather than
+of somebody's memory. A register that does not test its own assumptions ages
+exactly the way `1.0-fit-gap.md` did.
 
-### L1 — Regelverwijzing in het threat model is verlopen
+### L1 - A line reference in the threat model has expired
 
-`docs/threat-model.md:114` citeert `checkin.go:150-153` voor de
-gedeeld-token-vergelijking; die staat nu op `checkin.go:324-333`. Klein,
-maar het is dezelfde soort drift waardoor `1.0-fit-gap.md` twee weken lang
-verkeerde dingen beweerde. Een verwijzing die niet meer klopt maakt de
-volgende lezer trager, en de lezer daarna wantrouwig.
+`docs/threat-model.md:114` cites `checkin.go:150-153` for the shared-token
+comparison; it now lives at `checkin.go:324-333`. Small, but it is the same
+kind of drift that had `1.0-fit-gap.md` asserting wrong things for two
+weeks. A reference that no longer holds slows the next reader down, and
+makes the one after that distrustful.
 
-## Nagekeken en in orde
+## Checked and sound
 
-- **Autorisatie per verzoek.** Elke muterende web-handler roept
-  `requireWeb` aan, direct of via `requireDeviceEditor`
-  (`internal/http/web/device_ops.go:38`). Een eerste scan gaf vier
-  destructieve device-handlers als vals alarm; die gebruiken de helper.
-- **Tokens.** argon2id, hash-only opgeslagen, constant-time vergelijking
-  (`internal/domain/token/token.go:149-151`), verplicht positieve TTL - geen
-  eeuwige tokens - en het geheim draagt zijn eigen id, zodat verificatie
-  precies één record opzoekt in plaats van de tabel te scannen.
-- **Apparaat-identiteit langs het sterke pad.** Een per-device credential is
-  aan de tag gebonden en wordt voor een andere tag geweigerd, met die
-  bedoeling expliciet in het commentaar.
-- **Wipe-ack replay.** Ondertekende nonce plus tijdstempel, en een ack die
-  niet verifieert laat de beat staan maar gooit de uitkomst weg
-  (`checkin.go:256-262`) - dus een vervalste ack vervuilt het auditspoor
-  niet. Dat is de goede volgorde.
-- **Ingetrokken apparaten.** Een retired tag krijgt 410 vóór enige
-  verwerking (`checkin.go:245-249`): levenscyclus gaat voor authenticatie.
-- **De nix-gate als injectie-firewall.** Hostnamen worden op het splice-punt
-  zelf tegen `hostRe` gehouden en met `%q` geciteerd
-  (`internal/adapters/nix/gate.go:254-264`), met in het commentaar expliciet
-  waarom: *"this function must not trust that a caller upstream did its
-  job"*. Uitvoeren gaat via een argv-slice, geen shell. Instellingswaarden
-  bereiken nix als JSON-data, niet als expressie.
-- **CSRF, structureel.** Alle 67 POST-routes gaan door één wrapper
-  (`internal/http/web/web.go:146-148` -> `action`), die constant-time
-  vergelijkt (`middleware.go:113`). Geen enkele route registreert zich
-  buiten die helper om, dus dit is geen conventie die een nieuwe handler kan
-  vergeten - het verschil met R3, waar read-confidentiality wél per handler
-  wordt afgesproken.
-- **Read-confidentiality (R3).** De claim "all current handlers comply"
-  houdt stand. Elke API-lezer die scope-data teruggeeft filtert via
-  `VisibleTo` of `canView`; de vier handlers die dat niet doen zijn
-  zelf-scoped (`getMe`, `getMyPrefs`, `getTokens` - die laatste lijst
-  uitsluitend `p.user.Subject`) of vragen Owner (`getDirectoryGroups`).
-  Het blijft een conventie in plaats van een structurele garantie - anders
-  dan CSRF, dat via één wrapper loopt - maar hij wordt vandaag nagekomen.
-- **Padtraversal.** `Repo.safePath` (`internal/adapters/git/git.go:121-140`)
-  doet het in twee lagen: eerst lexicaal (`filepath.Rel` plus een
-  `..`-prefixcontrole), daarna **symlinks oplossen** op de dichtstbijzijnde
-  bestaande voorouder en opnieuw bevestigen dat het pad onder de repo-root
-  blijft. Die tweede laag is waar de meeste implementaties op stuklopen: een
-  lexicale controle alleen wordt verslagen door een symlink. Dit is het pad
-  waar de overlay-editor (ADR 0014) schrijft, dus het is precies de plek waar
-  het moet zitten. `changeFile` valideert de id vóór de join
-  (`internal/adapters/state/state.go:113-118`), en de secret-referentie in
-  `cmd/sextant/capabilities.go:283` gebruikt `filepath.Base`.
-- **Groottelimieten.** Elk verzoek met een body loopt door
-  `http.MaxBytesReader`, met per pad een eigen grens: 4 KiB voor
-  device-auth, 320 KiB voor een check-in, 4 MiB voor een station-report en
-  een diagnostics-bundel. Geen enkel decodeerpad zonder grens gevonden.
-- **Uitgaande verbindingen.** De enige bestemming die een operator kan
-  zetten is de SMTP-host (`internal/http/web/mail.go:43-45`), en dat is
-  org-Owner-only. Een Owner kan sowieso de hele vlootconfiguratie herschrijven,
-  dus dit is geen rechtenescalatie. Gate-runner-URL, OpenBao-adres en LDAP-URI
-  komen uit de deployment-configuratie, niet uit de console.
+- **Authorisation per request.** Every mutating web handler calls
+  `requireWeb`, directly or through `requireDeviceEditor`
+  (`internal/http/web/device_ops.go:38`). A first scan flagged four
+  destructive device handlers as a false alarm; those use the helper.
+- **Tokens.** argon2id, stored hash-only, constant-time comparison
+  (`internal/domain/token/token.go:149-151`), a mandatory positive TTL - no
+  eternal tokens - and the secret carries its own id, so verification looks
+  up exactly one record instead of scanning the table.
+- **Device identity along the strong path.** A per-device credential is
+  bound to its tag and refused for another tag, with that intent explicit in
+  the comment.
+- **Wipe-ack replay.** Signed nonce plus timestamp, and an ack that fails to
+  verify leaves the beat standing but discards the outcome
+  (`checkin.go:256-262`) - so a forged ack does not pollute the audit trail.
+  That is the right order.
+- **Retired devices.** A retired tag gets 410 before any processing
+  (`checkin.go:245-249`): lifecycle beats authentication.
+- **The nix gate as an injection firewall.** Hostnames are checked against
+  `hostRe` at the splice point itself and quoted with `%q`
+  (`internal/adapters/nix/gate.go:254-264`), with the reason explicit in the
+  comment: *"this function must not trust that a caller upstream did its
+  job"*. Execution goes through an argv slice, no shell. Setting values
+  reach nix as JSON data, not as an expression.
+- **CSRF, structurally.** All 67 POST routes go through one wrapper
+  (`internal/http/web/web.go:146-148` -> `action`), which compares in
+  constant time (`middleware.go:113`). No route registers outside that
+  helper, so this is not a convention a new handler can forget - the
+  difference with R3, where read confidentiality *is* agreed per handler.
+- **Read confidentiality (R3).** The claim "all current handlers comply"
+  holds. Every API reader that returns scoped data filters through
+  `VisibleTo` or `canView`; the four handlers that do not are self-scoped
+  (`getMe`, `getMyPrefs`, `getTokens` - the last listing only
+  `p.user.Subject`) or require Owner (`getDirectoryGroups`). It remains a
+  convention rather than a structural guarantee - unlike CSRF, which runs
+  through one wrapper - but it is honoured today.
+- **Path traversal.** `Repo.safePath` (`internal/adapters/git/git.go:121-140`)
+  does it in two layers: lexically first (`filepath.Rel` plus a `..` prefix
+  check), then **resolving symlinks** on the nearest existing ancestor and
+  re-confirming the path stays under the repo root. That second layer is
+  where most implementations fail: a lexical check alone is defeated by a
+  symlink. This is the path the overlay editor (ADR 0014) writes through, so
+  it is exactly where it needs to be. `changeFile` validates the id before
+  the join (`internal/adapters/state/state.go:113-118`), and the secret
+  reference in `cmd/sextant/capabilities.go:283` uses `filepath.Base`.
+- **Size limits.** Every request with a body runs through
+  `http.MaxBytesReader`, with a bound per path: 4 KiB for device auth,
+  320 KiB for a check-in, 4 MiB for a station report and a diagnostics
+  bundle. No decode path was found without a bound.
+- **Outbound connections.** The only destination an operator can set is the
+  SMTP host (`internal/http/web/mail.go:43-45`), and that is org-Owner-only.
+  An Owner can rewrite the entire fleet configuration anyway, so this is not
+  a privilege escalation. The gate-runner URL, the OpenBao address and the
+  LDAP URI come from deployment configuration, not from the console.
 
-## Restrisicoregister nagemeten
+## Residual risk register, measured
 
-R2 en R4 zijn hierboven behandeld (R2 werd M2, R4 werd H2). De rest, gemeten
-op 2026-08-06:
+R2 and R4 are covered above (R2 became M2, R4 became H2). The rest, measured
+on 2026-08-06:
 
-**R1 - "eigenaar kan willekeurige nix laten evalueren" - HOUDT STAND, en de
-formulering klopt.** `WriteOverlay` (`internal/app/config_overlays.go:53`)
-heeft precies een aanroeper, `web/overlays.go:99`, en die staat achter
-`requireWeb(v, "org", identity.Owner)`. Het tweede pad dat verdacht leek is
-het editor-vinkje `/overlays/check`: dat is even goed owner-only, en het
-evalueert niets. De runner draait daar `nix-instantiate --parse`
-(`cmd/gate-runner/main.go:628`), dus alleen ontleden. De enige plek waar
-console-geschreven nix echt evalueert is de gate bij commit, en die commit
-staat in het auditspoor - wat R1's mitigatie ook zegt.
+**R1 - "an owner can have arbitrary nix evaluated" - HOLDS, and the wording
+is right.** `WriteOverlay` (`internal/app/config_overlays.go:53`) has
+exactly one caller, `web/overlays.go:99`, and it sits behind
+`requireWeb(v, "org", identity.Owner)`. The second path that looked
+suspicious is the editor's check button, `/overlays/check`: equally
+owner-only, and it evaluates nothing. The runner runs
+`nix-instantiate --parse` there (`cmd/gate-runner/main.go:628`), so parsing
+only. The one place console-authored nix truly evaluates is the gate at
+commit time, and that commit is in the audit trail - which is what R1's
+mitigation says too.
 
-**R5 - losse syscall-sandbox op de wipe-unit - NIET NAGEMETEN.** Zit in de
-core-nix, niet in deze repo; hoort bij de hardware-ronde.
+**R5 - loose syscall sandbox on the wipe unit - NOT MEASURED.** It lives in
+the core nix, not in this repository; it belongs to the hardware round.
 
-**R6 - verouderde groepsmomentopname in een persoonlijk token - GEEN
-BLOOTSTELLING VANDAAG.** De code klopt met de beschrijving: er wordt alleen
-gesnoeid op groepen die uit de directory zijn verdwenen
-(`internal/app/token.go:149-162`), lidmaatschap-verwijderd-terwijl-groep-
-bestaat blijft begrensd door de TTL van 30 dagen. Gemeten in productie:
-`api_tokens` bevat **nul** tokens van soort `personal`. Alleen 16 device- en
-1 station-token. Het risico is dus echt in de code en leeg in de praktijk;
-het wordt pas iets zodra de eerste persoonlijke token wordt uitgegeven.
+**R6 - stale group snapshot in a personal token - NO EXPOSURE TODAY.** The
+code matches the description: pruning happens only for groups that have
+disappeared from the directory (`internal/app/token.go:149-162`), and
+membership-removed-while-group-exists stays bounded by the 30-day TTL.
+Measured in production: `api_tokens` holds **zero** tokens of kind
+`personal`. Only 16 device tokens and 1 station token. The risk is therefore
+real in the code and empty in practice; it becomes something the moment the
+first personal token is issued.
 
-R7 staat als CLOSED en is niet opnieuw gecontroleerd.
+R7 is marked CLOSED and was not re-checked.
 
-## Tussenstand
+## Where this leaves things
 
-Twee bevindingen, geen kritieke. Het beeld tot nu toe is een codebase die de
-moeilijke dingen goed doet - padtraversal met symlink-resolutie, CSRF
-structureel in plaats van per handler, argon2id met constant-time
-vergelijking, de gate die zijn eigen aanroepers niet vertrouwt - en die
-struikelt over levensloop: dingen die blijven bestaan nadat hun aanleiding
-weg is. Beide bevindingen zijn daarvan een geval, en het is dezelfde vorm
-als twee bugs die dezelfde dag los hiervan gevonden werden.
+Six findings, two of them high, none critical, and by the close of 6 August
+H1 and M1 were shut with a measurement behind each.
 
-Dat is een geruststellender soort zwakte dan het omgekeerde. Een ontwerp met
-een gat in de authenticatie repareer je niet met opruimwerk; opruimwerk is
-wat dit vraagt.
+The picture is a codebase that does the hard things well - path traversal
+with symlink resolution, CSRF structurally rather than per handler, argon2id
+with constant-time comparison, a gate that does not trust its own callers -
+and that stumbles over lifecycle: things that keep existing after the reason
+for them is gone. H1, M1 and H2 are each an instance, and it is the same
+shape as two bugs found the same day independently of this audit.
+
+That is a more reassuring kind of weakness than the reverse. A design with a
+hole in its authentication is not repaired by tidying; tidying is what this
+asks for.
+
+H3 is the exception to that comfort, and it is the one to carry into
+Zaanstad: it is not a leftover but a transport decision that was wrong on
+the day it was made, and it is still live.
