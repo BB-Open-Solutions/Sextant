@@ -207,24 +207,6 @@ func (d *deps) buildConfigPlane() error {
 		log.Warn("change status reconciliation against git failed", "err", err)
 	}
 
-	// The same sweep for device credentials. Both removal paths revoke as they
-	// go, but the credential's lifecycle hangs off those handlers rather than
-	// off the fleet document, so a device that leaves any other way - a change
-	// request, a commit in the overlay, a restore - keeps a credential that
-	// authenticates check-ins for a tag the fleet no longer has. Measured on
-	// 2026-08-06: 15 live credentials against 2 devices.
-	//
-	// Best-effort, like the change sweep above: tidying is never a reason to
-	// refuse to start. The service itself refuses to act on an empty document,
-	// so a fleet that failed to load cannot lock every device out.
-	if d.devCreds != nil {
-		if n, err := d.devCreds.ReconcileWithFleet(d.ctx, deviceTags(d.svc.Fleet())); err != nil {
-			log.Warn("device credential reconciliation failed", "err", err)
-		} else if n > 0 {
-			log.Info("revoked device credentials with no device", "count", n)
-		}
-	}
-
 	d.authz = api.Authz{
 		BaselineViewer: cfg.ViewerGroups,
 		BaselineEditor: cfg.EditorGroups,
@@ -312,6 +294,32 @@ func (d *deps) buildConfigPlane() error {
 			return svc.Fleet().ReleasedGroupDevices(group)
 		})
 		d.checks.Register("postgres", pg.Ping)
+
+		// Sweep device credentials whose tag has left the fleet, the same way
+		// the change sweep above reconciles records against git. Both removal
+		// paths revoke as they go, but the credential's lifecycle hangs off
+		// those handlers rather than off the fleet document, so a device that
+		// leaves any other way - a change request, a commit in the overlay, a
+		// restore - keeps a credential that authenticates check-ins for a tag
+		// the fleet no longer has. Measured on 2026-08-06: 15 live credentials
+		// against 2 devices.
+		//
+		// INSIDE the Postgres block on purpose. It first shipped above it,
+		// guarded by `if d.devCreds != nil` - and devCreds is assigned here,
+		// forty lines later, so the guard always found nil and the sweep was a
+		// silent no-op through a full release. The guard is gone with it: here
+		// the dependency exists by construction, and an unconditional call
+		// cannot rot back into doing nothing.
+		//
+		// Best-effort, like the change sweep: tidying is never a reason to
+		// refuse to start. The service itself refuses to act on an empty
+		// document, so a fleet that failed to load cannot lock every device
+		// out.
+		if n, err := d.devCreds.ReconcileWithFleet(d.ctx, deviceTags(d.svc.Fleet())); err != nil {
+			log.Warn("device credential reconciliation failed", "err", err)
+		} else {
+			log.Info("device credentials reconciled against the fleet", "revoked", n)
+		}
 	}
 
 	// Directory browse: the login IdP (OIDC) and the group source (LDAP)
