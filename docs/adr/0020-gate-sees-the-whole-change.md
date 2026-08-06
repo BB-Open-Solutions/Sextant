@@ -94,8 +94,21 @@ project.
   draft. That stops being true, and it was the argument that decided this ADR
   rather than a bonus noticed afterwards.
 
-## Before this is binding
+## Binding condition - met
 
-A test that a change carrying only `flake.lock` reaches the runner and is
-evaluated against the new core - the exact case that got through on
-2026-08-06. Without it, this ADR would be a claim rather than a repair.
+This ADR required a test that a change carrying only `flake.lock` reaches the
+runner and is evaluated against the new core, on the grounds that without it
+the decision would be a claim rather than a repair.
+
+`cmd/gate-runner/stage_ref_test.go` builds a real repository with that exact
+shape and asserts both readings: staged without a ref the runner sees main's
+lock (the old blind spot), staged with the ref it sees the branch's. The
+conflict path, the reuse of the scratch worktree and the ref guard are covered
+alongside it. Mutation-checked: ignoring the ref fails the core-update test.
+
+**What is still only half-true in production.** The mechanism ships in 0.84.0,
+and the runner deployed today is 0.82.0, which does not know the `ref` field
+and ignores it - by design, so an older runner degrades rather than breaks. So
+the next core update still passes unseen until that release is out. The interim
+control is the one that found the incident: evaluate both device classes
+locally before merging.
