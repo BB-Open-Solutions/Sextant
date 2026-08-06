@@ -119,6 +119,14 @@ afgeknepen logregel, zodat het antwoord op "gebruikt nog iets dit token"
 een meting is en geen gok. Twee tests per pad; ze zijn geverifieerd door de
 guard weg te halen en rood te zien worden.
 
+**Gesloten 7 augustus, 00:00.** `SEXTANT_CHECKIN_TOKEN` is uit het secret
+`sextant-v2` verwijderd en de console herstart. De waarde is bewust NIET
+bewaard: als iets erop blijkt te leunen is de juiste reparatie dat ding een
+eigen sleutel geven, en een kopie maakt de verkeerde reparatie te makkelijk.
+
+Nagemeten over de eerste minuten na de herstart: twee check-ins, beide 204,
+precies zestig seconden uit elkaar, **nul** 401's en **nul** brugregels.
+
 Stap 3 (R2 sluiten in het threat model) staat nog open.
 
 ### M1 — Dertien geldige credentials van apparaten die niet meer bestaan
@@ -178,7 +186,13 @@ service, niet de bedrading. De aanroep staat nu in het Postgres-blok zonder
 guard - daar bestaat de afhankelijkheid per constructie en levert
 terugverplaatsen een luide start-panic op - en hij logt altijd, ook
 `revoked=0`, zodat "deed niets" en "draaide niet" niet meer op elkaar
-lijken. Na te meten zodra 0.84.0 draait.
+lijken.
+
+**Gesloten 7 augustus, 00:00.** 0.84.0 draait en de sweep liep bij het
+starten: **14 wezen ingetrokken**, elk met de tag erbij, gevolgd door
+`device credentials reconciled against the fleet revoked=14`. `api_tokens`
+gaat van 16 naar 2 device-credentials, gelijk aan het aantal apparaten in
+het vlootdocument.
 
 ### H3 — Wachtwoorden van medewerkers gaan in platte tekst over het clusternetwerk
 
