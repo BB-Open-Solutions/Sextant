@@ -207,6 +207,24 @@ func (d *deps) buildConfigPlane() error {
 		log.Warn("change status reconciliation against git failed", "err", err)
 	}
 
+	// The same sweep for device credentials. Both removal paths revoke as they
+	// go, but the credential's lifecycle hangs off those handlers rather than
+	// off the fleet document, so a device that leaves any other way - a change
+	// request, a commit in the overlay, a restore - keeps a credential that
+	// authenticates check-ins for a tag the fleet no longer has. Measured on
+	// 2026-08-06: 15 live credentials against 2 devices.
+	//
+	// Best-effort, like the change sweep above: tidying is never a reason to
+	// refuse to start. The service itself refuses to act on an empty document,
+	// so a fleet that failed to load cannot lock every device out.
+	if d.devCreds != nil {
+		if n, err := d.devCreds.ReconcileWithFleet(d.ctx, deviceTags(d.svc.Fleet())); err != nil {
+			log.Warn("device credential reconciliation failed", "err", err)
+		} else if n > 0 {
+			log.Info("revoked device credentials with no device", "count", n)
+		}
+	}
+
 	d.authz = api.Authz{
 		BaselineViewer: cfg.ViewerGroups,
 		BaselineEditor: cfg.EditorGroups,
@@ -696,4 +714,15 @@ func deriveIntentKey(b64 string) []byte {
 	}
 	sum := sha256.Sum256(append([]byte("sextant-intent-nonce\x00"), raw...))
 	return sum[:]
+}
+
+// deviceTags is the set of tags the fleet document knows, including retired
+// ones: a retired device keeps its record and may be reactivated, so its
+// credential is not an orphan.
+func deviceTags(f *fleet.Fleet) map[string]bool {
+	out := make(map[string]bool, len(f.Devices))
+	for tag := range f.Devices {
+		out[tag] = true
+	}
+	return out
 }

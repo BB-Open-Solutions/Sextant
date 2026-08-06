@@ -1,0 +1,188 @@
+# Security audit, augustus 2026
+
+Gelezen tegen `main` op 2026-08-06, vóór 1.0.0 en vóór Zaanstad. Elke
+bevinding verwijst naar `file:line` en is nagemeten in de draaiende
+productie waar dat kon. Bevindingen zonder bewijs staan er niet in.
+
+Werkwijze: adversarieel lezen per pad, niet per bestand. Waar een pad langs
+een claim in `docs/threat-model.md` kwam, is die claim tegen de code
+gehouden.
+
+## Bevindingen
+
+### H1 — Het gedeelde bridge-token staat nog aan, terwijl de sluitvoorwaarde is gehaald
+
+**Wat.** `POST /api/checkin` accepteert twee bewijzen van identiteit
+(`internal/http/api/checkin.go:324-333`). Het eerste is een per-device
+credential dat aan de tag gebonden is - een credential van apparaat A wordt
+voor tag B geweigerd, en dat is correct. Het tweede is een **gedeeld token
+dat aan niets gebonden is**: wie het heeft, mag inchecken als elke tag.
+
+Gemeten in productie: `SEXTANT_CHECKIN_TOKEN` staat in het secret
+`sextant-v2` en komt via `envFrom` in de pod terecht (64 tekens, gezet).
+
+**Waarom dit een bevinding is en geen bekend restrisico.** `threat-model.md`
+beschrijft dit als R2 en noemt de sluitvoorwaarde: *"retire the shared
+bridge token once every device is enrolled with its own credential"*.
+
+Die voorwaarde is **niet** gehaald, en het is het waard om te weten welk
+apparaat hem tegenhoudt. Gemeten:
+
+- `e2e5` heeft `device-e2e5` en checkt in via het sterke pad.
+- `dawo-inspoelstraat` heeft **geen** device-credential. Wel een
+  `station-dawo-inspoelstraat` van soort `station`, en
+  `authenticateBound` weigert op `tok.Kind != want`
+  (`internal/app/cred.go:46`) - een station-credential authenticeert dus
+  geen device-check-in.
+- Het station checkte vandaag om 19:14 nog in (`device_status`).
+
+Daaruit volgt dat het station zich met het **gedeelde token**
+authenticeert. Het weghalen breekt zijn check-in per direct.
+
+De oorzaak ligt niet bij de credential maar bij de levensloop: het station
+is *geregistreerd* als station, nooit *ingespoeld* als apparaat, dus het
+kreeg nooit de credential die de inspoelstraat uitdeelt. Dat is dezelfde
+wortel als waarom het geen netrc heeft voor cache-authenticatie.
+
+Deze correctie stond eerst andersom in dit document ("die voorwaarde is
+gehaald"), op grond van de agent-code in plaats van de draaiende vloot. Ze
+staat er zo omdat een securitydocument dat verkeerd ligt gevaarlijker is
+dan geen document.
+
+**Wat het geeft aan wie het heeft**, en dit is meer dan R2 beschrijft
+("can report as any device"):
+
+1. **De escrow-sleutel van elk apparaat overschrijven.** Een check-in met
+   een `recoveryKey`-veld schrijft door naar `device_secrets` met
+   `ON CONFLICT ... DO UPDATE SET ciphertext=EXCLUDED.ciphertext`
+   (`internal/adapters/postgres/device_secrets.go:28-33`). Er is geen
+   toestandscontrole - alleen een lengtegrens van 256. Het apparaat wist
+   zijn eigen kopie zodra de server `X-Recovery-Key-Stored: 1` teruggeeft
+   (`checkin.go:283-289`), dus de escrow is de enige kopie. Eén verzoek per
+   apparaat maakt de LUKS-herstelsleutel van de hele vloot onbruikbaar.
+2. **Een wipe vervalsen als uitgevoerd.** De wipe-intent rijdt mee op het
+   antwoord van de check-in, inclusief een server-ondertekende nonce
+   (`checkin.go:305-311`). Wie als tag X incheckt, krijgt die nonce en kan
+   hem in de volgende beat echoën als ack. `verifyIntentNonce` slaagt, want
+   de nonce is echt. Gevolg: de console meldt een gestolen laptop als
+   gewist terwijl het toestel intact is. De replay-guard beschermt tegen
+   hergebruik van een oude nonce, niet tegen iemand die zich als het
+   apparaat kan authenticeren.
+3. **Compliance-verklaringen vervalsen** - posture, systemd-health en
+   revisie zijn allemaal zelfgerapporteerd.
+
+**Ernst: hoog, maar begrensd.** Uitbuiten vraagt het token, en dat staat
+alleen in het cluster-secret - niet op apparaten. Wie dat secret kan lezen
+heeft cluster-toegang en daarmee al grotere mogelijkheden. Het blijft de
+moeite waard omdat het een gratis verwijdering is die een heel
+aanvalsoppervlak dichttrekt, en omdat gevolg 1 samenvalt met het
+ontbrekende Postgres-backup: de escrow-sleutels hebben geen tweede kopie.
+
+**Advies, in deze volgorde - de eerste stap is niet over te slaan.**
+
+1. Het station een eigen device-credential geven. Zolang dat niet gebeurd
+   is, sluit het gedeelde token de inspoelstraat buiten.
+2. Daarna `SEXTANT_CHECKIN_TOKEN` leeghalen **en** de fallback in
+   `authorized()` verwijderen, zodat een per ongeluk teruggezet token hem
+   niet opnieuw opent.
+3. R2 sluiten in het threat model, en gevolg 1 en 2 daar benoemen - zolang
+   R2 alleen "report as any device" zegt, leest hij als hinderlijk in plaats
+   van als verlies van herstelsleutels.
+
+Stap 1 raakt de inspoelstraat en dus hardware; dit is geen wijziging om
+zonder toezicht uit te rollen.
+
+### M1 — Dertien geldige credentials van apparaten die niet meer bestaan
+
+**Gemeten in productie.** `api_tokens` bevat **15** niet-verlopen
+device-credentials; `fleet.json` bevat **2** apparaten. Dertien horen bij
+tags die uit de vloot verwijderd zijn. Ze zijn gemint op 2026-07-13 en
+lopen af op **2031-07-12**: `boundCredTTL` is vijf jaar
+(`internal/app/cred.go:19`), met de redenering dat apparaten lang leven en
+bij herinspoelen roteren in plaats van verlopen. Dat klopt voor een
+apparaat dat blijft bestaan.
+
+**Waarom ze er nog zijn.** Niet omdat het intrekken vergeten is: beide
+verwijderpaden roepen `Revoke` aan (`internal/http/web/device_ops.go:103`,
+`internal/http/api/handlers.go:156`). Ze zijn er omdat de
+credential-levenscyclus aan die twee handlers hangt en **niet aan het
+vlootdocument**. Elke andere manier waarop een apparaat uit `fleet.json`
+verdwijnt - een change request, een commit in de overlay, een terugzetting
+- laat de credential staan, en niets verzoent dat achteraf.
+
+**Impact, eerlijk begrensd.** Een credential is aan zijn eigen tag gebonden,
+dus hij kan zich niet voordoen als een bestaand apparaat. Wat hij wel kan is
+inchecken als een spookapparaat en waarnemingen injecteren voor een tag die
+niet in de vloot zit. Dat is precies het beeld dat vanochtend op het
+overzicht stond: verwijderde apparaten die zich terugmelden. Dit is het
+mechanisme dat ze blijft produceren.
+
+**Dit is de derde keer vandaag dat hetzelfde patroon opduikt**, en dat is de
+eigenlijke bevinding: de configuratie-plane en een zijstore lopen uit
+elkaar, en er is geen verzoening.
+
+| | zijstore | gevonden |
+|---|---|---|
+| Spookapparaten op het overzicht | observed plane | gefixt, `7cf2558` |
+| Weesbranches van ingetrokken changes | git | gefixt, `32aa7bd` |
+| Credentials van verwijderde apparaten | token store | **open** |
+
+De eerste twee zijn opgelost door bij het lezen te filteren, respectievelijk
+door bij het opstarten na te vegen. Voor deze derde ligt de tweede vorm
+voor de hand: bij het opstarten elke device-credential intrekken waarvan de
+tag niet in het vlootdocument staat, en dat luid loggen.
+
+**Advies.** De dertien nu intrekken, en de verzoening inbouwen zodat het
+niet opnieuw sluipt. Overwegen om `boundCredTTL` te verlagen: vijf jaar is
+lang voor iets waarvan het intrekken aantoonbaar kan mislukken.
+
+### L1 — Regelverwijzing in het threat model is verlopen
+
+`docs/threat-model.md:114` citeert `checkin.go:150-153` voor de
+gedeeld-token-vergelijking; die staat nu op `checkin.go:324-333`. Klein,
+maar het is dezelfde soort drift waardoor `1.0-fit-gap.md` twee weken lang
+verkeerde dingen beweerde. Een verwijzing die niet meer klopt maakt de
+volgende lezer trager, en de lezer daarna wantrouwig.
+
+## Nagekeken en in orde
+
+- **Autorisatie per verzoek.** Elke muterende web-handler roept
+  `requireWeb` aan, direct of via `requireDeviceEditor`
+  (`internal/http/web/device_ops.go:38`). Een eerste scan gaf vier
+  destructieve device-handlers als vals alarm; die gebruiken de helper.
+- **Tokens.** argon2id, hash-only opgeslagen, constant-time vergelijking
+  (`internal/domain/token/token.go:149-151`), verplicht positieve TTL - geen
+  eeuwige tokens - en het geheim draagt zijn eigen id, zodat verificatie
+  precies één record opzoekt in plaats van de tabel te scannen.
+- **Apparaat-identiteit langs het sterke pad.** Een per-device credential is
+  aan de tag gebonden en wordt voor een andere tag geweigerd, met die
+  bedoeling expliciet in het commentaar.
+- **Wipe-ack replay.** Ondertekende nonce plus tijdstempel, en een ack die
+  niet verifieert laat de beat staan maar gooit de uitkomst weg
+  (`checkin.go:256-262`) - dus een vervalste ack vervuilt het auditspoor
+  niet. Dat is de goede volgorde.
+- **Ingetrokken apparaten.** Een retired tag krijgt 410 vóór enige
+  verwerking (`checkin.go:245-249`): levenscyclus gaat voor authenticatie.
+- **De nix-gate als injectie-firewall.** Hostnamen worden op het splice-punt
+  zelf tegen `hostRe` gehouden en met `%q` geciteerd
+  (`internal/adapters/nix/gate.go:254-264`), met in het commentaar expliciet
+  waarom: *"this function must not trust that a caller upstream did its
+  job"*. Uitvoeren gaat via een argv-slice, geen shell. Instellingswaarden
+  bereiken nix als JSON-data, niet als expressie.
+- **CSRF, structureel.** Alle 67 POST-routes gaan door één wrapper
+  (`internal/http/web/web.go:146-148` -> `action`), die constant-time
+  vergelijkt (`middleware.go:113`). Geen enkele route registreert zich
+  buiten die helper om, dus dit is geen conventie die een nieuwe handler kan
+  vergeten - het verschil met R3, waar read-confidentiality wél per handler
+  wordt afgesproken.
+- **Uitgaande verbindingen.** De enige bestemming die een operator kan
+  zetten is de SMTP-host (`internal/http/web/mail.go:43-45`), en dat is
+  org-Owner-only. Een Owner kan sowieso de hele vlootconfiguratie herschrijven,
+  dus dit is geen rechtenescalatie. Gate-runner-URL, OpenBao-adres en LDAP-URI
+  komen uit de deployment-configuratie, niet uit de console.
+
+## Nog te doen in deze audit
+
+Padtraversal en groottelimieten op de upload-paden (diagnostics, station
+report, facter-document), en R1 en R3-R6 elk tegen de code houden zoals R2
+hierboven. R7 staat als CLOSED en is niet opnieuw gecontroleerd.
