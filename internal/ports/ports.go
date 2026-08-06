@@ -170,6 +170,29 @@ type Gate interface {
 	Validate(ctx context.Context, repoDir string, hosts []string) error
 }
 
+// RefGate is a Gate that can be told WHICH ref carries the change, so a
+// validation covers everything the change touches rather than only the
+// candidate fleet.json (ADR 0020).
+//
+// The in-process EvalGate does not implement it and does not need to: it
+// evaluates a real working tree, so whatever the change carries is already on
+// disk in front of it. Only the remote gate has the problem, because the sole
+// thing that crosses the wire today is one document - which is how a DAWO core
+// update, whose entire content is a flake.lock, was validated against the core
+// it replaced.
+//
+// A caller that knows the ref type-asserts for this and falls back to Validate.
+type RefGate interface {
+	Gate
+	// ValidateRef evaluates ref MERGED ONTO the tracked branch. That is the
+	// state a merge would produce, which is the question worth answering; the
+	// branch in isolation describes a tree that may never exist, because the
+	// tracked branch moves underneath it. A merge that conflicts is a
+	// ValidationError, not a transport failure: it is precisely what an
+	// approver needs to hear before merging rather than during it.
+	ValidateRef(ctx context.Context, repoDir, ref string, hosts []string) error
+}
+
 // GateFunc adapts a function to the Gate interface (tests, gate mode none).
 type GateFunc func(ctx context.Context, repoDir string, hosts []string) error
 

@@ -23,6 +23,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -32,6 +33,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -264,6 +266,10 @@ type server struct {
 type validateRequest struct {
 	Hosts []string `json:"hosts"`
 	Fleet string   `json:"fleet"`
+	// Ref is the change branch to evaluate, merged onto the tracked branch
+	// (ADR 0020). Empty reproduces the pre-0.84 behaviour exactly: the
+	// candidate fleet.json over the tracked branch and nothing else.
+	Ref string `json:"ref,omitempty"`
 }
 
 type validateResponse struct {
@@ -342,7 +348,16 @@ func (s *server) handleValidate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, validateResponse{Error: "overlay sync failed"})
 		return
 	}
-	scratch, err := s.stageCandidate(r.Context(), req.Fleet)
+	scratch, err := s.stageCandidate(r.Context(), req.Fleet, req.Ref)
+	if mergeErr := (*mergeConflict)(nil); errors.As(err, &mergeErr) {
+		// A change that will not merge is a verdict, not a transport failure:
+		// 422 is what the console turns into a ValidationError, so an approver
+		// hears it before merging rather than during it (ADR 0020).
+		s.log.Info("candidate does not merge", "ref", req.Ref, "err", err)
+		writeJSON(w, http.StatusUnprocessableEntity, validateResponse{
+			Error: "change does not merge onto " + s.branch, Detail: shortDetail(err)})
+		return
+	}
 	if err != nil {
 		s.log.Error("staging candidate failed", "err", err)
 		writeJSON(w, http.StatusInternalServerError, validateResponse{
@@ -362,7 +377,21 @@ func (s *server) handleValidate(w http.ResponseWriter, r *http.Request) {
 // stageCandidate materialises the candidate fleet.json as a local commit in
 // a reusable detached scratch worktree and returns that worktree's path.
 // Caller holds s.mu (the worktree is shared per-runner state).
-func (s *server) stageCandidate(ctx context.Context, fleetDoc string) (string, error) {
+// mergeConflict marks a ref that will not merge onto the tracked branch. It is
+// a verdict about the change rather than a failure of the runner, and the two
+// must not share an exit: one is the approver's problem, the other is ours.
+type mergeConflict struct{ err error }
+
+func (e *mergeConflict) Error() string { return e.err.Error() }
+func (e *mergeConflict) Unwrap() error { return e.err }
+
+// refRE bounds what may be handed to git as a ref. The console is
+// authenticated, but "authenticated" is not "may name anything": a ref is
+// interpolated into an argv that fetches and merges, so it is constrained to
+// the shape the change flow actually mints (cr/<id>) rather than trusted.
+var refRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
+
+func (s *server) stageCandidate(ctx context.Context, fleetDoc, ref string) (string, error) {
 	scratch := filepath.Join(filepath.Dir(s.workdir), "validate")
 	if _, err := os.Stat(filepath.Join(scratch, ".git")); err != nil {
 		// Speculative: this branch runs precisely when the worktree is absent
@@ -375,6 +404,32 @@ func (s *server) stageCandidate(ctx context.Context, fleetDoc string) (string, e
 		}
 	} else if err := s.git(ctx, scratch, "checkout", "--detach", "--force", "origin/"+s.branch); err != nil {
 		return "", err
+	}
+	// With a ref, evaluate what a MERGE would produce rather than the branch in
+	// isolation: the tracked branch moves underneath an open change, so the
+	// branch alone describes a tree that may never exist (ADR 0020).
+	if ref != "" {
+		if !refRE.MatchString(ref) || strings.Contains(ref, "..") {
+			return "", fmt.Errorf("refusing to fetch ref %q: not a plain branch name", ref)
+		}
+		// Fetch into a named ref rather than relying on FETCH_HEAD: that file
+		// lives in the main repository's .git, and a linked worktree looks for
+		// its own. Refs are shared across worktrees, so this one is visible
+		// where the merge runs. Forced, because it is scratch state reused by
+		// every request.
+		const candidateRef = "refs/gate/candidate"
+		if err := s.git(ctx, s.workdir, "fetch", "--quiet", "--force", "origin",
+			ref+":"+candidateRef); err != nil {
+			return "", fmt.Errorf("fetch %s: %w", ref, err)
+		}
+		if err := s.git(ctx, scratch, "-c", "user.name=gate-runner",
+			"-c", "user.email=gate@localhost", "merge", "--no-edit", "--quiet",
+			candidateRef); err != nil {
+			// Leave no half-merged tree behind for the next request: the
+			// worktree is reused.
+			_ = s.git(ctx, scratch, "merge", "--abort")
+			return "", &mergeConflict{err}
+		}
 	}
 	// #nosec G306 - the candidate is a throwaway eval input, not a secret.
 	if err := os.WriteFile(filepath.Join(scratch, "fleet.json"), []byte(fleetDoc), 0o644); err != nil {

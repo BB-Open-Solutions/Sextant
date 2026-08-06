@@ -31,6 +31,55 @@ type ChangeRepo interface {
 	Head(ctx context.Context) (string, error)
 }
 
+// branchPublisher is the optional half of ChangeRepo that puts a change
+// branch on the remote and takes it away again. A change branch is pushed so
+// the gate can evaluate everything the change carries, not only the candidate
+// fleet.json (ADR 0020); it also means an open change stops living solely on
+// the console's volume.
+//
+// Optional because a repo without a remote (tests, a local demo) is a complete
+// repo: the gate falls back to fleet.json-only validation there, which is what
+// it always did.
+type branchPublisher interface {
+	PushRef(ctx context.Context, name string) error
+	DeleteRemoteRef(ctx context.Context, name string) error
+}
+
+// publishBranch puts the change branch on the remote so the gate can fetch it.
+// Best-effort by design: failing to publish costs the ref-aware validation and
+// falls back to the old behaviour, which is worse but not wrong. It must never
+// fail the edit that produced the commit.
+func (s *ChangeService) publishBranch(ctx context.Context, cr change.CR) {
+	pub, ok := s.repo.(branchPublisher)
+	if !ok {
+		return
+	}
+	if err := pub.PushRef(ctx, cr.Branch); err != nil {
+		slog.Warn("change branch not published; the gate will see only fleet.json",
+			"change", cr.ID, "branch", cr.Branch, "err", err)
+	}
+}
+
+// gateRef is the ref to validate: the change's branch when the gate can take
+// one and the branch is on the remote, else "" for the old behaviour.
+func (s *ChangeService) gateRef(cr change.CR) string {
+	if _, ok := s.gate.(ports.RefGate); !ok {
+		return ""
+	}
+	if _, ok := s.repo.(branchPublisher); !ok {
+		return ""
+	}
+	return cr.Branch
+}
+
+// validate runs the gate over dir, naming ref when both sides support it.
+func (s *ChangeService) validate(ctx context.Context, dir, ref string, hosts []string) error {
+	if rg, ok := s.gate.(ports.RefGate); ok && ref != "" {
+		return rg.ValidateRef(ctx, dir, ref, hosts)
+	}
+	return s.gate.Validate(ctx, dir, hosts)
+}
+
 // OpenWorktree opens a ConfigRepo view on a linked worktree directory; the
 // git adapter provides it. Injected so tests can substitute.
 type OpenWorktree func(dir string) (ports.ConfigRepo, error)
@@ -191,6 +240,9 @@ func (s *ChangeService) EditFile(ctx context.Context, id, path string, content [
 		cr.Error = ""
 	}
 	cr.Updated = s.clock.Now()
+	// Publish the branch so the gate can fetch it, and so the change is not
+	// only on this console's volume (ADR 0020).
+	s.publishBranch(ctx, cr)
 	return s.store.Put(ctx, cr)
 }
 
@@ -227,6 +279,9 @@ func (s *ChangeService) Edit(ctx context.Context, id string, mut fleet.Mutation,
 		cr.Error = ""
 	}
 	cr.Updated = s.clock.Now()
+	// Publish the branch so the gate can fetch it, and so the change is not
+	// only on this console's volume (ADR 0020).
+	s.publishBranch(ctx, cr)
 	return s.store.Put(ctx, cr)
 }
 
@@ -265,7 +320,7 @@ func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error
 	// needs concrete hosts (there is no whole-set flake target). In remote
 	// gate mode the local builder is a no-op until the runner's /build is
 	// wired here.
-	gateErr := s.gate.Validate(ctx, dir, hosts)
+	gateErr := s.validate(ctx, dir, s.gateRef(change.CR{Branch: change.BranchFor(id)}), hosts)
 	if gateErr == nil && len(hosts) > 0 {
 		gateErr = s.builder.Build(ctx, dir, hosts)
 	}
@@ -387,7 +442,7 @@ func (s *ChangeService) Merge(ctx context.Context, id string, a ports.Author) (c
 		if err := s.repo.MergeNoFF(ctx, cr.Branch, fmt.Sprintf("merge change %s: %s", cr.ID, cr.Title), a); err != nil {
 			return err
 		}
-		if err := s.gate.Validate(ctx, s.repo.Dir(), gateScope(s.repo, cr.GateHosts())); err != nil {
+		if err := s.validate(ctx, s.repo.Dir(), s.gateRef(cr), gateScope(s.repo, cr.GateHosts())); err != nil {
 			if rerr := s.repo.ResetHard(ctx, pre); rerr != nil {
 				return fmt.Errorf("merged result failed the gate (%w) AND rollback failed: %w", err, rerr)
 			}
@@ -545,6 +600,15 @@ func (s *ChangeService) cleanup(ctx context.Context, cr change.CR) {
 	if err := s.repo.DeleteBranch(ctx, cr.Branch); err != nil {
 		slog.Warn("change cleanup: branch not deleted",
 			"change", cr.ID, "branch", cr.Branch, "err", err)
+	}
+	// And on the remote, where it was published for the gate. A leak here is
+	// untidiness rather than a correctness problem - the merge it follows has
+	// already happened - so it is logged and never allowed to fail anything.
+	if pub, ok := s.repo.(branchPublisher); ok {
+		if err := pub.DeleteRemoteRef(ctx, cr.Branch); err != nil {
+			slog.Warn("change cleanup: remote branch not deleted",
+				"change", cr.ID, "branch", cr.Branch, "err", err)
+		}
 	}
 }
 

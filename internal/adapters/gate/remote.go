@@ -49,6 +49,10 @@ func (g *RemoteGate) WithToken(token string) *RemoteGate {
 type validateRequest struct {
 	Hosts []string `json:"hosts"`
 	Fleet string   `json:"fleet"`
+	// Ref names the change branch to evaluate, merged onto the tracked branch
+	// (ADR 0020). Empty means "just this fleet.json over the tracked branch",
+	// which is what a direct write is and what every caller did before.
+	Ref string `json:"ref,omitempty"`
 }
 
 type validateResponse struct {
@@ -64,6 +68,17 @@ type validateResponse struct {
 // caller just wrote into repoDir and sends it to the runner; the runner's
 // own overlay clone supplies the generator and modules.
 func (g *RemoteGate) Validate(ctx context.Context, repoDir string, hosts []string) error {
+	return g.validate(ctx, repoDir, "", hosts)
+}
+
+// ValidateRef implements ports.RefGate: the runner fetches ref and merges it
+// onto its tracked branch before evaluating, so a change carrying only a
+// flake.lock is judged against the core it names.
+func (g *RemoteGate) ValidateRef(ctx context.Context, repoDir, ref string, hosts []string) error {
+	return g.validate(ctx, repoDir, ref, hosts)
+}
+
+func (g *RemoteGate) validate(ctx context.Context, repoDir, ref string, hosts []string) error {
 	// #nosec G304 - repoDir is the service's own repo working dir (not request input) and the filename is a fixed literal.
 	fleet, err := os.ReadFile(filepath.Join(repoDir, "fleet.json"))
 	if err != nil {
@@ -76,7 +91,7 @@ func (g *RemoteGate) Validate(ctx context.Context, repoDir string, hosts []strin
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	body, err := json.Marshal(validateRequest{Hosts: hosts, Fleet: string(fleet)})
+	body, err := json.Marshal(validateRequest{Hosts: hosts, Fleet: string(fleet), Ref: ref})
 	if err != nil {
 		return fmt.Errorf("gate: marshal request: %w", err)
 	}

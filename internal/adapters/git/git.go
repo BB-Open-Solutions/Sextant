@@ -368,6 +368,26 @@ func (r *Repo) SetRef(ctx context.Context, name, rev string) (bool, error) {
 	return true, nil
 }
 
+// DeleteRemoteRef removes refs/heads/<name> on the remote. A change branch is
+// pushed so the gate can evaluate it (ADR 0020), so cleanup has to remove it
+// there as well as locally - otherwise every merged and abandoned change leaves
+// a branch behind in the repository devices follow.
+//
+// No remote is a no-op, and so is a ref that is already gone: deleting what is
+// not there is the state the caller wanted.
+func (r *Repo) DeleteRemoteRef(ctx context.Context, name string) error {
+	if r.remote == "" {
+		return nil
+	}
+	if msg, err := r.runNet(ctx, "push", "--delete", "--", r.remote, "refs/heads/"+name); err != nil {
+		if strings.Contains(msg, "remote ref does not exist") {
+			return nil
+		}
+		return fmt.Errorf("git delete remote ref %s: %s", name, msg)
+	}
+	return nil
+}
+
 // PushRef implements ports.RefUpdater. Ring refs are machine-owned: the
 // rollout engine is the only writer, so a force push is safe and needed
 // (a re-targeted rollout can move a ref backwards).

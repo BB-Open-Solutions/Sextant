@@ -123,6 +123,12 @@ func ValidID(id string) error {
 	return nil
 }
 
+// BranchFor is the branch a change lives on. One place, because the gate names
+// this ref when it validates (ADR 0020) and a second spelling of it would be a
+// bug nobody notices - a validation would quietly fall back to fleet.json-only
+// and still say yes.
+func BranchFor(id string) string { return "cr/" + id }
+
 // New builds a draft CR. The caller supplies the clock so the domain stays
 // deterministic.
 func New(id, title, author, authorSubject string, now time.Time) (CR, error) {
@@ -134,7 +140,7 @@ func New(id, title, author, authorSubject string, now time.Time) (CR, error) {
 	}
 	return CR{
 		ID: id, Title: title, Author: author, AuthorSubject: authorSubject,
-		Branch: "cr/" + id, Status: Draft,
+		Branch: BranchFor(id), Status: Draft,
 		Created: now, Updated: now,
 	}, nil
 }

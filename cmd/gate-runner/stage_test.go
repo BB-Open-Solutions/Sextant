@@ -71,7 +71,7 @@ const baseFleet = `{"version":3,"org":{"settings":{}},"devices":{}}`
 // evaluates" is a fine thing to be asked about.
 func TestStageCandidateAcceptsAnUnchangedFleet(t *testing.T) {
 	s := stageRepo(t, baseFleet)
-	scratch, err := s.stageCandidate(context.Background(), baseFleet)
+	scratch, err := s.stageCandidate(context.Background(), baseFleet, "")
 	if err != nil {
 		t.Fatalf("staging an unchanged candidate failed: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestStageCandidateAcceptsAnUnchangedFleet(t *testing.T) {
 func TestStageCandidateWritesTheCandidate(t *testing.T) {
 	s := stageRepo(t, baseFleet)
 	changed := `{"version":3,"org":{"settings":{"dawo.identity.enable":true}},"devices":{}}`
-	scratch, err := s.stageCandidate(context.Background(), changed)
+	scratch, err := s.stageCandidate(context.Background(), changed, "")
 	if err != nil {
 		t.Fatalf("stageCandidate: %v", err)
 	}
@@ -115,12 +115,12 @@ func TestStageCandidateWritesTheCandidate(t *testing.T) {
 func TestStageCandidateIsReusable(t *testing.T) {
 	s := stageRepo(t, baseFleet)
 	first := `{"version":3,"org":{"settings":{"a":1}},"devices":{}}`
-	if _, err := s.stageCandidate(context.Background(), first); err != nil {
+	if _, err := s.stageCandidate(context.Background(), first, ""); err != nil {
 		t.Fatalf("first stage: %v", err)
 	}
 	// Second call: unchanged relative to the BASE, but different from what the
 	// worktree currently holds. Both properties matter.
-	scratch, err := s.stageCandidate(context.Background(), baseFleet)
+	scratch, err := s.stageCandidate(context.Background(), baseFleet, "")
 	if err != nil {
 		t.Fatalf("second stage: %v", err)
 	}
