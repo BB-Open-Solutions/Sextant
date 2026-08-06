@@ -36,6 +36,35 @@ The one exception is a production incident, and it is written down so it stays
 an exception: fix forward, then open the issue and the merge request
 retroactively, with the incident named in the commit.
 
+## Where the code lives, from go-live onward
+
+**Trigger: go-live.** Decided 6 August 2026; not to be started before 1.0 is
+tagged, because a repository move and a release are two things nobody should
+debug at the same time.
+
+The public DAWO repositories move to **Codeberg**, which becomes the leading
+copy. `code.overheid.nl` stays as a mirror of it, `forgejo.bb-open.com`
+remains the internal repository that CI and Flux read from, and the GitHub
+repository goes offline. Three forges for a while, two at the end.
+
+This is a project migration rather than a remote swap, and the two parts
+that make it one are worth stating before somebody starts:
+
+- **CI has to move with it.** Today it is `.forgejo/workflows/`, running on a
+  self-hosted NixOS runner. Codeberg has Woodpecker; the release workflow
+  assumes a runner with nix, so the runner question has to be answered
+  before the move, not during it.
+- **The repository is called `SextantFleet` there, not `DAWO-Sextant`.** If
+  the Go module path follows the new home, that is a rename across 226 files
+  (555 occurrences), plus `go.mod`, the docs and the flake. Decide
+  deliberately whether the module path moves at all: it may stay
+  `code.overheid.nl/MinBZK/DAWO-Sextant` while the code lives elsewhere,
+  which is ugly but stable, or move once and be done.
+
+Also in scope, easy to forget: `upstreamRepo` in the HelmRelease points at
+`code.overheid.nl/MinBZK/DAWO-NixOS.git`, and the core repository migrates
+separately.
+
 ## 1.1 - what Zaanstad hits first
 
 **Trigger: the first machines that are not pilot laptops.** Everything here is
