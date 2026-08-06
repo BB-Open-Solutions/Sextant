@@ -158,6 +158,26 @@ jobs:
               --set persistence.enabled=true >/dev/null 2>&1; then
               echo "HA guard did not fire: PVC + replicaCount>1 rendered"; exit 1
             fi
+            # Backup guards. A half-configured backup is worse than none: it
+            # fills a bucket, moves the metrics, and cannot restore. Both
+            # halves are asserted to refuse.
+            if helm template deploy/helm --set gateMode=eval \
+              --set cnpg.backup.enabled=true >/dev/null 2>&1; then
+              echo "backup guard did not fire: enabled without destinationPath rendered"; exit 1
+            fi
+            if helm template deploy/helm --set gateMode=eval \
+              --set cnpg.backup.enabled=true --set cnpg.backup.destinationPath=s3://b/x/ >/dev/null 2>&1; then
+              echo "backup guard did not fire: enabled without secretName rendered"; exit 1
+            fi
+            # And a complete backup config must render BOTH objects. WAL
+            # archiving with no base backup is the failure this pairing
+            # exists to prevent (forgejo, 2026-06-01).
+            back=$(helm template deploy/helm --set gateMode=eval \
+              --set cnpg.backup.enabled=true \
+              --set cnpg.backup.destinationPath=s3://b/x/ \
+              --set cnpg.backup.secretName=s)
+            echo "$back" | grep -q "barmanObjectStore" || { echo "backup enabled but no barmanObjectStore"; exit 1; }
+            echo "$back" | grep -q "kind: ScheduledBackup" || { echo "barmanObjectStore without a ScheduledBackup: WAL with no base is not recoverable"; exit 1; }
             # Every setting the server reads from the environment is looked up
             # with a SEXTANT_ prefix (config.EnvPrefix). A chart env var without
             # it is not a typo the server complains about - it is silently

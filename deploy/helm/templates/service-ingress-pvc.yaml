@@ -68,4 +68,59 @@ spec:
     {{- with .Values.cnpg.storageClass }}
     storageClass: {{ . }}
     {{- end }}
+{{- if .Values.cnpg.backup.enabled }}
+  {{- $b := .Values.cnpg.backup }}
+  {{- if not $b.destinationPath }}
+    {{- fail "cnpg.backup.enabled requires cnpg.backup.destinationPath (an s3:// prefix)" }}
+  {{- end }}
+  {{- if not $b.secretName }}
+    {{- fail "cnpg.backup.enabled requires cnpg.backup.secretName holding ACCESS_KEY_ID and SECRET_ACCESS_KEY" }}
+  {{- end }}
+  backup:
+    retentionPolicy: {{ $b.retention | quote }}
+    barmanObjectStore:
+      destinationPath: {{ $b.destinationPath | quote }}
+      {{- with $b.endpointURL }}
+      endpointURL: {{ . | quote }}
+      {{- end }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ $b.secretName }}
+          key: {{ $b.accessKeyIdKey }}
+        secretAccessKey:
+          name: {{ $b.secretName }}
+          key: {{ $b.secretAccessKeyKey }}
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+{{- end }}
+{{- if .Values.cnpg.backup.enabled }}
+---
+# A ScheduledBackup is NOT optional alongside barmanObjectStore, which is why
+# the chart renders both or neither rather than offering two switches.
+#
+# WAL archiving without a base backup is not a backup. It looks like one -
+# the bucket fills, the metrics move - but there is nothing to replay the WAL
+# ONTO, so recovery is impossible. This exact gap sat unnoticed on the
+# forgejo cluster in this same platform until 2026-06-01, with
+# firstRecoverabilityPoint empty the whole time.
+#
+# immediate: true closes the window on apply instead of at the first
+# scheduled run, because the interval between "backup enabled" and "first
+# base backup" is precisely the interval in which everybody believes they
+# are covered.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ .Values.cnpg.name }}-scheduled
+spec:
+  # CNPG cron takes SIX fields (sec min hour dom month dow), not five.
+  schedule: {{ .Values.cnpg.backup.schedule | quote }}
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: {{ .Values.cnpg.name }}
+  method: barmanObjectStore
+{{- end }}
 {{- end }}

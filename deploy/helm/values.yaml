@@ -202,6 +202,36 @@ cnpg:
   instances: 1
   storage: 2Gi
   storageClass: longhorn
+  # Off-cluster backup of the observed plane. OFF by default because it needs
+  # an object store this chart cannot assume, and a default pointing nowhere
+  # would fail every install.
+  #
+  # WHAT IS IN THIS DATABASE, and why the default being off is a decision
+  # somebody has to make rather than inherit: device inventory, check-ins and
+  # image jobs are all rebuildable from the fleet document and the devices
+  # themselves. The LUKS recovery-key escrow is NOT. A device erases its own
+  # copy once the console acknowledges the key, so this database holds the
+  # only copy of the material that gets a user back into an encrypted disk.
+  # Losing this volume without a backup means every encrypted device in the
+  # fleet is unrecoverable.
+  #
+  # Enabling renders a Cluster with barmanObjectStore AND a ScheduledBackup.
+  # Both or neither, deliberately: see the comment in the template.
+  backup:
+    enabled: false
+    # s3:// prefix, e.g. s3://bucket/sextant/v1/
+    destinationPath: ""
+    # Omit for AWS; set for any S3-compatible endpoint.
+    endpointURL: ""
+    # Secret holding the two keys below. Must exist in this namespace.
+    secretName: ""
+    accessKeyIdKey: ACCESS_KEY_ID
+    secretAccessKeyKey: SECRET_ACCESS_KEY
+    # SIX fields (sec min hour dom month dow). Default 02:45 UTC, chosen to
+    # sit away from the other backup windows in the platform rather than
+    # adding to a burst.
+    schedule: "0 45 2 * * *"
+    retention: 30d
 
 persistence:
   enabled: true
