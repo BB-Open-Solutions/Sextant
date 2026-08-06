@@ -208,11 +208,21 @@ elke medewerker die inlogt, en het is niet begrensd tot wie clustertoegang
 al heeft: meelezen op het podnetwerk is een lagere drempel dan het uitlezen
 van een secret.
 
-**Advies.** ADR 0021 (geschreven 2026-08-06) besluit het al: LDAPS is de
-ondersteunde transportlaag, plat LDAP moet expliciet erkend worden. Wat nog
-moet: de module die het afdwingt, en bb-open zelf naar `ldaps://`. De
-console-bind (`ldap://openldap.ldap-bb-open:389`) gaat mee - die draagt het
-`cn=sextant-ro`-wachtwoord, smaller maar niet anders van aard.
+**Advies.** ADR 0021 besluit het: LDAPS is de ondersteunde transportlaag,
+plat LDAP moet expliciet erkend worden.
+
+**Stand 6 augustus, 23:50.** De module dwingt het af (overlay `db23306`).
+Gemeten aan beide kanten op `dawo-inspoelstraat`: zonder de erkenning
+weigert de evaluatie met een bericht dat de optie noemt, met de erkenning
+evalueert hij en verschijnt de waarschuwing.
+
+bb-open heeft de erkenning nu aan staan, want de directory draait vandaag
+op `ldap://10.43.76.5`. **Daarmee is de bevinding niet gesloten** - hij is
+zichtbaar gemaakt en staat in het vlootdocument in plaats van in een
+comment. Sluiten vraagt een certificaat op de OpenLDAP-dienst en dan
+`ldaps://`; dat is platformwerk. De console-bind
+(`ldap://openldap.ldap-bb-open:389`) gaat in dezelfde beweging mee - die
+draagt het `cn=sextant-ro`-wachtwoord, smaller maar niet anders van aard.
 
 ### H2 — De console pusht als een persoon, niet als een machine
 
