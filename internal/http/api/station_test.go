@@ -34,6 +34,11 @@ func (a stationAuth) AuthenticateTag(_ context.Context, secret, claimedTag strin
 	return secret == a.secret && claimedTag == a.station
 }
 
+// HasCredential: the one station this fake knows about has one.
+func (a stationAuth) HasCredential(_ context.Context, tag string) (bool, error) {
+	return tag == a.station, nil
+}
+
 func newStationServer(t *testing.T, auth StationAuthenticator) (*httptest.Server, *stationMemStore) {
 	t.Helper()
 	store := &stationMemStore{sets: map[string][]discovery.Discovered{}}
@@ -136,5 +141,40 @@ func TestStationReportDisabledWithoutAuth(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != 403 {
 		t.Fatalf("disabled = %d, want 403", resp.StatusCode)
+	}
+}
+
+// TestStationBridgeTokenCannotSpeakForACredentialedStation mirrors the
+// check-in narrowing (checkin_test.go) on the station report path. This
+// endpoint had no bridge-token test at all before 2026-08-06, which is how
+// the shared token kept working for a credentialed station unnoticed.
+func TestStationBridgeTokenCannotSpeakForACredentialedStation(t *testing.T) {
+	store := &stationMemStore{sets: map[string][]discovery.Discovered{}}
+	svc := app.NewDiscoveryService(store, fixedClock{time.Unix(1000, 0)}, "")
+	// nuc-1 has its own credential; nuc-new does not.
+	auth := stationAuth{secret: "s3cr3t", station: "nuc-1"}
+	api := NewStation(svc, nil, nil, auth, "bridge-tok", discardLog())
+	mux := http.NewServeMux()
+	api.Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	body := `{"devices":[{"mac":"aa:bb:cc:dd:ee:ff","phase":"pxe"}]}`
+
+	// The migration case still works: a station with no credential of its own.
+	resp := stationPost(t, srv.URL+"/api/station/nuc-new/report", "bridge-tok", body)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("bridge report for an un-credentialed station = %d, want 204", resp.StatusCode)
+	}
+	// The downgrade is closed: nuc-1 has its own credential.
+	resp = stationPost(t, srv.URL+"/api/station/nuc-1/report", "bridge-tok", body)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("bridge report for a credentialed station = %d, want 401", resp.StatusCode)
+	}
+	// And nuc-1's own credential still works, so that 401 is the bridge being
+	// narrowed rather than the station being locked out.
+	resp = stationPost(t, srv.URL+"/api/station/nuc-1/report", "s3cr3t", body)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("nuc-1 with its own credential = %d, want 204", resp.StatusCode)
 	}
 }

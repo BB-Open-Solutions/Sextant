@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
@@ -18,6 +19,11 @@ import (
 // tag (ADR 0008). Implemented by app.DeviceCredentials.
 type DeviceAuthenticator interface {
 	AuthenticateTag(ctx context.Context, secret, claimedTag string) bool
+	// HasCredential reports whether a tag already holds a credential of its
+	// own, so the bridge token can be refused for it. The error is returned
+	// rather than folded into the bool: "we could not tell" and "it has
+	// none" must not look the same on an auth path.
+	HasCredential(ctx context.Context, tag string) (bool, error)
 }
 
 // CheckinAPI serves the device-facing check-in endpoint. Two auth modes,
@@ -59,6 +65,8 @@ type CheckinAPI struct {
 	elevation *app.ElevationService
 	// log is optional; logger() falls back to slog.Default().
 	log *slog.Logger
+	// bridge throttles the shared-token warning per tag (bridge_notice.go).
+	bridge bridgeNotice
 }
 
 // logger returns the wired logger or the process default.
@@ -321,13 +329,50 @@ func (c *CheckinAPI) handleCheckin(w http.ResponseWriter, r *http.Request) {
 // authorized accepts a per-device credential bound to the reported tag
 // first, then the shared bridge token. A device credential for a DIFFERENT
 // tag is rejected even though it is otherwise valid.
+//
+// THE BRIDGE ONLY COVERS DEVICES THAT HAVE NO CREDENTIAL YET. Until
+// 2026-08-06 it covered every device, which made the shared token a
+// fleet-wide impersonation key: a device that had been issued its own
+// credential could still be spoken for by anyone holding the bridge secret,
+// so issuing credentials bought nothing while the bridge was up. Narrowing it
+// to un-credentialed tags keeps the migration path open and removes the
+// downgrade: once a device is issued a credential, only that credential
+// speaks for it.
+//
+// FAILS CLOSED, TWICE OVER. A store error means we cannot tell whether the
+// tag has a credential, so the bridge is refused - a device with its own
+// credential is unaffected, since that path is checked first and needs the
+// same store. An EXPIRED credential also counts as "has one": the remedy is
+// to re-issue it, not to let the weaker path take over.
 func (c *CheckinAPI) authorized(r *http.Request, secret, tag string) bool {
-	if c.devs != nil && tag != "" && c.devs.AuthenticateTag(r.Context(), secret, tag) {
+	ctx := r.Context()
+	if c.devs != nil && tag != "" && c.devs.AuthenticateTag(ctx, secret, tag) {
 		return true
 	}
-	if c.shared != "" &&
-		subtle.ConstantTimeCompare([]byte(secret), []byte(c.shared)) == 1 {
-		return true
+	if c.shared == "" ||
+		subtle.ConstantTimeCompare([]byte(secret), []byte(c.shared)) != 1 {
+		return false
 	}
-	return false
+	if c.devs != nil && tag != "" {
+		has, err := c.devs.HasCredential(ctx, tag)
+		if err != nil {
+			c.logger().Error("check-in: cannot tell whether the device has its own credential, so the bridge token is refused",
+				"tag", tag, "err", err)
+			return false
+		}
+		if has {
+			c.logger().Warn("check-in refused: the bridge token was offered for a device that has its own credential",
+				"tag", tag, "remedy", "the device must send its own credential, or be re-issued one")
+			return false
+		}
+	}
+	c.noteBridgeUse(tag)
+	return true
+}
+
+// noteBridgeUse warns that a device authenticated on the shared token.
+func (c *CheckinAPI) noteBridgeUse(tag string) {
+	c.bridge.warn(c.logger(), c.now, "check-in accepted on the shared bridge token", "tag", tag,
+		"this device has no credential of its own; the token can speak for any such device",
+		"issue a device credential, then remove the shared token")
 }

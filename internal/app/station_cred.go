@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/token"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
@@ -38,6 +39,18 @@ func (s *StationCredentials) Issue(ctx context.Context, tag string) (string, err
 // Revoke removes a station's credential.
 func (s *StationCredentials) Revoke(ctx context.Context, tag string) error {
 	return s.store.Delete(ctx, stationTokenID(tag))
+}
+
+// HasCredential reports whether a station already holds a credential of its
+// own. The report path uses it to refuse the shared bridge token for a station
+// that has outgrown it; see the same method on DeviceCredentials for why an
+// expired credential still counts as one.
+func (s *StationCredentials) HasCredential(ctx context.Context, tag string) (bool, error) {
+	_, ok, err := s.store.Get(ctx, stationTokenID(tag))
+	if err != nil {
+		return false, fmt.Errorf("look up station credential for %s: %w", tag, err)
+	}
+	return ok, nil
 }
 
 // AuthenticateTag verifies a credential AND that it belongs to the claimed

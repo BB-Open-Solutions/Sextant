@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -236,11 +237,28 @@ func TestStatusEndpoints(t *testing.T) {
 }
 
 // fakeDevAuth verifies a device credential against a claimed tag.
-type fakeDevAuth struct{ creds map[string]string } // secret -> tag
+type fakeDevAuth struct {
+	creds  map[string]string // secret -> tag
+	getErr error             // when set, HasCredential cannot answer
+}
 
 func (f *fakeDevAuth) AuthenticateTag(_ context.Context, secret, tag string) bool {
 	got, ok := f.creds[secret]
 	return ok && got == tag
+}
+
+// HasCredential answers from the same map the real store would: a tag that
+// appears as the subject of some credential has one.
+func (f *fakeDevAuth) HasCredential(_ context.Context, tag string) (bool, error) {
+	if f.getErr != nil {
+		return false, f.getErr
+	}
+	for _, t := range f.creds {
+		if t == tag {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func TestCheckinPerDeviceCredentialClosesImpersonation(t *testing.T) {
@@ -338,5 +356,67 @@ func TestCheckinReturnsIntent(t *testing.T) {
 	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
 		`{"tag":"stolen","revision":"v1","ack":"lock"}`); got != 200 {
 		t.Errorf("ack check-in = %d", got)
+	}
+}
+
+// TestBridgeTokenCannotSpeakForACredentialedDevice pins the narrowing made on
+// 2026-08-06. The shared token used to authenticate any tag, so a device that
+// had already been issued its own credential could still be spoken for by
+// anyone holding the bridge secret - issuing credentials bought nothing while
+// the bridge was up. The bridge now covers only tags that have no credential
+// yet, which is the whole of what a migration path needs.
+func TestBridgeTokenCannotSpeakForACredentialedDevice(t *testing.T) {
+	fo := newFakeObserved()
+	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
+	// lt-1 has been issued a credential; lt-new has not.
+	devs := &fakeDevAuth{creds: map[string]string{"cred-lt1": "lt-1"}}
+	mux := http.NewServeMux()
+	NewCheckin(inv, devs, "bridge-tok").Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	// The migration case still works: a device with no credential of its own.
+	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
+		`{"tag":"lt-new","revision":"v1","phase":"running"}`); got != 204 {
+		t.Errorf("bridge check-in for an un-credentialed device = %d, want 204", got)
+	}
+	// The downgrade is closed: lt-1 has its own credential, so the bridge
+	// token may not report as lt-1 - not even though the secret is valid.
+	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
+		`{"tag":"lt-1","revision":"v1","phase":"running"}`); got != 401 {
+		t.Errorf("bridge check-in for a credentialed device = %d, want 401", got)
+	}
+	// And lt-1's own credential still works, so the refusal above is the
+	// bridge being narrowed rather than the device being locked out.
+	if got := post(t, srv.URL+"/api/checkin", "cred-lt1",
+		`{"tag":"lt-1","revision":"v1","phase":"running"}`); got != 204 {
+		t.Errorf("lt-1 with its own credential = %d, want 204", got)
+	}
+}
+
+// TestBridgeTokenFailsClosedWhenTheStoreCannotAnswer covers the ambiguous
+// case: if we cannot tell whether a tag has a credential, accepting the
+// bridge would be guessing in the attacker's favour on an auth path.
+func TestBridgeTokenFailsClosedWhenTheStoreCannotAnswer(t *testing.T) {
+	fo := newFakeObserved()
+	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
+	devs := &fakeDevAuth{
+		creds:  map[string]string{"cred-lt1": "lt-1"},
+		getErr: errors.New("token store unreachable"),
+	}
+	mux := http.NewServeMux()
+	NewCheckin(inv, devs, "bridge-tok").Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	if got := post(t, srv.URL+"/api/checkin", "bridge-tok",
+		`{"tag":"lt-new","revision":"v1","phase":"running"}`); got != 401 {
+		t.Errorf("bridge check-in with an unreadable store = %d, want 401", got)
+	}
+	// A device credential is unaffected: that path never consults the
+	// lookup that failed.
+	if got := post(t, srv.URL+"/api/checkin", "cred-lt1",
+		`{"tag":"lt-1","revision":"v1","phase":"running"}`); got != 204 {
+		t.Errorf("own credential during a store error = %d, want 204", got)
 	}
 }

@@ -28,6 +28,11 @@ type secretSink interface {
 // station tag (ADR 0008). Implemented by app.StationCredentials.
 type StationAuthenticator interface {
 	AuthenticateTag(ctx context.Context, secret, claimedTag string) bool
+	// HasCredential reports whether a station already holds a credential of
+	// its own, so the bridge token can be refused for it. See the identical
+	// method on DeviceAuthenticator (checkin.go) for why the error is
+	// returned rather than folded into the bool.
+	HasCredential(ctx context.Context, tag string) (bool, error)
 }
 
 // deviceCredIssuer mints a device's one-time agent credential. Implemented by
@@ -59,6 +64,8 @@ type StationAPI struct {
 	stations StationAuthenticator
 	shared   string // shared bridge token; "" disables it
 	log      *slog.Logger
+	// bridge throttles the shared-token warning per station (bridge_notice.go).
+	bridge bridgeNotice
 }
 
 // WithSecrets wires the per-device secret store so an installed device's LUKS
@@ -413,12 +420,36 @@ func (s *StationAPI) authStation(w http.ResponseWriter, r *http.Request) (string
 // authorized accepts a per-station credential bound to the reported station
 // first, then the shared bridge token. A station credential for a DIFFERENT
 // station is rejected even though it is otherwise valid.
+//
+// The bridge only covers stations that have no credential yet, and fails
+// closed when that cannot be established - the same narrowing the check-in
+// endpoint got on 2026-08-06, and for the same reason: a bridge that also
+// speaks for credentialed subjects makes issuing credentials pointless while
+// it is up. The reasoning is written out once, in checkin.go's authorized.
 func (s *StationAPI) authorized(r *http.Request, secret, station string) bool {
-	if s.stations != nil && s.stations.AuthenticateTag(r.Context(), secret, station) {
+	ctx := r.Context()
+	if s.stations != nil && s.stations.AuthenticateTag(ctx, secret, station) {
 		return true
 	}
-	if s.shared != "" && subtle.ConstantTimeCompare([]byte(secret), []byte(s.shared)) == 1 {
-		return true
+	if s.shared == "" ||
+		subtle.ConstantTimeCompare([]byte(secret), []byte(s.shared)) != 1 {
+		return false
 	}
-	return false
+	if s.stations != nil && station != "" {
+		has, err := s.stations.HasCredential(ctx, station)
+		if err != nil {
+			s.log.Error("station: cannot tell whether it has its own credential, so the bridge token is refused",
+				"station", station, "err", err)
+			return false
+		}
+		if has {
+			s.log.Warn("station report refused: the bridge token was offered for a station that has its own credential",
+				"station", station, "remedy", "the station must send its own credential, or be re-issued one")
+			return false
+		}
+	}
+	s.bridge.warn(s.log, nil, "station report accepted on the shared bridge token", "station", station,
+		"this station has no credential of its own; the token can speak for any such station",
+		"issue a station credential, then remove the shared token")
+	return true
 }

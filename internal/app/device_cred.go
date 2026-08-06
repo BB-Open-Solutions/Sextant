@@ -46,6 +46,23 @@ func (d *DeviceCredentials) Authenticate(ctx context.Context, secret string) (st
 	return authenticateBound(ctx, d.store, d.clock, secret, token.Device)
 }
 
+// HasCredential reports whether a tag already holds a credential of its own.
+// The check-in path uses it to refuse the shared bridge token for a device
+// that has outgrown it (api/checkin.go), so the bridge cannot be used to
+// downgrade a credentialed device.
+//
+// An EXPIRED credential still counts as one. The device cannot authenticate
+// with it, so this looks like it locks the device out - and that is the
+// intent: the answer to an expired credential is to re-issue it from the
+// console, not to let a fleet-wide shared secret quietly take over.
+func (d *DeviceCredentials) HasCredential(ctx context.Context, tag string) (bool, error) {
+	_, ok, err := d.store.Get(ctx, deviceTokenID(tag))
+	if err != nil {
+		return false, fmt.Errorf("look up device credential for %s: %w", tag, err)
+	}
+	return ok, nil
+}
+
 // AuthenticateTag verifies a credential AND that it belongs to the claimed
 // tag - the check-in path asserts the device is who it says it is.
 func (d *DeviceCredentials) AuthenticateTag(ctx context.Context, secret, claimedTag string) bool {
