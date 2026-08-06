@@ -180,6 +180,40 @@ terugverplaatsen een luide start-panic op - en hij logt altijd, ook
 `revoked=0`, zodat "deed niets" en "draaide niet" niet meer op elkaar
 lijken. Na te meten zodra 0.84.0 draait.
 
+### H3 — Wachtwoorden van medewerkers gaan in platte tekst over het clusternetwerk
+
+**Gemeten.** `identity.ldapUri` staat in `fleet.json` op `ldap://10.43.76.5`.
+Op die tak zet de overlay-module drie dingen
+(`modules/integrations.nix:334-357`):
+
+```nix
+ldap_tls_reqcert = "never";
+ldap_auth_disable_tls_never_use_in_production = true;
+ldap_id_use_start_tls = false;
+```
+
+De middelste is niet onze naamgeving; zo heet de optie bij SSSD. Hij staat
+aan, op draaiende hardware.
+
+**Waarom dit telt.** Een SSSD simple bind draagt het **wachtwoord van de
+medewerker**, niet een hash of een token. De redenering waarom dat mocht
+(route-besluit 2026-07-27) was dat de directory alleen via de WireGuard-mesh
+bereikbaar is. Dat dekt het traject apparaat-naar-cluster. Van de routing
+peer naar de OpenLDAP-pod gaat het verkeer plat over het podnetwerk, en
+alles wat daar kan meelezen - een gecompromitteerde sidecar, een node,
+`kubectl debug` - leest wachtwoorden mee terwijl ze worden ingetypt.
+
+**Ernst: hoog.** Het gaat om het sterkste inloggegeven in het systeem, van
+elke medewerker die inlogt, en het is niet begrensd tot wie clustertoegang
+al heeft: meelezen op het podnetwerk is een lagere drempel dan het uitlezen
+van een secret.
+
+**Advies.** ADR 0021 (geschreven 2026-08-06) besluit het al: LDAPS is de
+ondersteunde transportlaag, plat LDAP moet expliciet erkend worden. Wat nog
+moet: de module die het afdwingt, en bb-open zelf naar `ldaps://`. De
+console-bind (`ldap://openldap.ldap-bb-open:389`) gaat mee - die draagt het
+`cn=sextant-ro`-wachtwoord, smaller maar niet anders van aard.
+
 ### H2 — De console pusht als een persoon, niet als een machine
 
 **Gemeten.** De netrc in de console-pod authenticeert bij

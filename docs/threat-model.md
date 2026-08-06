@@ -326,10 +326,14 @@ hardware; both are recorded in `docs/e2e-2-findings.md` in full.
   while it was not. Host keys are now recorded at install
   (`fleet.ITAM.HostKeyID`) and secrets re-encrypted from the fleet's own
   facts (`scripts/rekey-secrets.sh`).
-- **Plain LDAP over the mesh is a deliberate choice, not an oversight.**
-  Device login binds over `ldap://` to a cluster-internal directory that is
-  only reachable through the WireGuard mesh; the transport is encrypted and
-  peer-authenticated at the network layer, and nothing is exposed publicly
-  (route decision 2026-07-27, ADR 0015). A customer directory reached over
-  the public internet must use `ldaps://` with `identity.tlsCaCert`, and the
-  module enforces strict certificate verification there.
+- **Device login binds over LDAPS; plain LDAP is an acknowledged exception**
+  (ADR 0021). This bullet argued the opposite until 2026-08-06: that plain
+  `ldap://` was fine because the directory sits behind the WireGuard mesh.
+  That argument covered one leg of the path. A simple bind carries the end
+  user's **password**, and from the mesh routing peer to the directory pod it
+  crosses the cluster network in the clear - which is why the plain branch has
+  to set `ldap_auth_disable_tls_never_use_in_production`, upstream's own name
+  for the option. Measured on 2026-08-06: that option was set in production at
+  bb-open. A deployment may still acknowledge its way onto plain LDAP, and
+  then this is its residual risk, recorded in the fleet document rather than
+  in a comment.
