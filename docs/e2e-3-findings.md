@@ -357,6 +357,49 @@ same failure e2e-2 recorded about a test that observed an anomaly and argued it
 away. The removal is now attempted only when the directory exists, and the test
 run was checked for spurious warnings rather than assumed clean.
 
+## The gate cannot see a core update at all
+
+**Symptom.** A DAWO core update passed the gate, was approved, merged - and the
+overlay's `main` then stopped evaluating for the workplace class. Two modules
+declared `dawo.printing.enable`: one in the overlay, one that the core had
+gained on 2026-07-01 and that arrived with the bump. The station class was
+unaffected; it does not import the profile that carries it.
+
+**Why the gate said yes.** In `gateMode: remote` - production - the console
+sends the runner exactly one thing:
+
+```go
+// Validate implements ports.Gate. It reads the candidate fleet.json the
+// caller just wrote into repoDir and sends it to the runner; the runner's
+// own overlay clone supplies the generator and modules.
+```
+
+The runner then syncs its clone to `origin/<branch>` and writes the candidate
+`fleet.json` over it. So the evaluation is: **the candidate settings document,
+against whatever `main` already contains.**
+
+A core update does not touch `fleet.json`. It changes `flake.lock` on the
+change's branch. That file never travels, so the gate evaluated the update
+against the core it was replacing, found it consistent, and said yes - which
+was true of the question it was asked and useless as an answer to the question
+that mattered.
+
+**Scope, which is wider than core updates.** Anything a change carries outside
+`fleet.json` is invisible to the remote gate. That includes the custom overlay
+editor (ADR 0014), whose whole point is committing Nix that must evaluate.
+
+**Not fixed in this release.** The shape of the fix is clear - the validate
+request should name the ref to evaluate, and the runner should check that out
+instead of `origin/main`, since it already has the same remote - but changing
+what the gate evaluates is not a change to make in the same hour as the
+incident it explains.
+
+**What made it visible.** Nothing in the console. The overlay was pinned to a
+core from 24 June and the jump to 5 August carried five weeks of changes; the
+collision only surfaced when a local `nix eval` was run against both device
+classes before pushing. A green gate, a merged change and a broken `main`
+coexisted quietly.
+
 ## Two smaller things the run surfaced
 
 These were found while working on the local-admin CLI (`#50`) during the same
