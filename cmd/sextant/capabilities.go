@@ -676,7 +676,7 @@ func (d *deps) consoleCapability() capability.Capability {
 					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds,
 					DeviceSecrets: d.deviceSecrets, Diagnostics: d.diagnostics,
 					Notify: d.notify, Mail: d.mail, Users: d.users, Compliance: d.compliance,
-					Elevation: d.elevation},
+					Elevation: d.elevation, ForgeID: d.forgeID},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {

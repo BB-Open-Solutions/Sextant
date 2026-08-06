@@ -1,0 +1,79 @@
+{{define "content"}}
+<div class="mb-8">
+  <h1 class="mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-mint-deep">key</span>{{.L.T "forge.title"}}</h1>
+  <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "forge.subtitle"}}</p>
+</div>
+
+{{if .Unavailable}}
+  <div class="rounded-lg border border-border-hairline bg-surface-bright p-5">
+    <p class="mb-0 text-body-md text-text-secondary">{{.L.T "forge.unavailable"}}</p>
+  </div>
+{{else}}
+
+  {{if .Error}}
+    <div class="mb-4 rounded-lg border border-danger/40 bg-danger/5 p-4 text-body-sm text-ink">{{.Error}}</div>
+  {{end}}
+  {{if .Saved}}
+    <div class="mb-4 rounded-lg border border-mint-deep/40 bg-mint-vibrant/5 p-4 text-body-sm text-ink">{{.L.T "forge.saved"}}</div>
+  {{end}}
+
+  <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+    <h2 class="mt-0 mb-3 text-headline-sm text-ink">{{.L.T "forge.current_title"}}</h2>
+    {{if .Configured}}
+      <dl class="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-3">
+        <div><dt class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "forge.host"}}</dt><dd class="mb-0 text-body-md text-ink">{{.Identity.Host}}</dd></div>
+        <div><dt class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "forge.username"}}</dt><dd class="mb-0 text-body-md text-ink">{{.Identity.Username}}</dd></div>
+        <div><dt class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "forge.rotated"}}</dt><dd class="mb-0 text-body-md text-ink">{{.Identity.Updated.Format "2006-01-02 15:04"}}{{if .Identity.UpdatedBy}} &middot; {{.Identity.UpdatedBy}}{{end}}</dd></div>
+      </dl>
+      <p class="mt-3 mb-0 text-body-sm text-text-tertiary">{{.L.T "forge.token_hidden"}}</p>
+    {{else}}
+      <p class="mb-0 text-body-md text-text-secondary">{{.L.T "forge.none_stored"}}</p>
+    {{end}}
+  </div>
+
+  <form method="post" action="/org/forge" class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <h2 class="mt-0 mb-1 text-headline-sm text-ink">{{if .Configured}}{{.L.T "forge.rotate_title"}}{{else}}{{.L.T "forge.set_title"}}{{end}}</h2>
+    <p class="mb-4 max-w-2xl text-body-sm text-text-tertiary">{{.L.T "forge.rights_hint"}}</p>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="flex flex-col gap-1">
+        <span class="text-label-md text-ink">{{.L.T "forge.host"}}</span>
+        <input type="text" name="host" required autocomplete="off" spellcheck="false"
+               placeholder="forge.example.org"
+               value="{{if .Configured}}{{.Identity.Host}}{{end}}"
+               class="rounded-md border border-border-hairline bg-surface-bright px-3 py-2 text-body-md text-ink">
+        <span class="text-label-sm text-text-tertiary">{{.L.T "forge.host_hint"}}</span>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-label-md text-ink">{{.L.T "forge.username"}}</span>
+        <input type="text" name="username" required autocomplete="off" spellcheck="false"
+               placeholder="sextant-bot"
+               value="{{if .Configured}}{{.Identity.Username}}{{end}}"
+               class="rounded-md border border-border-hairline bg-surface-bright px-3 py-2 text-body-md text-ink">
+        <span class="text-label-sm text-text-tertiary">{{.L.T "forge.username_hint"}}</span>
+      </label>
+    </div>
+
+    <label class="mt-4 flex flex-col gap-1">
+      <span class="text-label-md text-ink">{{.L.T "forge.token"}}</span>
+      <input type="password" name="token" required autocomplete="new-password" spellcheck="false"
+             class="rounded-md border border-border-hairline bg-surface-bright px-3 py-2 text-body-md text-ink">
+      <span class="text-label-sm text-text-tertiary">{{.L.T "forge.token_hint"}}</span>
+    </label>
+
+    <div class="mt-5 flex items-center gap-3">
+      <button type="submit" class="primary"><span class="material-symbols-outlined msz-18">autorenew</span>{{if .Configured}}{{.L.T "forge.rotate_action"}}{{else}}{{.L.T "forge.set_action"}}{{end}}</button>
+    </div>
+  </form>
+
+  {{if .Configured}}
+  <form method="post" action="/org/forge/clear" class="mt-4">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="quiet"><span class="material-symbols-outlined msz-18">undo</span>{{.L.T "forge.clear_action"}}</button>
+    <span class="ml-2 text-body-sm text-text-tertiary">{{.L.T "forge.clear_hint"}}</span>
+  </form>
+  {{end}}
+
+{{end}}
+{{end}}

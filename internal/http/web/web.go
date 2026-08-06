@@ -49,6 +49,10 @@ type Services struct {
 	// Elevation is the queue of users asking an operator for permission to do
 	// one privileged thing on their own machine (#27); nil hides the page.
 	Elevation *app.ElevationService
+	// ForgeID is the console's own git credential (ADR 0022); nil leaves the
+	// page saying so rather than absent, so an admin looking for the rotation
+	// learns why it is missing.
+	ForgeID *app.ForgeIdentityService
 }
 
 // Server renders the console.
@@ -116,7 +120,7 @@ func (s *Server) SetStatusOnMain(v bool) { s.statusOnMain = v }
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
 	funcs := templateFuncs()
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "elevation", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "org_updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "notifications", "mail", "org", "error", "rollout_confirm", "merge_confirm", "assurance_confirm"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "elevation", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "org_updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "forge", "notifications", "mail", "org", "error", "rollout_confirm", "merge_confirm", "assurance_confirm"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -192,6 +196,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/profile", s.profilePage)
 	get("/notifications", s.notificationsPage)
 	get("/org", s.orgPage)
+	get("/org/forge", s.forgePage)
 	get("/mail", s.mailPage)
 
 	post("/notifications/read-all", s.postNotificationsReadAll)
@@ -252,6 +257,8 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/station/{tag}/remove", s.postStationRemove)
 	post("/secrets", s.postSecretRegister)
 	post("/secrets/{name}/remove", s.postSecretRemove)
+	post("/org/forge", s.postForgeSave)
+	post("/org/forge/clear", s.postForgeClear)
 	post("/overlays", s.postOverlayWrite)
 	post("/overlays/check", s.postOverlayCheck)
 	post("/overlays/{name}/remove", s.postOverlayRemove)

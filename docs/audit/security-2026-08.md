@@ -268,6 +268,21 @@ repository, en de netrc daarop. Dat is geen groot werk en het lost alle
 drie de punten tegelijk op. R4 herschrijven naar wat er staat, niet naar
 wat het zou moeten zijn.
 
+**Stand 7 augustus, 01:00 - mechanisme gebouwd, bevinding NOG NIET GESLOTEN.**
+
+ADR 0022. De console kan haar eigen forge-gegeven opslaan (verzegeld, per
+tenant) en schrijft de netrc zelf op haar eigen volume. Een beheerder
+vervangt hem op `/org/forge`; git leest het bestand per aanroep, dus het
+geldt vanaf de volgende push zonder herstart. Wie hem wanneer verving staat
+erbij. Zonder opgeslagen gegeven verandert er niets: de gemounte secret
+blijft gelden.
+
+Wat de bevinding sluit is niet het mechanisme maar het gebruik: er moet een
+machine-account op de forge komen met schrijfrechten op alleen de
+overlay-repository, dat ingevoerd worden, en er moet een echte change onder
+die naam gepusht zijn. Tot die push staat H2 open en pusht bb-open nog steeds
+als een persoon.
+
 ### M2 — Het threat model verklaart zichzelf veilig op een voorwaarde die niet geldt
 
 `docs/threat-model.md:310-312` sluit het risicoregister af met:
