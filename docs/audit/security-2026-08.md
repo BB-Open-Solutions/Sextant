@@ -10,7 +10,7 @@ gehouden.
 
 ## Bevindingen
 
-### H1 — Het gedeelde bridge-token staat nog aan, terwijl de sluitvoorwaarde is gehaald
+### H1 — Het gedeelde bridge-token staat aan, en het station kan niet zonder
 
 **Wat.** `POST /api/checkin` accepteert twee bewijzen van identiteit
 (`internal/http/api/checkin.go:324-333`). Het eerste is een per-device
@@ -136,6 +136,27 @@ tag niet in het vlootdocument staat, en dat luid loggen.
 niet opnieuw sluipt. Overwegen om `boundCredTTL` te verlagen: vijf jaar is
 lang voor iets waarvan het intrekken aantoonbaar kan mislukken.
 
+### M2 — Het threat model verklaart zichzelf veilig op een voorwaarde die niet geldt
+
+`docs/threat-model.md:310-312` sluit het risicoregister af met:
+
+> *"None of R1-R8 is a live exploit against the deployed configuration
+> (store enabled, **per-device credentials issued**, owners trusted)"*
+
+Die tweede voorwaarde is niet waar. `dawo-inspoelstraat` heeft geen
+device-credential (zie H1), en dat is precies de voorwaarde waarop R2
+"geen live exploit" heet. De zin klopt voor `e2e5` en niet voor de vloot.
+
+Dit is geen woordkwestie. Het is de enige zin in het document die een lezer
+- een auditor, een gemeente, een collega - vertelt of de opgesomde randen
+theorie of praktijk zijn, en hij is nooit tegen de draaiende omgeving
+gehouden.
+
+**Advies.** De zin vervangen door iets dat per risico zegt of zijn
+voorwaarde geldt, en die controle onderdeel maken van de release in plaats
+van van iemands geheugen. Een register dat zijn eigen aannames niet toetst,
+veroudert precies zoals `1.0-fit-gap.md` deed.
+
 ### L1 — Regelverwijzing in het threat model is verlopen
 
 `docs/threat-model.md:114` citeert `checkin.go:150-153` voor de
@@ -175,6 +196,13 @@ volgende lezer trager, en de lezer daarna wantrouwig.
   buiten die helper om, dus dit is geen conventie die een nieuwe handler kan
   vergeten - het verschil met R3, waar read-confidentiality wél per handler
   wordt afgesproken.
+- **Read-confidentiality (R3).** De claim "all current handlers comply"
+  houdt stand. Elke API-lezer die scope-data teruggeeft filtert via
+  `VisibleTo` of `canView`; de vier handlers die dat niet doen zijn
+  zelf-scoped (`getMe`, `getMyPrefs`, `getTokens` - die laatste lijst
+  uitsluitend `p.user.Subject`) of vragen Owner (`getDirectoryGroups`).
+  Het blijft een conventie in plaats van een structurele garantie - anders
+  dan CSRF, dat via één wrapper loopt - maar hij wordt vandaag nagekomen.
 - **Padtraversal.** `Repo.safePath` (`internal/adapters/git/git.go:121-140`)
   doet het in twee lagen: eerst lexicaal (`filepath.Rel` plus een
   `..`-prefixcontrole), daarna **symlinks oplossen** op de dichtstbijzijnde
