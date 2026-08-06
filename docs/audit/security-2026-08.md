@@ -175,6 +175,20 @@ volgende lezer trager, en de lezer daarna wantrouwig.
   buiten die helper om, dus dit is geen conventie die een nieuwe handler kan
   vergeten - het verschil met R3, waar read-confidentiality wél per handler
   wordt afgesproken.
+- **Padtraversal.** `Repo.safePath` (`internal/adapters/git/git.go:121-140`)
+  doet het in twee lagen: eerst lexicaal (`filepath.Rel` plus een
+  `..`-prefixcontrole), daarna **symlinks oplossen** op de dichtstbijzijnde
+  bestaande voorouder en opnieuw bevestigen dat het pad onder de repo-root
+  blijft. Die tweede laag is waar de meeste implementaties op stuklopen: een
+  lexicale controle alleen wordt verslagen door een symlink. Dit is het pad
+  waar de overlay-editor (ADR 0014) schrijft, dus het is precies de plek waar
+  het moet zitten. `changeFile` valideert de id vóór de join
+  (`internal/adapters/state/state.go:113-118`), en de secret-referentie in
+  `cmd/sextant/capabilities.go:283` gebruikt `filepath.Base`.
+- **Groottelimieten.** Elk verzoek met een body loopt door
+  `http.MaxBytesReader`, met per pad een eigen grens: 4 KiB voor
+  device-auth, 320 KiB voor een check-in, 4 MiB voor een station-report en
+  een diagnostics-bundel. Geen enkel decodeerpad zonder grens gevonden.
 - **Uitgaande verbindingen.** De enige bestemming die een operator kan
   zetten is de SMTP-host (`internal/http/web/mail.go:43-45`), en dat is
   org-Owner-only. Een Owner kan sowieso de hele vlootconfiguratie herschrijven,
@@ -183,6 +197,21 @@ volgende lezer trager, en de lezer daarna wantrouwig.
 
 ## Nog te doen in deze audit
 
-Padtraversal en groottelimieten op de upload-paden (diagnostics, station
-report, facter-document), en R1 en R3-R6 elk tegen de code houden zoals R2
-hierboven. R7 staat als CLOSED en is niet opnieuw gecontroleerd.
+R1 en R3 tot en met R6 elk tegen de code houden zoals R2 hierboven; dat is
+de helft van de waarde van dit document, want R2 bleek bij nameten iets
+anders te zeggen dan de code doet. R7 staat als CLOSED en is niet opnieuw
+gecontroleerd.
+
+## Tussenstand
+
+Twee bevindingen, geen kritieke. Het beeld tot nu toe is een codebase die de
+moeilijke dingen goed doet - padtraversal met symlink-resolutie, CSRF
+structureel in plaats van per handler, argon2id met constant-time
+vergelijking, de gate die zijn eigen aanroepers niet vertrouwt - en die
+struikelt over levensloop: dingen die blijven bestaan nadat hun aanleiding
+weg is. Beide bevindingen zijn daarvan een geval, en het is dezelfde vorm
+als twee bugs die dezelfde dag los hiervan gevonden werden.
+
+Dat is een geruststellender soort zwakte dan het omgekeerde. Een ontwerp met
+een gat in de authenticatie repareer je niet met opruimwerk; opruimwerk is
+wat dit vraagt.

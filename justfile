@@ -20,7 +20,15 @@ ci: fmt-check vet lint test coverage-floor build nix-build catalog-check agent-c
 coverage-floor:
     #!/usr/bin/env bash
     set -euo pipefail
-    grep -vE 'internal/ports/|/cmd/|platform/logging|platform/capability' "$COV" > "$COV.logic"
+    # -a: never decide the profile is binary and silently emit nothing. The
+    # failure that motivated this said "coverage too low" when the truth was
+    # "the file was unreadable", and a check that lies about why is worse than
+    # one that does not run.
+    grep -a -vE 'internal/ports/|/cmd/|platform/logging|platform/capability' "$COV" > "$COV.logic"
+    if [ ! -s "$COV.logic" ]; then
+        echo "coverage profile $COV produced no logic-layer lines - refusing to report a number" >&2
+        exit 1
+    fi
     total=$(go tool cover -func="$COV.logic" | tail -1 | awk '{print $3}' | tr -d '%')
     echo "logic-layer coverage: ${total}%"
     awk -v t="$total" 'BEGIN { exit (t < 70) ? 1 : 0 }' || {
@@ -55,7 +63,16 @@ lint:
 # fails partway through the run with a hash mismatch that has nothing to do
 # with the code. Gitignoring it does not help: a path: flake input hashes what
 # is on disk, not what git tracks.
-export COV := "/tmp/sextant-coverage.out"
+#
+# PER RUN, not a fixed name. It used to be /tmp/sextant-coverage.out for every
+# invocation, so two concurrent runs - a background `just ci` and the pre-push
+# hook starting its own, which is an ordinary thing to do - interleaved their
+# writes into one file. grep then saw the result as binary, printed "binary
+# file matches" and emitted NOTHING, the logic profile came out empty, and the
+# floor reported "coverage below the 70% floor". Measured on 2026-08-06: a
+# clean tree failing its own coverage check for a reason that had nothing to
+# do with coverage.
+export COV := "/tmp/sextant-coverage." + uuid() + ".out"
 
 test:
     go test -race -coverprofile="$COV" ./...

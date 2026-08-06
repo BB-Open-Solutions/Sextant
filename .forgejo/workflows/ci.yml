@@ -76,7 +76,16 @@ jobs:
             # meaningfully unit-testable and are exercised by integration paths,
             # so counting them would understate the real coverage of domain,
             # app, adapters and the HTTP handlers.
-            grep -vE "internal/ports/|/cmd/|platform/logging|platform/capability" coverage.out > coverage-logic.out
+            # -a plus the emptiness guard, mirroring the justfile: without them
+            # a profile grep decides is binary yields an empty file, and the
+            # check reports "coverage below the floor" when the truth is "the
+            # file was unreadable". A check that lies about why it failed sends
+            # somebody looking in the wrong place.
+            grep -a -vE "internal/ports/|/cmd/|platform/logging|platform/capability" coverage.out > coverage-logic.out
+            if [ ! -s coverage-logic.out ]; then
+              echo "coverage profile produced no logic-layer lines - refusing to report a number" >&2
+              exit 1
+            fi
             total=$(go tool cover -func=coverage-logic.out | tail -1 | awk "{print \$3}" | tr -d "%")
             echo "logic-layer coverage: ${total}%"
             awk -v t="$total" "BEGIN { exit (t < 70) ? 1 : 0 }" || (echo "coverage below 70% floor" && exit 1)
