@@ -341,12 +341,34 @@ volgende lezer trager, en de lezer daarna wantrouwig.
   dus dit is geen rechtenescalatie. Gate-runner-URL, OpenBao-adres en LDAP-URI
   komen uit de deployment-configuratie, niet uit de console.
 
-## Nog te doen in deze audit
+## Restrisicoregister nagemeten
 
-R1 en R3 tot en met R6 elk tegen de code houden zoals R2 hierboven; dat is
-de helft van de waarde van dit document, want R2 bleek bij nameten iets
-anders te zeggen dan de code doet. R7 staat als CLOSED en is niet opnieuw
-gecontroleerd.
+R2 en R4 zijn hierboven behandeld (R2 werd M2, R4 werd H2). De rest, gemeten
+op 2026-08-06:
+
+**R1 - "eigenaar kan willekeurige nix laten evalueren" - HOUDT STAND, en de
+formulering klopt.** `WriteOverlay` (`internal/app/config_overlays.go:53`)
+heeft precies een aanroeper, `web/overlays.go:99`, en die staat achter
+`requireWeb(v, "org", identity.Owner)`. Het tweede pad dat verdacht leek is
+het editor-vinkje `/overlays/check`: dat is even goed owner-only, en het
+evalueert niets. De runner draait daar `nix-instantiate --parse`
+(`cmd/gate-runner/main.go:628`), dus alleen ontleden. De enige plek waar
+console-geschreven nix echt evalueert is de gate bij commit, en die commit
+staat in het auditspoor - wat R1's mitigatie ook zegt.
+
+**R5 - losse syscall-sandbox op de wipe-unit - NIET NAGEMETEN.** Zit in de
+core-nix, niet in deze repo; hoort bij de hardware-ronde.
+
+**R6 - verouderde groepsmomentopname in een persoonlijk token - GEEN
+BLOOTSTELLING VANDAAG.** De code klopt met de beschrijving: er wordt alleen
+gesnoeid op groepen die uit de directory zijn verdwenen
+(`internal/app/token.go:149-162`), lidmaatschap-verwijderd-terwijl-groep-
+bestaat blijft begrensd door de TTL van 30 dagen. Gemeten in productie:
+`api_tokens` bevat **nul** tokens van soort `personal`. Alleen 16 device- en
+1 station-token. Het risico is dus echt in de code en leeg in de praktijk;
+het wordt pas iets zodra de eerste persoonlijke token wordt uitgegeven.
+
+R7 staat als CLOSED en is niet opnieuw gecontroleerd.
 
 ## Tussenstand
 
