@@ -3,6 +3,7 @@ package fleet
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,6 +30,10 @@ type CatalogEntry struct {
 	// Type is the nix type description ("boolean", "string", "one of ...",
 	// "positive integer", ...). Widget derives it.
 	Type string `json:"type"`
+	// WidgetHint names the control when the type cannot imply it - a string
+	// that is really a time range, a list that is really a handful of slots.
+	// Optional and validated: an unknown name falls back to the type.
+	WidgetHint string `json:"widget,omitempty"`
 	// Description is the human explanation shown next to the control.
 	Description string `json:"description"`
 	// Default is the option's declared default, when JSON-representable.
@@ -105,14 +110,44 @@ const (
 	WidgetText   Widget = "text"   // everything else
 	WidgetSecret Widget = "secret" // secret-reference picker (never a value)
 	WidgetCode   Widget = "code"   // list-valued: a multi-line editor, one item per line
+	// The two below cannot be derived from a type: nothing distinguishes "a
+	// string that is a time range" from any other string, or "a list of a few
+	// named servers" from an allowlist that may run to hundreds. They are set
+	// per option in the catalog and default to the type-derived widget when
+	// absent, so an option nobody has annotated still renders.
+	WidgetTimeRange Widget = "timerange" // "HH:MM-HH:MM": a from and a to
+	WidgetFixedList Widget = "fixedlist" // a short list: one input per slot
 )
+
+// timeRangeRE matches "HH:MM-HH:MM" with real hours and minutes. Overnight
+// ranges (22:00-06:00) are legitimate and deliberately allowed: a maintenance
+// window that may not cross midnight would be useless to half of Europe.
+var timeRangeRE = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$`)
+
+// knownWidget guards the catalog against a hint nobody implemented. An
+// unrecognised name falls back to the type-derived widget rather than
+// rendering nothing - a mis-typed annotation must not blank a setting.
+func knownWidget(w Widget) bool {
+	switch w {
+	case WidgetToggle, WidgetNumber, WidgetSelect, WidgetText,
+		WidgetSecret, WidgetCode, WidgetTimeRange, WidgetFixedList:
+		return true
+	}
+	return false
+}
 
 // Widget derives the control from the nix type description. A secret option
 // always renders as a reference picker, whatever its underlying type, so its
 // value is never typed into the console.
 func (e CatalogEntry) Widget() Widget {
+	// An explicit hint wins, except over Secret: a secret-ref picker is a
+	// safety property (the value is a name, never the material), not a
+	// presentation choice somebody may override from a data file.
 	if e.Secret {
 		return WidgetSecret
+	}
+	if w := Widget(e.WidgetHint); knownWidget(w) {
+		return w
 	}
 	t := strings.ToLower(e.Type)
 	switch {
@@ -202,7 +237,15 @@ func (e CatalogEntry) ParseValue(s string) (any, error) {
 			}
 		}
 		return nil, fmt.Errorf("%s must be one of %v", e.Name, e.Options())
-	case WidgetCode:
+	case WidgetTimeRange:
+		// Validated here, not only in the form. The console is not the only
+		// writer - the API and sxctl reach the same setting - so a check that
+		// lives in a template constrains nothing.
+		if !timeRangeRE.MatchString(s) {
+			return nil, fmt.Errorf("%s must be a time range HH:MM-HH:MM", e.Name)
+		}
+		return s, nil
+	case WidgetCode, WidgetFixedList:
 		// A list, one item per line (blank lines dropped). Stored as a real
 		// array so the generator emits a nix list; the gate still type-checks
 		// the elements.
@@ -326,5 +369,45 @@ func (c *Catalog) ByCategory(cat string) []CatalogEntry {
 			out = append(out, e)
 		}
 	}
+	SortGateFirst(c, out)
 	return out
+}
+
+// Requires returns the ".enable" key that gates this one, or "" when the key
+// is a gate itself or nothing gates it. Walking the dotted path outward means
+// "diskUnlock.tpm2.device" finds "diskUnlock.tpm2.enable" rather than a
+// broader switch that does not exist.
+func (c *Catalog) Requires(key string) string {
+	if strings.HasSuffix(key, ".enable") {
+		return ""
+	}
+	parts := strings.Split(key, ".")
+	for i := len(parts) - 1; i >= 1; i-- {
+		q := strings.Join(parts[:i], ".") + ".enable"
+		if _, ok := c.Lookup(q); ok {
+			return q
+		}
+	}
+	return ""
+}
+
+// SortGateFirst orders entries so a gate comes before the options it gates.
+//
+// Alphabetical order put "printing.enable" BELOW "printing.discover" and
+// "printing.drivers", both of which render the line "Takes effect once
+// printing.enable is on" - pointing at a switch further down the page. Same
+// for diskUnlock, elevationRequests and cacheAuth: every card led with
+// settings that did nothing yet and buried the one that turns them on.
+//
+// The relationship is already known (Requires), so this needs no annotation:
+// sort by the gate an entry belongs to - gates themselves sort as "" and lead
+// their own family - then by name within it.
+func SortGateFirst(c *Catalog, entries []CatalogEntry) {
+	sort.SliceStable(entries, func(i, j int) bool {
+		gi, gj := c.Requires(entries[i].Name), c.Requires(entries[j].Name)
+		if gi != gj {
+			return gi < gj
+		}
+		return entries[i].Name < entries[j].Name
+	})
 }

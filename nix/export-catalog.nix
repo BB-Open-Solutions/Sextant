@@ -87,6 +87,13 @@ let
   # visible as the technical identity - Name remains the API key).
   label = opt:
     if (opt.label or "") != "" then { label = opt.label; } else { };
+  # widget: an option annotated `// { widget = "timerange"; }` picks the
+  # control the console renders. Only for what a TYPE cannot imply - a string
+  # that is really a from and a to, a list that is really a few named slots.
+  # Anything derivable (boolean, integer, enum, list) needs no annotation, and
+  # an unknown name falls back to the type rather than rendering nothing.
+  widget = opt:
+    if (opt.widget or "") != "" then { widget = opt.widget; } else { };
   walk = prefix: opts:
     lib.concatLists (lib.mapAttrsToList
       (name: v:
@@ -102,7 +109,7 @@ let
               if lib.isString v.description
               then v.description
               else v.description.text or "";
-          } // plainDefault v // riskClass v // secret v // label v)
+          } // plainDefault v // riskClass v // secret v // label v // widget v)
         else if lib.isAttrs v then walk path v
         else [ ])
       opts);

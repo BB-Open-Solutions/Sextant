@@ -162,6 +162,25 @@
             {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
           {{else if eq $row.Entry.Widget "number"}}
             <input type="number" name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
+          {{else if eq $row.Entry.Widget "timerange"}}
+            {{/* Two halves posted under one name; combineSubmitted joins them
+                 with the "-" the parser expects. Both or neither: half a
+                 window would reach a device as an unparseable range. */}}
+            <span class="flex items-center gap-2">
+              <input type="time" name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{$row.RangeFrom}}" class="{{$ctl}} {{if $set}}!border-mint-vibrant{{end}}" aria-label="{{$.L.T "settings.from"}}">
+              <span class="text-text-tertiary">{{$.L.T "settings.until"}}</span>
+              <input type="time" name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{$row.RangeTo}}" class="{{$ctl}} {{if $set}}!border-mint-vibrant{{end}}" aria-label="{{$.L.T "settings.until"}}">
+            </span>
+          {{else if eq $row.Entry.Widget "fixedlist"}}
+            {{/* One input per slot. The declared defaults show as placeholders
+                 rather than values: a prefilled field that gets saved would
+                 write an explicit value where the scope was inheriting, and
+                 this page exists to make inheritance visible. */}}
+            <span class="flex flex-col gap-1">
+              {{range $i, $ph := $row.Slots}}
+              <input name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{index $row.SlotValues $i}}" placeholder="{{$ph}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant{{end}}">
+              {{end}}
+            </span>
           {{else if eq $row.Entry.Widget "code"}}
             <textarea name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} rows="3" spellcheck="false" class="w-full font-mono text-code-md {{if $set}}!border-mint-vibrant{{end}}" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{$row.Lines}}{{end}}</textarea>
           {{else if $row.Suggestions}}

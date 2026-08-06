@@ -78,6 +78,12 @@
               {{else}}<span class="text-body-sm text-text-tertiary">{{$.L.T "page.integrations.no_secrets"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "page.integrations.register_one"}}</a></span>{{end}}
             {{else if eq .Entry.Widget "number"}}
               <input type="number" name="v:{{.Entry.Name}}" value="{{if $set}}{{$val}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="w-full">
+            {{else if or (eq .Entry.Widget "code") (eq .Entry.Widget "fixedlist")}}
+              {{/* A list, one item per line - the same control the settings
+                   editor uses. It used to fall through to the single-line
+                   input below, which showed renderValue's JSON and turned the
+                   whole array into one item on save. */}}
+              <textarea name="v:{{.Entry.Name}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{.Lines}}{{end}}</textarea>
             {{else}}
               <input name="v:{{.Entry.Name}}" value="{{if $set}}{{$val}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="w-full">
             {{end}}

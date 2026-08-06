@@ -634,6 +634,10 @@ func (d *deps) consoleCapability() capability.Capability {
 			console.SetDefaults(d.cfg.DefaultLocale, d.cfg.DefaultTimezone)
 			console.SetOrgName(d.cfg.OrgName)
 			console.SetSyntaxChecker(d.syntax)
+			// The same condition main.go uses to mount /status: with a separate
+			// metrics listener it is not on this port, and a footer link to it
+			// would 404 for every operator.
+			console.SetStatusOnMain(d.cfg.MetricsAddr == "")
 			console.Routes(mux)
 		},
 	}

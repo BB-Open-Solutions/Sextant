@@ -155,6 +155,10 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 	// Org-wide pages (changes, rollout) refuse scoped viewers; hide the
 	// links instead of offering a door that only opens with a 403.
 	data["CanOrgView"] = v.canView("org")
+	// Same rule for the footer's status link: with a separate metrics
+	// listener /status is not on this port at all, so the link 404s for
+	// everybody. Being logged in does not help - the split is by port.
+	data["HasStatusPage"] = s.statusOnMain
 	// CanOrgOwn gates owner-only nav entries (service accounts); pages that
 	// already set their own CanOrgOwn keep theirs.
 	if _, ok := data["CanOrgOwn"]; !ok {

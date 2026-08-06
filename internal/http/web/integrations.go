@@ -73,6 +73,15 @@ func (s *Server) integrationsPage(w http.ResponseWriter, r *http.Request, v view
 	type optRow struct {
 		Entry fleet.CatalogEntry
 		Value string
+		// Lines is a list value rendered one item per line, for the same
+		// textarea the settings editor uses. Without it a list fell through to
+		// this page's single-line input showing `["a","b"]` (renderValue's JSON),
+		// and saving the card - which submits every row at once - reparsed that
+		// as a ONE-element list holding the literal text. One of the three
+		// list-typed settings is usbDevices.allowlist, so the silent case was a
+		// security control, and this is the same defect RawFromValue records
+		// having fixed on the API side.
+		Lines string
 		Set   bool
 	}
 	type card struct {
@@ -90,10 +99,20 @@ func (s *Server) integrationsPage(w http.ResponseWriter, r *http.Request, v view
 			row := optRow{Entry: e}
 			if val, has := own[e.Name]; has {
 				row.Set, row.Value = true, renderValue(val)
+				row.Lines = valueLines(val)
 			}
 			c.Rows = append(c.Rows, row)
 		}
-		sort.Slice(c.Rows, func(i, j int) bool { return c.Rows[i].Entry.Name < c.Rows[j].Entry.Name })
+		// Gate first, then alphabetical within its family: a card that led with
+		// options reading "takes effect once X.enable is on" and put X.enable
+		// last is asking the operator to read bottom-up.
+		sort.SliceStable(c.Rows, func(i, j int) bool {
+			gi, gj := cat.Requires(c.Rows[i].Entry.Name), cat.Requires(c.Rows[j].Entry.Name)
+			if gi != gj {
+				return gi < gj
+			}
+			return c.Rows[i].Entry.Name < c.Rows[j].Entry.Name
+		})
 		c.Published = len(c.Rows) > 0
 		cards = append(cards, c)
 	}

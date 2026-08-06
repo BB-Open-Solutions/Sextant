@@ -63,6 +63,14 @@ type Server struct {
 	// check is unavailable rather than failing.
 	syntax SyntaxChecker
 
+	// statusOnMain reports whether /status is served by THIS listener. With a
+	// separate metrics listener configured it is not, and the footer's
+	// "System status" link 404s for everyone - including an operator who is
+	// logged in, because the separation is by port and not by session. Same
+	// rule as the org-only nav entries: hide the door rather than offer one
+	// that cannot open.
+	statusOnMain bool
+
 	baseViewer, baseEditor, baseOwner []string
 
 	// Organisation presentation defaults; user preferences override.
@@ -98,6 +106,10 @@ func (s *Server) SetSyntaxChecker(c SyntaxChecker) {
 		s.syntax = c
 	}
 }
+
+// SetStatusOnMain tells the console whether /status is reachable on the
+// listener it is served from, so the footer only links to it when it exists.
+func (s *Server) SetStatusOnMain(v bool) { s.statusOnMain = v }
 
 // New builds the console server. Baselines mirror the API's org-wide role
 // groups.

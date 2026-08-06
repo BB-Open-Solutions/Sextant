@@ -22,10 +22,21 @@ import (
 
 // settingRow is one catalog entry joined with the scope's current state.
 type settingRow struct {
-	Entry       fleet.CatalogEntry
-	Set         bool   // a value exists at exactly this scope
-	Value       string // that value, rendered
-	Lines       string // list values, one item per line, for the code editor
+	Entry fleet.CatalogEntry
+	Set   bool   // a value exists at exactly this scope
+	Value string // that value, rendered
+	Lines string // list values, one item per line, for the code editor
+	// RangeFrom/RangeTo split a "HH:MM-HH:MM" value across the two time
+	// inputs of the timerange widget. Empty when unset - the inputs then show
+	// nothing rather than a guess.
+	RangeFrom, RangeTo string
+	// Slots are the placeholder texts for a fixedlist widget (the declared
+	// defaults, plus one spare), and SlotValues the values actually set at
+	// this scope, index-aligned. Defaults are placeholders and never values:
+	// prefilling them would turn "inherits" into an explicit write the moment
+	// somebody saves the form for an unrelated reason.
+	Slots       []string
+	SlotValues  []string
 	Enforced    bool
 	Resolved    string // device scope only: effective value after the chain
 	Source      string // device scope only: which scope/policy won
@@ -111,21 +122,50 @@ func riskMarkerFor(cat *fleet.Catalog, changes []app.SettingChange) string {
 	return ""
 }
 
-// requiresOf finds the enable an option depends on: the longest dotted
-// prefix q of key for which q+".enable" is a catalog option. Convention
-// over metadata - the exported module tree already encodes the relation.
-func requiresOf(cat *fleet.Catalog, key string) string {
-	if strings.HasSuffix(key, ".enable") {
-		return ""
+// requiresOf finds the enable an option depends on: the longest dotted prefix
+// q of key for which q+".enable" is a catalog option. Convention over
+// metadata - the exported module tree already encodes the relation. It
+// delegates to the catalog so the page's idea of "what gates this" and the
+// ordering that puts a gate first can never drift apart.
+func requiresOf(cat *fleet.Catalog, key string) string { return cat.Requires(key) }
+
+// combineSubmitted turns one setting's submitted form fields into the single
+// raw string ParseValue expects.
+//
+// Most widgets are one control and one value. Two are not: a maintenance
+// window is a from and a to, and a fixed list is one input per slot. Both post
+// several fields under the SAME name, and the combining rule belongs here
+// rather than in each template - the parser is the one that decides what a
+// value looks like, so exactly one place should assemble it.
+func combineSubmitted(e fleet.CatalogEntry, vals []string) string {
+	trimmed := make([]string, 0, len(vals))
+	for _, v := range vals {
+		trimmed = append(trimmed, strings.TrimSpace(v))
 	}
-	parts := strings.Split(key, ".")
-	for i := len(parts) - 1; i >= 1; i-- {
-		q := strings.Join(parts[:i], ".") + ".enable"
-		if _, ok := cat.Lookup(q); ok {
-			return q
+	switch e.Widget() {
+	case fleet.WidgetTimeRange:
+		// Two halves. Either both or neither: half a window is not a window,
+		// and "09:00-" would reach the device as an unparseable range.
+		if len(trimmed) < 2 || trimmed[0] == "" || trimmed[1] == "" {
+			return ""
 		}
+		return trimmed[0] + "-" + trimmed[1]
+	case fleet.WidgetFixedList:
+		// One item per slot, blanks dropped - the same one-per-line form the
+		// list parser already takes, so an empty slot is simply not an item.
+		out := make([]string, 0, len(trimmed))
+		for _, v := range trimmed {
+			if v != "" {
+				out = append(out, v)
+			}
+		}
+		return strings.Join(out, "\n")
+	default:
+		if len(trimmed) == 0 {
+			return ""
+		}
+		return trimmed[0]
 	}
-	return ""
 }
 
 // textSuggestions seeds a <datalist> of known-good values for a handful of
@@ -238,6 +278,12 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 			if val, has := own[e.Name]; has {
 				row.Set, row.Value = true, renderValue(val)
 				row.Lines = valueLines(val)
+			}
+			switch e.Widget() {
+			case fleet.WidgetTimeRange:
+				row.RangeFrom, row.RangeTo = splitRange(row.Value)
+			case fleet.WidgetFixedList:
+				row.Slots, row.SlotValues = listSlots(e, row.Lines)
 			}
 			if res, has := resolved[e.Name]; has {
 				row.Resolved, row.Source = renderValue(res.Value), res.Source.String()
@@ -359,10 +405,7 @@ func (s *Server) postSetting(w http.ResponseWriter, r *http.Request, v view) err
 		if !present {
 			continue
 		}
-		submitted := ""
-		if len(vals) > 0 {
-			submitted = strings.TrimSpace(vals[0])
-		}
+		submitted := combineSubmitted(e, vals)
 		enf := r.FormValue("e:"+e.Name) != ""
 		curVal, curSet := own[e.Name]
 		// A policy-only control (ADR 0017) may not gain a value here. Clearing
@@ -563,4 +606,48 @@ func firstOf(vals []string) string {
 		return ""
 	}
 	return vals[0]
+}
+
+// splitRange splits a stored "HH:MM-HH:MM" into the two time inputs. A value
+// that is not a range yields two empty fields rather than a half-parsed one:
+// the operator then sees an empty control and sets it, instead of a field
+// silently holding something the parser will reject.
+func splitRange(v string) (from, to string) {
+	f, t, ok := strings.Cut(v, "-")
+	if !ok {
+		return "", ""
+	}
+	return strings.TrimSpace(f), strings.TrimSpace(t)
+}
+
+// listSlots builds the fixed-list controls: one slot per declared default
+// plus a spare, and at least four so there is room to add without the field
+// count changing under the operator.
+//
+// The defaults are returned as PLACEHOLDERS (slots) and the set values
+// separately (values). Prefilling the defaults as values would mean that
+// saving the page - for any reason, including an unrelated setting - writes
+// them explicitly at this scope and moves the row from "inherits" to
+// "modified here". The provenance this page shows is the point of it.
+func listSlots(e fleet.CatalogEntry, lines string) (slots, values []string) {
+	if d, ok := e.Default.([]any); ok {
+		for _, v := range d {
+			if s, ok := v.(string); ok {
+				slots = append(slots, s)
+			}
+		}
+	}
+	slots = append(slots, "") // a spare, so adding one needs no second save
+	for len(slots) < 4 {
+		slots = append(slots, "")
+	}
+	values = make([]string, len(slots))
+	if lines != "" {
+		for i, v := range strings.Split(lines, "\n") {
+			if i < len(values) {
+				values[i] = v
+			}
+		}
+	}
+	return slots, values
 }
