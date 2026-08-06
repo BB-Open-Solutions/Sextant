@@ -296,13 +296,21 @@ its precondition holds, and make that check part of the release rather than
 of somebody's memory. A register that does not test its own assumptions ages
 exactly the way `1.0-fit-gap.md` did.
 
+**Closed 7 August.** The blanket claim is gone from `docs/threat-model.md`;
+the register now states per risk whether its precondition holds, measured on
+7 August, and says plainly which one (R5) was not measured and why. H3 is
+listed there as a risk the register never had.
+
 ### L1 - A line reference in the threat model has expired
 
-`docs/threat-model.md:114` cites `checkin.go:150-153` for the shared-token
+`docs/threat-model.md:114` cited `checkin.go:150-153` for the shared-token
 comparison; it now lives at `checkin.go:324-333`. Small, but it is the same
 kind of drift that had `1.0-fit-gap.md` asserting wrong things for two
 weeks. A reference that no longer holds slows the next reader down, and
 makes the one after that distrustful.
+
+**Closed 7 August**, together with M2: the paragraph carrying that reference
+was rewritten when R2 closed, and the reference went with it.
 
 ## Checked and sound
 

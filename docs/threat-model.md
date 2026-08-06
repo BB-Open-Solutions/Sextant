@@ -110,12 +110,20 @@ equals the claimed tag (`device_cred.go:49-52`,
 subject `device:A`; reporting as B fails the equality. Re-imaging
 re-issues, rotating the credential.
 
-**Residual R2.** A shared bridge token still authorizes any tag by
-constant-time compare (`checkin.go:150-153`) - the pre-per-device
-fallback. A leaked shared token can report as any device on the
-check-in endpoint until per-device credentials fully replace it. Close
-by retiring the shared bridge token once every device is enrolled with
-its own credential.
+**R2 - CLOSED 2026-08-07, and it was worse than this said.** The shared
+bridge token was accepted for *any* tag, including tags that already held a
+per-device credential (`checkin.go:324-333`, and the same shape on the
+station report path). So it was not a migration fallback that per-device
+credentials were gradually replacing - it was a fleet-wide impersonation key
+that made issuing credentials pointless while it was up. It also bought more
+than "report as any device": overwriting the LUKS escrow of every device,
+and acking a wipe as executed. See `docs/audit/security-2026-08.md` H1.
+
+Closed in two steps, both measured. The bridge now covers only a subject
+with no credential of its own and fails closed when that cannot be
+established (0.84.0); then `SEXTANT_CHECKIN_TOKEN` was removed from the
+deployment entirely. After the restart: two check-ins, both 204, zero 401s,
+zero bridge lines.
 
 ## Control 4 - Read-confidentiality per scope
 
@@ -300,7 +308,7 @@ runs on it, because their manifest is their business and not ours to publish.
 | Id | Risk | Current mitigation | Close with |
 |----|------|--------------------|-----------|
 | R1 | Owner-authored overlay runs arbitrary nix at eval | owner-only, audited, per-cell, must evaluate | sandboxed eval (design 0003) |
-| R2 | Shared bridge token impersonates any device | per-device credentials exist alongside | retire the shared token after full enrolment |
+| R2 | Shared bridge token impersonates any device | CLOSED 2026-08-07: token removed from the deployment; the code path additionally refuses the bridge for any subject that has its own credential | - |
 | R3 | Read-confidentiality is per-handler convention | all current handlers comply | pre-filtered read path |
 | R4 | Deploy force-push has no second factor | gate protects main; build-before-promote | ring-scoped least-priv token, rotation, signed refs |
 | R5 | Wipe unit keeps a loose syscall sandbox | documented, wipe needs 3 other walls | harden after hardware coverage |
@@ -308,9 +316,37 @@ runs on it, because their manifest is their business and not ours to publish.
 | R7 | LUKS recovery key plaintext when store off | CLOSED: the store is required - a keyed report is refused without it; wizard path escrows via confirmed check-in upload (design 0009) | - |
 | R8 | Shared local admin credential on every device | the hardcoded `dawo` account is superseded by the `localAdmin` card: off by default, name chosen per scope, password a secret-ref hash delivered per device via agenix, sudo asks for it, and turning the card off locks the account | retire `dawo.bootstrapUser` once every fleet has migrated |
 
-None of R1-R8 is a live exploit against the deployed configuration
-(store enabled, per-device credentials issued, owners trusted); they are
-the honest edges of the model and the backlog for hardening toward 1.0.
+**Each row states whether its own precondition holds.** This paragraph used
+to read "none of R1-R8 is a live exploit against the deployed configuration
+(store enabled, per-device credentials issued, owners trusted)". That second
+precondition was untrue for months - `dawo-inspoelstraat` had no device
+credential - and it was the one sentence telling a reader whether these
+edges were theory or practice. A register that clears itself on an untested
+assumption is worse than no register, so the blanket claim is gone.
+
+Measured against the running fleet on 2026-08-07:
+
+- **R1** holds as written: `WriteOverlay` has one caller and it is
+  owner-only; the editor's check path only parses.
+- **R2** closed, see above.
+- **R3** holds: every scoped reader filters; it remains a convention rather
+  than a structural guarantee.
+- **R4** is understated and is tracked as audit finding H2 - the credential
+  is a *person's* account, not merely a broad one. The mechanism to replace
+  it shipped (ADR 0022); the machine account does not exist yet.
+- **R5** not measured. It lives in the core nix, not this repository.
+- **R6** real in the code, empty in practice: there are zero personal tokens
+  in production, so there is no stale snapshot to go stale.
+- **R7** closed.
+- **R8** open by design, pending fleet migration off `dawo.bootstrapUser`.
+
+One risk that was NOT in this register belongs here and is now tracked as
+H3: device login binds over plain `ldap://`, so staff passwords cross the
+cluster network in the clear. ADR 0021 settles the transport; the
+certificate work is outstanding.
+
+Re-measuring these against production is a release step, not a memory
+exercise. That is the whole lesson of the sentence this replaces.
 
 ## Findings from e2e-2 (2026-07-30)
 
