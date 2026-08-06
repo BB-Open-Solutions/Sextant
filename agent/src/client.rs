@@ -211,6 +211,223 @@ mod tests {
         (format!("http://127.0.0.1:{}", addr.port()), handle)
     }
 
+    /// Reply is one canned response: status, optional extra headers, body.
+    struct Reply {
+        status: u16,
+        headers: Vec<(&'static str, &'static str)>,
+        body: &'static str,
+    }
+
+    impl Reply {
+        fn status(status: u16) -> Reply {
+            Reply {
+                status,
+                headers: vec![],
+                body: "",
+            }
+        }
+        fn json(body: &'static str) -> Reply {
+            Reply {
+                status: 200,
+                headers: vec![("content-type", "application/json")],
+                body,
+            }
+        }
+        fn with(mut self, k: &'static str, v: &'static str) -> Reply {
+            self.headers.push((k, v));
+            self
+        }
+    }
+
+    /// rich_server answers each connection with the next Reply, headers and
+    /// body included. The plain tiny_server above cannot express either, and
+    /// both carry meaning the agent acts on.
+    fn rich_server(replies: Vec<Reply>) -> (String, thread::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle = thread::spawn(move || {
+            let mut bodies = Vec::new();
+            for reply in replies {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut line = String::new();
+                let mut len = 0usize;
+                loop {
+                    line.clear();
+                    reader.read_line(&mut line).unwrap();
+                    if let Some(v) = line
+                        .to_ascii_lowercase()
+                        .strip_prefix("content-length:")
+                        .map(str::trim)
+                        .and_then(|v| v.parse().ok())
+                    {
+                        len = v;
+                    }
+                    if line == "\r\n" {
+                        break;
+                    }
+                }
+                let mut body = vec![0u8; len];
+                reader.read_exact(&mut body).unwrap();
+                bodies.push(String::from_utf8_lossy(&body).into_owned());
+
+                let mut head = format!(
+                    "HTTP/1.1 {} X\r\ncontent-length: {}\r\nconnection: close\r\n",
+                    reply.status,
+                    reply.body.len()
+                );
+                for (k, v) in &reply.headers {
+                    head.push_str(&format!("{k}: {v}\r\n"));
+                }
+                head.push_str("\r\n");
+                stream.write_all(head.as_bytes()).unwrap();
+                stream.write_all(reply.body.as_bytes()).unwrap();
+            }
+            bodies
+        });
+        (format!("http://127.0.0.1:{}", addr.port()), handle)
+    }
+
+    fn beat() -> CheckIn<'static> {
+        CheckIn {
+            tag: "lt-1",
+            revision: "rev-9",
+            phase: "running",
+            error: None,
+            sb: "",
+            tpm2: "",
+            ack: "",
+            ack_nonce: "",
+            ack_ts: 0,
+            facts: None,
+            usage: None,
+            health: None,
+            recovery_key: None,
+        }
+    }
+
+    /// The header this asserts decides whether the device deletes its ONLY
+    /// copy of the LUKS recovery key (design 0009). Reading it as present
+    /// when it is absent destroys recovery material for that device; reading
+    /// it as absent when present only costs a retry. The asymmetry is the
+    /// whole reason this is a test and not a comment.
+    #[test]
+    fn recovery_stored_is_reported_only_when_the_server_says_so() {
+        let (url, handle) = rich_server(vec![
+            Reply::status(204),
+            Reply::status(204).with("X-Recovery-Key-Stored", "1"),
+            // A 200 carrying an intent must still report the header
+            // truthfully: the two features share one response.
+            Reply::json(r#"{"intent":"lock"}"#).with("X-Recovery-Key-Stored", "1"),
+        ]);
+        let c = Client::new(&url, "sxt_test_secret");
+        let b = beat();
+
+        assert!(!c.send(&b).1, "no header must never read as stored");
+        assert!(c.send(&b).1, "the header was sent and was not seen");
+        let (outcome, stored) = c.send(&b);
+        assert!(matches!(outcome, Outcome::Intent { .. }));
+        assert!(
+            stored,
+            "an intent response dropped the recovery confirmation"
+        );
+
+        handle.join().unwrap();
+    }
+
+    /// The intent path is how every remote action reaches a device. It was
+    /// entirely untested.
+    #[test]
+    fn intent_is_parsed_and_an_empty_one_is_not_an_intent() {
+        let (url, handle) = rich_server(vec![
+            Reply::json(r#"{"intent":"wipe","nonce":"abc","ts":1735689600}"#),
+            Reply::json(r#"{"intent":"lock"}"#),
+            // An empty intent is the server saying "nothing pending" in the
+            // shape of something pending. Acting on it would run an action
+            // with no name.
+            Reply::json(r#"{"intent":""}"#),
+            // 200 with no intent key at all.
+            Reply::json(r#"{"other":"field"}"#),
+            // 200 whose body is not JSON: the agent must not panic, and must
+            // not invent an intent.
+            Reply {
+                status: 200,
+                headers: vec![],
+                body: "not json",
+            },
+        ]);
+        let c = Client::new(&url, "sxt_test_secret");
+        let b = beat();
+
+        match c.send(&b).0 {
+            Outcome::Intent { intent, nonce, ts } => {
+                assert_eq!(intent, "wipe");
+                assert_eq!(nonce.as_deref(), Some("abc"));
+                assert_eq!(ts, Some(1735689600));
+            }
+            other => panic!("wipe intent was not parsed: {other:?}"),
+        }
+        match c.send(&b).0 {
+            // A lock carries no nonce; only the wipe is signed.
+            Outcome::Intent { intent, nonce, ts } => {
+                assert_eq!(intent, "lock");
+                assert!(nonce.is_none() && ts.is_none());
+            }
+            other => panic!("lock intent was not parsed: {other:?}"),
+        }
+        assert!(
+            matches!(c.send(&b).0, Outcome::Ok),
+            "an empty intent became an action"
+        );
+        assert!(
+            matches!(c.send(&b).0, Outcome::Ok),
+            "a body with no intent became an action"
+        );
+        assert!(
+            matches!(c.send(&b).0, Outcome::Ok),
+            "an unparseable body became an action"
+        );
+
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn upload_diagnostics_reports_success_only_on_2xx() {
+        let (url, handle) = rich_server(vec![
+            Reply::status(204),
+            Reply::status(500),
+            Reply::status(401),
+        ]);
+        let c = Client::new(&url, "sxt_test_secret");
+        // The caller deletes the local bundle on true, so a false negative
+        // costs a retry and a false positive loses the bundle for good.
+        assert!(c.upload_diagnostics("lt-1", b"gzipped-bytes"));
+        assert!(!c.upload_diagnostics("lt-1", b"gzipped-bytes"));
+        assert!(!c.upload_diagnostics("lt-1", b"gzipped-bytes"));
+
+        let bodies = handle.join().unwrap();
+        assert_eq!(
+            bodies[0], "gzipped-bytes",
+            "the bundle was not sent verbatim"
+        );
+    }
+
+    /// An unreachable console is a Transient, never Unauthorized or Retired:
+    /// those two change behaviour permanently (stop, or wait for a human),
+    /// and a network blip must not do that.
+    #[test]
+    fn an_unreachable_console_is_transient() {
+        // Port 1 on loopback: nothing listens, connection refused at once.
+        let c = Client::new("http://127.0.0.1:1", "sxt_test_secret");
+        let (outcome, stored) = c.send(&beat());
+        assert!(matches!(outcome, Outcome::Transient(_)), "got {outcome:?}");
+        assert!(
+            !stored,
+            "a failed request claimed the recovery key was stored"
+        );
+        assert!(!c.upload_diagnostics("lt-1", b"x"));
+    }
+
     #[test]
     fn send_classifies_statuses_and_serializes_body() {
         let (url, handle) = tiny_server(vec![204, 401, 410, 503]);

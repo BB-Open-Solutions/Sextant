@@ -8,9 +8,15 @@ default: ci
 # people the wrong definition of green.
 ci: fmt-check vet lint test coverage-floor build nix-build catalog-check agent-ci
 
-# The logic layer must stay above 70%. Transport, ports, logging and the
+# The logic layer must stay above 75%. Transport, ports, logging and the
 # capability wiring are excluded: they are glue, and counting them lets real
 # coverage rot behind a comfortable average.
+#
+# 80 is the agreed target (decided 2026-08-06) and this is a ratchet toward
+# it, not the destination. It was 70 while the measured number was 75.3,
+# which let five points erode before anything would have complained - a floor
+# below the standing number protects nothing. Raise this whenever the real
+# number clears the next step; never lower it to make a branch pass.
 #
 # Written as a plain script rather than a one-liner. The previous version used
 # Make-style $$ escaping, which just does not do - the shell saw $$ and
