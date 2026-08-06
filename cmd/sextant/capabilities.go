@@ -81,6 +81,7 @@ type deps struct {
 	users          ports.UserDirectory
 	compliance     *app.ComplianceService
 	elevation      *app.ElevationService
+	forgeID        *app.ForgeIdentityService
 	authz          api.Authz
 	cleanup        []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
@@ -269,6 +270,31 @@ func (d *deps) buildConfigPlane() error {
 			return strings.TrimSpace(string(b)), nil
 		}
 		d.mail = app.NewMailService(pg, smtpadapter.New(10*time.Second), sealer, readRef, app.DefaultTenant)
+		// The console's own forge credential (ADR 0022). git reads a netrc
+		// from HOME, and HOME is the console's own volume - the same one the
+		// overlay clone lives on - so an admin can rotate the credential from
+		// the console without cluster access and without a restart.
+		//
+		// No HOME means no netrc means nothing would read what we wrote, so
+		// the service is wired inert rather than writing to a guessed path
+		// and reporting success.
+		netrcPath := ""
+		if home := os.Getenv("HOME"); home != "" {
+			netrcPath = filepath.Join(home, ".netrc")
+		}
+		d.forgeID = app.NewForgeIdentityService(pg, sealer, app.DefaultTenant, netrcPath, log)
+		// Applied here, in the same block that constructs it, for the reason
+		// the credential sweep above carries in full: a startup task placed
+		// before its dependency is assigned becomes a silent no-op.
+		if wrote, err := d.forgeID.Apply(d.ctx); err != nil {
+			// Never fatal. The mounted credential may still be good, and a
+			// console that refuses to start cannot be used to fix this.
+			log.Error("stored forge credential not applied; the console pushes with whatever is mounted", "err", err)
+		} else if wrote {
+			log.Info("forge credential applied from the console's own store")
+		} else if netrcPath != "" {
+			log.Info("no forge credential stored; using the mounted one", "netrc", netrcPath)
+		}
 		// Compliance/incidents read the observed plane, so they light up with
 		// Postgres alongside the inventory service.
 		d.compliance = app.NewComplianceService(d.svc, d.inv, clock)
