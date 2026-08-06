@@ -38,32 +38,31 @@ retroactively, with the incident named in the commit.
 
 ## Where the code lives, from go-live onward
 
-**Trigger: go-live.** Decided 6 August 2026; not to be started before 1.0 is
-tagged, because a repository move and a release are two things nobody should
-debug at the same time.
+**Trigger: go-live.** Decided 6 August 2026.
 
-The public DAWO repositories move to **Codeberg**, which becomes the leading
-copy. `code.overheid.nl` stays as a mirror of it, `forgejo.bb-open.com`
-remains the internal repository that CI and Flux read from, and the GitHub
-repository goes offline. Three forges for a while, two at the end.
+`forgejo.bb-open.com` stays the repository we actually work in: commits,
+CI and Flux all read from it, and that does not change. What changes is the
+public side. **Codeberg becomes a second mirror alongside
+`code.overheid.nl`**, both reflecting what happens on forgejo, and the
+GitHub repository goes offline.
 
-This is a project migration rather than a remote swap, and the two parts
-that make it one are worth stating before somebody starts:
+This is deliberately not a migration. Nothing about the Go module path, the
+`.forgejo/workflows/` pipeline or the self-hosted nix runner moves, because
+the place the work happens is not moving. Mirrors are push targets.
 
-- **CI has to move with it.** Today it is `.forgejo/workflows/`, running on a
-  self-hosted NixOS runner. Codeberg has Woodpecker; the release workflow
-  assumes a runner with nix, so the runner question has to be answered
-  before the move, not during it.
-- **The repository is called `SextantFleet` there, not `DAWO-Sextant`.** If
-  the Go module path follows the new home, that is a rename across 226 files
-  (555 occurrences), plus `go.mod`, the docs and the flake. Decide
-  deliberately whether the module path moves at all: it may stay
-  `code.overheid.nl/MinBZK/DAWO-Sextant` while the code lives elsewhere,
-  which is ugly but stable, or move once and be done.
+Two things still to settle, and neither blocks the mirror itself:
 
-Also in scope, easy to forget: `upstreamRepo` in the HelmRelease points at
-`code.overheid.nl/MinBZK/DAWO-NixOS.git`, and the core repository migrates
-separately.
+- **Whether Codeberg also runs CI.** A mirror does not need it, but a public
+  repository that shows no build status invites the question. If it does,
+  that is Woodpecker and a second runner with nix - the release workflow
+  assumes one.
+- **What the public mirror is called.** The Codeberg repository is
+  `DAWO/SextantFleet` while this one is `DAWO-Sextant`. Harmless for a
+  mirror; worth a decision so the two names do not read as two products.
+
+Also worth knowing before somebody wires it up: `upstreamRepo` in the
+HelmRelease points at `code.overheid.nl/MinBZK/DAWO-NixOS.git`, so the core
+repository has its own mirror question, separate from this one.
 
 ## 1.1 - what Zaanstad hits first
 
