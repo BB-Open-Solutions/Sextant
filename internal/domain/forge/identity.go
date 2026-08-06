@@ -49,11 +49,20 @@ func Validate(host, username, token string) error {
 	if token == "" {
 		return fmt.Errorf("forge token is required")
 	}
-	// A newline in the token would end the netrc line early and turn the
-	// remainder into netrc directives. Refuse rather than sanitise: a token
-	// that needs sanitising is a token that was pasted wrong.
-	if strings.ContainsAny(token, "\r\n") {
-		return fmt.Errorf("forge token must not contain a line break")
+	// netrc has no escaping and no quoting worth relying on: it is parsed as
+	// whitespace-separated words. So ANY whitespace in the token, not only a
+	// line break, changes what the line means - "password two words" leaves
+	// git with the password "two" and a stray directive after it, which
+	// authenticates as nothing and reads as a wrong password. A line break is
+	// the worst case (the remainder becomes fresh netrc directives, so a
+	// pasted value could add a second machine entry), but a plain space is
+	// already enough to break it silently.
+	//
+	// Refuse rather than sanitise: a token that needs sanitising is a token
+	// that was pasted wrong, and quietly trimming it would hand somebody a
+	// credential that is not the one they hold.
+	if strings.ContainsAny(token, " \t\r\n\v\f") {
+		return fmt.Errorf("forge token must not contain whitespace or a line break")
 	}
 	return nil
 }
