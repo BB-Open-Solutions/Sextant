@@ -95,7 +95,7 @@ asserts the tenant boundary.
 |---|---|
 | Access (art. 15) | possible by hand (SQL plus a git log); no product surface |
 | Rectification (art. 16) | `AssignedUser` is editable; the git history is not, by design |
-| Erasure (art. 17) | **not implemented on request.** Time-based deletion now happens (see retention), but there is no "erase this person now" path |
+| Erasure (art. 17) | **implemented** (preview, then erase). Removes the cached identity, preferences, personal notifications, raised elevation requests and the assigned-user field. Does NOT remove: the git history, or decisions this person made for somebody else - both by design, both named in every report |
 | Objection, restriction | not applicable in a normal employment context, but not implemented either |
 
 The interaction between erasure and the audit trail is a real tension and
@@ -116,7 +116,11 @@ retention, and that the register says so explicitly. **It does not yet.**
 4. **Transparency on P8**: either the device tells its user a bundle was
    taken, or the municipality's own privacy statement covers it - a decision
    somebody has to make, not an omission somebody can inherit.
-5. **An erasure path** for a departed employee, even a documented manual one.
+5. ~~An erasure path for a departed employee~~ **built 2026-08-07**
+   (`internal/app/erasure.go`). Preview first, then erase, and the report
+   always names what could NOT be removed - the git history above all. Still
+   needed: the controller's written position on why the audit trail is
+   exempt, which is the one thing the tool cannot supply.
 
 ## What this document is not
 

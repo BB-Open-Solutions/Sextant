@@ -225,11 +225,59 @@ succeeds and the warning appears.
 
 bb-open now has the acknowledgement on, because the directory runs on
 `ldap://10.43.76.5` today. **That does not close the finding** - it makes it
-visible, and puts it in the fleet document instead of in a comment. Closing
-it requires a certificate on the OpenLDAP service and then `ldaps://`; that
-is platform work. The console's own bind
-(`ldap://openldap.ldap-bb-open:389`) moves in the same step - it carries the
-`cn=sextant-ro` password, narrower but no different in kind.
+visible, and puts it in the fleet document instead of in a comment.
+
+**Correction, 2026-08-07.** The paragraph above used to say closing this
+"requires a certificate on the OpenLDAP service". That was wrong, and wrong
+in the way this whole document is about: it was assumed, not measured.
+Measured by Bram the same day, the certificate was **already there on all
+three directories** and slapd was **already listening on 636** - chain and
+hostname verification against `openldap.ldap-bb-open` return
+`Verify return code: 0`, TLS1.2 ECDHE-ECDSA-AES256-GCM. The gap was never in
+the server. It was entirely client-side: the clients dialled 389.
+
+**The console half is CLOSED.** Chart `887ac33` mounts the private CA into
+`SSL_CERT_DIR` alongside the system store, so internal trust is added rather
+than replacing public trust (the forge, OIDC and SMTP keep working), with no
+init container and `readOnlyRootFilesystem` intact. The platform points at
+`ldaps://openldap.ldap-bb-open:636`. Verified on production: the directory
+endpoint answers 200, which only happens after a TLS dial, bind and search
+all succeed under strict verification, and the cleartext warning is gone
+from the log (measured again 2026-08-07: zero occurrences).
+
+**Two things stay open, and the second is the real one.**
+
+1. **Fleet devices still bind over plain `ldap://10.43.76.5`.** Moving them
+   needs a certificate SAN covering that IP or a mesh-resolvable name; the
+   current SANs are cluster DNS only. Pinning the Service ClusterIP so it
+   cannot drift is part of that work.
+2. **Nothing is ENFORCED.** Port 389 is still open and unauthenticated at
+   the transport layer, so "the clients use LDAPS now" is encryption on the
+   honour system. The closing condition is `olcSecurity ssf=128` on the
+   directories - and it can only be set once every client is off 389, which
+   is why it comes last rather than first.
+
+Related, found while making the switch and not a regression: `cn=sextant-ro`
+sees five entries but **no `groupOfNames` or `posixGroup` at all**, on 389
+and on 636 alike. Every group picker in the console is therefore empty -
+access, scopes, IdP mapping. It is not a security finding, but group
+assignment is the whole RBAC model at Zaanstad, so it is tracked here rather
+than lost: see L3.
+
+### L3 - The directory has no groups, so every group picker is empty
+
+**Measured 2026-08-07**, on both transports, so it predates the LDAPS
+switch. `cn=sextant-ro` can read five entries and none of them matches
+`(|(objectClass=groupOfNames)(objectClass=posixGroup))`.
+
+The console degrades correctly - an empty list, no error - which is why
+nobody noticed. But scopes, access rules and IdP mapping are all built on
+picking a group, and at Zaanstad that is how every permission is expressed.
+
+**Severity: low as a security matter, high as a readiness one.** Either the
+directory needs groups, or `identity.groupFilter` needs to match what this
+directory actually uses. Deciding which is a directory question, not a
+console one.
 
 ### H2 - The console pushes as a person, not as a machine
 
