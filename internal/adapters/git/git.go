@@ -124,6 +124,13 @@ func (r *Repo) safePath(name string) (string, error) {
 	}
 	p := filepath.Join(r.dir, name)
 	sep := string(filepath.Separator)
+	// Two layers, and the first is deliberately redundant. Mutation on
+	// 2026-08-07: removing this lexical check breaks no test, because every
+	// traversal the tests exercise is also caught by the symlink-resolving
+	// check below. That is the point of having both - a lexical check alone
+	// is defeated by a symlink, and a resolver alone depends on the
+	// filesystem answering. Do not "simplify" this by deleting one; the
+	// surviving mutation is evidence of overlap, not of dead code.
 	if rel, err := filepath.Rel(r.dir, p); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+sep) {
 		return "", fmt.Errorf("path %q escapes the repo", name)
 	}
