@@ -50,6 +50,12 @@ anyway rather than being dispatched on its own.
 **Severity: low.** Nothing is exposed today. It is hygiene, and the kind
 that quietly becomes a real exposure later.
 
+**CLOSED 2026-08-07** (overlay `a0f5236`), riding along with the 0.86.0
+rebuild as planned. The list is empty rather than deleted, with a note that
+adding to it costs a CVE and a reason - so the next person records why
+instead of just a package name. Both host classes evaluate and the catalog
+export still matches.
+
 ### S2 - No licence check runs anywhere
 
 **Measured, and the result is clean.** All 27 vendored Go dependencies are
@@ -133,6 +139,6 @@ inventory there is nothing to match advisories against.
 
 1. ~~S2~~ **done.** It is the one that turned a lucky answer into a checked
    one.
-2. **S1**, riding along with any change that already forces a rebuild.
+2. ~~S1~~ **done**, riding along with the 0.86.0 rebuild.
 3. **S3** after 1.0, together with the CVE reporting gap - they are the same
    piece of work seen from two directions.
