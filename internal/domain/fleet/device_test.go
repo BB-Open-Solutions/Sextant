@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -115,5 +116,46 @@ func TestGroupMembershipDelta(t *testing.T) {
 	}
 	if d := GroupMembershipDelta([]string{"x"}, []string{"x"}); len(d) != 0 {
 		t.Fatalf("no change should be empty, got %v", d)
+	}
+}
+
+// TestEnrolmentChecksTheClassVocabulary pins the fix of 2026-08-07. The
+// vocabulary was enforced when CHANGING a class and not when enrolling, so a
+// device could be created as anything and then refused when somebody tried
+// to correct it - bypassable at the one moment it is easiest to get wrong.
+//
+// Absent and wrong are different, and only wrong is refused: a device
+// discovered by a station has no class until an operator gives it one.
+func TestEnrolmentChecksTheClassVocabulary(t *testing.T) {
+	base := func() *Fleet {
+		return &Fleet{Groups: map[string]Group{"pilot": {}}, Devices: map[string]Device{}}
+	}
+
+	for _, class := range Classes {
+		f := base()
+		if err := AddDevice("lt-1", Device{Hardware: "hp-g4", Class: class}, time.Now())(f); err != nil {
+			t.Errorf("a known class %q was refused: %v", class, err)
+		}
+	}
+
+	f := base()
+	if err := AddDevice("lt-2", Device{Hardware: "hp-g4", Class: ""}, time.Now())(f); err != nil {
+		t.Errorf("enrolling without a class was refused: %v", err)
+	}
+
+	f = base()
+	err := AddDevice("lt-3", Device{Hardware: "hp-g4", Class: "kiosk"}, time.Now())(f)
+	if err == nil {
+		t.Fatal("a class outside the vocabulary was accepted at enrolment")
+	}
+	// The message has to list the choices, or an operator has to read source
+	// to find out what is allowed.
+	for _, want := range Classes {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error does not offer %q: %v", want, err)
+		}
+	}
+	if _, ok := f.Devices["lt-3"]; ok {
+		t.Error("the refused device was added anyway")
 	}
 }

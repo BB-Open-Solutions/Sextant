@@ -88,7 +88,7 @@ func TestSetASettingAtDeviceScope(t *testing.T) {
 		t.Fatalf("set device setting = %d", resp.StatusCode)
 	}
 	got := cfg.Fleet().Devices["lt-1"].Settings["apps.office"]
-	// parseValue must have made this a real boolean rather than the string
+	// The catalog must have made this a real boolean rather than the string
 	// "true": the nix generator types its inputs, and a string where a bool
 	// belongs fails evaluation at the gate rather than here.
 	if b, ok := got.(bool); !ok || !b {

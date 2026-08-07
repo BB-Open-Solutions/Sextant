@@ -25,6 +25,24 @@ func AddDevice(tag string, d Device, now time.Time) Mutation {
 		if d.Hardware == "" {
 			return fmt.Errorf("device needs a hardware profile")
 		}
+		// The class vocabulary is checked HERE, not in a handler. Until
+		// 2026-08-07 it was checked only when CHANGING a class
+		// (SetDeviceClass, mutate.go), so a device could be enrolled as
+		// anything and then refused when somebody tried to correct it - the
+		// vocabulary was bypassable at the one moment it is easiest to get
+		// wrong. checkClassAllowed below asks whether the group permits the
+		// class; this asks whether the class exists at all, which is a
+		// different question and was nobody's.
+		//
+		// An EMPTY class stays allowed here, and that is not the same rule as
+		// ValidClass's. Setting a class to blank is an error - it means
+		// somebody cleared a field. Enrolling without one is not: a device
+		// discovered by a station has no class until an operator gives it
+		// one. Absent and wrong are different, and only wrong is refused.
+		if d.Class != "" && !ValidClass(d.Class) {
+			return fmt.Errorf("unknown device class %q (choose one of %s)",
+				d.Class, strings.Join(Classes, ", "))
+		}
 		for _, g := range d.Groups {
 			if _, ok := f.Groups[g]; !ok {
 				return fmt.Errorf("unknown group %q", g)
