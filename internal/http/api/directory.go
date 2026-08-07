@@ -26,8 +26,7 @@ func (a *API) getDirectoryGroups(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, groups)
-	return nil
+	return writeList(w, r, groups)
 }
 
 // ownsAnywhere reports whether the principal holds Owner at org or at any

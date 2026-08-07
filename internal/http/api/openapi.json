@@ -137,6 +137,37 @@
           }
         }
       }
+    },
+    "parameters": {
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "How many items to return. Absent means all of them, which is the default and what a client written before paging existed will see. At most 1000 per request.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "description": "How many items to skip. An offset past the end is an empty array, not an error: a list that shrank between calls is ordinary.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "headers": {
+      "XTotalCount": {
+        "description": "The size of the UNPAGED list, scoped to what the caller may see. Set on every list response, paged or not, so a client can learn the size without walking it.",
+        "schema": {
+          "type": "integer"
+        }
+      }
     }
   },
   "security": [
@@ -255,6 +286,11 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-Total-Count": {
+                "$ref": "#/components/headers/XTotalCount"
+              }
             }
           },
           "401": {
@@ -297,7 +333,15 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
       },
       "post": {
         "summary": "Grant a role binding",
@@ -798,6 +842,11 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-Total-Count": {
+                "$ref": "#/components/headers/XTotalCount"
+              }
             }
           },
           "401": {
@@ -841,7 +890,15 @@
             }
           }
         },
-        "description": "Newest commits on the config repo (?limit=, default 100). Org-wide viewer: commits span every scope."
+        "description": "Newest commits on the config repo (?limit=, default 100). Org-wide viewer: commits span every scope.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
       }
     },
     "/api/v1/changes": {
@@ -1492,6 +1549,11 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "X-Total-Count": {
+                "$ref": "#/components/headers/XTotalCount"
+              }
             }
           },
           "401": {
@@ -1534,7 +1596,15 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
       },
       "post": {
         "summary": "Enroll a device",
@@ -2386,7 +2456,12 @@
         "description": "Groups matching ?q= (substring) from the configured LDAP directory, for access-binding pickers. Requires owner at some scope; read-only.",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "headers": {
+              "X-Total-Count": {
+                "$ref": "#/components/headers/XTotalCount"
+              }
+            }
           },
           "401": {
             "description": "No credential, or one that does not verify.",
@@ -2428,7 +2503,15 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
       }
     },
     "/api/v1/evidence": {

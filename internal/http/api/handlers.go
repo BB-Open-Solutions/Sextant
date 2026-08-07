@@ -41,8 +41,12 @@ func (a *API) getDevices(w http.ResponseWriter, r *http.Request) error {
 			Hardware: d.Hardware, AssignedUser: d.AssignedUser,
 		})
 	}
-	writeJSON(w, http.StatusOK, out)
-	return nil
+	// Paging is opt-in: no parameters means the whole list, as before.
+	// Scoped visibility is applied FIRST, so a page is a page of what this
+	// caller may see rather than a window onto the fleet with the invisible
+	// entries removed - the second would leak the size of what they cannot
+	// see through X-Total-Count.
+	return writeList(w, r, out)
 }
 
 func (a *API) getDevice(w http.ResponseWriter, r *http.Request) error {

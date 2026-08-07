@@ -107,7 +107,21 @@ func (a *API) getAudit(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, entries)
+	// This endpoint had `limit` before paging existed, and it means
+	// something slightly different: it bounds how far back the git log is
+	// READ, not how much of the result is returned. Keeping that and adding
+	// offset on top is additive; changing it would break the one caller the
+	// API already had.
+	w.Header().Set("X-Total-Count", strconv.Itoa(len(entries)))
+	p, err := pageFrom(r)
+	if err != nil {
+		return err
+	}
+	if p.offset >= len(entries) {
+		writeJSON(w, http.StatusOK, entries[:0])
+		return nil
+	}
+	writeJSON(w, http.StatusOK, entries[p.offset:])
 	return nil
 }
 

@@ -14,8 +14,7 @@ import (
 // viewer bound to one group must not learn other groups' bindings, IdP group
 // names or scopes (the visibility invariant every other read handler honours).
 func (a *API) getAccess(w http.ResponseWriter, r *http.Request) error {
-	writeJSON(w, http.StatusOK, a.cfg.Fleet().VisibleTo(a.canView(r)).Access)
-	return nil
+	return writeList(w, r, a.cfg.Fleet().VisibleTo(a.canView(r)).Access)
 }
 
 // postAccess grants (or updates) a role binding. Requires owner at the
