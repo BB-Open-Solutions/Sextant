@@ -10,6 +10,13 @@
   <script src="/static/app.js" defer></script>
 </head>
 <body class="bg-surface text-on-surface antialiased">
+<!-- WCAG 2.4.1. The sidebar carries sixty-odd links; without this a keyboard
+     user tabs through all of them on every page before reaching content.
+     Visually hidden until focused, which is the point: it is for the people
+     who need it and invisible to everyone else. -->
+<a href="#content"
+   class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-canvas focus:px-4 focus:py-2 focus:text-ink focus:shadow-lg focus:outline focus:outline-2 focus:outline-mint-deep"
+   >{{.L.T "layout.skip_to_content"}}</a>
 <div class="flex min-h-screen">
 
   <!-- Sidebar -->
@@ -78,7 +85,7 @@
   </nav>
 
   <!-- Main -->
-  <main class="ml-64 flex min-h-screen flex-1 flex-col">
+  <main id="content" tabindex="-1" class="ml-64 flex min-h-screen flex-1 flex-col">
 
     <!-- Top app bar -->
     <header class="sticky top-0 z-30 flex items-center justify-between border-b border-border-hairline bg-canvas px-8 py-3">

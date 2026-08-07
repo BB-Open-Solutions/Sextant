@@ -203,7 +203,16 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 
 func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = s.tmpl["login"].ExecuteTemplate(w, "login", map[string]any{"SSO": s.sessions != nil})
+	// The language has to travel even here (WCAG 3.1.1). This page used to
+	// hardcode lang="en", so a Dutch login screen was announced with English
+	// phonetics - and it is the first page every user meets, including the
+	// ones who most need the announcement to be right.
+	locale := s.defaultLocale
+	if locale == "" {
+		locale = "en"
+	}
+	_ = s.tmpl["login"].ExecuteTemplate(w, "login", map[string]any{
+		"SSO": s.sessions != nil, "Locale": locale})
 }
 
 // DevSessions is a loopback-only development stand-in for the oidc adapter:
