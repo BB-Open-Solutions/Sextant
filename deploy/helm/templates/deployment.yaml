@@ -195,6 +195,13 @@ spec:
             {{- with .Values.ldap.nameAttr }}
             - { name: SEXTANT_LDAP_NAME_ATTR, value: {{ . | quote }} }
             {{- end }}
+            {{- if .Values.ldap.caSecret }}
+            # Go reads certificates from every path in SSL_CERT_DIR, so the
+            # private CA is added to the system store rather than replacing
+            # it. Keeps ldaps:// verification strict without a bundle-merge
+            # initContainer, which readOnlyRootFilesystem would fight.
+            - { name: SSL_CERT_DIR, value: "/etc/ssl/certs:/ldap-ca" }
+            {{- end }}
             {{- if .Values.metrics.separatePort }}
             # Moves /metrics off the listener the ingress publishes. The
             # Service does not expose this port, so it is reachable from
@@ -226,9 +233,19 @@ spec:
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: tmp, mountPath: /tmp }
+            {{- if .Values.ldap.caSecret }}
+            - { name: ldap-ca, mountPath: /ldap-ca, readOnly: true }
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if .Values.ldap.caSecret }}
+        - name: ldap-ca
+          secret:
+            secretName: {{ .Values.ldap.caSecret }}
+            items:
+              - { key: ca.crt, path: ca.crt }
+        {{- end }}
         {{- if and .Values.gitRemote.url .Values.gitRemote.netrcSecret }}
         - name: netrc
           secret:

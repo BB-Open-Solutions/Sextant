@@ -192,6 +192,12 @@ ldap:
   baseDn: ""
   groupFilter: ""
   nameAttr: ""
+  # Secret holding a `ca.crt` that signs the directory's certificate, for an
+  # ldaps:// url whose issuer is a private CA. Mounted read-only and added to
+  # SSL_CERT_DIR alongside the system store, so public trust (forge, OIDC,
+  # SMTP) is unaffected and verification stays strict - there is deliberately
+  # no skip-verify anywhere in the LDAP client (ADR 0021).
+  caSecret: ""
 
 # CloudNativePG single-instance cluster for the observed plane. The
 # operator must be installed cluster-wide. DSN comes from the generated
