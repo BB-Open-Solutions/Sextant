@@ -82,6 +82,7 @@ type deps struct {
 	compliance     *app.ComplianceService
 	elevation      *app.ElevationService
 	forgeID        *app.ForgeIdentityService
+	retention      *app.RetentionSweeper
 	authz          api.Authz
 	cleanup        []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
@@ -341,6 +342,24 @@ func (d *deps) buildConfigPlane() error {
 		// refuse to start. The service itself refuses to act on an empty
 		// document, so a fleet that failed to load cannot lock every device
 		// out.
+		// Storage limitation (GDPR art. 5(1)(e)). Wired here, in the block
+		// that owns pg, for the same reason the credential sweep is: a
+		// startup task placed before its dependency becomes a silent no-op.
+		//
+		// The windows are DEFAULTS. Retention is the controller's decision -
+		// the municipality's - and a tool that picks silently has decided for
+		// them. The sweep logs what it removed on every run so the choice
+		// stays visible rather than becoming folklore.
+		d.retention = app.NewRetentionSweeper(pg, app.DefaultRetention(),
+			app.DefaultTenant, clock, log).
+			WithFleet(func() map[string]bool { return deviceTags(d.svc.Fleet()) })
+		if _, err := d.retention.Sweep(d.ctx); err != nil {
+			log.Warn("retention sweep failed at startup", "err", err)
+		}
+		// Daily afterwards: these are windows of months, and sweeping hourly
+		// only adds load.
+		d.background(func() { d.retention.Run(d.ctx, 24*time.Hour) })
+
 		if n, err := d.devCreds.ReconcileWithFleet(d.ctx, deviceTags(d.svc.Fleet())); err != nil {
 			log.Warn("device credential reconciliation failed", "err", err)
 		} else {

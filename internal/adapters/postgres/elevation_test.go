@@ -126,8 +126,14 @@ func TestElevationPendingIsOldestFirstAndTenantScoped(t *testing.T) {
 	}
 }
 
+// TestElevationPruneRemovesOldRequests was written against ElevationStore.
+// Prune, which had a test and no production caller and deleted across ALL
+// tenants. The retention sweeper replaced it with a tenant-scoped statement
+// that IS wired (app/retention.go); the coverage moves with it rather than
+// being deleted, and the tenant boundary is now asserted.
 func TestElevationPruneRemovesOldRequests(t *testing.T) {
-	s := openStore(t).Elevation()
+	base := openStore(t)
+	s := base.Elevation()
 	ctx := context.Background()
 	if err := s.Put(ctx, "t1", elevation.Request{
 		ID: "old", Tag: "lt-1", User: "u", State: elevation.Pending, Created: t0,
@@ -139,12 +145,23 @@ func TestElevationPruneRemovesOldRequests(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	n, err := s.Prune(ctx, t0.Add(30*time.Minute))
+	// A second tenant's old request must survive: a cell that deletes a
+	// neighbour's data is worse than one that keeps its own too long.
+	if err := s.Put(ctx, "t2", elevation.Request{
+		ID: "other", Tag: "lt-9", User: "u", State: elevation.Pending, Created: t0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := base.DeleteElevationBefore(ctx, "t1", t0.Add(30*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if n != 1 {
 		t.Fatalf("pruned %d rows, want 1", n)
+	}
+	if _, ok, _ := s.Get(ctx, "t2", "other"); !ok {
+		t.Error("the sweep crossed the tenant boundary")
 	}
 	if _, ok, _ := s.Get(ctx, "t1", "new"); !ok {
 		t.Error("prune removed a request that was inside the window")

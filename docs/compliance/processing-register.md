@@ -23,17 +23,17 @@ and whoever runs the console is therefore required. **None exists today.**
 
 ## What is processed
 
-| # | Data | Where | Subjects | Purpose | Retention as built |
+| # | Data | Where | Subjects | Purpose | Retention |
 |---|---|---|---|---|---|
 | P1 | Assigned user per device (`AssignedUser`, a name or account) | `fleet.json`, in git | staff | know whose device this is, for support and for a lost/stolen decision | **indefinite, and in git history forever** |
-| P2 | Console operator identity: subject, e-mail, display name, group memberships | `seen_users` in Postgres | IT staff | render "who approved this" without a directory round-trip | **indefinite, never purged** |
+| P2 | Console operator identity: subject, e-mail, display name, group memberships | `seen_users` in Postgres | IT staff | render "who approved this" without a directory round-trip | **365 days** since last seen |
 | P3 | Operator preferences | `user_prefs` | IT staff | remember page settings | indefinite |
 | P4 | Audit trail: who changed what, when | git commit history | IT staff | accountability, and required by BIO | indefinite by design |
-| P5 | Elevation requests: user, device, action, free-text reason, decision and decider | `elevation_requests` | staff | let a user ask an operator for one privileged action | **indefinite, never purged** |
-| P6 | Device check-ins: revision, phase, error text, CPU/memory, last seen | `device_status` | indirectly staff, through the device they use | know whether a device is converged and healthy | **indefinite, never purged** |
+| P5 | Elevation requests: user, device, action, free-text reason, decision and decider | `elevation_requests` | staff | let a user ask an operator for one privileged action | **365 days** |
+| P6 | Device check-ins: revision, phase, error text, CPU/memory, last seen | `device_status` | indirectly staff, through the device they use | know whether a device is converged and healthy | **180 days, and only once the fleet has dropped the tag** |
 | P7 | Device facts: kernel, hostname, system path (measured 2026-08-07: those three) | `device_facts` | indirectly staff | inventory | overwritten per check-in, never deleted |
 | P8 | **Diagnostics bundles: journal fragments** | `device_diagnostics`, sealed | staff, potentially in depth | support, when a device misbehaves | **14 days**, enforced on read (`app/diagnostics.go:21`) |
-| P9 | Notifications addressed to operators | `notifications` | IT staff | tell somebody a change needs review | **indefinite, never purged** (95 rows on 2026-08-07) |
+| P9 | Notifications addressed to operators | `notifications` | IT staff | tell somebody a change needs review | **180 days** |
 | P10 | LUKS recovery keys | `device_secrets`, sealed | not personal data, but it unlocks a person's disk | get a user back into their encrypted device | indefinite by design |
 
 Not processed, and worth stating because people assume otherwise: no
@@ -57,14 +57,37 @@ it is the sharpest open point in this register.
 
 ## Retention: the honest picture
 
-One retention window is implemented (P8, 14 days). **Everything else grows
-without bound.** That is defensible for the audit trail, which is supposed to
-be permanent, and it is not defensible for P2, P5, P6 and P9 - an elevation
-request from two years ago naming a person and what they wanted to do has no
-purpose left.
+**Measured on the morning of 2026-08-07: one window out of ten.** Everything
+else grew without bound. That is defensible for the audit trail, which is
+supposed to be permanent, and it was not defensible for P2, P5, P6 and P9 -
+an elevation request from two years ago naming a person and what they wanted
+to do has no purpose left.
 
-This is a gap in the product, not only in the paperwork. Art. 5(1)(e) wants
-storage limitation, and "we never delete" is a decision nobody made.
+**Built the same day** (`internal/app/retention.go`). A sweeper runs at
+startup and daily, with a window per kind:
+
+| | Default | Why |
+|---|---|---|
+| P9 Notifications | 180 days | operational messages, not records |
+| P5 Elevation requests | 365 days | evidence of a decision, so a year |
+| P2 Operator identities | 365 days | somebody who left should age out |
+| P6 Check-ins | 180 days, **and only for tags the fleet no longer has** | a device that still exists keeps its history however quiet it is: that silence is a finding |
+
+**These defaults are not law and the product does not pretend otherwise.**
+Retention is the controller's decision - the municipality's - so every
+window is configurable and the sweep logs what it removed on every run,
+including a run that removed nothing. A tool that picks silently has decided
+for the controller.
+
+Deliberately NOT swept: the git history (that IS the audit trail, with its
+own legal basis), the LUKS escrow (it lives as long as the device), and
+operator preferences (one row, no behavioural content).
+
+While building it, one more instance of the pattern this project keeps
+finding: `ElevationStore.Prune` already existed, had a test, had **no
+production caller**, and deleted across ALL tenants rather than one. It is
+gone; the tenant-scoped statement that replaced it is wired and its test now
+asserts the tenant boundary.
 
 ## Rights of data subjects
 
@@ -72,7 +95,7 @@ storage limitation, and "we never delete" is a decision nobody made.
 |---|---|
 | Access (art. 15) | possible by hand (SQL plus a git log); no product surface |
 | Rectification (art. 16) | `AssignedUser` is editable; the git history is not, by design |
-| Erasure (art. 17) | **not implemented.** Removing a device leaves its check-ins, notifications and elevation requests |
+| Erasure (art. 17) | **not implemented on request.** Time-based deletion now happens (see retention), but there is no "erase this person now" path |
 | Objection, restriction | not applicable in a normal employment context, but not implemented either |
 
 The interaction between erasure and the audit trail is a real tension and
@@ -87,8 +110,9 @@ retention, and that the register says so explicitly. **It does not yet.**
    fragments from staff machines) is what makes a DPIA more than a formality.
 2. **A processing agreement** between the municipality and the console
    operator.
-3. **Retention windows for P2, P5, P6, P9**, implemented rather than
-   documented, plus a written position on the audit trail.
+3. ~~Retention windows for P2, P5, P6, P9~~ **done 2026-08-07.** Still
+   needed: the controller confirming or changing the defaults, and a written
+   position on why the audit trail is exempt.
 4. **Transparency on P8**: either the device tells its user a bundle was
    taken, or the municipality's own privacy statement covers it - a decision
    somebody has to make, not an omission somebody can inherit.

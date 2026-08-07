@@ -91,19 +91,6 @@ func (e *ElevationStore) Pending(ctx context.Context, tenant string) ([]elevatio
 	return out, rows.Err()
 }
 
-// Prune deletes requests older than keep. This table holds a queue, not a log:
-// a request is dead five minutes after it is created, so rows that survive
-// beyond the audit window are only cost. The audit trail of who approved what
-// lives in the audit log, which is built to be kept.
-func (e *ElevationStore) Prune(ctx context.Context, before time.Time) (int64, error) {
-	tag, err := e.s.pool.Exec(ctx,
-		`DELETE FROM elevation_requests WHERE created < $1`, before)
-	if err != nil {
-		return 0, fmt.Errorf("prune elevation requests: %w", err)
-	}
-	return tag.RowsAffected(), nil
-}
-
 type scannable interface{ Scan(dest ...any) error }
 
 func scanElevation(row scannable) (elevation.Request, error) {
