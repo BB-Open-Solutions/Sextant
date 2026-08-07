@@ -326,3 +326,63 @@ func TestEveryV1ErrorIsJSON(t *testing.T) {
 		})
 	}
 }
+
+// TestListEndpointsAnswerAnArrayNeverNull. Go marshals a nil slice as
+// `null` and an initialised empty one as `[]`, so the answer depended on
+// whether the code path that built it happened to allocate. Measured on
+// 2026-08-07: /api/v1/access answered null while /api/v1/secret-refs and
+// /api/v1/hostkeys answered [] - same API, same "there is nothing here".
+//
+// The worst version of this bug is not that clients differ per endpoint. It
+// is that the SAME endpoint changes shape depending on whether the fleet
+// happens to be empty: it works in every test with seeded data and throws on
+// a fresh deployment, which is a customer's first hour.
+func TestListEndpointsAnswerAnArrayNeverNull(t *testing.T) {
+	srv := newTestAPI(t, true)
+	// The seed has no access bindings, no secret refs and no host keys, so
+	// every one of these is the empty case - which is the point.
+	for _, path := range []string{
+		"/api/v1/access",
+		"/api/v1/secret-refs",
+		"/api/v1/hostkeys",
+		"/api/v1/devices",
+	} {
+		t.Run(path, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", srv.URL+path, nil)
+			req.Header.Set("Authorization", "Bearer "+testToken)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				t.Fatalf("status = %d", resp.StatusCode)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			if strings.TrimSpace(string(body)) == "null" {
+				t.Fatalf("answered null; a client iterating this throws on an empty fleet")
+			}
+			var list []any
+			if err := json.Unmarshal(body, &list); err != nil {
+				t.Fatalf("not a JSON array: %v (%s)", err, body)
+			}
+		})
+	}
+
+	// And the nested case: /api/v1/me carries a groups array that writeJSON
+	// cannot reach, so the handler has to do it.
+	req, _ := http.NewRequest("GET", srv.URL+"/api/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer "+testToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var me map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&me); err != nil {
+		t.Fatal(err)
+	}
+	if me["groups"] == nil {
+		t.Error("/api/v1/me groups is null; a client iterating it throws for a user in no groups")
+	}
+}

@@ -42,11 +42,16 @@ func (a *API) getMe(w http.ResponseWriter, r *http.Request) error {
 			roles["group:"+g] = role.String()
 		}
 	}
+	// groups goes through emptyList for the same reason writeJSON does it at
+	// the top level: a nil slice marshals as null, and a client iterating
+	// this field would work for a user in a group and throw for one in none.
+	// writeJSON cannot reach a nested field, so the handler that knows the
+	// shape does it.
 	out := map[string]any{
 		"subject": p.user.Subject,
 		"name":    p.user.Name,
 		"email":   p.user.Email,
-		"groups":  p.user.Groups,
+		"groups":  emptyList(p.user.Groups),
 		"service": p.user.Service,
 		"roles":   roles,
 	}

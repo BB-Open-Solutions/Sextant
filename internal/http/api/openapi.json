@@ -3,7 +3,7 @@
   "info": {
     "title": "Sextant API",
     "version": "1.0.0-beta",
-    "description": "Machine contract of the Sextant fleet control-plane. Additive-only after the 1.0 freeze. Authentication: Bearer token (personal or service) or browser session with X-CSRF-Token on mutations."
+    "description": "Machine contract of the Sextant fleet control-plane.\n\nAUTHENTICATION. A Bearer token (personal or service), or a browser session with X-CSRF-Token on mutations. Both resolve through the same wrapper; no endpoint authenticates its own way.\n\nERRORS. Every failure answers application/json with the Error schema - including the refusals raised before a handler runs and a path matching no route. A 500 always carries the literal string \"internal error\"; the detail is in the server log, deliberately, so an error response can never leak internals.\n\nEMPTY LISTS. A list endpoint answers [] and never null, whether or not the fleet is empty.\n\nVERSIONING, from the 1.0 freeze:\n\n* ADDITIVE ONLY within /api/v1. New endpoints, new optional request fields and new response fields may appear at any time. A client MUST ignore response fields it does not know - that is the whole basis of the promise.\n* NEVER within /api/v1: removing or renaming an endpoint, a field or an enum value; narrowing a type; making an optional request field required; or changing the status code an operation answers for the same condition.\n* If something genuinely must break, it happens under /api/v2 and the two run side by side. /api/v1 then enters a DEPRECATION WINDOW of at least twelve months from the day v2 ships, announced in the release notes and carried on every deprecated operation as `deprecated: true` in this document.\n* A security fix may break the rules above. That is the one exception, it is announced as such, and the reason is published.\n\nThis spec is verified against the running server: CI fails if a route exists without a spec entry, if a spec entry has no route, if an operation does not document its errors, or if a documented response shape is not what the server writes."
   },
   "servers": [
     {
@@ -29,6 +29,113 @@
             "description": "Human-readable reason. Safe to show an operator: it never carries internals - a 500 is always the literal string \"internal error\", with the detail in the server log."
           }
         }
+      },
+      "Device": {
+        "type": "object",
+        "description": "A device as the fleet document holds it. This is the CONFIGURATION view; what a device reports about itself is /api/v1/status.",
+        "required": [
+          "tag"
+        ],
+        "properties": {
+          "tag": {
+            "type": "string",
+            "description": "Stable identifier. A lowercase slug; also the machine hostname."
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Group memberships, most general first. Always an array, never null."
+          },
+          "class": {
+            "type": "string",
+            "description": "One of laptop, desktop, server, station. May be absent on a device a station discovered but nobody has classified."
+          },
+          "hardware": {
+            "type": "string",
+            "description": "Hardware profile name from the overlay."
+          },
+          "assignedUser": {
+            "type": "string",
+            "description": "The person this device belongs to. Personal data - see docs/compliance/processing-register.md."
+          }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "description": "The answer to a write that has nothing to return but its own success.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "What happened, e.g. \"enrolled\", \"removed\", \"applied\"."
+          }
+        }
+      },
+      "AuditEntry": {
+        "type": "object",
+        "description": "One entry of the configuration audit trail. It is git history, so it is append-only and complete.",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "description": "Commit hash."
+          },
+          "subject": {
+            "type": "string",
+            "description": "Commit subject: what changed, in the words the console wrote."
+          },
+          "author": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "when": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Me": {
+        "type": "object",
+        "description": "Who the caller is and what they may do. The roles map is resolved per request, never stored.",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description": "Identifier from the identity provider."
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Directory groups. Always an array, never null."
+          },
+          "service": {
+            "type": "boolean",
+            "description": "True for a service account rather than a person."
+          },
+          "roles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Resolved role per scope, e.g. {\"org\":\"editor\",\"group:pilot\":\"owner\"}. Only scopes where the caller holds at least viewer appear."
+          },
+          "ceiling": {
+            "type": "string",
+            "description": "Present only for a scoped token: the highest role it may reach regardless of the underlying grant."
+          }
+        }
       }
     }
   },
@@ -43,7 +150,14 @@
         "summary": "Revoke a role binding",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -131,7 +245,17 @@
         "summary": "List role bindings",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Role bindings the caller may see. Always an array.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "No credential, or one that does not verify.",
@@ -179,7 +303,14 @@
         "summary": "Grant a role binding",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -269,7 +400,14 @@
         "summary": "Replace an app list at a scope",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -360,7 +498,14 @@
         "summary": "Unassign a policy",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -448,7 +593,14 @@
         "summary": "Assign a policy to a scope",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -538,7 +690,14 @@
         "summary": "Configure audit controls",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -629,7 +788,17 @@
         "summary": "Configuration audit trail",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Configuration audit trail, newest first. Bound with ?limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntry"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "No credential, or one that does not verify.",
@@ -728,7 +897,14 @@
         "summary": "Open a change request",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -868,7 +1044,14 @@
         "summary": "Abandon a change",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1008,7 +1191,14 @@
         "summary": "Apply a gated edit on the change branch",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1098,7 +1288,14 @@
         "summary": "Merge a ready change (owner)",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1188,7 +1385,14 @@
         "summary": "Run the build gate",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1278,7 +1482,17 @@
         "summary": "List devices",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Every device the caller may see. Always an array.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "No credential, or one that does not verify.",
@@ -1326,7 +1540,33 @@
         "summary": "Enroll a device",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "The device was enrolled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "tag": {
+                      "type": "string"
+                    },
+                    "credential": {
+                      "type": "string",
+                      "description": "One-time device credential. Shown once and never again; store it before leaving this response."
+                    },
+                    "notice": {
+                      "type": "string"
+                    },
+                    "credentialError": {
+                      "type": "string",
+                      "description": "Present when the device was enrolled but its credential could not be issued - re-issue before it checks in."
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1416,7 +1656,14 @@
         "summary": "Remove a device",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1552,7 +1799,14 @@
         "summary": "Update device fields",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1643,7 +1897,14 @@
         "summary": "Re-issue a device credential",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1735,7 +1996,14 @@
         "description": "Body: {intent: lock|wipe, force?}. Wipe requires the device to be locked first unless force. Org owner; the intent is an audited commit the device pulls on check-in.",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1824,7 +2092,14 @@
         "description": "Cancel a pending intent (a found laptop). Org owner.",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -1914,7 +2189,14 @@
         "summary": "Reactivate a retired device",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -2005,7 +2287,14 @@
         "summary": "Retire a device",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -2248,7 +2537,14 @@
         "summary": "Delete a filter",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -2336,7 +2632,14 @@
         "summary": "Create or replace a filter",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -2476,7 +2779,14 @@
         "summary": "Create a group",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -2566,7 +2876,14 @@
         "summary": "Update a group",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -2655,7 +2972,14 @@
         "summary": "Remove a group",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -2746,7 +3070,17 @@
         "summary": "SSH host public keys of active devices",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Recorded device host public keys. Always an array.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "No credential, or one that does not verify.",
@@ -2797,7 +3131,14 @@
         "summary": "Who am I",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "The caller and their resolved roles.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
           },
           "401": {
             "description": "No credential, or one that does not verify.",
@@ -2897,7 +3238,14 @@
         "summary": "Update my preferences",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -2988,7 +3336,14 @@
         "summary": "Delete a policy",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -3076,7 +3431,14 @@
         "summary": "Create or replace a policy",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -3166,7 +3528,14 @@
         "summary": "Cancel the active rollout",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -3302,7 +3671,14 @@
         "summary": "Start a rollout (owner)",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -3392,7 +3768,14 @@
         "summary": "Replace the rollout ring plan",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -3483,7 +3866,14 @@
         "summary": "Advance the rollout engine one step",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -3573,7 +3963,17 @@
         "summary": "List registered secret references",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Registered secret references (names, never values). Always an array.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "No credential, or one that does not verify.",
@@ -3711,7 +4111,14 @@
         "summary": "Unregister a secret reference",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -3801,7 +4208,14 @@
         "summary": "Clear a setting at a scope",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -3889,7 +4303,14 @@
         "summary": "Set a setting at a scope",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",
@@ -4217,7 +4638,14 @@
         "summary": "Revoke an API token",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
           },
           "400": {
             "description": "The request could not be used: malformed body, unknown key, wrong-typed value, or a reference that resolves to nothing.",

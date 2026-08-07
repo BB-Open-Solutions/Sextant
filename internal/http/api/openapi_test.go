@@ -212,3 +212,100 @@ func TestTheServerWritesTheDocumentedErrorShape(t *testing.T) {
 		t.Errorf("body carries %d fields; the Error schema documents exactly one", len(body))
 	}
 }
+
+// TestDocumentedSuccessShapesMatchTheServer calls the endpoints whose 200
+// schema was written from a measured response and checks the server still
+// answers that shape.
+//
+// A documented shape the server does not write is worse than no
+// documentation: it is a promise an integrator builds against. The schemas
+// were derived by calling these endpoints rather than by reading the
+// handlers, and this keeps them that way.
+func TestDocumentedSuccessShapesMatchTheServer(t *testing.T) {
+	srv := newTestAPI(t, true)
+
+	var spec struct {
+		Paths map[string]map[string]struct {
+			Responses map[string]struct {
+				Content map[string]struct {
+					Schema map[string]any `json:"schema"`
+				} `json:"content"`
+			} `json:"responses"`
+		} `json:"paths"`
+		Components struct {
+			Schemas map[string]map[string]any `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(openAPISpec, &spec); err != nil {
+		t.Fatal(err)
+	}
+
+	// schemaFor resolves a $ref or returns the inline schema.
+	schemaFor := func(m map[string]any) map[string]any {
+		if ref, ok := m["$ref"].(string); ok {
+			return spec.Components.Schemas[strings.TrimPrefix(ref, "#/components/schemas/")]
+		}
+		return m
+	}
+
+	for _, c := range []struct{ path, kind string }{
+		{"/api/v1/me", "object"},
+		{"/api/v1/devices", "array"},
+		{"/api/v1/audit", "array"},
+		{"/api/v1/hostkeys", "array"},
+		{"/api/v1/secret-refs", "array"},
+		{"/api/v1/access", "array"},
+	} {
+		t.Run(c.path, func(t *testing.T) {
+			op, ok := spec.Paths[c.path]["get"]
+			if !ok {
+				t.Fatalf("no GET %s in the spec", c.path)
+			}
+			body200, ok := op.Responses["200"]
+			if !ok || body200.Content["application/json"].Schema == nil {
+				t.Fatalf("GET %s has no documented 200 schema", c.path)
+			}
+			documented := body200.Content["application/json"].Schema
+			if got, _ := documented["type"].(string); got != c.kind && documented["$ref"] == nil {
+				t.Errorf("documented type = %q, want %q", got, c.kind)
+			}
+
+			req, _ := http.NewRequest("GET", srv.URL+c.path, nil)
+			req.Header.Set("Authorization", "Bearer "+testToken)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				t.Fatalf("status = %d", resp.StatusCode)
+			}
+			var actual any
+			if err := json.NewDecoder(resp.Body).Decode(&actual); err != nil {
+				t.Fatal(err)
+			}
+			switch c.kind {
+			case "array":
+				if _, ok := actual.([]any); !ok {
+					t.Errorf("the spec documents an array; the server answered %T", actual)
+				}
+			case "object":
+				m, ok := actual.(map[string]any)
+				if !ok {
+					t.Fatalf("the spec documents an object; the server answered %T", actual)
+				}
+				// Every REQUIRED documented property must be present. Extra
+				// properties are fine - the contract is additive-only, so a
+				// server ahead of the spec is expected and a server BEHIND it
+				// is the break.
+				sc := schemaFor(documented)
+				req, _ := sc["required"].([]any)
+				for _, k := range req {
+					if _, ok := m[k.(string)]; !ok {
+						t.Errorf("the spec requires %q and the server did not send it", k)
+					}
+				}
+			}
+		})
+	}
+}

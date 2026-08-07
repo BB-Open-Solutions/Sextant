@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"time"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
@@ -274,7 +275,41 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	// credentials) that must never be cached - mirrors web.render.
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(emptyList(v))
+}
+
+// emptyList turns a nil slice or map into an empty one, so a list endpoint
+// answers [] and never null.
+//
+// Go marshals a nil slice as `null` and an initialised empty one as `[]`,
+// which means the answer depends on whether the code path that built it
+// happened to allocate. Measured on 2026-08-07: /api/v1/access answered
+// `null` while /api/v1/secret-refs and /api/v1/hostkeys answered `[]`, from
+// the same API, for the same "there is nothing here" situation.
+//
+// A client iterating the response therefore works against one endpoint and
+// throws against another - and against the SAME endpoint depending on
+// whether the fleet happens to be empty, which is the worst version: it
+// works in every test and fails on a fresh deployment.
+//
+// Fixed here rather than per handler so a new list endpoint cannot get it
+// wrong. Anything that is not a nil slice or map passes through untouched.
+func emptyList(v any) any {
+	if v == nil {
+		return v
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Slice:
+		if rv.IsNil() {
+			return reflect.MakeSlice(rv.Type(), 0, 0).Interface()
+		}
+	case reflect.Map:
+		if rv.IsNil() {
+			return reflect.MakeMap(rv.Type()).Interface()
+		}
+	}
+	return v
 }
 
 // decode parses a bounded JSON body.
