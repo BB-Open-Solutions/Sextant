@@ -14,7 +14,7 @@
     <span class="text-label-md text-text-secondary"><span id="sel-count">0</span> {{.L.T "devices.selected"}}</span>
     <form id="sel-group-form" method="post" action="/devices/group" class="!m-0 ml-auto flex items-center gap-2">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <input type="text" name="name" required pattern="[a-z0-9][a-z0-9-]*" placeholder="{{.L.T "devices.new_group_name"}}" title="{{.L.T "devices.group_slug_hint"}}" class="rounded-full border border-border-hairline bg-canvas px-3 py-1.5 text-label-md">
+      <input type="text" name="name" required pattern="[a-z0-9][a-z0-9-]*" placeholder="{{.L.T "devices.new_group_name"}}" title="{{.L.T "devices.group_slug_hint"}}" class="rounded-full border border-border-hairline bg-canvas px-3 py-1.5 text-label-md" aria-label="{{.L.T "devices.new_group_name"}}">
       <button type="submit"><span class="material-symbols-outlined msz-18">group_add</span>{{.L.T "devices.create_group"}}</button>
     </form>
   </div>
@@ -25,11 +25,11 @@
        view is shareable as a URL, no JS. -->
   {{$ctl := "h-9 rounded-lg border border-border-hairline bg-canvas px-3 text-label-md text-ink focus:border-mint-vibrant focus:outline-none focus:ring-2 focus:ring-mint-vibrant/20"}}
   <form method="get" action="/devices" class="!m-0 flex flex-wrap items-center gap-2">
-    <input type="search" name="q" value="{{.Q}}" placeholder="{{.L.T "devices.search_ph"}}" class="{{$ctl}} w-64">
-    <select name="class" class="{{$ctl}}"><option value="">{{.L.T "devices.all_classes"}}</option>{{range .Classes}}<option value="{{.}}" {{if eq $.FClass .}}selected{{end}}>{{.}}</option>{{end}}</select>
-    <select name="group" class="{{$ctl}}"><option value="">{{.L.T "settings.all_groups"}}</option>{{range .Groups}}<option value="{{.}}" {{if eq $.FGroup .}}selected{{end}}>{{.}}</option>{{end}}</select>
-    <select name="status" class="{{$ctl}}"><option value="">{{.L.T "devices.all_statuses"}}</option><option value="online" {{if eq .FStatus "online"}}selected{{end}}>{{.L.T "common.online"}}</option><option value="offline" {{if eq .FStatus "offline"}}selected{{end}}>{{.L.T "common.offline"}}</option><option value="never" {{if eq .FStatus "never"}}selected{{end}}>{{.L.T "common.never_seen"}}</option></select>
-    <select name="baseline" class="{{$ctl}}"><option value="">{{.L.T "devices.all_baseline"}}</option><option value="ok" {{if eq .FBaseline "ok"}}selected{{end}}>{{.L.T "common.compliant"}}</option><option value="attention" {{if eq .FBaseline "attention"}}selected{{end}}>{{.L.T "common.attention"}}</option></select>
+    <input type="search" name="q" value="{{.Q}}" placeholder="{{.L.T "devices.search_ph"}}" class="{{$ctl}} w-64" aria-label="{{.L.T "devices.search_ph"}}">
+    <select name="class" class="{{$ctl}}" aria-label="{{.L.T "common.class"}}"><option value="">{{.L.T "devices.all_classes"}}</option>{{range .Classes}}<option value="{{.}}" {{if eq $.FClass .}}selected{{end}}>{{.}}</option>{{end}}</select>
+    <select name="group" class="{{$ctl}}" aria-label="{{$.L.T "common.group"}}"><option value="">{{.L.T "settings.all_groups"}}</option>{{range .Groups}}<option value="{{.}}" {{if eq $.FGroup .}}selected{{end}}>{{.}}</option>{{end}}</select>
+    <select name="status" class="{{$ctl}}" aria-label="{{$.L.T "common.status"}}"><option value="">{{.L.T "devices.all_statuses"}}</option><option value="online" {{if eq .FStatus "online"}}selected{{end}}>{{.L.T "common.online"}}</option><option value="offline" {{if eq .FStatus "offline"}}selected{{end}}>{{.L.T "common.offline"}}</option><option value="never" {{if eq .FStatus "never"}}selected{{end}}>{{.L.T "common.never_seen"}}</option></select>
+    <select name="baseline" class="{{$ctl}}" aria-label="{{$.L.T "common.baseline"}}"><option value="">{{.L.T "devices.all_baseline"}}</option><option value="ok" {{if eq .FBaseline "ok"}}selected{{end}}>{{.L.T "common.compliant"}}</option><option value="attention" {{if eq .FBaseline "attention"}}selected{{end}}>{{.L.T "common.attention"}}</option></select>
     {{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}">{{end}}{{if .Dir}}<input type="hidden" name="dir" value="{{.Dir}}">{{end}}
     {{/* !py-0/!h-9/!rounded-lg override the primary-button base (py-2,
          rounded-full), which otherwise renders this a fraction taller than
@@ -42,10 +42,10 @@
   <!-- Device list -->
   <div class="overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
     <table>
-      <tr>{{if .CanEdit}}<th class="!pl-4 w-8"><input type="checkbox" id="sel-all" class="cursor-pointer" title="{{.L.T "devices.select_all"}}"></th>{{end}}{{template "sortTh" (list $ "tag" (.L.T "common.tag"))}}<th>{{.L.T "common.groups"}}</th>{{template "sortTh" (list $ "class" (.L.T "common.class"))}}{{template "sortTh" (list $ "hardware" (.L.T "common.hardware"))}}{{template "sortTh" (list $ "user" (.L.T "common.user"))}}{{template "sortTh" (list $ "status" (.L.T "common.status"))}}{{template "sortTh" (list $ "baseline" (.L.T "devices.baseline"))}}<th class="whitespace-nowrap"><span class="material-symbols-outlined msz-16 align-middle text-text-tertiary" title="{{.L.T "page.overview.fleet_utilisation"}}">speed</span></th>{{if .CanEdit}}<th class="text-right !px-4">{{.L.T "common.actions"}}</th>{{end}}</tr>
+      <tr>{{if .CanEdit}}<th class="!pl-4 w-8"><input type="checkbox" id="sel-all" class="cursor-pointer" title="{{.L.T "devices.select_all"}}" aria-label="{{.L.T "devices.select_all"}}"></th>{{end}}{{template "sortTh" (list $ "tag" (.L.T "common.tag"))}}<th>{{.L.T "common.groups"}}</th>{{template "sortTh" (list $ "class" (.L.T "common.class"))}}{{template "sortTh" (list $ "hardware" (.L.T "common.hardware"))}}{{template "sortTh" (list $ "user" (.L.T "common.user"))}}{{template "sortTh" (list $ "status" (.L.T "common.status"))}}{{template "sortTh" (list $ "baseline" (.L.T "devices.baseline"))}}<th class="whitespace-nowrap"><span class="material-symbols-outlined msz-16 align-middle text-text-tertiary" title="{{.L.T "page.overview.fleet_utilisation"}}">speed</span></th>{{if .CanEdit}}<th class="text-right !px-4">{{.L.T "common.actions"}}</th>{{end}}</tr>
       {{range .Devices}}
       <tr class="group align-middle hover:bg-surface-container-low transition-colors">
-        {{if $.CanEdit}}<td class="!pl-4"><input type="checkbox" class="dev-select cursor-pointer" value="{{.Tag}}"></td>{{end}}
+        {{if $.CanEdit}}<td class="!pl-4"><input type="checkbox" class="dev-select cursor-pointer" value="{{.Tag}}" aria-label="{{$.L.T "common.select_row"}} {{.Tag}}"></td>{{end}}
         <td><a href="/devices/{{.Tag}}" class="font-mono font-medium">{{.Tag}}</a></td>
         <td>{{range .Groups}}<span class="tag">{{.}}</span> {{end}}</td>
         <td>{{.Class}}</td>

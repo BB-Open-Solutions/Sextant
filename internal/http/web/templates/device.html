@@ -256,15 +256,15 @@
         <div class="flex flex-col gap-3 text-body-sm">
           <div class="flex flex-col gap-1"><label>{{.L.T "common.class"}}</label>
             {{$cur := .Device.Class}}{{$known := false}}{{range .AllClasses}}{{if eq . $cur}}{{$known = true}}{{end}}{{end}}
-            <select name="class">
+            <select name="class" aria-label="{{$.L.T "common.class"}}">
               {{if not $known}}<option value="{{$cur}}" selected>{{if $cur}}{{$cur}} - {{$.L.T "device.class_unknown"}}{{else}}{{$.L.T "device.class_choose"}}{{end}}</option>{{end}}
               {{range .AllClasses}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}
             </select></div>
           <div class="flex flex-col gap-1"><label>{{.L.T "device.assigned_user"}}</label>
-            <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="{{.L.T "device.assigned_user_placeholder"}}">
+            <input name="assignedUser" value="{{.Device.AssignedUser}}" placeholder="{{.L.T "device.assigned_user_placeholder"}}" aria-label="{{.L.T "device.assigned_user_placeholder"}}">
             <span class="text-label-md text-text-tertiary">{{.L.T "device.assigned_user_hint"}}</span></div>
           <div class="flex flex-col gap-1"><label>{{.L.T "common.group"}}</label>
-            <select name="groups">
+            <select name="groups" aria-label="{{$.L.T "common.groups"}}">
               <option value="">{{.L.T "common.no_group"}}</option>
               {{$picked := false}}{{range .GroupOpts}}<option value="{{.Name}}" {{if and .Member (not $picked)}}selected{{$picked = true}}{{end}}>{{.Name}}</option>{{end}}
             </select>
@@ -428,7 +428,7 @@
             data-confirm="{{.L.T "device.wipe_confirm_pre"}} {{.Tag}}{{.L.T "device.wipe_confirm_post"}}">
         <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="intent" value="wipe"><input type="hidden" name="force" value="1">
         <div class="flex flex-col gap-1"><label>{{.L.T "device.confirm_wipe_label"}}</label>
-          <input name="confirm" placeholder="{{.Tag}}" required></div>
+          <input name="confirm" placeholder="{{.Tag}}" required aria-label="{{.Tag}}"></div>
         <button type="submit" class="quiet">{{.L.T "device.wipe_device"}}</button>
       </form>
     </div>

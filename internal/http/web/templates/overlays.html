@@ -56,7 +56,7 @@
         {{if .Selected}}<input type="hidden" name="name" value="{{.Selected}}">
         {{else}}<div class="flex flex-col gap-1"><label>{{.L.T "common.name"}}</label><input name="name" value="{{.SuggestName}}" placeholder="{{.L.T "common.eg"}} k8s-node" required pattern="[a-z0-9][a-z0-9-]*" class="font-mono"></div>{{end}}
         <label>{{.L.T "overlays.module_label"}}</label>
-        <textarea name="code" rows="20" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{ config, lib, pkgs, ... }:&#10;{&#10;  # your NixOS module for this device class&#10;}">{{.Code}}</textarea>
+        <textarea name="code" rows="20" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{ config, lib, pkgs, ... }:&#10;{&#10;  # your NixOS module for this device class&#10;}" aria-label="{ config, lib, pkgs, ... }:&#10;{&#10;  # your NixOS module for this device class&#10;}">{{.Code}}</textarea>
         {{if .SyntaxOK}}<div class="rounded-md border border-mint-vibrant/40 bg-mint-vibrant/5 px-3 py-2 text-body-sm text-mint-deep"><span class="material-symbols-outlined msz-14 align-middle">check_circle</span> {{.L.T "overlays.syntax_ok"}}</div>{{end}}
         {{with .SyntaxError}}<div class="rounded-md border border-status-error/40 bg-status-error/5 px-3 py-2 font-mono text-code-inline text-status-error">{{.}}</div>{{end}}
         {{with .SyntaxNote}}<div class="rounded-md border border-border-soft bg-surface-container-low px-3 py-2 text-body-sm text-text-tertiary">{{.}}</div>{{end}}

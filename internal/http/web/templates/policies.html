@@ -80,10 +80,10 @@
           <summary class="cursor-pointer list-none text-label-md text-text-tertiary hover:text-primary">{{$.L.T "common.edit"}}</summary>
           <form method="post" action="/policies" class="!absolute right-0 z-10 mt-2 w-72 !flex-col !items-stretch gap-2 rounded-md border border-border-soft bg-canvas p-3 shadow-lg">
             <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}">
-            <input name="description" value="{{.Description}}" placeholder="{{$.L.T "common.description"}}">
-            <textarea name="settings" rows="4" placeholder="{{$.L.T "policies.settings_placeholder"}}">{{.SettingsText}}</textarea>
-            <input name="enforced" value="{{.EnforcedText}}" placeholder="{{$.L.T "policies.locked_keys_placeholder"}}">
-            <input name="controls" value="{{.ControlsText}}" placeholder="{{$.L.T "policies.controls_placeholder"}}">
+            <input name="description" value="{{.Description}}" placeholder="{{$.L.T "common.description"}}" aria-label="{{$.L.T "common.description"}}">
+            <textarea name="settings" rows="4" placeholder="{{$.L.T "policies.settings_placeholder"}}" aria-label="{{$.L.T "policies.settings_placeholder"}}">{{.SettingsText}}</textarea>
+            <input name="enforced" value="{{.EnforcedText}}" placeholder="{{$.L.T "policies.locked_keys_placeholder"}}" aria-label="{{$.L.T "policies.locked_keys_placeholder"}}">
+            <input name="controls" value="{{.ControlsText}}" placeholder="{{$.L.T "policies.controls_placeholder"}}" aria-label="{{$.L.T "policies.controls_placeholder"}}">
             <div class="flex gap-2"><button type="submit">{{$.L.T "common.save"}}</button><button type="submit" formaction="/policies/{{.ID}}/delete" class="quiet">{{$.L.T "common.delete"}}</button></div>
           </form>
         </details>
@@ -99,11 +99,11 @@
       <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-mint-vibrant">add_circle</span>{{.L.T "policies.create_policy_title"}}</h2>
       <form method="post" action="/policies" class="!flex-col !items-stretch gap-3">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <input name="id" placeholder="{{.L.T "policies.id_placeholder"}}" required>
-        <input name="description" placeholder="{{.L.T "common.description"}}">
-        <textarea name="settings" rows="4" placeholder="apps.office = true&#10;desktop = plasma" required></textarea>
-        <input name="enforced" placeholder="{{.L.T "policies.locked_keys_placeholder"}} ({{.L.T "common.optional"}})">
-        <input name="controls" placeholder="{{.L.T "policies.controls_placeholder"}} ({{.L.T "common.optional"}})">
+        <input name="id" placeholder="{{.L.T "policies.id_placeholder"}}" required aria-label="{{.L.T "policies.id_placeholder"}}">
+        <input name="description" placeholder="{{.L.T "common.description"}}" aria-label="{{.L.T "common.description"}}">
+        <textarea name="settings" rows="4" placeholder="apps.office = true&#10;desktop = plasma" required aria-label="apps.office = true&#10;desktop = plasma"></textarea>
+        <input name="enforced" placeholder="{{.L.T "policies.locked_keys_placeholder"}} ({{.L.T "common.optional"}})" aria-label="{{.L.T "policies.locked_keys_placeholder"}} ({{.L.T "common.optional"}})">
+        <input name="controls" placeholder="{{.L.T "policies.controls_placeholder"}} ({{.L.T "common.optional"}})" aria-label="{{.L.T "policies.controls_placeholder"}} ({{.L.T "common.optional"}})">
         <div class="flex items-center gap-3"><button type="submit">{{.L.T "common.create"}}</button><span class="muted">{{.L.T "policies.per_line_pre"}} <code>key = value</code> {{.L.T "policies.per_line_post"}}</span></div>
       </form>
     </div>
@@ -117,10 +117,10 @@
       <h2 class="mt-0 mb-4 text-headline-sm">{{.L.T "policies.assign_title"}}</h2>
       <form method="post" action="/assignments" class="!flex-col !items-stretch gap-3">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <select name="policy" required><option value="" disabled selected>{{.L.T "policies.policy_option"}}</option>{{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-        <select name="target" required><option value="org">{{.L.T "common.scope_org"}}</option>{{range .Groups}}<option value="group:{{.}}">{{$.L.T "common.scope_group_prefix"}} {{.}}</option>{{end}}</select>
-        <select name="filter"><option value="">{{.L.T "policies.no_filter_option"}}</option>{{range .FilterIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-        <input name="priority" type="number" placeholder="{{.L.T "policies.priority_placeholder"}}">
+        <select name="policy" required aria-label="{{.L.T "common.policy"}}"><option value="" disabled selected>{{.L.T "policies.policy_option"}}</option>{{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+        <select name="target" required aria-label="{{.L.T "common.target"}}"><option value="org">{{.L.T "common.scope_org"}}</option>{{range .Groups}}<option value="group:{{.}}">{{$.L.T "common.scope_group_prefix"}} {{.}}</option>{{end}}</select>
+        <select name="filter" aria-label="{{$.L.T "common.filter"}}"><option value="">{{.L.T "policies.no_filter_option"}}</option>{{range .FilterIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+        <input name="priority" type="number" placeholder="{{.L.T "policies.priority_placeholder"}}" aria-label="{{.L.T "policies.priority_placeholder"}}">
         <button type="submit" class="w-full">{{.L.T "policies.add_assignment"}}</button>
       </form>
       {{$ := .}}
@@ -146,7 +146,7 @@
       <td class="!px-6 font-medium">{{.ID}}</td>
       <td class="!px-6"><span class="tag">{{.Match}}</span></td>
       <td class="!px-6">{{range .Rules}}<div><code class="text-code-inline text-text-secondary">{{.Attr}} {{.Op}} {{.Value}}{{range .Values}}{{.}} {{end}}</code></div>{{end}}</td>
-      {{if $.CanOwn}}<td class="!px-6 text-right"><form method="post" action="/filters/{{.ID}}/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" title="{{$.L.T "common.delete"}}" class="!rounded-full !border-0 !bg-transparent !p-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined msz-18">delete</span></button></form></td>{{end}}
+      {{if $.CanOwn}}<td class="!px-6 text-right"><form method="post" action="/filters/{{.ID}}/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" title="{{$.L.T "common.delete"}}" class="!rounded-full !border-0 !bg-transparent !p-1 text-text-tertiary hover:!text-status-error" aria-label="{{$.L.T "common.delete"}}"><span class="material-symbols-outlined msz-18">delete</span></button></form></td>{{end}}
     </tr>
     {{else}}
     <tr><td colspan="4" class="muted !px-6">{{.L.T "policies.no_filters_defined"}}</td></tr>
@@ -171,9 +171,9 @@
       <div class="flex flex-col gap-2">
       {{range $i := .RuleRows}}
       <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_10rem_1fr]">
-        <input name="attr{{$i}}" list="filter-attrs" placeholder="{{$.L.T "policies.attr_placeholder"}}">
-        <select name="op{{$i}}"><option value="eq">{{$.L.T "policies.op_equals"}}</option><option value="ne">{{$.L.T "policies.op_not_equals"}}</option><option value="prefix">{{$.L.T "policies.op_starts_with"}}</option><option value="in">{{$.L.T "policies.op_in_comma_list"}}</option></select>
-        <input name="value{{$i}}" list="filter-values" placeholder="{{$.L.T "common.value"}}">
+        <input name="attr{{$i}}" list="filter-attrs" placeholder="{{$.L.T "policies.attr_placeholder"}}" aria-label="{{$.L.T "policies.attr_placeholder"}}">
+        <select name="op{{$i}}" aria-label="{{$.L.T "common.operator"}}"><option value="eq">{{$.L.T "policies.op_equals"}}</option><option value="ne">{{$.L.T "policies.op_not_equals"}}</option><option value="prefix">{{$.L.T "policies.op_starts_with"}}</option><option value="in">{{$.L.T "policies.op_in_comma_list"}}</option></select>
+        <input name="value{{$i}}" list="filter-values" placeholder="{{$.L.T "common.value"}}" aria-label="{{$.L.T "common.value"}}">
       </div>
       {{end}}
       </div>

@@ -72,20 +72,20 @@
                 <label for="in-{{$sl}}" class="cursor-pointer rounded-full px-3 py-1 font-medium text-text-secondary peer-checked/on:bg-mint-vibrant peer-checked/on:text-ink">{{$.L.T "common.on"}}</label>
               </div>
             {{else if eq .Entry.Widget "select"}}
-              <select name="v:{{.Entry.Name}}" class="w-full"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "page.integrations.inherit"}}</option>{{range .Entry.Options}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+              <select name="v:{{.Entry.Name}}" class="w-full" aria-label="{{if .Entry.Label}}{{.Entry.Label}}{{else}}{{.Entry.Name}}{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "page.integrations.inherit"}}</option>{{range .Entry.Options}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select>
             {{else if eq .Entry.Widget "secret"}}
-              {{if $.SecretRefs}}<span class="flex w-full items-center gap-2"><select name="v:{{.Entry.Name}}" class="min-w-0 flex-1"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "page.integrations.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "page.integrations.register_title"}}">{{$.L.T "common.add"}}</a></span>
+              {{if $.SecretRefs}}<span class="flex w-full items-center gap-2"><select name="v:{{.Entry.Name}}" class="min-w-0 flex-1" aria-label="{{if .Entry.Label}}{{.Entry.Label}}{{else}}{{.Entry.Name}}{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "page.integrations.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $val .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "page.integrations.register_title"}}">{{$.L.T "common.add"}}</a></span>
               {{else}}<span class="text-body-sm text-text-tertiary">{{$.L.T "page.integrations.no_secrets"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "page.integrations.register_one"}}</a></span>{{end}}
             {{else if eq .Entry.Widget "number"}}
-              <input type="number" name="v:{{.Entry.Name}}" value="{{if $set}}{{$val}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="w-full">
+              <input type="number" name="v:{{.Entry.Name}}" value="{{if $set}}{{$val}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="w-full" aria-label="{{$.L.T "page.integrations.inherit"}}">
             {{else if or (eq .Entry.Widget "code") (eq .Entry.Widget "fixedlist")}}
               {{/* A list, one item per line - the same control the settings
                    editor uses. It used to fall through to the single-line
                    input below, which showed renderValue's JSON and turned the
                    whole array into one item on save. */}}
-              <textarea name="v:{{.Entry.Name}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{.Lines}}{{end}}</textarea>
+              <textarea name="v:{{.Entry.Name}}" rows="3" spellcheck="false" class="w-full font-mono text-code-md" placeholder="{{$.L.T "settings.code_placeholder"}}" aria-label="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{.Lines}}{{end}}</textarea>
             {{else}}
-              <input name="v:{{.Entry.Name}}" value="{{if $set}}{{$val}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="w-full">
+              <input name="v:{{.Entry.Name}}" value="{{if $set}}{{$val}}{{end}}" placeholder="{{$.L.T "page.integrations.inherit"}}" class="w-full" aria-label="{{$.L.T "page.integrations.inherit"}}">
             {{end}}
           </div>
           {{end}}

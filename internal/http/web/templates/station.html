@@ -76,7 +76,7 @@
   <div class="flex items-center justify-between gap-3 rounded border border-[#2f2f2f] bg-ink p-3">
     <span class="text-label-xs-caps uppercase text-canvas/50">{{$.L.T "station.bearer_token"}}</span>
     <span class="flex items-center gap-2"><code class="break-all font-mono text-code-md text-mint-soft">{{.}}</code>
-      <button type="button" data-copy="{{.}}" data-copied="copied" class="!rounded !bg-transparent !p-1.5 text-text-tertiary hover:!text-canvas"><span class="material-symbols-outlined msz-18">content_copy</span></button></span>
+      <button type="button" data-copy="{{.}}" data-copied="copied" class="!rounded !bg-transparent !p-1.5 text-text-tertiary hover:!text-canvas" aria-label="{{$.L.T "common.copy"}}"><span class="material-symbols-outlined msz-18">content_copy</span></button></span>
   </div>
 </div>
 {{end}}

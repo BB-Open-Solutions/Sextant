@@ -21,14 +21,14 @@
         <h2 class="mt-0 mb-1 flex items-center gap-2 text-label-md font-bold text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-body-sm text-canvas">1</span>{{.L.T "orgupd.testgroup_label"}}</h2>
         <p class="muted mb-4">{{.L.T "orgupd.testgroup_desc"}}</p>
         <div class="flex max-w-md flex-col gap-1"><label>{{.L.T "common.group"}}</label>
-          <select name="testgroup" required class="w-full"><option value="" disabled {{if not .TestGroup}}selected{{end}}>{{.L.T "common.select"}}</option>{{range .AllGroups}}<option value="{{.}}" {{if eq . $.TestGroup}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+          <select name="testgroup" required class="w-full" aria-label="{{.L.T "common.test_group"}}"><option value="" disabled {{if not .TestGroup}}selected{{end}}>{{.L.T "common.select"}}</option>{{range .AllGroups}}<option value="{{.}}" {{if eq . $.TestGroup}}selected{{end}}>{{.}}</option>{{end}}</select></div>
       </div>
 
       <div class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
         <h2 class="mt-0 mb-1 flex items-center gap-2 text-label-md font-bold text-ink"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-body-sm text-canvas">2</span>{{.L.T "orgupd.ladder_title"}}</h2>
         <p class="muted mb-4">{{.L.T "orgupd.ladder_desc"}}</p>
         <div class="flex max-w-md flex-col gap-1"><label>{{.L.T "orgupd.percents_label"}}</label>
-          <input name="percents" value="{{.Percents}}" required>
+          <input name="percents" value="{{.Percents}}" required aria-label="{{.L.T "common.percentages"}}">
           <p class="muted mb-0 mt-1 text-body-sm">{{.L.T "orgupd.percents_hint"}}</p></div>
         <button type="submit" class="btn mt-4"><span class="material-symbols-outlined msz-18">save</span>{{.L.T "orgupd.save_basic"}}</button>
 
@@ -76,7 +76,7 @@
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <input type="hidden" name="group" value="{{.Group}}">
         <span class="w-40 truncate font-medium text-ink">{{.Group}}</span>
-        <input name="window" value="{{.Window}}" placeholder="{{$.L.T "orgupd.window_placeholder"}}" pattern="([01]?\d|2[0-3]):[0-5]\d-([01]?\d|2[0-3]):[0-5]\d" class="!w-40 font-mono">
+        <input name="window" value="{{.Window}}" placeholder="{{$.L.T "orgupd.window_placeholder"}}" pattern="([01]?\d|2[0-3]):[0-5]\d-([01]?\d|2[0-3]):[0-5]\d" class="!w-40 font-mono" aria-label="{{$.L.T "orgupd.window_placeholder"}}">
         {{if not .Window}}<span class="text-body-sm text-text-tertiary">{{$.L.T "orgupd.window_always"}}</span>{{end}}
         <button type="submit" class="btn quiet !py-1">{{$.L.T "common.save"}}</button>
       </form>
@@ -122,17 +122,17 @@
           </div>
           <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div class="flex flex-col gap-1 col-span-2 sm:col-span-1"><label class="!text-label-xs-caps">{{$.L.T "common.group"}}</label>
-              <select name="group{{$i}}"><option value="">{{if $configured}}—{{else}}{{$.L.T "rollout.pick_group"}}{{end}}</option>{{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+              <select name="group{{$i}}" aria-label="{{$.L.T "common.group"}}"><option value="">{{if $configured}}—{{else}}{{$.L.T "rollout.pick_group"}}{{end}}</option>{{range $.AllGroups}}<option value="{{.}}" {{if eq . (index $.PlanGroups $i)}}selected{{end}}>{{.}}</option>{{end}}</select></div>
             <div class="flex flex-col gap-1 col-span-2 sm:col-span-1"><label class="!text-label-xs-caps">{{$.L.T "rollout.wave_name_label"}}</label>
-              <input name="name{{$i}}" placeholder="Canary / Test / Phase 1" value="{{index $.PlanNames $i}}"></div>
+              <input name="name{{$i}}" placeholder="Canary / Test / Phase 1" value="{{index $.PlanNames $i}}" aria-label="Canary / Test / Phase 1"></div>
             <div class="flex flex-col gap-1"><label class="!text-label-xs-caps">{{$.L.T "rollout.soak_label"}}</label>
-              <input name="soak{{$i}}" type="number" min="0" placeholder="30" value="{{index $.PlanSoaks $i}}"></div>
+              <input name="soak{{$i}}" type="number" min="0" placeholder="30" value="{{index $.PlanSoaks $i}}" aria-label="30"></div>
             <div class="flex flex-col gap-1"><label class="!text-label-xs-caps">{{$.L.T "rollout.healthy_label"}}</label>
-              <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="95" value="{{index $.PlanHealthy $i}}"></div>
+              <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="95" value="{{index $.PlanHealthy $i}}" aria-label="95"></div>
           </div>
           <div class="mt-2 flex flex-wrap items-center gap-4">
             <div class="flex items-center gap-2"><label class="!text-label-xs-caps">{{$.L.T "rollout.max_label"}}</label>
-              <input name="maxDevices{{$i}}" type="number" min="0" placeholder="0 = {{$.L.T "rollout.all_at_once"}}" value="{{index $.PlanMax $i}}" class="!w-28" title="{{$.L.T "rollout.max_at_once_title"}}"></div>
+              <input name="maxDevices{{$i}}" type="number" min="0" placeholder="0 = {{$.L.T "rollout.all_at_once"}}" value="{{index $.PlanMax $i}}" class="!w-28" title="{{$.L.T "rollout.max_at_once_title"}}" aria-label="0 = {{$.L.T "rollout.all_at_once"}}"></div>
             <label class="flex items-center gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="approval{{$i}}" value="1" {{if index $.PlanApproval $i}}checked{{end}} class="!w-auto">{{$.L.T "rollout.require_approval"}}</label>
           </div>
         </div>

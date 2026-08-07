@@ -49,16 +49,16 @@
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <div class="flex flex-col gap-1">
           <label>{{.L.T "common.idp_group"}}</label>
-          <input name="group" placeholder="{{.L.T "common.idp_group"}}" required class="w-full" {{if .DirGroups}}list="dir-groups"{{end}}>
+          <input name="group" placeholder="{{.L.T "common.idp_group"}}" required class="w-full" {{if .DirGroups}}list="dir-groups"{{end}} aria-label="{{.L.T "common.idp_group"}}">
           {{if .DirGroups}}<datalist id="dir-groups">{{range .DirGroups}}<option value="{{.Name}}">{{end}}</datalist>{{else}}<span class="muted">{{.L.T "access.dir_not_configured"}}</span>{{end}}
         </div>
         <div class="flex flex-col gap-1">
           <label>{{.L.T "common.role"}}</label>
-          <select name="role"><option value="" disabled selected>{{.L.T "access.select_role"}}</option><option value="viewer">viewer</option><option value="editor">editor</option><option value="owner">owner</option></select>
+          <select name="role" aria-label="{{$.L.T "common.role"}}"><option value="" disabled selected>{{.L.T "access.select_role"}}</option><option value="viewer">viewer</option><option value="editor">editor</option><option value="owner">owner</option></select>
         </div>
         <div class="flex flex-col gap-1">
           <label>{{.L.T "common.scope"}}</label>
-          <select name="scope"><option value="org">{{.L.T "common.scope_org"}}</option>{{range .Groups}}<option value="group:{{.}}">{{$.L.T "common.scope_group_prefix"}} {{.}}</option>{{end}}</select>
+          <select name="scope" aria-label="{{$.L.T "common.scope"}}"><option value="org">{{.L.T "common.scope_org"}}</option>{{range .Groups}}<option value="group:{{.}}">{{$.L.T "common.scope_group_prefix"}} {{.}}</option>{{end}}</select>
         </div>
         <button type="submit" class="w-full">{{.L.T "access.stage_binding"}}</button>
       </form>

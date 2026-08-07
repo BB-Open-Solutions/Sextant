@@ -74,13 +74,13 @@
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="reparent" value="1">
               <label>{{$.L.T "groups.reparent"}}</label>
               {{$row := .}}
-              <select name="parent" class="w-full"><option value="" {{if not .Parent}}selected{{end}}>{{$.OrgName}} {{$.L.T "groups.root"}}</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
+              <select name="parent" class="w-full" aria-label="{{$.L.T "common.parent"}}"><option value="" {{if not .Parent}}selected{{end}}>{{$.OrgName}} {{$.L.T "groups.root"}}</option>{{range $.AllGroups}}{{if ne . $row.Name}}<option value="{{.}}" {{if eq . $row.Parent}}selected{{end}}>{{.}}</option>{{end}}{{end}}</select>
               <button type="submit" class="quiet mt-2 self-start">{{$.L.T "groups.move"}}</button>
             </form>
             <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">
               <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="setidp" value="1">
               <label>{{$.L.T "groups.map_idp"}}</label>
-              <input name="idpGroup" list="dirgroups" value="{{.IdpGroup}}" placeholder="{{$.L.T "groups.idp_group_placeholder"}}" class="w-full" autocomplete="off">
+              <input name="idpGroup" list="dirgroups" value="{{.IdpGroup}}" placeholder="{{$.L.T "groups.idp_group_placeholder"}}" class="w-full" autocomplete="off" aria-label="{{$.L.T "groups.idp_group_placeholder"}}">
               <button type="submit" class="quiet mt-2 self-start">{{$.L.T "groups.map_button"}}</button>
             </form>
             <form method="post" action="/groups/{{.Name}}/update" class="!flex-col !items-stretch gap-1 rounded-md border border-border-soft p-3">

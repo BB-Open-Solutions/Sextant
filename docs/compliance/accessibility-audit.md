@@ -18,9 +18,9 @@ is the language declared, is there one `h1` per page.
 
 ## Findings
 
-### A1 - Half the form fields have no accessible name (WCAG 3.3.2, 4.1.2)
+### A1 - Half the form fields had no accessible name (WCAG 3.3.2, 4.1.2) - FIXED 2026-08-07
 
-**Measured: 73 of 146 form fields.** They carry a `name` and often a
+**Measured: 73 of 146 form fields. Now zero.** They carry a `name` and often a
 `placeholder`, and nothing else:
 
 ```html
@@ -35,21 +35,35 @@ in most themes. A screen-reader user meets this field as "edit text, blank".
 Worst pages: `policies.html` (16), `settings.html` (11), `devices.html` (8),
 `org_updates.html` (8).
 
-**Severity: high.** This is the single largest accessibility defect in the
-console and it is on the pages an operator uses daily. It is also the
-cheapest to fix - a `<label for>` or an `aria-label` per field, mechanical
-work, no design decisions.
+**Severity: high.** It was the single largest accessibility defect in the
+console, on the pages an operator uses daily.
 
-### A2 - Eleven icon-only buttons have no accessible name (WCAG 4.1.2)
+**Fixed the same day.** Forty fields already carried a translated
+placeholder, so the accessible name is that same string - no new text, no
+translation debt, and the two cannot drift apart. The settings controls get
+the setting's own label, the exact expression the visible label uses. The
+remainder got `common.*` keys, twelve of which had to be added in both
+locales.
 
-**Measured: 11 of 101 buttons** render a Material symbol and no text, with no
+The ceiling in `a11y_test.go` is now **0**, which makes it an absolute rule
+rather than a ratchet: a new field without an accessible name fails on the
+commit that introduces it, not in an audit next year. Verified by removing
+one label and watching the test fail.
+
+### A2 - Eleven icon-only buttons had no accessible name (WCAG 4.1.2) - FIXED 2026-08-07
+
+**Measured: 11 of 101 buttons. Now zero.** render a Material symbol and no text, with no
 `aria-label`. The icon font renders a ligature, so a screen reader announces
 either nothing or the ligature name.
 
 Concentrated in `profile.html` (5) and `service_accounts.html` (2).
 
-**Severity: medium.** Fewer instances than A1, and some sit next to a labelled
-control, but a delete button that announces as "button" is a genuine hazard.
+**Severity: medium.** Fewer instances than A1, and some sat next to a
+labelled control, but a delete button that announces as "button" is a
+genuine hazard.
+
+Fixed by taking the `title` already on the control where there was one -
+that is the text somebody chose for it - and `common.copy` for the rest.
 
 ### A3 - No skip link on most pages (WCAG 2.4.1) - FIXED 2026-08-07
 
@@ -104,10 +118,10 @@ be false. Still open:
 
 ## Order of work
 
-A1 first: it is the biggest, the most mechanical, and it blocks nothing else.
-A3 and A4 are one-line fixes and can ride along. A2 after. Then the manual
-round, because the manual round is what tells you whether the mechanical work
-achieved anything.
+**All four findings are closed.** What remains is the manual round, and it
+is now the only thing between here and a defensible statement - which is
+also the point: the mechanical work was worth doing first precisely so that
+a human tester spends their time on what only a human can judge.
 
 The accessibility statement itself comes last and quotes measurements, not
 intentions. A statement claiming more than has been tested is worse than a

@@ -22,13 +22,16 @@ import (
 // reflow) is still outstanding.
 
 const (
-	// maxUnlabelledFields is the count measured on 2026-08-07. Fields carry a
-	// name and a placeholder and nothing else; a placeholder is not a label -
-	// it vanishes on input and is not reliably announced.
-	maxUnlabelledFields = 73
-	// maxIconOnlyButtons: a button whose only content is a Material symbol
-	// announces as "button" or as the ligature name.
-	maxIconOnlyButtons = 11
+	// maxUnlabelledFields: 73 when first measured on 2026-08-07, ZERO by the
+	// end of the same day. Now that it is zero the ceiling is an absolute
+	// rule rather than a ratchet: every new form field must arrive with an
+	// accessible name, and a field that does not fails this test on the
+	// commit that introduces it rather than in an audit a year later.
+	maxUnlabelledFields = 0
+	// maxIconOnlyButtons: 11 when first measured, zero by the end of the same
+	// day. A button whose only content is a Material symbol announces as
+	// "button" or as the ligature name - a delete control that says nothing.
+	maxIconOnlyButtons = 0
 )
 
 var (

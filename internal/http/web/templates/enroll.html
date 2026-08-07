@@ -17,7 +17,7 @@
        height, sitting visibly out of line with the select. */}}
   <form method="get" action="/enroll" class="!items-stretch gap-3">
     <div class="flex flex-col gap-1"><label>{{.L.T "station.station_label"}}</label>
-      <select name="station" class="min-w-64">
+      <select name="station" class="min-w-64" aria-label="{{.L.T "common.station"}}">
         <option value="">{{.L.T "enroll.select_station"}}</option>
         {{$sel := .Station}}{{range .Stations}}<option value="{{.}}" {{if eq . $sel}}selected{{end}}>{{.}}</option>{{end}}
       </select>
@@ -67,8 +67,8 @@
     <!-- Shared profile/class/group for this rack of identical machines. -->
     <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
       <div class="flex flex-col gap-1"><label>{{.L.T "common.hardware_profile"}}</label>
-        {{if .Profiles}}<select name="hardware" required><option value="" disabled selected>{{.L.T "common.select"}}</option>{{range .Profiles}}<option value="{{.Name}}">{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}</select>
-        {{else}}<input name="hardware" placeholder="{{.L.T "enroll.profile_name_placeholder"}}" required>{{end}}
+        {{if .Profiles}}<select name="hardware" required aria-label="{{.L.T "common.hardware"}}"><option value="" disabled selected>{{.L.T "common.select"}}</option>{{range .Profiles}}<option value="{{.Name}}">{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}</select>
+        {{else}}<input name="hardware" placeholder="{{.L.T "enroll.profile_name_placeholder"}}" required aria-label="{{.L.T "enroll.profile_name_placeholder"}}">{{end}}
       </div>
       <div class="flex flex-col gap-1"><label>{{.L.T "common.class"}}</label><select name="class">{{range .Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
       <div class="flex flex-col gap-1"><label>{{.L.T "common.group"}}</label><select name="group"><option value="">{{.L.T "common.no_group"}}</option>{{range .Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
@@ -86,7 +86,7 @@
         </label>
         <div class="flex items-center gap-2">
           <label class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "enroll.cmdb_name"}}</label>
-          <input name="name-{{macKey .Dev.MAC}}" placeholder="{{$.L.T "common.eg"}} kiosk-04" pattern="[a-z0-9][a-z0-9-]*" class="font-mono md:w-56">
+          <input name="name-{{macKey .Dev.MAC}}" placeholder="{{$.L.T "common.eg"}} kiosk-04" pattern="[a-z0-9][a-z0-9-]*" class="font-mono md:w-56" aria-label="{{$.L.T "common.eg"}} kiosk-04">
           <button type="submit" formaction="/enroll/{{$.Station}}/discovered/{{.Dev.MAC}}/remove" formnovalidate data-confirm="{{$.L.T "enroll.remove_confirm"}} {{.Dev.MAC}}?" title="{{$.L.T "common.remove"}}" aria-label="{{$.L.T "common.remove"}}" class="!rounded-full !border-0 !bg-transparent !p-1.5 text-text-tertiary transition hover:!text-status-error"><span class="material-symbols-outlined msz-18">delete</span></button>
         </div>
       </div>

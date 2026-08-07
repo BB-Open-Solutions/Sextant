@@ -24,7 +24,7 @@
       <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.port"}}</label><input name="port" type="number" value="{{if .Cfg.Port}}{{.Cfg.Port}}{{else}}587{{end}}" required></div>
       <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.from"}}</label><input name="from" value="{{.Cfg.From}}" placeholder="no-reply@example.com" required></div>
       <div class="flex flex-col gap-1"><label>{{.L.T "page.mail.security"}}</label>
-        <select name="security">
+        <select name="security" aria-label="{{.L.T "common.security"}}">
           <option value="starttls" {{if eq (printf "%s" .Cfg.Security) "tls"}}{{else if eq (printf "%s" .Cfg.Security) "none"}}{{else}}selected{{end}}>{{.L.T "page.mail.opt_starttls"}}</option>
           <option value="tls" {{if eq (printf "%s" .Cfg.Security) "tls"}}selected{{end}}>{{.L.T "page.mail.opt_tls"}}</option>
           <option value="none" {{if eq (printf "%s" .Cfg.Security) "none"}}selected{{end}}>{{.L.T "page.mail.opt_none"}}</option>
@@ -38,7 +38,7 @@
       <div class="flex flex-col gap-1">
         <label>{{.L.T "page.mail.secretref_label"}} <span class="text-text-tertiary">{{.L.T "page.mail.recommended"}}</span></label>
         <div class="flex items-center gap-2">
-          <input name="passwordRef" value="{{.Cfg.PasswordRef}}" placeholder="e.g. smtp-password" pattern="[a-z0-9][a-z0-9-]*" class="font-mono flex-1">
+          <input name="passwordRef" value="{{.Cfg.PasswordRef}}" placeholder="e.g. smtp-password" pattern="[a-z0-9][a-z0-9-]*" class="font-mono flex-1" aria-label="e.g. smtp-password">
           <a href="/secrets?name=smtp-password" class="text-label-md text-secondary whitespace-nowrap">{{.L.T "common.add"}}</a>
         </div>
         <p class="muted mt-1 mb-0">{{.L.T "page.mail.secretref_hint"}}</p>
@@ -46,7 +46,7 @@
       {{if .CanEnterSecret}}
       <div class="mt-3 flex flex-col gap-1 border-t border-border-soft pt-3">
         <label>{{.L.T "page.mail.typepw_label"}} <span class="text-text-tertiary">{{.L.T "page.mail.stored_encrypted"}}</span></label>
-        <input name="password" type="password" placeholder="{{if .Cfg.Username}}{{.L.T "page.mail.pw_placeholder_keep"}}{{else}}{{.L.T "page.mail.pw_placeholder_new"}}{{end}}" autocomplete="new-password">
+        <input name="password" type="password" placeholder="{{if .Cfg.Username}}{{.L.T "page.mail.pw_placeholder_keep"}}{{else}}{{.L.T "page.mail.pw_placeholder_new"}}{{end}}" autocomplete="new-password" aria-label="{{if .Cfg.Username}}{{.L.T "page.mail.pw_placeholder_keep"}}{{else}}{{.L.T "page.mail.pw_placeholder_new"}}{{end}}">
         <p class="muted mt-1 mb-0">{{.L.T "page.mail.typepw_hint"}}</p>
       </div>
       {{else}}

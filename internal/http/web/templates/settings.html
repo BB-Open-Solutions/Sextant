@@ -53,11 +53,11 @@
               <label for="bn-{{$sl}}" class="cursor-pointer rounded-full px-3 py-1 font-medium text-text-secondary peer-checked/on:bg-mint-vibrant peer-checked/on:text-ink">{{$.L.T "common.on"}}</label>
             </div>
           {{else if eq .Entry.Widget "select"}}
-            {{$cur := .Value}}<select name="v:{{.Entry.Name}}" class="w-full">{{range .Entry.Options}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
+            {{$cur := .Value}}<select name="v:{{.Entry.Name}}" class="w-full" aria-label="{{if .Entry.Label}}{{.Entry.Label}}{{else}}{{.Entry.Name}}{{end}}">{{range .Entry.Options}}<option value="{{.}}" {{if eq . $cur}}selected{{end}}>{{.}}</option>{{end}}</select>
           {{else if eq .Entry.Widget "number"}}
-            <input type="number" name="v:{{.Entry.Name}}" value="{{.Value}}" class="w-full">
+            <input type="number" name="v:{{.Entry.Name}}" value="{{.Value}}" class="w-full" aria-label="{{if .Entry.Label}}{{.Entry.Label}}{{else}}{{.Entry.Name}}{{end}}">
           {{else}}
-            <input name="v:{{.Entry.Name}}" value="{{.Value}}" class="w-full">
+            <input name="v:{{.Entry.Name}}" value="{{.Value}}" class="w-full" aria-label="{{if .Entry.Label}}{{.Entry.Label}}{{else}}{{.Entry.Name}}{{end}}">
           {{end}}
         </div>
         {{end}}
@@ -81,7 +81,7 @@
   <form method="post" action="/apps" class="!items-center">
     <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{$.Scope}}"><input type="hidden" name="kind" value="{{.Kind}}">
     <label class="w-24">{{.Kind}}</label>
-    <input name="names" value="{{.Names}}" placeholder="{{$.L.T "common.comma_separated"}}" class="flex-1">
+    <input name="names" value="{{.Names}}" placeholder="{{$.L.T "common.comma_separated"}}" class="flex-1" aria-label="{{$.L.T "common.comma_separated"}}">
     {{if $.CanEdit}}<button type="submit" class="quiet">{{$.L.T "common.save"}}</button>{{end}}
   </form>
   {{end}}
@@ -156,12 +156,12 @@
               {{end}}
             </div>
           {{else if eq $row.Entry.Widget "select"}}
-            <select name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$inhWord}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
+            <select name="{{$vn}}" aria-label="{{if $row.Entry.Label}}{{$row.Entry.Label}}{{else}}{{$row.Entry.Name}}{{end}}"{{if $row.RequiresOff}} disabled{{end}} class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$inhWord}}</option>{{range $row.Entry.Options}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select>
           {{else if eq $row.Entry.Widget "secret"}}
-            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} class="{{$ctl}} w-full min-w-0 flex-1 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
+            {{if $.SecretRefs}}<span class="inline-flex w-full items-center gap-2"><select name="{{$vn}}" aria-label="{{if $row.Entry.Label}}{{$row.Entry.Label}}{{else}}{{$row.Entry.Name}}{{end}}"{{if $row.RequiresOff}} disabled{{end}} class="{{$ctl}} w-full min-w-0 flex-1 {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}"><option value="" {{if not $set}}selected{{end}}>{{$.L.T "common.none"}}</option>{{range $.SecretRefs}}<option value="{{.}}" {{if and $set (eq $row.Value .)}}selected{{end}}>{{.}}</option>{{end}}</select><a href="/secrets?name={{$sl}}" class="whitespace-nowrap text-label-md text-secondary" title="{{$.L.T "settings.register_secret_title"}}">{{$.L.T "common.new_short"}}</a></span>
             {{else}}<span class="muted">{{$.L.T "settings.no_secrets_pre"}} <a href="/secrets?name={{$sl}}" class="text-secondary">{{$.L.T "settings.register_one"}}</a></span>{{end}}
           {{else if eq $row.Entry.Widget "number"}}
-            <input type="number" name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
+            <input type="number" name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" aria-label="{{$inhWord}}">
           {{else if eq $row.Entry.Widget "timerange"}}
             {{/* Two halves posted under one name; combineSubmitted joins them
                  with the "-" the parser expects. Both or neither: half a
@@ -178,17 +178,17 @@
                  this page exists to make inheritance visible. */}}
             <span class="flex flex-col gap-1">
               {{range $i, $ph := $row.Slots}}
-              <input name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{index $row.SlotValues $i}}" placeholder="{{$ph}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant{{end}}">
+              <input name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{index $row.SlotValues $i}}" placeholder="{{$ph}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant{{end}}" aria-label="{{$ph}}">
               {{end}}
             </span>
           {{else if eq $row.Entry.Widget "code"}}
-            <textarea name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} rows="3" spellcheck="false" class="w-full font-mono text-code-md {{if $set}}!border-mint-vibrant{{end}}" placeholder="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{$row.Lines}}{{end}}</textarea>
+            <textarea name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} rows="3" spellcheck="false" class="w-full font-mono text-code-md {{if $set}}!border-mint-vibrant{{end}}" placeholder="{{$.L.T "settings.code_placeholder"}}" aria-label="{{$.L.T "settings.code_placeholder"}}">{{if $set}}{{$row.Lines}}{{end}}</textarea>
           {{else if $row.Suggestions}}
             {{$listId := printf "sugg-%s" $sl}}
-            <input name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" list="{{$listId}}">
+            <input name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" list="{{$listId}}" aria-label="{{$inhWord}}">
             <datalist id="{{$listId}}">{{range $row.Suggestions}}<option value="{{.}}">{{end}}</datalist>
           {{else}}
-            <input name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}">
+            <input name="{{$vn}}"{{if $row.RequiresOff}} disabled{{end}} value="{{if $set}}{{$row.Value}}{{end}}" placeholder="{{$inhWord}}" class="{{$ctl}} w-full {{if $set}}!border-mint-vibrant !bg-mint-vibrant/10{{end}}" aria-label="{{$inhWord}}">
           {{end}}
           <!-- Provenance, directly under the control -->
           <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-label-xs-caps">
