@@ -110,10 +110,44 @@ ciphertext nobody can read.
 ## Status
 
 - Chart support: **done** (`cnpg.backup.*`, guarded, CI-asserted).
-- Enabled in production: **not yet** - needs the bucket prefix and the
-  credentials secret in the `sextant` namespace.
-- **This procedure has never been executed.** Until somebody restores into a
-  scratch namespace and reveals a key from the restored database, this
-  document is a plan and not a proof. That is the acceptance step; it is
-  cheap and it is the only thing that turns the rest of this page into a
-  guarantee.
+- **Enabled in production 2026-08-07.** `s3://bbopen-backups/sextant/v1/` -
+  the bucket forgejo already uses, with its own prefix.
+  `firstRecoverabilityPoint` 2026-08-07T13:56:25Z, base backup completed,
+  ContinuousArchiving true.
+- **This procedure has been executed**, the same day. See below.
+
+## The first restore, 2026-08-07
+
+Restored into namespace `sextant-restore-test` as `sextant-pg-restored`,
+bootstrapped from the object store. Healthy in about 80 seconds.
+
+Compared against production, taken minutes before:
+
+| | production | restored |
+|---|---|---|
+| `device_secrets` | 9 | 9 |
+| `device_status` | 8 | 8 |
+| `api_tokens` | 3 | 3 |
+| `notifications` | 95 | 95 |
+| md5 of all LUKS ciphertext | `480f2173...` | `480f2173...` |
+
+The fingerprint is the row that matters: the recovery-key material came back
+byte for byte, not merely a row count that looked plausible.
+
+**What this proves and what it does not.** It proves the backup is complete
+and restorable, which was an assumption until this ran. It does NOT prove
+the keys can be *opened*: that needs `SEXTANT_SECRET_KEY`, which is not in
+the backup and never will be. That trap is stated above and this restore does
+not close it - whatever holds the sealing key still needs its own escrow.
+
+Two things worth repeating from the run itself. The first backup attempt
+failed outright, because `sextant-backups` did not exist as a bucket; it was
+loud rather than silent precisely because the chart renders the
+ScheduledBackup together with the object store. And while archiving failed,
+PostgreSQL held its WAL - 561 MB on a 2 GiB volume within twenty minutes,
+which is the number to remember if archiving ever breaks again.
+
+## Re-run this after any change to the backup configuration
+
+The comparison above is the whole test and it takes ten minutes. A restore
+path nobody has walked since the last change is back to being an assumption.
