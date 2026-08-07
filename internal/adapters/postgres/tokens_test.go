@@ -65,3 +65,70 @@ func TestTokenStoreRoundTrip(t *testing.T) {
 		t.Fatal("token survived delete")
 	}
 }
+
+// TestListByKindSeparatesTheFleetFromThePeople covers the inventory the
+// console renders per token kind.
+//
+// The kinds are not labels. A device credential and a person's personal
+// token authorise different things, and the page that lists them is where an
+// operator goes to revoke one. A query that mixes them either hides a
+// credential that should be revoked, or shows one that cannot be.
+func TestListByKindSeparatesTheFleetFromThePeople(t *testing.T) {
+	s := openStore(t)
+	ts := s.Tokens()
+	ctx := context.Background()
+
+	seed := func(id string, kind token.Kind, subject string, created time.Time) {
+		t.Helper()
+		tok, _, err := token.Mint(id, id, kind, subject, nil, "viewer", created, time.Hour)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ts.Put(ctx, tok); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("dev-old", token.Device, "nuc-01", t0.Add(-2*time.Hour))
+	seed("dev-new", token.Device, "nuc-02", t0)
+	seed("person", token.Personal, "sub-ada", t0.Add(-time.Hour))
+	seed("station", token.Station, "station-01", t0.Add(-time.Hour))
+
+	devices, err := ts.ListByKind(ctx, token.Device)
+	if err != nil {
+		t.Fatalf("list devices: %v", err)
+	}
+	if len(devices) != 2 {
+		t.Fatalf("device tokens = %d, want 2: %+v", len(devices), devices)
+	}
+	// Newest first: the list is read top-down when hunting a credential that
+	// was just issued.
+	if devices[0].ID != "dev-new" || devices[1].ID != "dev-old" {
+		t.Errorf("order = %s, %s; want newest first", devices[0].ID, devices[1].ID)
+	}
+	for _, d := range devices {
+		if d.Kind != token.Device {
+			t.Errorf("token %s has kind %q in the device list", d.ID, d.Kind)
+		}
+		// The hash has to survive the read, or revoking from this page would
+		// act on a row that no longer matches the credential in the field.
+		if d.Hash == "" {
+			t.Errorf("token %s came back without its hash", d.ID)
+		}
+	}
+
+	// Each remaining kind answers for itself, and an unused kind answers
+	// empty rather than falling back to everything.
+	for kind, want := range map[token.Kind]int{
+		token.Personal: 1,
+		token.Station:  1,
+		token.Service:  0,
+	} {
+		got, err := ts.ListByKind(ctx, kind)
+		if err != nil {
+			t.Fatalf("list %s: %v", kind, err)
+		}
+		if len(got) != want {
+			t.Errorf("%s tokens = %d, want %d: %+v", kind, len(got), want, got)
+		}
+	}
+}

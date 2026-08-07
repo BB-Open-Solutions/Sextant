@@ -88,7 +88,11 @@ jobs:
             fi
             total=$(go tool cover -func=coverage-logic.out | tail -1 | awk "{print \$3}" | tr -d "%")
             echo "logic-layer coverage: ${total}%"
-            awk -v t="$total" "BEGIN { exit (t < 70) ? 1 : 0 }" || (echo "coverage below 70% floor" && exit 1)
+            # Raised 70 -> 80 on 2026-08-07. The margin above it is thin (about
+            # ten statements), and that is the intent: a floor you cannot trip
+            # is not a floor. New code that arrives untested breaks this build,
+            # which is cheaper than finding out from the fleet.
+            awk -v t="$total" "BEGIN { exit (t < 80) ? 1 : 0 }" || (echo "coverage below 80% floor" && exit 1)
           '
 
       - name: Build

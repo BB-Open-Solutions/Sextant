@@ -37,8 +37,10 @@ coverage-floor:
     fi
     total=$(go tool cover -func="$COV.logic" | tail -1 | awk '{print $3}' | tr -d '%')
     echo "logic-layer coverage: ${total}%"
-    awk -v t="$total" 'BEGIN { exit (t < 70) ? 1 : 0 }' || {
-      echo "coverage below the 70% floor" >&2
+    # Raised 70 -> 80 on 2026-08-07; keep this in step with
+    # .forgejo/workflows/ci.yml, or local and CI disagree about what passes.
+    awk -v t="$total" 'BEGIN { exit (t < 80) ? 1 : 0 }' || {
+      echo "coverage below the 80% floor" >&2
       exit 1
     }
 

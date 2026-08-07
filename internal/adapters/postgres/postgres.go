@@ -252,6 +252,10 @@ func (s *Store) GetFacts(ctx context.Context, tenant, tag string) ([]byte, time.
 func (c *Convergence) RingStragglers(ctx context.Context, groups []string, target string) ([]rollout.Straggler, error) {
 	tags := c.groupTags(groups)
 	if len(tags) == 0 {
+		// This saves a round trip; it is not a safety net. unnest of an empty
+		// array yields no rows, so removing it returns the same answer -
+		// measured by mutation, 2026-08-07. Do not treat it as the thing that
+		// stops an empty group from matching the fleet.
 		return nil, nil
 	}
 	now := time.Now
