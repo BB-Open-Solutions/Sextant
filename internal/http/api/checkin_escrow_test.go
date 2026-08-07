@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +21,11 @@ import (
 type escrowStore struct {
 	ciph map[string][]byte
 	meta map[string]secret.Meta
+	// putErr makes the store fail. There is no more consequential failure in
+	// this product: the device deletes its ONLY copy of the recovery key on
+	// the confirmation header, so a store that fails while the header is sent
+	// destroys the material permanently.
+	putErr error
 }
 
 func newEscrowStore() *escrowStore {
@@ -29,6 +35,9 @@ func newEscrowStore() *escrowStore {
 func ekey(tag string, k secret.Kind) string { return tag + "|" + string(k) }
 
 func (s *escrowStore) Put(_ context.Context, _, tag string, kind secret.Kind, ciphertext []byte, createdBy string, now time.Time) error {
+	if s.putErr != nil {
+		return s.putErr
+	}
 	s.ciph[ekey(tag, kind)] = ciphertext
 	s.meta[ekey(tag, kind)] = secret.Meta{Tag: tag, Kind: kind, CreatedBy: createdBy, Created: now.UTC().Format(time.RFC3339)}
 	return nil
@@ -81,6 +90,9 @@ func escrowService(t *testing.T, store *escrowStore) *app.DeviceSecretsService {
 type memDiagStoreAPI struct {
 	ciph    map[string][]byte
 	created map[string]time.Time
+	// putErr makes the store fail. The agent deletes its local bundle on a
+	// 2xx, so a success answered over a failed write loses it for good.
+	putErr error
 }
 
 func newMemDiagStoreAPI() *memDiagStoreAPI {
@@ -88,6 +100,9 @@ func newMemDiagStoreAPI() *memDiagStoreAPI {
 }
 
 func (s *memDiagStoreAPI) Put(_ context.Context, _, tag string, ciphertext []byte, now time.Time) error {
+	if s.putErr != nil {
+		return s.putErr
+	}
 	s.ciph[tag], s.created[tag] = ciphertext, now
 	return nil
 }
@@ -236,5 +251,90 @@ func TestCheckinOversizedRecoveryKeyRefused(t *testing.T) {
 		`{"tag":"lt-1","revision":"r1","phase":"running","recoveryKey":"`+big+`"}`)
 	if code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", code)
+	}
+}
+
+// TestCheckinDoesNotConfirmAnEscrowThatFailed is the most consequential test
+// in this file, and it was missing until a mutation found it on 2026-08-07.
+//
+// The device deletes its own copy of the LUKS recovery key the moment it sees
+// X-Recovery-Key-Stored. Design 0009 is explicit that a failing store must
+// mean retry-next-beat and never silent loss, and the handler does that - but
+// nothing proved it. Removing the error check and sending the header
+// unconditionally broke no test.
+//
+// If that regressed, the first evidence would be a user locked out of an
+// encrypted disk with no recovery key anywhere, and no way back.
+func TestCheckinDoesNotConfirmAnEscrowThatFailed(t *testing.T) {
+	fo := newFakeObserved()
+	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
+	store := newEscrowStore()
+	store.putErr = errors.New("disk full")
+	svc := escrowService(t, store)
+	mux := http.NewServeMux()
+	NewCheckin(inv, nil, "tok").WithDeviceSecrets(svc).Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	req, _ := http.NewRequest("POST", srv.URL+"/api/checkin", strings.NewReader(
+		`{"tag":"lt-1","revision":"v1","phase":"running","recoveryKey":"the-only-copy"}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("X-Recovery-Key-Stored"); got != "" {
+		t.Fatalf("the console confirmed an escrow that failed (header %q); the device would delete its only copy", got)
+	}
+	// The check-in itself still succeeds: the device's report is real and
+	// must be recorded. Failing the whole beat would also stop health,
+	// posture and revision reporting over a secret the device can simply
+	// send again.
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("check-in = %d; a failed escrow must not fail the beat", resp.StatusCode)
+	}
+	// And nothing was stored, so a later reveal cannot hand out a key that
+	// was never sealed.
+	if len(store.ciph) != 0 {
+		t.Errorf("the store holds %d entries after a failed Put", len(store.ciph))
+	}
+}
+
+// TestDiagnosticsUploadIsNotAckedWhenTheStoreFails is the same shape as the
+// escrow test above and was missing for the same reason. The agent deletes
+// its local bundle on a 2xx (upload_diagnostics in agent/src/client.rs), so
+// answering 204 over a failed write loses the bundle permanently.
+//
+// Less costly than losing a recovery key - a bundle can be collected again -
+// but it is the same mistake, and the same mutation found both.
+func TestDiagnosticsUploadIsNotAckedWhenTheStoreFails(t *testing.T) {
+	fo := newFakeObserved()
+	inv := app.NewInventoryService(fo, fo, fixedClock{time.Now()}, "")
+	store := &memDiagStoreAPI{
+		ciph: map[string][]byte{}, created: map[string]time.Time{},
+		putErr: errors.New("disk full"),
+	}
+	diag := app.NewDiagnosticsService(store, escrowSealer(t), fixedClock{time.Now()}, "")
+	mux := http.NewServeMux()
+	NewCheckin(inv, nil, "tok").WithDiagnostics(diag).Routes(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	req, _ := http.NewRequest("POST", srv.URL+"/api/device/lt-1/diagnostics",
+		strings.NewReader("gzipped-bundle-bytes"))
+	req.Header.Set("Authorization", "Bearer tok")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		t.Fatalf("upload answered %d over a failed write; the agent would delete its only copy", resp.StatusCode)
+	}
+	if len(store.ciph) != 0 {
+		t.Errorf("the store holds %d bundles after a failed Put", len(store.ciph))
 	}
 }
