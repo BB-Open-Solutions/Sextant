@@ -277,3 +277,52 @@ func TestDisabledAPIWithoutToken(t *testing.T) {
 		t.Fatalf("unconfigured api = %d, want 403", code)
 	}
 }
+
+// TestEveryV1ErrorIsJSON pins audit finding A3. Before 2026-08-07 the five
+// refusals the wrapper raises before a handler runs answered text/plain
+// while every handler error answered {"error": "..."}. A client parsing the
+// documented shape succeeded on a 403 from a handler and failed on the 401
+// it meets first - the worst possible order for a new integrator.
+func TestEveryV1ErrorIsJSON(t *testing.T) {
+	srv := newTestAPI(t, false) // read-only, so writes are refused by the wrapper
+	cases := []struct {
+		name, method, path, token string
+	}{
+		{"no token", "GET", "/api/v1/devices", ""},
+		{"wrong token", "GET", "/api/v1/devices", "not-the-token"},
+		{"write on a read-only server", "POST", "/api/v1/devices", testToken},
+		{"path that matches no route", "GET", "/api/v1/no-such-thing", testToken},
+		{"path that matches no route, unauthenticated", "GET", "/api/v1/no-such-thing", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req, _ := http.NewRequest(c.method, srv.URL+c.path, strings.NewReader(`{}`))
+			if c.token != "" {
+				req.Header.Set("Authorization", "Bearer "+c.token)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+
+			if resp.StatusCode < 400 {
+				t.Fatalf("expected a refusal, got %d", resp.StatusCode)
+			}
+			if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "application/json") {
+				t.Errorf("Content-Type = %q, want JSON (body: %s)", ct, body)
+			}
+			var out map[string]any
+			if err := json.Unmarshal(body, &out); err != nil {
+				t.Fatalf("body is not JSON: %v (%s)", err, body)
+			}
+			// The key is part of the contract, not an implementation detail:
+			// it is what a generated client reads.
+			msg, ok := out["error"].(string)
+			if !ok || msg == "" {
+				t.Errorf("no non-empty \"error\" field: %s", body)
+			}
+		})
+	}
+}

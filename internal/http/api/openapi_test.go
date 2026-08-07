@@ -123,3 +123,92 @@ func TestOpenAPIServedPublicly(t *testing.T) {
 		t.Fatal("not an openapi document")
 	}
 }
+
+// TestOpenAPIDocumentsItsErrors closes audit finding A1's first half. The
+// contract test above proves the spec lists the right PATHS; it says nothing
+// about what an operation answers, and until 2026-08-07 the spec documented
+// only 200 and 201 while the API used twelve status codes.
+//
+// A client generated from a spec with no error responses has no error
+// handling, and every 4xx is a surprise. This asserts the floor: every
+// operation documents the refusals that can reach any endpoint, mutating
+// operations additionally document the ones only a write can produce, and
+// all of them point at the single Error schema the server actually writes.
+func TestOpenAPIDocumentsItsErrors(t *testing.T) {
+	var spec struct {
+		Paths map[string]map[string]struct {
+			Responses map[string]struct {
+				Content map[string]struct {
+					Schema map[string]any `json:"schema"`
+				} `json:"content"`
+			} `json:"responses"`
+		} `json:"paths"`
+		Components struct {
+			Schemas map[string]any `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(openAPISpec, &spec); err != nil {
+		t.Fatalf("spec is not valid JSON: %v", err)
+	}
+	if _, ok := spec.Components.Schemas["Error"]; !ok {
+		t.Fatal("no Error schema: the shape every failure carries is undocumented")
+	}
+
+	everywhere := []string{"401", "403", "404", "500"}
+	onWrites := []string{"400", "409", "422", "503"}
+	writeMethod := map[string]bool{"post": true, "put": true, "patch": true, "delete": true}
+
+	for path, ops := range spec.Paths {
+		for method, op := range ops {
+			want := everywhere
+			if writeMethod[strings.ToLower(method)] {
+				want = append(append([]string{}, everywhere...), onWrites...)
+			}
+			for _, code := range want {
+				resp, ok := op.Responses[code]
+				if !ok {
+					t.Errorf("%s %s: no %s documented", strings.ToUpper(method), path, code)
+					continue
+				}
+				// A described-but-typeless error is only half the answer: a
+				// generated client still cannot read the body.
+				c, ok := resp.Content["application/json"]
+				if !ok {
+					t.Errorf("%s %s %s: no application/json body", strings.ToUpper(method), path, code)
+					continue
+				}
+				if ref, _ := c.Schema["$ref"].(string); ref != "#/components/schemas/Error" {
+					t.Errorf("%s %s %s: schema is %q, want the shared Error", strings.ToUpper(method), path, code, ref)
+				}
+			}
+		}
+	}
+}
+
+// TestTheServerWritesTheDocumentedErrorShape ties the spec to the server.
+// Documenting {"error": "..."} is worth nothing if the server writes
+// something else, and the two live in different files with nothing between
+// them.
+func TestTheServerWritesTheDocumentedErrorShape(t *testing.T) {
+	srv := newTestAPI(t, false)
+	req, _ := http.NewRequest("GET", srv.URL+"/api/v1/devices", nil)
+	resp, err := http.DefaultClient.Do(req) // no token: a documented 401
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want the documented 401", resp.StatusCode)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("the server did not write JSON: %v", err)
+	}
+	msg, ok := body["error"].(string)
+	if !ok || msg == "" {
+		t.Errorf("body = %v; the spec promises a non-empty \"error\" string", body)
+	}
+	if len(body) != 1 {
+		t.Errorf("body carries %d fields; the Error schema documents exactly one", len(body))
+	}
+}

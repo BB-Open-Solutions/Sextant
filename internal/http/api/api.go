@@ -71,6 +71,25 @@ func (a *API) Routes(mux *http.ServeMux) {
 		a.manifest = append(a.manifest, method+" "+p)
 		mux.Handle(method+" "+p, a.wrap(h, true))
 	}
+	// A path under /api/v1 that matches nothing answers in the same shape as
+	// every other error (audit A3). Without this, a typo'd path gets Go's
+	// default "404 page not found" in text/plain, and a client parsing the
+	// documented {"error": ...} fails on the most ordinary mistake there is.
+	//
+	// Registered FIRST and left as the least specific pattern: Go's mux
+	// prefers the most specific match, so every real route still wins. It is
+	// deliberately not in the manifest - it is not an operation, and the
+	// OpenAPI contract test would rightly object to documenting it.
+	//
+	// A METHOD mismatch (POST to a GET-only path) is still ServeMux's own
+	// 405 in text/plain. That one cannot be overridden without routing every
+	// method by hand, and it is a smaller trap: the path exists, so the
+	// client is closer to right.
+	mux.Handle("/api/v1/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusNotFound, map[string]string{
+			"error": "no such endpoint: " + r.Method + " " + r.URL.Path,
+		})
+	}))
 	specRoutes(mux)
 
 	get("/api/v1/me", a.getMe)
@@ -151,22 +170,22 @@ func (a *API) Routes(mux *http.ServeMux) {
 func (a *API) wrap(h func(http.ResponseWriter, *http.Request) error, mutating bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.token == "" && a.authz.Sessions == nil && a.authz.Tokens == nil {
-			http.Error(w, "api disabled: no token or session auth configured", http.StatusForbidden)
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "api disabled: no token or session auth configured"})
 			return
 		}
 		p, ok := a.authenticate(r)
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="sextant"`)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
 		if mutating {
 			if !a.write {
-				http.Error(w, "server is read-only (--write not set)", http.StatusForbidden)
+				writeJSON(w, http.StatusForbidden, map[string]string{"error": "server is read-only (--write not set)"})
 				return
 			}
 			if !p.verifyCSRF(r) {
-				http.Error(w, "missing or invalid X-CSRF-Token", http.StatusForbidden)
+				writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing or invalid X-CSRF-Token"})
 				return
 			}
 		}
@@ -180,7 +199,7 @@ func (a *API) wrap(h func(http.ResponseWriter, *http.Request) error, mutating bo
 			// A viewer-ceiling token still reads; a ceiling never blocks a
 			// read the owner could do, so the view floor uses the owner.
 			if !rv.CanViewAnything(pr.user) {
-				http.Error(w, "no role grants access", http.StatusForbidden)
+				writeJSON(w, http.StatusForbidden, map[string]string{"error": "no role grants access"})
 				return
 			}
 		}
@@ -201,6 +220,12 @@ func bearerToken(r *http.Request) string {
 
 // fail maps error kinds onto statuses: authorization 403, gate rejection
 // 422, lost write race 409, dependency gap 503, bad input 400.
+//
+// Every error the v1 API can produce is {"error": "..."} in JSON, including
+// the ones the wrapper raises before a handler runs. That used to be split:
+// handler errors were JSON and the five middleware refusals were text/plain
+// (audit A3, 2026-08-07). A client parsing the documented shape therefore
+// succeeded on a 403 from a handler and failed on the 401 it meets first.
 func (a *API) fail(w http.ResponseWriter, r *http.Request, err error) {
 	var verr *ports.ValidationError
 	switch {
