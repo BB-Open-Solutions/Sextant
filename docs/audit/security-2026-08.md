@@ -390,6 +390,17 @@ Deliberately NOT done at the moment of discovery (02:00, 2026-08-07): it
 tightens a write path, and if a deployment's `catalog.json` is incomplete it
 would start refusing writes an operator has been making.
 
+**A THIRD PATH, found 2026-08-07 while writing tests.**
+`postChangeEdit` (`internal/http/web/change_ops.go`) looked the key up and
+then fell back to guessing the type when it was not found - so an unknown
+key could be staged onto a change branch. That is the worst of the three:
+the change then goes through review, a human approves a diff containing a
+setting that governs nothing, and it merges to main under the reviewed path.
+Its own comment says it mirrors the settings editor, and that was the
+intent - but the settings editor iterates `cat.Entries` and cannot produce an
+unknown key at all, so the fallback was an accident of taking a free-form
+field. Closed the same way.
+
 **CLOSED 2026-08-07, in daylight and after checking.** The precondition was
 measured first: every setting stored at org, group and device scope in the
 bb-open fleet document resolves against the 70-key catalog, so tightening

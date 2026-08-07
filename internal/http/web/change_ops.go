@@ -39,15 +39,24 @@ func (s *Server) postChangeEdit(w http.ResponseWriter, r *http.Request, v view) 
 		if raw == "" {
 			return fmt.Errorf("no value given for %s", key)
 		}
-		var val any
-		if entry, known := s.svc.Config.Catalog().Lookup(key); known {
-			typed, err := entry.ParseValue(raw)
-			if err != nil {
-				return err
-			}
-			val = typed
-		} else {
-			val = parseValue(raw)
+		// The catalog decides whether this key exists and what type it has.
+		// This used to fall back to guessing the type when the key was
+		// undocumented, which staged an unknown key onto a change branch -
+		// audit finding L2, third instance. It is the worst of the three:
+		// the change then goes through review, a human approves a diff
+		// containing a setting that governs nothing, and it merges to main.
+		//
+		// The comment above says this mirrors the settings editor, and that
+		// was the intent - but the settings editor iterates cat.Entries and
+		// so cannot produce an unknown key at all. The fallback was an
+		// accident of this handler taking a free-form field, not a feature.
+		entry, known := s.svc.Config.Catalog().Lookup(key)
+		if !known {
+			return fmt.Errorf("unknown setting %q (not in the catalog)", key)
+		}
+		val, err := entry.ParseValue(raw)
+		if err != nil {
+			return err
 		}
 		mut = fleet.SetScopeSetting(scope, key, val)
 		msg = fmt.Sprintf("settings: set %s at %s", key, scope)
