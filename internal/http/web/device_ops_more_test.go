@@ -95,19 +95,33 @@ func TestSetASettingAtDeviceScope(t *testing.T) {
 		t.Errorf("stored %#v (%T), want the boolean true", got, got)
 	}
 
-	// KNOWN GAP, recorded rather than asserted away (audit finding L2,
-	// 2026-08-07). This handler takes a free-form key and writes it without
-	// consulting the catalog, while the two other write paths do not: the
-	// settings page iterates cat.Entries, so only known keys can appear, and
-	// the API refuses an unknown key outright (api/handlers.go:215).
-	//
-	// So a typo at device scope becomes a setting that governs nothing, in a
-	// document whose whole purpose is to say what governs. This test pins the
-	// CURRENT behaviour so that closing the gap is a deliberate change with a
-	// failing test, rather than something that quietly drifts either way.
-	resp = post("/devices/lt-1/settings", url.Values{"key": {"apps.nonexistent"}, "value": {"true"}})
-	if resp.StatusCode != 303 {
-		t.Logf("device-scope catalog validation appears to have been added (status %d) - "+
-			"if so, close audit L2 and invert this assertion", resp.StatusCode)
+	// Audit finding L2, closed 2026-08-07. This handler used to take a
+	// free-form key and guess the value's type from the string's shape,
+	// while the settings page (which iterates cat.Entries) and the API
+	// (which looks the key up) both went through the catalog. A typo became
+	// a setting that governs nothing, in the document whose purpose is to
+	// say what governs.
+	if resp := post("/devices/lt-1/settings",
+		url.Values{"key": {"apps.nonexistent"}, "value": {"true"}}); resp.StatusCode == 303 {
+		t.Error("a setting outside the catalog was accepted")
+	}
+	if _, ok := cfg.Fleet().Devices["lt-1"].Settings["apps.nonexistent"]; ok {
+		t.Error("the unknown key reached the fleet document")
+	}
+
+	// The other half of L2: the TYPE comes from the catalog too. Guessing it
+	// is how a list-valued setting once became a one-element list holding
+	// the text "[a b]", and usbDevices.allowlist is list-valued - so the
+	// silent case reconfigured a security control.
+	if resp := post("/devices/lt-1/settings",
+		url.Values{"key": {"apps.retries"}, "value": {"not-a-number"}}); resp.StatusCode == 303 {
+		t.Error("a value that does not fit the catalog type was accepted")
+	}
+	if resp := post("/devices/lt-1/settings",
+		url.Values{"key": {"apps.retries"}, "value": {"3"}}); resp.StatusCode != 303 {
+		t.Fatalf("a valid typed value was refused: %d", resp.StatusCode)
+	}
+	if got := cfg.Fleet().Devices["lt-1"].Settings["apps.retries"]; got == "3" {
+		t.Error("the value was stored as a string; the generator types its inputs and would fail at the gate")
 	}
 }

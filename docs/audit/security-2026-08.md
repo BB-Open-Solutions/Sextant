@@ -340,11 +340,22 @@ nobody exercising.
 **Advice.** Have `postDeviceSetting` look the key up the way the API does.
 Deliberately NOT done at the moment of discovery (02:00, 2026-08-07): it
 tightens a write path, and if a deployment's `catalog.json` is incomplete it
-would start refusing writes an operator has been making. Small change, but it
-wants daylight and a look at what is actually stored first.
+would start refusing writes an operator has been making.
 
-A test pins the current behaviour (`device_ops_more_test.go`) so that closing
-this is a deliberate change with a failing test rather than a silent drift.
+**CLOSED 2026-08-07, in daylight and after checking.** The precondition was
+measured first: every setting stored at org, group and device scope in the
+bb-open fleet document resolves against the 70-key catalog, so tightening
+this refuses nothing anybody is doing.
+
+The fix turned out to have two halves, not one. Besides the key, the API
+also parses the VALUE through the catalog entry's type, and this handler was
+guessing the type from the string's shape. That is how a list-valued setting
+once became a one-element list holding the text "[a b]" - and
+`usbDevices.allowlist` is list-valued, so the silent case reconfigured a
+security control. Both halves now go through the catalog.
+
+The test was inverted rather than deleted, and the guard was verified by
+forcing the lookup to succeed and watching it fail.
 
 ## Checked and sound
 

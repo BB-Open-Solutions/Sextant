@@ -584,9 +584,28 @@ func (s *Server) postDeviceSetting(w http.ResponseWriter, r *http.Request, v vie
 		return err
 	}
 	key := strings.TrimSpace(r.FormValue("key"))
-	val := parseValue(strings.TrimSpace(r.FormValue("value")))
 	if key == "" {
 		return fmt.Errorf("setting key required")
+	}
+	// The catalog decides both whether this key exists and what type its
+	// value has (audit finding L2). Until 2026-08-07 this handler did
+	// neither: it took a free-form key and guessed the type from the
+	// string's shape, while the API path and the settings page both went
+	// through the catalog.
+	//
+	// Both halves matter. An unknown key becomes a setting that governs
+	// nothing, in the document whose purpose is to say what governs. And
+	// guessing the type is how a list-valued setting once became a
+	// one-element list holding the text "[a b]" - usbDevices.allowlist is
+	// list-valued, so the silent case reconfigured a security control
+	// (api/handlers.go carries the same warning).
+	entry, known := s.svc.Config.Catalog().Lookup(key)
+	if !known {
+		return fmt.Errorf("unknown setting %q (not in the catalog)", key)
+	}
+	val, err := entry.ParseValue(strings.TrimSpace(r.FormValue("value")))
+	if err != nil {
+		return err
 	}
 	msg := fmt.Sprintf("settings: set %s at %s", key, ref)
 	if err := s.applyGated(r, v, fleet.SetScopeSetting(ref, key, val),
