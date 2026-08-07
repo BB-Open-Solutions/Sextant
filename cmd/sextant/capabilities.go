@@ -83,6 +83,7 @@ type deps struct {
 	elevation      *app.ElevationService
 	forgeID        *app.ForgeIdentityService
 	retention      *app.RetentionSweeper
+	erasure        *app.ErasureService
 	authz          api.Authz
 	cleanup        []func()
 	// wg tracks the background workers (sync loop, rollout ticker) so shutdown
@@ -350,6 +351,9 @@ func (d *deps) buildConfigPlane() error {
 		// the municipality's - and a tool that picks silently has decided for
 		// them. The sweep logs what it removed on every run so the choice
 		// stays visible rather than becoming folklore.
+		// Erasure on request (GDPR art. 17). Wired in the same block as the
+		// sweeper: same store, same reason for being here.
+		d.erasure = app.NewErasureService(pg, d.svc, app.DefaultTenant, log)
 		d.retention = app.NewRetentionSweeper(pg, app.DefaultRetention(),
 			app.DefaultTenant, clock, log).
 			WithFleet(func() map[string]bool { return deviceTags(d.svc.Fleet()) })
@@ -695,7 +699,7 @@ func (d *deps) consoleCapability() capability.Capability {
 					Discovery: d.discovery, Imaging: d.imaging, StationCreds: d.staCreds,
 					DeviceSecrets: d.deviceSecrets, Diagnostics: d.diagnostics,
 					Notify: d.notify, Mail: d.mail, Users: d.users, Compliance: d.compliance,
-					Elevation: d.elevation, ForgeID: d.forgeID},
+					Elevation: d.elevation, ForgeID: d.forgeID, Erasure: d.erasure},
 				d.authz.Sessions.(web.Sessions), d.cfg.Write,
 				d.cfg.ViewerGroups, d.cfg.EditorGroups, d.cfg.OwnerGroups, d.log)
 			if err != nil {
