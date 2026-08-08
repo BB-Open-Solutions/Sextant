@@ -26,7 +26,10 @@ From 1.0.0:
 1. **An issue first.** It states the problem and how you would know it is
    fixed. Not the solution.
 2. **A branch and a commit** that explains *why*, in the style the repository
-   already uses.
+   already uses. From 2026-08-08 the subject is a Conventional Commit and a
+   hook plus CI enforce it, the same way DAWO-NixOS does. The rule was already
+   written down; what changed is that it now runs. The body is unchanged and
+   is still the part that matters.
 3. **A merge request.** CI green, review, then merge.
 4. **Releases are tags on `main`**, cut after the merge - never before. That
    rule came from Rutger and applies here for the same reason: a tag ahead of
@@ -82,6 +85,41 @@ already known to be wrong; it simply has not mattered on a fleet of two.
 - **A garbage-collection policy for devices.** A one-day-old laptop already
   carried 101 dead store paths. Not a problem this year; certainly one in a
   fleet nobody prunes.
+- **Make the Wazuh agent useful on NixOS.** The agent enrols and reports; most
+  of what it then does is aimed at a distribution we are not running. Split by
+  cause, because "does not work" covers two very different things here:
+
+  *The engine works, the content is wrong.* The bundled CIS Debian policies
+  check `dpkg` state and file modes on paths that are store symlinks, so SCA
+  scores are noise; the FIM defaults watch an `/etc` that is a symlink tree
+  rewritten wholesale on every generation; the active-response scripts shell
+  out to `iptables` and to binaries that are not on the unit's PATH, so
+  response fails without failing loudly. All of it is ours to fix, and the
+  policy content is reusable at the next customer.
+
+  *The data source does not exist.* Syscollector reads `dpkg`/`rpm` for its
+  package inventory and NixOS has neither, so vulnerability detection reports
+  a clean fleet for every device. That one is not fixable inside Wazuh: its
+  matcher is fed by vendor advisory streams and nixpkgs does not publish one.
+  It is answered instead by scanning the closure off-device, which is why the
+  SBOM and CVE report were pulled forward before 1.0 rather than left here.
+
+  The inversion worth building: on NixOS the signal equivalent to "packages
+  were installed" is a change to `/nix/var/nix/profiles/system`. One watch
+  there, correlated with a closure diff, is more precise than file-level FIM
+  on a mutable distribution - a better answer than the one being ported, not
+  a workaround.
+
+  Two things to settle before spending weeks on it. Whether Wazuh 5.0 is GA
+  and how enrolment works there, because `agent-auth` is reported removed and
+  building on 4.x would carry a known expiry date. And the measurement behind
+  the empty inventory, so the ISO 27002 mapping can say it was observed on a
+  date rather than derived from how syscollector works.
+
+  Not a concern here, and checked on 2026-08-08 rather than assumed: the
+  overlay uses no impermanence or tmpfs root and the agent state lives on the
+  ordinary root filesystem, so the re-enrolment loop that bites immutable
+  deployments does not apply.
 
 ## 1.2 - governance that a municipality will ask for
 
