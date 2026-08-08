@@ -28,7 +28,9 @@ Issues are read on both. Security reports go to neither - see SECURITY.md.
 git config core.hooksPath scripts/git-hooks
 ```
 
-That installs a pre-push hook running `just ci` - the same set the runner runs.
+That installs two hooks: `commit-msg`, which checks the message against the
+commit standards below, and `pre-push`, which runs `just ci` - the same set
+the runner runs.
 It costs a few minutes locally and saves a red build plus the follow-up commit
 that says "fix CI", which is the expensive way to learn the same thing.
 
@@ -64,17 +66,35 @@ failure you have not read.
 5. **Label** issues and PRs.
 
 ## Commit standards
+
 Conventional Commits: `<type>(optional scope): <description>`
 
 Example: `feat(rollout): halt alerting on failed health gates`
 
-Common types: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`.
+Types: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `perf`, `build`,
+`ci`, `style`, `revert`. A breaking change puts `!` before the colon and
+explains itself in the body.
+
+The subject is at most 72 characters, starts lowercase and does not end in a
+full stop. A body is separated from it by a blank line.
+
+**This is checked, in two places.** `scripts/git-hooks/commit-msg` refuses the
+message while you are still writing it, and CI refuses the push. The rule had
+sat in this file unenforced since the repository opened, and on 2026-08-08
+one of the last forty commits followed it - which is what a rule nobody
+checks is worth. History before that date is left as it is; the check only
+looks at the commits a push carries.
+
+**The subject is the smaller half.** What this repository actually asks for
+is a body that says *why*: what was observed, what it cost, and what would
+have caught it. `git log` here is the closest thing to a design record, and
+it is read by people who were not in the room.
 
 ## Engineering bar
 - Spec/ADR before a capability; pure domain with tests; effects behind
   ports; UI is a client of /api/v1 (see docs/capabilities.md).
 - `just ci` green before any merge. It mirrors the Forgejo workflow exactly:
-  fmt, vet, lint, race tests, the 70% logic-layer coverage floor, build,
+  fmt, vet, lint, race tests, the 80% logic-layer coverage floor, build,
   `nix build .#sextant`, the catalog drift guard and the Rust agent checks
   (fmt/clippy/test). A narrower local bar is not the bar.
 - Files stay small and single-purpose; edge cases and error paths are

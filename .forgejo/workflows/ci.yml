@@ -18,6 +18,39 @@ jobs:
           # would abort this command (and the whole job) with exit 128.
           git --no-pager -C "$GITHUB_WORKSPACE/src" log -1 --oneline
 
+      # Cheap and first: a message problem should not cost a full nix build to
+      # discover. Only the commits THIS push carries are checked - history
+      # before the rule was enforced is left alone rather than rewritten, and
+      # rewriting it once for language was already enough.
+      - name: Commit messages
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          # The checkout is --depth 1; a range needs more than the tip.
+          git fetch --deepen 50 --quiet || true
+          before=""
+          if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
+            before=$(nix develop --command jq -r '.before // ""' "$GITHUB_EVENT_PATH" 2>/dev/null || true)
+          fi
+          case "$before" in
+            ""|0000000000000000000000000000000000000000) before="" ;;
+            *) git cat-file -e "${before}^{commit}" 2>/dev/null || before="" ;;
+          esac
+          if [ -n "$before" ]; then
+            revs=$(git rev-list "${before}..HEAD")
+          else
+            # First push of a branch, a force-push, or a shallow history that
+            # does not reach `before`. Check the tip rather than nothing, and
+            # say which case this is - a silent narrowing reads like a pass.
+            echo "no usable push range; checking HEAD only" >&2
+            revs=$(git rev-list -1 HEAD)
+          fi
+          rc=0
+          for rev in $revs; do
+            git --no-pager log -1 --format=%B "$rev" \
+              | ./scripts/check-commit-message.sh - || rc=1
+          done
+          exit $rc
+
       - name: Format check
         run: |
           cd "$GITHUB_WORKSPACE/src"

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Refuse a commit message CI would reject.
+#
+# The moment you are writing the message is the only cheap moment to fix it.
+# Once the commit exists the fix is a rebase, and once it is pushed it is a
+# force-push - which this repository has already had to do once, for the same
+# class of mistake.
+#
+# INSTALL: git config core.hooksPath scripts/git-hooks
+#
+# SKIP, deliberately and rarely: SKIP_COMMIT_MSG_HOOK=1 git commit.
+set -euo pipefail
+
+if [ "${SKIP_COMMIT_MSG_HOOK:-0}" = "1" ]; then
+  echo "commit-msg: skipped by SKIP_COMMIT_MSG_HOOK" >&2
+  exit 0
+fi
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+exec "$here/../check-commit-message.sh" "$1"
