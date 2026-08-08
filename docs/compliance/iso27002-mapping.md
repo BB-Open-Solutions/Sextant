@@ -32,7 +32,7 @@ gets quoted out of context in a tender.
 | 8.2 Privileged access rights | Elevation requests: a user asks, an operator decides, both sides recorded | #27, `internal/app/elevation.go` |
 | 8.5 Secure authentication | OIDC for the console; device login through SSSD against the directory | ADR 0015, ADR 0021 |
 | 8.7 Malware protection | Wazuh agent enrolment per group (the manager is the customer's) | `dawo.wazuh.*` |
-| 8.8 Vulnerability management | **PARTIAL** - the update chain delivers fixes, but nothing reports which CVEs a fleet is exposed to. See the gap list |
+| 8.8 Vulnerability management | **PARTIAL** - the update chain delivers fixes, and `nix run sextant#fleet-sbom` reports the CVEs a fleet's closures are exposed to. Off-device and per configuration, not per machine, and not continuous. See the gap list | `scripts/fleet-sbom.sh` |
 | 8.9 Configuration management | The whole product. Config as data, reviewed, gated, versioned in git, and every device converges on it | ADR 0005, ADR 0012 |
 | 8.10 Information deletion | **PARTIAL** - remote wipe with three independent walls; diagnostics expire in 14 days; but see the retention gaps in the processing register |
 | 8.11 Data masking | Secrets are references or sealed values; plaintext never enters the fleet document | ADR 0018 |
@@ -72,19 +72,35 @@ control gap, because that is where it will be raised in an audit.
 These are not "outside the tool" - they are things Sextant should do and does
 not:
 
-1. **No CVE or vulnerability reporting** (8.8). The single most-asked-for
-   thing in this list.
-2. **No retention on most personal data** (8.10, and GDPR art. 5). One
-   window exists, out of ten processings. See the processing register.
-3. **No erasure path** for a departed employee.
-4. **The restore procedure has never been run** (5.30). A recovery path
-   nobody has walked is an assumption, and this one holds the LUKS recovery
-   keys of every device.
-5. **Device login over plain LDAP** at bb-open (8.24, 8.5). Guarded and
-   acknowledged since ADR 0021, but still live. Audit finding H3.
+Reviewed 2026-08-08. Four of the six below were open a week ago and are not
+any more; they are kept with their outcome rather than deleted, because a gap
+list that only ever shrinks silently is not evidence of anything.
+
+1. **CVE and vulnerability reporting** (8.8). *Closing.* `nix run
+   sextant#fleet-sbom` produces a CycloneDX SBOM and a cross-referenced
+   vulnerability report per distinct fleet closure. What does NOT work, and
+   should not be expected to: Wazuh's own vulnerability detection. It reads a
+   dpkg or rpm inventory that NixOS does not have, so it reports a clean
+   fleet for every device - a false negative that looks like a pass. See
+   `docs/roadmap.md` under 1.1.
+2. ~~No retention on most personal data~~ **Closed 2026-08-07.** Windows on
+   notifications, elevation requests, operator identities and check-ins. The
+   values are supplier defaults and still need the controller's decision.
+3. ~~No erasure path~~ **Closed 2026-08-07.** `internal/app/erasure.go`, and
+   it always reports what it could not remove.
+4. ~~The restore procedure has never been run~~ **Closed 2026-08-07.**
+   Executed; counts matched and the md5 of all LUKS ciphertext came back
+   identical. `docs/runbooks/restore-observed-plane.md`. It does not prove
+   the keys can be opened: that needs `SEXTANT_SECRET_KEY`, which is not in
+   the backup and whose management is still unassigned.
+5. **Device login over plain LDAP** (8.24, 8.5). *Half closed.* The fleet
+   document moved to `ldaps://` with strict verification on 2026-08-08, and
+   the plaintext acknowledgement is gone. No device has it yet: ring pins are
+   git refs and none has been promoted. Enforcement on the directory side
+   (`ssf=128`) waits until every device is off port 389. Audit finding H3.
 6. **The console pushes as a person, not a machine** (5.16, 8.15). The
-   mechanism to fix it shipped in 0.85.0; the machine account does not exist.
-   Audit finding H2.
+   machine account now exists and was verified in the pod; the finding stays
+   open until a real push has been seen in the trail. Audit finding H2.
 
 ## How to use this
 

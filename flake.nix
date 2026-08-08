@@ -73,6 +73,36 @@
             mainProgram = "sextant-agent";
           };
         };
+
+        # An SBOM and a CVE report for a fleet's closures (audit finding S3).
+        # It lives here rather than in an overlay because every fleet needs
+        # it and none of them should carry its own copy: an overlay runs
+        # `nix run sextant#fleet-sbom -- . out` against its own flake.
+        #
+        # sbomnix and vulnxscan are deliberately NOT in runtimeInputs, and it
+        # is not because they are awkward to package (they are: sbomnix does
+        # not build against this nixpkgs pin, whose pandas is newer than one
+        # of its dependencies accepts). Pinning a vulnerability scanner is
+        # wrong on its own terms. A scanner and its feed age badly, and one
+        # frozen in this lock would quietly stop seeing everything published
+        # after the day we last bumped it - the exact failure a CVE report is
+        # supposed to prevent. The caller supplies them, so the answer comes
+        # from today's tooling:
+        #
+        #   nix shell github:tiiuae/sbomnix -c \
+        #     nix run .#fleet-sbom -- . out
+        #
+        # The script checks for them on PATH and says so plainly if absent.
+        fleet-sbom = pkgs.writeShellApplication {
+          name = "fleet-sbom";
+          runtimeInputs = with pkgs; [ jq nix coreutils findutils ];
+          text = builtins.readFile ./scripts/fleet-sbom.sh;
+          meta = {
+            description = "SBOM and vulnerability report for a fleet's NixOS closures";
+            homepage = "https://code.overheid.nl/MinBZK/DAWO-Sextant";
+            mainProgram = "fleet-sbom";
+          };
+        };
       });
 
       devShells = forAll (pkgs: {

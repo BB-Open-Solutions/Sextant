@@ -113,6 +113,49 @@ it rather than discovering it.
 the CVE gap already recorded in `iso27002-mapping.md`: without a fleet-side
 inventory there is nothing to match advisories against.
 
+**Status 8 August - closed, with its limits stated.** `nix run
+sextant#fleet-sbom` (`scripts/fleet-sbom.sh`) walks a fleet flake, builds each
+host's toplevel, deduplicates by store path and emits a CycloneDX and SPDX
+SBOM plus a cross-referenced vulnerability report per distinct closure.
+Measured on the bb-open overlay: **2023 components for one laptop
+configuration, every one carrying both a CPE and a purl** - which is what
+makes the report matchable rather than decorative.
+
+**The first report, 8 August 2026, on the `e2e5` laptop closure:** 589
+findings over 511 distinct CVEs and 108 packages, 108 of them at CVSS 9.0 or
+above. Two at 10.0, the same advisory in Firefox and Thunderbird.
+
+Read what that actually says before reacting to the size of it. Firefox and
+Thunderbird are 148 findings between them, both pinned at 152.x by a nixpkgs
+snapshot dated 4 July - five weeks old on the day of the scan. **This report
+mostly measures the age of the pin**, and a browser is where staleness is
+most expensive. The operational answer is a bump, not a triage spreadsheet.
+
+Two things to hold on to. Each finding is a **candidate**: a CVE against a
+library that sits in the closure and never executes is real to an auditor and
+not to an attacker, and separating those is a person's job. And the three
+scanners disagree usefully - vulnix saw 405, grype 427, OSV 43, union 589 - so
+any single one of them would have produced a quieter and more misleading
+number.
+
+Three things this deliberately does not do, so nobody reads more into it:
+
+- It is **not continuous**. It answers for the configuration at the moment it
+  runs. There is no CI in the overlay repository to run it on a schedule -
+  measured 8 August, that repository has no CI at all - so for now it is a
+  command somebody runs.
+- It does **not gate anything**. `vulnxscan`'s exit status is discarded on
+  purpose: a report that breaks the build is switched off within a month, and
+  then there is no report. What an open CVE blocks is a policy decision.
+- The scanner is **not pinned**, and that is the point. A vulnerability
+  scanner frozen in our lock stops seeing everything published after the last
+  bump, which is precisely the failure the report exists to prevent. The
+  caller supplies it, so the answer comes from today's tooling.
+
+The SBOMs are the durable half. `vulnxscan --sbom sbom-<id>.cdx.json` re-scans
+a shipped release months later against a feed that did not exist when it went
+out, without the closure being present or rebuildable. Keep them per release.
+
 ## Checked and sound
 
 - **The unfree allowances are explicit and reasoned.** Each of the eight
