@@ -267,9 +267,17 @@ where the arguments are, including the ones we lost.
 | **github.com/BB-Open-Solutions/Sextant** | Where to read it, clone it, and take part today. Issues and pull requests here. |
 | **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical, and where it is published as Dutch government open source. No public accounts yet. |
 | **forgejo.bb-open.com** | BB Open's own Forgejo. Where CI runs. |
+| **codeberg.org/DAWO/DAWO-Sextant** | A second public mirror, on a European non-profit forge. Read-only. |
 
 Every push goes to code.overheid.nl and to BB Open's Forgejo at the same time,
-and Forgejo mirrors on to GitHub. The three carry the same history.
+and Forgejo mirrors on to GitHub and Codeberg.
+
+**A mirror can lag, and it does not announce it.** The mirrors are pushed by
+Forgejo on its own schedule, so for a while after a change GitHub or Codeberg
+will serve the previous commit while claiming nothing. If you are about to
+depend on what you are reading - a line number, a version, a security fix -
+compare against code.overheid.nl, which is canonical by definition rather than
+by timing. Measured on 2026-08-08: Codeberg was two commits behind.
 
 **CI runs on BB Open's internal Forgejo**, on a self-hosted runner, and that is
 worth saying plainly rather than leaving a contributor to wonder why a pull
