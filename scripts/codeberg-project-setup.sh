@@ -47,9 +47,15 @@ upstream|5319e7|Belongs in DAWO-NixOS or nixpkgs, not in this repository'
 # title|description
 # Only the near ones. A milestone for a distant release with nothing in it
 # reads as an abandoned project rather than a plan.
-milestones='1.0.0|Production at a Dutch municipality. Scope and gate: docs/1.0-fit-gap.md
-1.1|What the first non-pilot machines hit: multiple drives, app profiles, admin devices as a named class, the Wazuh agent on NixOS. See docs/roadmap.md
-1.2|Governance a municipality asks for: capability RBAC on directory groups, four-eyes narrowed to where it earns its place, per-item compliance results. See docs/roadmap.md'
+# Naming follows DAWO-Core, the sibling project already running on Codeberg:
+# a v-prefixed release milestone, plus Backlog and Ongoing for the work that
+# is not a release. Two projects on the same forge should not invent two
+# conventions for the same thing.
+milestones='v1.0.0|Production at a Dutch municipality. Scope and gate: docs/1.0-fit-gap.md
+v1.1.0|What the first non-pilot machines hit: multiple drives, app profiles, admin devices as a named class, the Wazuh agent on NixOS. See docs/roadmap.md
+v1.2.0|Governance a municipality asks for: capability RBAC on directory groups, four-eyes narrowed to where it earns its place, per-item compliance results. See docs/roadmap.md
+Backlog|Anything not added to a milestone, a nice to pick and choose next issues from.
+Ongoing|Items that are ongoing and have no defined end.'
 
 call() {
   curl -sS -X "$1" "$2" \
@@ -103,6 +109,55 @@ while IFS='|' read -r title desc; do
     echo "  FAILED   $title" >&2
   fi
 done <<< "$milestones"
+
+# Issues come from docs/project/issues.json so the wording gets the same
+# review as anything else in the repository, and so the set is reproducible.
+# Matched by TITLE: an issue whose title already exists is left alone, never
+# edited and never closed. Once an issue is open it belongs to the discussion
+# on it rather than to a file.
+echo "== issues =="
+issues_file="$(dirname "$0")/../docs/project/issues.json"
+if [ ! -f "$issues_file" ]; then
+  echo "  no $issues_file; skipping" >&2
+else
+  existing_titles=$(curl -sS "${api}/issues?state=all&limit=100" \
+    | python3 -c 'import json,sys
+try: print("\n".join(i["title"] for i in json.load(sys.stdin)))
+except Exception: pass')
+  ms_map=$(curl -sS "${api}/milestones?limit=100&state=all")
+
+  count=$(python3 -c 'import json,sys;print(len(json.load(open(sys.argv[1]))["issues"]))' "$issues_file")
+  i=0
+  while [ "$i" -lt "$count" ]; do
+    title=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["issues"][int(sys.argv[2])]["title"])' "$issues_file" "$i")
+    if printf '%s\n' "$existing_titles" | grep -Fxq "$title"; then
+      echo "  exists   $title"
+      i=$((i+1)); continue
+    fi
+    if [ "$dry" = true ]; then
+      echo "  would add $title"
+      i=$((i+1)); continue
+    fi
+    body=$(MS="$ms_map" python3 -c '
+import json, os, sys
+issue = json.load(open(sys.argv[1]))["issues"][int(sys.argv[2])]
+out = {"title": issue["title"], "body": issue["body"], "labels": []}
+# Milestone by id: the API takes the number, not the name.
+for m in json.loads(os.environ["MS"]):
+    if m["title"] == issue.get("milestone"):
+        out["milestone"] = m["id"]
+print(json.dumps(out))' "$issues_file" "$i")
+    if call POST "${api}/issues" "$body" >/dev/null; then
+      echo "  created  $title"
+      # Labels are applied by name in a second call; the create endpoint
+      # wants label IDs and resolving them here would only add a way to fail.
+      echo "           (labels: apply from docs/project/issues.json by hand or re-run once labels exist)"
+    else
+      echo "  FAILED   $title" >&2
+    fi
+    i=$((i+1))
+  done
+fi
 
 echo
 echo "Not done by this script, because they are repository settings rather than"

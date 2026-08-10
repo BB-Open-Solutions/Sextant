@@ -1,0 +1,192 @@
+{
+  "_comment": [
+    "The public project's issues, as data. ADR 0024 runs Codeberg as the",
+    "project rather than as a mirror, and this is the part a visitor judges it",
+    "by.",
+    "",
+    "They live in git so the wording gets the same review as anything else, so",
+    "the set is reproducible on another forge, and so nobody has to remember",
+    "what was filed. scripts/codeberg-project-setup.sh creates the missing ones",
+    "and never edits or closes an existing one - once an issue is open it",
+    "belongs to the discussion on it, not to this file.",
+    "",
+    "Numbering. Codeberg is the tracker: new work gets its issue there, and the",
+    "numbers here are the ones that count. This repository's documents still",
+    "cite around twenty older numbers (#5 to #72) from the BB Open forgejo.",
+    "Those are NOT renumbered and not migrated - rewriting them would cost",
+    "every reader their references to buy tidiness. Where an item has one, the",
+    "body says 'Ref: forgejo #N' so the trail is explicit rather than",
+    "ambiguous."
+  ],
+  "issues": [
+    {
+      "title": "Run A: walk acceptance rows A4 through A17",
+      "milestone": "v1.0.0",
+      "labels": [
+        "enhancement"
+      ],
+      "body": "`docs/e2e-acceptance-plan.md` stopped at A3.11 on 4 August. Ninety-nine rows remain across fourteen sections: convergence, settings, policies, the gate, rollout, the update board, remote actions, secrets, demonstrability, USB and printing, the local administrator, user rights, elevation and the release cache.\n\nThe plan itself was re-read against the code on 10 August and five checkable expectations hold (`incident.CoreGrace`, `observed.InactiveWindow`, the condition metric name, the provisional state, and the closed endpoints), so the rows can be trusted.\n\n**Blocked on hardware.** Roughly sixty rows need a laptop that is currently powered off. A1.6 is already filled in because it needs nothing but a request from outside the cluster.\n\nDone when every row carries an observed proof. The plan's own rule: a step with no observable proof has not been tested, even when nothing went wrong."
+    },
+    {
+      "title": "Prove device login over LDAPS on a real machine",
+      "milestone": "v1.0.0",
+      "labels": [
+        "security"
+      ],
+      "body": "Audit finding H3. Staff passwords crossed the cluster network in the clear on a simple bind.\n\n**The fleet document is done** (overlay `bd0b1b6`): `ldaps://` with the internal CA in `identity.tlsCaCert` and the plaintext acknowledgement withdrawn, so `ldap_auth_disable_tls_never_use_in_production` no longer appears in a rendered configuration. Verified with openssl using the exact PEM that ships, and the rendered CA file is byte-identical to it.\n\n**No device has it.** Ring pins are git refs and none has been promoted. This closes on a real login over port 636 on ring 0 - a successful build proves nothing about a successful bind.\n\nAfterwards, and only then: `olcSecurity: ssf=128` with `olcLocalSSF` on the directories. Enforcing while one device still uses port 389 locks that device out."
+    },
+    {
+      "title": "Provision and retire one clean isolated cell, end to end",
+      "milestone": "v1.0.0",
+      "labels": [
+        "enhancement"
+      ],
+      "body": "Multi-tenancy is in 1.0 scope (`docs/1.0-fit-gap.md` §5, ADR 0009). The console surface exists; what has never been done is the whole life of a cell - created, used, and removed - with the demo cell retired from the cluster afterwards.\n\nRetirement is the half that is easy to skip and the half that matters: a tenancy model that cannot cleanly delete a tenant is one a customer cannot leave."
+    },
+    {
+      "title": "Finish OpenBao: mesh route, one secret proved, precedence fix",
+      "milestone": "v1.0.0",
+      "labels": [
+        "enhancement"
+      ],
+      "body": "ADR 0018 puts OpenBao in 1.0 as the backend for secrets classified *Revocable*. Three things are open: the mesh route to reach it from a device, one secret proved end to end on hardware, and the precedence fix - a name present in both backends must be **refused** rather than silently served from agenix.\n\nThat last one is the point. Silently preferring one backend is how a rotated secret keeps working from the wrong place and nobody notices.\n\nCarries the ordering trap already recorded: an admin recovery path must not run through a secret that only the thing being recovered can decrypt."
+    },
+    {
+      "title": "Run B: the integrations, proved from the device side",
+      "milestone": "v1.0.0",
+      "labels": [
+        "enhancement"
+      ],
+      "body": "Section 2 of the fit-gap. A NetBird cluster routing-peer, a minimal Wazuh manager, the OpenBao mesh route, and the device-side proof of each.\n\nMostly platform-repo work rather than this repository, but it gates 1.0 because an integration whose console card is complete and whose device half was never observed is not an integration."
+    },
+    {
+      "title": "Re-prove the gate against a change that carries a core bump",
+      "milestone": "v1.0.0",
+      "labels": [
+        "security"
+      ],
+      "body": "ADR 0020. The gate used to receive only the candidate `fleet.json`, so a change carrying anything more - a core bump in `flake.lock`, an overlay module from the ADR 0014 editor - was validated against a tree that did not contain it. Measured 6 August: a core update passed the gate, merged, and left `main` unable to evaluate for the workplace class.\n\nThe fix ships in 0.84.0 and production runs 0.86.0, so the version condition is met. **Nobody has redone the measurement that found the incident.** One deliberate run - a change carrying a `flake.lock` bump, evaluated for both device classes - before the 1.0.0 tag rather than after somebody merges a core update.\n\nThis is the safety property the product sells; it should not be taken on version numbers alone."
+    },
+    {
+      "title": "Assign key management for SEXTANT_SECRET_KEY",
+      "milestone": "v1.0.0",
+      "labels": [
+        "security",
+        "needs-decision"
+      ],
+      "body": "The observed plane is backed up off-cluster and the restore path has been walked: counts matched and the md5 of all LUKS ciphertext came back identical on 7 August (`docs/runbooks/restore-observed-plane.md`).\n\nThat proves the backup is complete and restorable. It does **not** prove the recovery keys can be opened. That needs `SEXTANT_SECRET_KEY`, which is not in the backup and never will be, and whose management is assigned to nobody.\n\nWithout it a restore produces ciphertext no one can read, including every device's LUKS recovery key. Needs an owner and a documented escrow that the cluster's own failure cannot reach."
+    },
+    {
+      "title": "Multiple drives, and stable disk addressing",
+      "milestone": "v1.1.0",
+      "labels": [
+        "bug",
+        "upstream"
+      ],
+      "body": "Ref: forgejo #49.\n\nTwo disko profiles exist and both hardcode `/dev/nvme0n1`. A second drive is not partitioned, not encrypted and not wiped - so a crypto-wipe destroys the keys of one disk and leaves the other readable, which is not what anybody expects from the word \"wipe\".\n\nEnumeration order is also not a promise: with two NVMe drives, \"the first one\" can move between boots. `/dev/disk/by-id` is the fix.\n\nCore work, so it goes to DAWO-NixOS as a fork and a pull request."
+    },
+    {
+      "title": "App profiles in the console",
+      "milestone": "v1.1.0",
+      "labels": [
+        "enhancement",
+        "needs-decision"
+      ],
+      "body": "Ref: forgejo #54.\n\nThe additive model already works; what is missing is the named, reusable profile - \"this group gets the design set\" rather than eleven checkboxes repeated per group.\n\n**Needs a decision first**: the boundary with the DAWO core. What stays in the image and what the console composes. Measured 10 August, that boundary is narrower than it sounds - two image-time namespaces (`secureboot.`, `diskUnlock.`) and one class distinction (`apps.*` is absent on a station). See `docs/competitive-intake.md`, \"What that boundary actually is today\"."
+    },
+    {
+      "title": "Admin devices as a named device class",
+      "milestone": "v1.1.0",
+      "labels": [
+        "enhancement",
+        "security"
+      ],
+      "body": "Theme I of `docs/competitive-intake.md`, nine items, six of them value 4-5 at effort 1-2. Decided 10 August: `admin` becomes a fifth entry in the overlay's `byClass`, alongside laptop, desktop, station and server.\n\n**The trigger has already fired.** The machine administering this fleet holds the SSH keys to the station and the forge, cluster credentials, the age identity that opens the fleet's secrets, and the object-storage credentials for the backups - and it joins the fleet as the first admin device this week, before any of these items exists.\n\nOrder: I7 (key registration as fleet data) leads because the others read from it, then I2 (an admin account that refuses to build without a registered key), I3 (`sudo` behind the token), I8 (the lockout matrix), I1 (PAM U2F), I4 (SSH via resident FIDO2) and I5 (a FIDO2 keyslot for LUKS, image-time under the existing `diskUnlock.` prefix).\n\nThe rule to hold: **two registered tokens, or a documented break-glass that is not itself protected by the thing being recovered.**"
+    },
+    {
+      "title": "A garbage-collection policy for devices",
+      "milestone": "v1.1.0",
+      "labels": [
+        "enhancement"
+      ],
+      "body": "A one-day-old laptop already carried 101 dead store paths. Not a problem this year; certainly one in a fleet nobody prunes.\n\nThe policy is the work, not the command: how many generations a device keeps, how that interacts with rollback after a bad switch, and whether it is a fleet setting or a class default."
+    },
+    {
+      "title": "Make the Wazuh agent useful on NixOS",
+      "milestone": "v1.1.0",
+      "labels": [
+        "enhancement"
+      ],
+      "body": "The agent enrols and reports; most of what it then does is aimed at a distribution we are not running. Two very different causes:\n\n**The engine works, the content is wrong.** The bundled CIS Debian policies check `dpkg` state and file modes on paths that are store symlinks, so SCA scores are noise. The FIM defaults watch an `/etc` that is a symlink tree rewritten on every generation. The active-response scripts shell out to `iptables` and to binaries not on the unit's PATH - so response fails **without failing loudly**, which is the dangerous shape. All of it is ours to fix and the policy content is reusable at the next customer.\n\n**The data source does not exist.** Syscollector reads `dpkg`/`rpm` for its package inventory and NixOS has neither, so vulnerability detection reports a clean fleet for every device. Not fixable inside Wazuh: its matcher is fed by vendor advisory streams and nixpkgs publishes none. Answered instead by `nix run sextant#fleet-sbom`.\n\nThe inversion worth building: on NixOS the signal equivalent to \"packages were installed\" is a change to `/nix/var/nix/profiles/system`. One watch there, correlated with a closure diff, beats file-level FIM on a mutable distribution.\n\nSettle first whether Wazuh 5.0 is GA and how enrolment works there - `agent-auth` is reported removed, so building on 4.x carries a known expiry."
+    },
+    {
+      "title": "Per-item compliance results, and a machine-readable report per device",
+      "milestone": "v1.1.0",
+      "labels": [
+        "enhancement"
+      ],
+      "body": "Intake A2 + G3, scheduled as one capability rather than two: they are the same thing from both ends.\n\nToday the compliance baseline produces one aggregate verdict per device. That is not evidence an auditor can work from - they ask which control failed, on which device, measured when. Per-item results give that, and a machine-readable artifact per device under a versioned schema id is the form they ask for it in.\n\nTrigger: the first compliance audit at a customer."
+    },
+    {
+      "title": "Manual accessibility round: keyboard, screen reader, contrast, reflow",
+      "milestone": "v1.1.0",
+      "labels": [
+        "help wanted",
+        "documentation"
+      ],
+      "body": "WCAG 2.2 AA and EN 301 549 are a legal obligation for this product.\n\n**The mechanical half is done and held.** 73 form fields with no accessible name and 11 icon-only buttons went to zero on 7 August, and `internal/http/web/a11y_test.go` fails the build on a new one.\n\n**The manual half has never been done and has no owner.** Keyboard order and visible focus over the five core screens, a screen reader (NVDA or VoiceOver) on the same five, contrast measured rather than eyeballed in both themes, reflow to 400%, error identification in text rather than colour, and the four new 2.2 criteria.\n\nUntil it is done the accessibility statement stays a draft. A statement claiming more than has been tested is a false declaration; \"partially compliant\" is the normal and expected answer.\n\n**This needs a person, not an engineer.** Marked help wanted for exactly that reason."
+    },
+    {
+      "title": "Capability RBAC on directory groups",
+      "milestone": "v1.2.0",
+      "labels": [
+        "enhancement"
+      ],
+      "body": "Ref: forgejo #53.\n\nToday the model is Viewer/Editor/Owner scoped by group - the right shape and too coarse. Permissions on a small set of named capabilities: start a rollout, approve a wave, wipe a device, reveal a secret, change endpoint controls, change access itself. Each bound to a directory group at a scope.\n\nTrigger: the first customer with more than one administrator."
+    },
+    {
+      "title": "Narrow four-eyes approval to where it earns its place",
+      "milestone": "v1.2.0",
+      "labels": [
+        "enhancement",
+        "needs-decision"
+      ],
+      "body": "A rule rather than a list: a change the gate and the test ring can prove is fine needs no second person; a change that removes the gate, removes the ring, or removes the ability to recover needs one.\n\nBlanket four-eyes on everything teaches people to approve without reading, which is worse than not having it - the approval becomes a signature rather than a review."
+    },
+    {
+      "title": "A second remote for comin, so losing the forge does not freeze the fleet",
+      "milestone": "v1.2.0",
+      "labels": [
+        "enhancement",
+        "security"
+      ],
+      "body": "Measured 10 August: a device polls exactly one remote. `services.comin.remotes` is set with `mkForce` to a single entry, and the overlay repository has no mirror. The Sextant source lives on three forges; the repository the fleet actually follows lives on one.\n\nLosing the forge breaks nothing immediately - every device keeps running its current generation. But **nothing can be changed on any device** until a forge exists again at the same URL, and that URL lives in the repository nobody can reach. No rollout, no setting, no security fix.\n\nThe fix is small: comin's `remotes` is a list, so a second entry is configuration rather than a feature. It needs a mirror of the overlay to exist first, which it does not.\n\nRecorded as an accepted risk in `docs/runbooks/disaster-recovery.md` until then."
+    },
+    {
+      "title": "OCSF audit sink",
+      "milestone": "Backlog",
+      "labels": [
+        "enhancement",
+        "help wanted"
+      ],
+      "body": "Intake A4. Value 4 at effort 2, and unscheduled because its trigger has not fired: nobody has yet asked to ingest our audit trail into their SIEM.\n\nThe work is the class mapping rather than the transport - 6003 API activity, 3002 account change, 1001 file activity - and it is directly reusable.\n\nCheap and valuable is a reason to do it quickly **when asked**, not a reason to do it now. Filed so the answer to \"does it integrate with our SIEM\" is \"here is the issue\" rather than \"no\"."
+    },
+    {
+      "title": "Versioned config export envelope that refuses unknown types",
+      "milestone": "Backlog",
+      "labels": [
+        "enhancement"
+      ],
+      "body": "Intake G2. An export wrapped in a versioned envelope that **refuses** to import a type this build does not know, rather than silently dropping it.\n\nSilently dropping is how an import looks successful and produces a fleet missing a policy nobody notices is gone.\n\nUnscheduled: the trigger is the first consumer of an export that is not us. It matters for the exit question a municipality asks - can we leave, and does what we take with us still mean anything."
+    },
+    {
+      "title": "Measure the memory a device needs during nixos-rebuild",
+      "milestone": "v1.1.0",
+      "labels": [
+        "good first issue",
+        "documentation"
+      ],
+      "body": "`docs/architecture/scale.md` carries real measurements, and this is the gap in them: how much memory a device needs while converging.\n\nIt matters because it is what a customer buys. And it stops being academic if the binary cache is unavailable - devices then build the closure themselves rather than substituting it.\n\nMeasurable on one existing machine, no fleet required:\n\n```\nsystemd-run --unit=c5 --remain-after-exit -p MemoryAccounting=yes \\\n  nixos-rebuild switch --flake <ref>\nsystemctl show c5.service -p MemoryPeak\n```\n\nIf `MemoryPeak` is empty on an older systemd, read `memory.peak` from the unit's cgroup before stopping it. Report the number with the device class and whether the cache was reachable."
+    }
+  ]
+}

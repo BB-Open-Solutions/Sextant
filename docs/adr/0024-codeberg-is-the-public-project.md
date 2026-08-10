@@ -52,6 +52,36 @@ branches, force-pushed ring refs, work in progress. That asymmetry is the point
 of writing this down - the standard is not "be tidy everywhere", which nobody
 sustains, it is "the public project has a floor and the workshop does not".
 
+## Amended the same day: Codeberg is the source of truth for the project
+
+Bram, a few hours after accepting the above: *"alles inrichten alsof codeberg
+de single source of truth is. forgejo.bb-open.com gaat steeds minder
+belangrijk worden voor dit project."*
+
+That sharpens the decision rather than replacing it, and the original wording
+above is left standing so the shift is visible instead of edited away.
+
+**The project lives on Codeberg.** Issues, milestones, releases and the
+roadmap are there, and that is where new work is filed. `forgejo.bb-open.com`
+recedes to what it still uniquely does: run CI and serve Flux. It stops being
+the place the project is tracked.
+
+Two things this does *not* decide, and neither should be assumed from it:
+
+- **The git source of truth.** Today CI, the release workflow and Flux all
+  read from forgejo, and moving that is infrastructure work rather than a
+  policy change. Until it moves, forgejo remains where the code is pushed
+  first; the sentence above is about where the project is *run*.
+- **What `code.overheid.nl` is.** It was chosen as canonical because that is
+  where the Dutch government's code belongs, which is a publication
+  obligation rather than an engineering preference. Nothing here changes it,
+  and changing it is not ours to do quietly.
+
+The practical consequence is the older issue numbers. Around twenty are cited
+across these documents and they live on forgejo. They are not renumbered:
+rewriting them would cost every reader their references to buy tidiness. New
+work is filed on Codeberg, and an item with an older number says so.
+
 ## Consequences
 
 - Issue and pull-request templates moved from `.github/` to `.forgejo/`,
