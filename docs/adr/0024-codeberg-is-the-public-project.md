@@ -97,6 +97,42 @@ work is filed on Codeberg, and an item with an older number says so.
 - This ADR is the thing to cite when a shortcut is proposed. "It is only a
   mirror" stops being an argument on the day this is accepted.
 
+## A known risk to this decision, accepted
+
+Codeberg's Terms of Use, § 2 (1) 7, forbid projects that mostly consist of
+code written by generative AI tools and name Claude explicitly. The stated
+reasons are unclear copyright status and thin safeguards against harmful
+code. Enforcement under § 2 (2) is removal of the content with a warning, and
+suspension on repetition.
+
+Found 2026-08-10 while checking something else. Whether it applies here is a
+judgement about the whole codebase rather than about any one commit, and it is
+not a question this repository can answer about itself.
+
+**Bram accepted the risk the same day: if Codeberg removes the project, it
+moves somewhere else.** Recorded rather than resolved, because an unwritten
+judgement gets re-argued in three months by whoever finds the clause next.
+
+What makes that acceptable is that leaving is already cheap, and by
+construction rather than by luck:
+
+- The git history is on three forges.
+- The issue set is `docs/project/issues.json`, so it is one script run on any
+  Forgejo or Gitea.
+- Labels and milestones are in `scripts/codeberg-project-setup.sh`.
+- The templates are in `.forgejo/`, which any Forgejo-family forge reads.
+
+Two things would not survive and are worth knowing before anybody grows
+attached to them: **issue numbers** - again - and **discussion**. Comment
+threads live only where they were written. The more a community accumulates
+there, the more expensive the move becomes, which is an argument for settling
+the question early rather than for hedging on it.
+
+One thing is deliberately not done in response: the AI-disclosure trailer that
+`CONTRIBUTING.md` requires stays on every commit. Removing it would hide the
+fact rather than change it, and it would break this project's own policy to
+make a hosting problem less visible.
+
 ## What is honestly not true yet
 
 There is no community. There are no issues from outside, no external
