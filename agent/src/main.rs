@@ -90,11 +90,17 @@ fn main() -> ExitCode {
         // server confirms sealing it (design 0009); the local copy is
         // deleted only on that confirmation, never on a bare 2xx.
         let recovery = action::pending_recovery_key(&posture::default_root());
+        // Phase stays "running": it is a lifecycle stage (discovered ->
+        // installing -> installed -> running), not a build status. A failed
+        // deployment does not move a device out of the running stage; it
+        // gives it an error to report, which is exactly what the server's
+        // Error field is documented to carry.
+        let converge_error = collect::comin_failure("/var/lib/comin/store.json");
         let beat = CheckIn {
             tag: &cfg.tag,
             revision: &revision,
             phase: "running",
-            error: None,
+            error: converge_error.as_deref(),
             sb: post.sb,
             tpm2: post.tpm2,
             ack: &ack,

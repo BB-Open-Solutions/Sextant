@@ -359,3 +359,146 @@ mod health_tests {
         assert_eq!(serde_json::to_string(&h).unwrap(), "{}");
     }
 }
+
+/// The last thing comin tried to do, and whether it worked.
+///
+/// WHY THIS EXISTS. `observed.CheckIn.Error` is documented server-side as
+/// carrying "a self-reported failure (e.g. a comin deploy error)", the
+/// console renders it, and the acceptance plan expects an incident from it
+/// (A9.7). The agent never filled it in, so a device whose deployment failed
+/// reported exactly what a healthy one reports and simply kept an older
+/// revision - indistinguishable from a device still converging.
+///
+/// Found on 2026-08-10 when a laptop failed a core update and the console
+/// showed a device that was fine. Everything downstream was already built.
+///
+/// comin keeps its own history in `store.json`, world-readable, newest
+/// first: each deployment carries a `status` and an `error_msg`. This reads
+/// the newest and reports a failure only when comin says so.
+///
+/// SILENT ON DOUBT. A missing, unreadable or unparseable store means we do
+/// not know, and inventing a failure is worse than reporting none: it would
+/// raise an incident for every device that does not run comin at all.
+pub fn comin_failure(store_path: &str) -> Option<String> {
+    let raw = std::fs::read_to_string(store_path).ok()?;
+    let doc: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let last = doc.get("deployments")?.as_array()?.first()?;
+
+    let status = last.get("status").and_then(|v| v.as_str()).unwrap_or("");
+    let msg = last.get("error_msg").and_then(|v| v.as_str()).unwrap_or("");
+
+    // "done" is success. An empty status means comin has not finished a
+    // deployment yet, which is not a failure either.
+    if status.is_empty() || status == "done" {
+        return None;
+    }
+    let branch = last
+        .get("generation")
+        .and_then(|g| g.get("selected_branch_name"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    // The operator reads this in a list, so lead with what failed rather
+    // than with comin's vocabulary, and keep it to one line.
+    let detail = if msg.is_empty() { status } else { msg };
+    let text = if branch.is_empty() {
+        format!("comin {status}: {detail}")
+    } else {
+        format!("comin {status} on {branch}: {detail}")
+    };
+    // The column is not unbounded and a nix error can be a screenful.
+    Some(text.chars().take(480).collect())
+}
+
+#[cfg(test)]
+mod comin_tests {
+    use super::comin_failure;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    /// A throwaway store file. std only: the agent ships on every device in
+    /// the fleet and a test helper is not worth a dependency in that closure.
+    struct Store(std::path::PathBuf);
+    impl Store {
+        fn new(body: &str) -> Self {
+            static N: AtomicU32 = AtomicU32::new(0);
+            let p = std::env::temp_dir().join(format!(
+                "comin-store-{}-{}.json",
+                std::process::id(),
+                N.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::write(&p, body).unwrap();
+            Store(p)
+        }
+        fn path(&self) -> &str {
+            self.0.to_str().unwrap()
+        }
+    }
+    impl Drop for Store {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+    fn store(body: &str) -> Store {
+        Store::new(body)
+    }
+
+    /// The shape comin actually writes, taken from a live station on
+    /// 2026-08-10 rather than from the documentation.
+    fn deployment(status: &str, err: &str) -> String {
+        format!(
+            r#"{{"deployments":[{{"uuid":"u1","status":"{status}","error_msg":"{err}",
+               "generation":{{"selected_branch_name":"rings/bb-laptops"}}}}]}}"#
+        )
+    }
+
+    #[test]
+    fn a_finished_deployment_is_not_a_failure() {
+        let f = store(&deployment("done", ""));
+        assert_eq!(comin_failure(f.path()), None);
+    }
+
+    #[test]
+    fn a_failure_carries_its_message_and_its_branch() {
+        let f = store(&deployment("failed", "error: builder for openssl failed"));
+        let got = comin_failure(f.path()).expect("a failure must be reported");
+        assert!(got.contains("openssl"), "the reason is the point: {got}");
+        assert!(
+            got.contains("rings/bb-laptops"),
+            "which ring failed matters: {got}"
+        );
+    }
+
+    /// A status other than done with no message is still a failure. Reporting
+    /// nothing because comin was terse is how the silence this fixes began.
+    #[test]
+    fn a_failure_without_a_message_is_still_reported() {
+        let f = store(&deployment("failed", ""));
+        assert!(comin_failure(f.path()).is_some());
+    }
+
+    /// Not knowing is not the same as being fine, but inventing a failure is
+    /// worse: it would raise an incident for every device without comin.
+    #[test]
+    fn silence_when_there_is_nothing_to_read() {
+        assert_eq!(comin_failure("/nonexistent/store.json"), None);
+        let f = store("this is not json");
+        assert_eq!(comin_failure(f.path()), None);
+        let f = store(r#"{"deployments":[]}"#);
+        assert_eq!(comin_failure(f.path()), None);
+        let f = store(&deployment("", ""));
+        assert_eq!(comin_failure(f.path()), None);
+    }
+
+    /// A nix error is a screenful and the column is not unbounded.
+    #[test]
+    fn a_long_error_is_cut_rather_than_sent_whole() {
+        let long = "x".repeat(4000);
+        let f = store(&deployment("failed", &long));
+        let got = comin_failure(f.path()).unwrap();
+        assert!(
+            got.chars().count() <= 480,
+            "got {} chars",
+            got.chars().count()
+        );
+    }
+}
