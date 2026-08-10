@@ -157,7 +157,7 @@ off-disk half.
 | C5 | Emergency initrd access with a vault-only password | clan | core | 4 | 1 | 1.1 | — |
 | C6 | A working auditd ruleset | Sécurix | core | 3 | 2 | 1.1 | — |
 | C7 | machine-id and stateVersion as generated values | clan | core | 3 | 1 | 1.1 | — |
-| C8 | Non-root `upgrade` for a device-local operator group | Sécurix | core | 3 | 2 | 1.3 | ADR: pull-only |
+| C8 | Non-root `upgrade` for a device-local operator group | Sécurix | core | 3 | 2 | 1.3 | ADR 0023 |
 | C9 | Tamper-restore for managed files outside the Nix store | Bor | both | 3 | 2 | 1.3 | — |
 | C10 | Versioned filesystem layouts, migration explicitly unsupported | Sécurix | core | 4 | 2 | 1.1 | — |
 | C11 | KDE Kiosk + polkit lockdown as fleet settings | Bor | core | 4 | 3 | 1.2 | — |
@@ -245,7 +245,7 @@ Recorded here so the "but Bor has WebAuthn built in" question has an answer.
 | E2 | TUI autoinstall with confirm and a real-disk guard | Sécurix | core | 3 | 2 | 1.2 | — |
 | E3 | Idempotent-autoinstall VM test | clan/Sécurix | both | 4 | 3 | 1.1 | — |
 | E4 | The instance serves its own signed agent packages | Bor | sextant | 4 | 3 | 1.2 | — |
-| E5 | Installer announces itself as a Tor onion service | clan | core | 2 | 2 | reject | ADR: pull-only |
+| E5 | Installer announces itself as a Tor onion service | clan | core | 2 | 2 | reject | ADR 0023 |
 
 **E1.** `lib/default.nix` in Sécurix composes an installer *from* the target
 system: `buildUSBInstallerISO` and `buildNetbootInstaller` take the machine's
@@ -274,8 +274,8 @@ provisioning station on the local network.
 
 | ID | Item | Source | Target | Value | Effort | Slot | Conflict |
 |---|---|---|---|---|---|---|---|
-| F1 | Transport ladder with priority and automatic fallback | clan | sextant | 2 | 4 | reject | ADR: pull-only |
-| F2 | P2P SSH break-glass, armed like the wipe intent | clan | both | 3 | 4 | 2.0 | ADR: pull-only |
+| F1 | Transport ladder with priority and automatic fallback | clan | sextant | 2 | 4 | reject | ADR 0023 |
+| F2 | P2P SSH break-glass, armed like the wipe intent | clan | both | 3 | 4 | 2.0 | ADR 0023 |
 | F3 | Documented emergency direct-target override | clan | sextant | 2 | 1 | 1.3 | — |
 
 clan configures several transports at once and works down a priority list —

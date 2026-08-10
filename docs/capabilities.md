@@ -41,7 +41,9 @@ device executes nothing). What Sextant offers instead, and states plainly:
 
 All remote actions are declarative intents recorded as gated, audited
 commits - never imperative agent commands. No remote code execution
-channel exists by design.
+channel exists by design (ADR 0023, which also records the two conditions
+that would reopen that decision: a server estate, or a second operating
+system).
 
 ## Settings surface (summary of ADR 0005)
 
