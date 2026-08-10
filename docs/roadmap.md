@@ -278,6 +278,120 @@ already known to be wrong; it simply has not mattered on a fleet of two.
   explicitly which actions belong on a phone - approving a wave and locking a
   lost device, yes; editing the whole settings tree, probably not.
 
+- **A documented emergency override (intake F3).** When every normal path to a
+  device has failed, the way in should be one written-down command with an
+  audit trail, not improvisation at 23:00. clan has exactly this and labels it
+  debugging-and-emergencies-only. Ours is an intent that already exists; what
+  is missing is the page that says so.
+
+## 1.4 - the desktop policy surface
+
+**Trigger: the first customer who asks for a lockdown we cannot express.**
+Browser policy is the usual first ask, and today the answer is "an engineer
+writes a module", which is true and is not what a procurement conversation
+wants to hear.
+
+- **What is worth locking, taken from somebody who did the survey (intake C11,
+  C12, C13).** Bor's policy schemas are a ready-made catalogue: KDE Kiosk
+  (`kconfig` under `/etc/xdg` plus KCM module restrictions), polkit rules,
+  dconf keys, browser policy for Firefox, Chrome/Chromium, Edge and
+  Thunderbird including the Flatpak paths, and host firewall rules. We have
+  GNOME dconf hardening and nothing for KDE, polkit or the browsers. The
+  mechanism does not transfer - for us these are annotated `dawo.*` options the
+  catalog renders by itself - but the *content* is the expensive part and it
+  transfers completely.
+
+- **Annotations rich enough for a real form (intake G1).** The catalog already
+  generates the settings surface; what it cannot express yet is an enum with
+  human labels, a section grouping, or the fact that an option is a no-op in
+  some contexts. Bor's UI annotation carries a `chrome_only` flag for exactly
+  that, and it generalises: an option that does nothing on GNOME, or nothing
+  without Secure Boot, should be able to say so rather than silently lie.
+
+## 1.5 - imaging that somebody else can run
+
+**Trigger: the first site imaged by hands that are not ours.**
+
+- **The installer becomes a library, not a recipe (intake E1, E2).** Sécurix
+  composes an installer *from* the target system's own closure: the image runs
+  disko's format and mount scripts, asserts `/mnt` is genuinely a mountpoint on
+  a persistent disk before it continues, installs, enrolls Secure Boot keys
+  with `sbctl`, generates TPM2-backed and age host keys, and then calls a
+  `postInstallScript` hook. Our Secure Boot wizard is built and its open gap is
+  the on-hardware ceremony - this is that ceremony, inside the image, and the
+  hook is the obvious place to call the console back.
+
+- **An idempotent install test (intake E3).** Both clan and Sécurix have one.
+  Re-running an install must converge rather than half-succeed, and that is not
+  a property anybody should be confirming by hand on a Tuesday at a customer
+  site.
+
+- **The instance serves its own agent (intake E4).** Every Bor server hosts its
+  own signed package repositories and emits a single copy-paste script that
+  trusts the CA, adds the repository, installs, enrolls and starts. Managed
+  nodes never need internet. The same shape fits our station and Rust agent,
+  and it is the honest answer to an air-gapped municipality.
+
+- **Enrollment that does not need a token in an AD shop (intake D1).** The
+  trigger for this one is narrower - a customer with Active Directory or
+  FreeIPA - but it is worth naming here because it lands in the same code. A
+  domain-joined machine can authenticate its own enrollment, which is the
+  difference between a wizard per device and enrollment that simply happens.
+
+## 2.0 - when the secrets model changes
+
+**Trigger: the first secret we are required to rotate across a live fleet.**
+Everything below either changes a contract or reopens an ADR, which is what
+makes it a major version rather than a feature. None of it should be attempted
+piecemeal.
+
+- **Secrets become generators, not files (intake B1, B3, B4, B5, B7).** This is
+  the largest single idea in the three projects we read. clan does not store
+  secrets; it stores their *derivation*. A generator declares what files it
+  produces, what it needs prompted, and the script that produces them - and one
+  command creates, encrypts and distributes whatever is missing. A new device
+  needs no "remember to add the recipient" step because there is no manual step
+  to forget, and rotation becomes declarative: change an input, the hash
+  changes, the secret regenerates. Fleet-wide secrets are generated once and
+  reused; generators can depend on each other, so a CA feeds a certificate
+  rather than a human doing it twice.
+
+  We solved the recipient half already - a newly imaged device's host key is
+  registered automatically. This is the other half, and it replaces a model
+  rather than extending it, which is why it waits for a major version.
+
+- **Secrets bound to a physical token (intake B11, I6).** The surprise in
+  Sécurix: their WireGuard private key is age-encrypted to an identity living
+  in a YubiKey PIV slot, so absent the token the ciphertext is inert. Not
+  "protected by a passphrase", not "readable by root" - unusable. For an admin
+  device holding fleet credentials that is the right guarantee, and it composes
+  with the generator model above as a choice of recipient. The four token
+  *uses* land at 1.2; this one waits for the model it plugs into.
+
+- **Backup and restore as a first-class abstraction (intake G5).** We have no
+  backup story at all, and for a municipal fleet that is a question we will be
+  asked rather than one we get to choose. clan's shape is the right one: state
+  directories declare their folders plus pre-backup and post-restore hooks, so
+  a service can dump a database or stop itself, and providers implement
+  `list`/`create`/`restore` against that interface. It is a new capability with
+  its own tenancy and retention questions, so it is a 2.0 conversation.
+
+- **Break-glass reachability, if the argument is won (intake F2).** Peer-to-peer
+  SSH that is off by default, armed per device the way the wipe intent is
+  armed, expiring, and audited. It is the *only* version of clan's reachability
+  work that could survive our threat model, and it still requires reopening it:
+  clan's own documentation warns that enabling their service exposes the SSH
+  daemon to anyone on that network. If the threat model says no, this becomes a
+  line under "deliberately not doing" and stops being asked.
+
+- **A device-local upgrade path, if it turns out not to be a channel (intake
+  C8).** Pilot users cannot update anything themselves today. Sécurix ships an
+  `upgrade` command usable by a device-local operator group, with a man page.
+  Whether that violates pull-only is a genuine question rather than a
+  formality: it is initiated *on* the device, by a local human, and it still
+  pulls. That may put it inside the rule. The argument gets settled before the
+  work, not during it.
+
 ## Unscheduled, and honest about why
 
 These matter and none of them has a trigger yet. They move up the moment one
@@ -302,6 +416,32 @@ appears.
   longer believes it, so this is about the story an engineer reads while
   standing in front of a broken machine. Establish first whether it is upstream
   behaviour.
+- **A working auditd ruleset in the core (intake C6).** DAWO-NixOS defers
+  auditd because it is a no-op on nixpkgs 26.05 - an `auditctl` module bug that
+  breaks every `nixos-rebuild` if real rules are enabled - and the block warns
+  rather than pretending to cover. The trigger is the upstream fix, which is
+  not ours to schedule. Sécurix has a working `auditd.conf` and ruleset ready
+  to port the day it lands.
+- **Tamper-restore for files outside the Nix store (intake C9).** On NixOS a
+  rebuild is the restore, so this matters only for the mutable state the
+  station and agent own. Bor's approach is worth remembering when it does:
+  watch the parent directories so atomic renames are seen, and suppress your
+  own writes so the watcher does not fight itself.
+- **A crypto-compliance reference with a deployment checklist (intake A6).**
+  Every algorithm mapped to FIPS 140-3, BSI TR-02102, ANSSI RGS, ETSI EN 319
+  412 and NIS2. The trigger is the first customer security questionnaire that
+  asks, and Bor's `SECURITY.md` shows how thick the answer has to be. Related
+  and separately unscheduled: FIPS-validated builds (intake A7) and a PKCS#11
+  HSM for the cell CA key (intake B9), both of which wait for a customer who
+  actually requires them rather than one who is impressed by them.
+- **Central journal shipping, and per-device metrics (intake G6, G7).**
+  Sécurix ships journald to a remote sink and exports node metrics including
+  power draw. Both overlap what Wazuh should be doing for us, so this waits on
+  the Wazuh work in 1.1 concluding what is left over. The power-consumption
+  reporting is the interesting half - it is a public-sector reporting line, not
+  an observability nicety.
+- **A container test driver alongside VM tests (intake H4).** clan runs both.
+  Faster device-level tests would be welcome; nothing currently forces it.
 
 ## What we are deliberately not doing
 
@@ -313,6 +453,24 @@ Kept here so the question stops coming back.
   remote capability is an *intent* the device chooses to act on. This is not a
   limitation to be engineered away - it is the reason there is no channel for
   an attacker to abuse either.
+
+  Two specific temptations were read in full and refused (intake F1, E5). clan
+  models transport as a priority ladder - peer-to-peer SSH, direct, WireGuard,
+  ZeroTier, Mycelium, Tor - and falls back automatically until one connects. It
+  is elegant, and it exists because clan *must* reach a machine in order to
+  deploy at all. We must not. Likewise their installer announces itself as a
+  Tor onion service, which genuinely solves imaging a machine behind NAT with
+  no known address; it is still a listening remote channel, and the answer to
+  that problem belongs in the provisioning station on the local network.
+- **Our own console MFA (intake D5).** Bor ships TOTP and WebAuthn built in.
+  Console authentication is OIDC by design and the identity provider owns MFA;
+  a second authenticator is a second thing to get wrong, and it would sit
+  outside the customer's own account lifecycle.
+- **An image per user (intake, Sécurix `mkTerminals`).** Sécurix builds a
+  separate signed image per agent, with that person's identity, VPN profiles
+  and key handles baked in. It is coherent and it is the opposite of our model:
+  one image, and the console composes the person onto it. Recorded because the
+  approach is defensible and someone will propose it.
 - **A crippled edition.** Everything is in this repository under the EUPL.
   What BB Open sells is work, not permission.
 

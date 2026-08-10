@@ -24,8 +24,11 @@ does not come back.
   `both`.
 - **Value / Effort** — 1–5, first pass, to be re-scored in the session. Value
   is *to a municipality buying this*, not to us.
-- **Slot** — proposed release. `2.0` means it changes a contract or an ADR.
-  `reject` means it is written down so it stays rejected.
+- **Slot** — *proposed* release, before scoring. Once an item is scheduled,
+  **`roadmap.md` is authoritative and this column is history.** The two must
+  not be kept in step by hand; that is how the previous roadmap drifted from
+  the fit-gap. `2.0` means it changes a contract or an ADR; `reject` means it
+  is written down so it stays rejected.
 - **Conflict** — names the ADR or design rule the item argues with. An item
   with a conflict is not automatically out; it needs the argument won first.
 
