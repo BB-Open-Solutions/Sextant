@@ -26,8 +26,18 @@ That step unblocks A4 (convergence) and A5 (settings) - without decryptable
 secrets on the machine it will not converge, exactly the failure picture
 from e2e-2. **A4 through A17 are still to do.**
 
-One row out of sequence is already recorded: **A7.6 was verified on
-5 August** against 0.82.0, from both sides. It is filled in below.
+Two rows out of sequence are recorded: **A7.6 was verified on 5 August**
+against 0.82.0, from both sides, and **A1.6 on 10 August** against 0.86.0 -
+that one needs no hardware, only a request from outside the cluster.
+
+**The plan itself was re-read against the code on 10 August**, because two
+other documents turned out to be stale that week. Five checkable expectations
+were verified rather than assumed: the core grace period (`incident.CoreGrace`,
+14 days, A9.3/A9.4), the inactivity window (`observed.InactiveWindow`, 14
+days, A9.5), the condition metric name (`disk.free_percent`, A6.6), the
+provisional device state (A3.9), and the closed endpoints (A1.6). All five
+hold. Unlike the station runbook and the fit-gap, this document had not
+drifted.
 
 The three findings from that session are in `docs/e2e-3-findings.md`. The
 devices were called `e2e4` and `e2e5`; those are the labels the commits are
@@ -80,7 +90,7 @@ force the condition rather than hope for it.
 | A1.3 | Log in as a reader (non-editor) | edit buttons absent, not merely greyed out |
 | A1.4 | Group-scoped user | sees only their own group in `/devices` and `/compliance` |
 | A1.5 | Log out | session gone, `/devices` redirects to login |
-| A1.6 | Request `/status` and `/metrics` from outside | **404** - both on the internal port only; a public console should not announce its version |
+| A1.6 | Request `/status` and `/metrics` from outside | **OK** (10 Aug, 0.86.0). Measured from outside the cluster against `console.bb-open.com`: `/status` 404, `/metrics` 404, `/healthz` 200, `/readyz` 200. The probes answer `ok` and nothing else. `SEXTANT_METRICS_ADDR=0.0.0.0:9090` is set, which is the condition that closes them - with it empty they land on the public mux instead |
 | A1.7 | Build identity in the footer and on the org page | visible once logged in |
 
 A1.3 asks for actually looking: a button that is present but returns 403 is
