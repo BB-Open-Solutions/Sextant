@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# Create the public project's labels and milestones on Codeberg.
+#
+# WHY THIS EXISTS. ADR 0024 says Codeberg is run as a public project rather
+# than pushed to as a mirror, and the first thing that means is that somebody
+# arriving finds labels and milestones instead of an empty repository.
+#
+# It is a script rather than a click-through for two reasons. The label set
+# becomes reviewable in git, so a change to it is a change somebody can see.
+# And the token stays with the person running it - it is read from the
+# environment, never passed on a command line, and never written down.
+#
+# IDEMPOTENT. It creates what is missing and leaves the rest alone. It never
+# deletes or renames: a label somebody added by hand is theirs, not ours to
+# tidy away.
+#
+# Usage:
+#   CODEBERG_TOKEN=... scripts/codeberg-project-setup.sh [--dry-run]
+#
+# The token needs the `issue` and `repository` scopes. Make it at
+# https://codeberg.org/user/settings/applications, and delete it afterwards -
+# this runs once in a while, not continuously.
+set -euo pipefail
+
+owner_repo="${CODEBERG_REPO:-DAWO/DAWO-Sextant}"
+api="https://codeberg.org/api/v1/repos/${owner_repo}"
+dry=false
+[ "${1:-}" = "--dry-run" ] && dry=true
+
+if [ "$dry" = false ] && [ -z "${CODEBERG_TOKEN:-}" ]; then
+  echo "CODEBERG_TOKEN is not set. Run with --dry-run to see what it would do." >&2
+  exit 2
+fi
+
+# name|colour|description
+# Kept deliberately short. More labels than a person remembers is worse than
+# none: the ones nobody applies make the ones that matter unreliable.
+labels='bug|d73a4a|Something does not do what it should
+enhancement|a2eeef|A capability, or a different way of working
+documentation|0075ca|The text is wrong, missing, or drifted from the code
+security|b60205|Publicly discussable. Real reports go to SECURITY.md, not here
+good first issue|7057ff|Small, bounded, and does not need a fleet to test
+help wanted|008672|We know what is needed and are not getting to it
+needs-decision|fbca04|Waiting on a decision rather than on work
+upstream|5319e7|Belongs in DAWO-NixOS or nixpkgs, not in this repository'
+
+# title|description
+# Only the near ones. A milestone for a distant release with nothing in it
+# reads as an abandoned project rather than a plan.
+milestones='1.0.0|Production at a Dutch municipality. Scope and gate: docs/1.0-fit-gap.md
+1.1|What the first non-pilot machines hit: multiple drives, app profiles, admin devices as a named class, the Wazuh agent on NixOS. See docs/roadmap.md
+1.2|Governance a municipality asks for: capability RBAC on directory groups, four-eyes narrowed to where it earns its place, per-item compliance results. See docs/roadmap.md'
+
+call() {
+  curl -sS -X "$1" "$2" \
+    -H "Authorization: token ${CODEBERG_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$3"
+}
+
+existing_labels=$(curl -sS "${api}/labels?limit=100" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 || true)
+existing_ms=$(curl -sS "${api}/milestones?limit=100&state=all" | grep -o '"title":"[^"]*"' | cut -d'"' -f4 || true)
+
+echo "== labels =="
+while IFS='|' read -r name colour desc; do
+  [ -z "$name" ] && continue
+  if printf '%s\n' "$existing_labels" | grep -Fxq "$name"; then
+    echo "  exists   $name"
+    continue
+  fi
+  if [ "$dry" = true ]; then
+    echo "  would add $name  (#$colour)"
+    continue
+  fi
+  body=$(printf '{"name":%s,"color":"#%s","description":%s}' \
+    "$(printf '%s' "$name" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
+    "$colour" \
+    "$(printf '%s' "$desc" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')")
+  if call POST "${api}/labels" "$body" >/dev/null; then
+    echo "  created  $name"
+  else
+    echo "  FAILED   $name" >&2
+  fi
+done <<< "$labels"
+
+echo "== milestones =="
+while IFS='|' read -r title desc; do
+  [ -z "$title" ] && continue
+  if printf '%s\n' "$existing_ms" | grep -Fxq "$title"; then
+    echo "  exists   $title"
+    continue
+  fi
+  if [ "$dry" = true ]; then
+    echo "  would add $title"
+    continue
+  fi
+  body=$(printf '{"title":%s,"description":%s}' \
+    "$(printf '%s' "$title" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')" \
+    "$(printf '%s' "$desc" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))')")
+  if call POST "${api}/milestones" "$body" >/dev/null; then
+    echo "  created  $title"
+  else
+    echo "  FAILED   $title" >&2
+  fi
+done <<< "$milestones"
+
+echo
+echo "Not done by this script, because they are repository settings rather than"
+echo "content, and they are the two a visitor notices first:"
+echo "  - Topics. Currently none, which is why nobody finds this by searching."
+echo "    Suggested: nixos nix fleet-management device-management gitops"
+echo "               public-sector self-hosted golang eupl"
+echo "  - Website. Currently empty; docs.sextantfleet.com exists."
