@@ -429,6 +429,30 @@ forcing the lookup to succeed and watching it fail.
 - **Device identity along the strong path.** A per-device credential is
   bound to its tag and refused for another tag, with that intent explicit in
   the comment.
+
+  **Re-verified against production on 2026-08-10**, prompted by a scare that
+  turned out to be something else. Both fleet devices hold a credential of
+  their own - `dawo-inspoelstraat` since 6 August, `e2e5` since 4 August -
+  and **no shared bridge token is configured at all**. So the three things
+  that would have to fail for one device to speak as another all hold: the
+  credential is tag-bound, the bridge covers only un-credentialed tags since
+  H1, and there is no bridge. What remains is somebody copying a credential
+  file off one machine onto another, which is theft rather than
+  impersonation, and no identity check answers it.
+
+  **The scare, because the misreading is the lesson.** NetBird listed two
+  peers both called `dawo-inspoelstraat`, one of them in the `bb-laptops`
+  group, and the obvious reading was that the laptop had come up wearing the
+  station's name. It had not: the live peer runs the station's CI runner, and
+  the laptop's credential was last used on 6 August, when it was shut. It was
+  one machine with a stale second registration, in the wrong group.
+
+  Nothing about that touched Sextant - the two systems share no identity
+  model - but it cost an hour and produced a confident wrong diagnosis. Two
+  systems that both name machines and disagree is a trap for whoever looks
+  next, and the answer is hygiene rather than code: the stale peer removed and
+  the live one moved to `BB-Open-Infra` (done 2026-08-10). It would become a
+  real problem, not a cosmetic one, the day NetBird groups carry access.
 - **Wipe-ack replay.** Signed nonce plus timestamp, and an ack that fails to
   verify leaves the beat standing but discards the outcome
   (`checkin.go:256-262`) - so a forged ack does not pollute the audit trail.
