@@ -479,6 +479,13 @@ not made:
 For admin devices the fleet-wide appId is the practical choice, and the
 argument for it should be written down rather than defaulted into.
 
+**Settled: ADR 0025, accepted 2026-08-10.** Writing it out changed the shape
+of the question - it is per *use* rather than per host or per fleet. Login and
+SSH are fleet-scoped, disk unlock is per host by construction because a
+keyslot lives in one LUKS header, and privilege escalation takes a **second
+registered token** rather than a wider scope on the first. Theme I has no
+open decisions left.
+
 The second half: the ceremony. `pamu2fcfg` must run with the key present and
 the right appId, and it emits a string. Three possible owners — the
 provisioning station during imaging, a self-service page in the console where

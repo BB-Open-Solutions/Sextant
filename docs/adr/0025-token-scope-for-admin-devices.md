@@ -2,9 +2,8 @@
 
 ## Status
 
-**Proposed**, 2026-08-10. Needs Bram's decision; theme I of
-`docs/competitive-intake.md` is scheduled for 1.1 and this is the last thing
-it waits on.
+Accepted 2026-08-10 (Bram). Theme I of `docs/competitive-intake.md` was
+waiting on this and is now unblocked for 1.1.
 
 Written because the intake asks for it in as many words: the fleet-wide
 choice "is the practical choice, and the argument for it should be written
@@ -54,7 +53,7 @@ one. **I8's rule answers it: a second registered token, not the same one.**
 That is not an appId question - it is a policy that the second factor for
 privilege escalation must not be the factor that already granted the session.
 
-## Decision, proposed
+## Decision
 
 **Fleet-scoped appId (`pam://dawo-admin`) for login and SSH. Disk unlock stays
 per host by construction. Privilege escalation requires a second registered
