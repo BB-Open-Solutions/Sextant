@@ -10,6 +10,13 @@ fit-gap and leaves - it is never described in both. It says what comes next,
 in what order, and - more usefully - **what forces each item**, because a
 roadmap that is only a wish list gets reordered by whoever shouts loudest.
 
+The same split applies to `competitive-intake.md`, which holds the reading of
+Sécurix, clan-core and Bor: **the argument lives there, the schedule lives
+here.** Items below carry their intake ID so the reasoning is one link away
+instead of repeated. An intake item not named here is not scheduled - it is
+still being scored, or it was triaged out with a reason recorded in that
+document.
+
 Dates are deliberately sparse. Each release below names its **trigger**: the
 thing that makes it urgent. Where a trigger has a date, the release inherits
 it. Where it does not, the release ships when the work is done rather than on a
@@ -59,9 +66,9 @@ Two things still to settle, and neither blocks the mirror itself:
   repository that shows no build status invites the question. If it does,
   that is Woodpecker and a second runner with nix - the release workflow
   assumes one.
-- **What the public mirror is called.** The Codeberg repository is
-  `DAWO/SextantFleet` while this one is `DAWO-Sextant`. Harmless for a
-  mirror; worth a decision so the two names do not read as two products.
+- ~~What the public mirror is called.~~ **Settled.** The Codeberg repository
+  is `DAWO/DAWO-Sextant`; the old `DAWO/SextantFleet` URL redirects to it.
+  Checked 2026-08-10.
 
 Also worth knowing before somebody wires it up: `upstreamRepo` in the
 HelmRelease points at `code.overheid.nl/MinBZK/DAWO-NixOS.git`, so the core
@@ -121,6 +128,54 @@ already known to be wrong; it simply has not mattered on a fleet of two.
   ordinary root filesystem, so the re-enrolment loop that bites immutable
   deployments does not apply.
 
+- **Deterministic machine identity (intake C7).** `/etc/machine-id` and
+  `system.stateVersion` become generated values held with the device rather
+  than whatever the installer happened to produce. On a fleet of two nobody
+  notices; on a fleet that gets re-imaged, a machine-id that changes underneath
+  the console is a device that looks new, and a stateVersion that drifts with
+  the release is a migration nobody chose. clan closes both structurally and it
+  is a handful of lines.
+
+- **The disk layout gets a version while #49 is open (intake C10).** Sécurix
+  versions its layouts and states plainly that migrating between them is
+  unsupported - reinstall. That is the honest shape and it costs nothing to
+  adopt now, while the profiles are being rewritten for `/dev/disk/by-id`
+  anyway. Adopting it afterwards means an unversioned second layout already in
+  the field.
+
+- **Egress that stops at the tunnel (intake C1).** A device outside the
+  building is what forces this, and the control is a per-user killswitch:
+  ordinary user accounts reach the network only over an allowlist of
+  interfaces, system services exempt. DAWO-NixOS already names this as its next
+  hardening block; clan has it written, tested and MIT-licensed, so the work is
+  porting plus a VM test rather than design. Core work, so fork and pull
+  request.
+
+- **Emergency access that is not a shared password (intake C5).** A device that
+  will not boot in the field has no recovery story today that does not end in a
+  password somebody remembers. A generated initrd recovery password, hash on
+  the device and plaintext never leaving the vault, is about twenty lines and
+  removes the temptation.
+
+- **Never trust a claimed identity (intake D2, D3, D6).** Three properties to
+  verify we already hold on per-device credentials, each cheap and each worth a
+  test: the server decides a credential's subject rather than echoing what the
+  client asked for; a claimed device id must match the authenticated
+  credential; and revocation survives deleting the device. Bor names that last
+  one in a migration called `revocation_survives_node_delete`, which is exactly
+  the failure it prevents. If we already hold all three, the outcome is a test
+  that says so - which is worth having anyway.
+
+- **Guardrails that keep the repository honest (intake H1, H2, H3, H5).** Same
+  trigger as the process change at 1.0.0: somebody else can contribute now.
+  Four small things - REUSE/SPDX headers with a licensing check; the frontend
+  design-token ratchet that fails only on *newly* introduced raw hex;
+  deprecations whose failure message carries the migration snippet; and a check
+  that `architecture/` has not drifted from the code. The last one is not
+  theoretical: Bor's architecture document contradicts Bor's own code on key
+  strength and certificate lifetime, and our `architecture/` directory is
+  larger than theirs.
+
 ## 1.2 - governance that a municipality will ask for
 
 **Trigger: the first customer with more than one administrator.**
@@ -143,6 +198,75 @@ already known to be wrong; it simply has not mattered on a fleet of two.
   environments. That is a different product surface with its own
   tenancy boundary, so it waits until the cell shape has been proven by
   provisioning and retiring real ones by hand.
+
+- **Admin devices as a named class (intake theme I).** More than one
+  administrator is exactly the moment this stops being theoretical: the machine
+  someone administers the fleet from should be held to a standard an office
+  laptop is not. One hardware token doing four jobs off one enrollment - unlock
+  the disk, log in, escalate privilege, authenticate outward.
+
+  Sécurix ships two of the four and the second is the one to copy verbatim:
+  admin accounts declared with their key handles, carrying no password field at
+  all, guarded by an assertion so that granting somebody administrative access
+  without a registered key *does not build*. An evaluation failure, not a
+  warning. That severity is right, and it is the pattern our `riskClass =
+  foundation` options should probably borrow.
+
+  What they do not do is where the value is. Their token gates login but not
+  `sudo`, and for an admin device the moment that matters is the escalation,
+  not the morning login. And `yubikey-agent` is enabled without resident FIDO2
+  SSH keys, the form where the private key cannot leave the token and every
+  authentication needs a deliberate touch.
+
+  Two decisions are ours before any of it is scheduled. **The appId scope**:
+  per-host means re-registering a key on every machine, fleet-wide means one
+  ceremony and one stolen token that works everywhere - fleet-wide is the
+  practical answer and the argument for it gets written down rather than
+  defaulted into. And **the lockout matrix**: four uses are four ways to lock
+  yourself out, and they must not collapse onto one recovery path. The rule to
+  hold is that an admin device requires two registered tokens, or a documented
+  break-glass that is not itself protected by the thing being recovered - the
+  same ordering trap already recorded against OpenBao below.
+
+  This is also the first genuinely *named device class* rather than a pile of
+  settings, so it depends on the image-versus-console boundary from 1.1.
+
+- **Secrets that arrive before the thing that needs them (intake B2, B6, B10).**
+  A generated file declares when it must exist: before disko runs, so a LUKS
+  key is managed declaratively at install; before useradd, so password hashes
+  come from the vault; or the ordinary case. Recovery-key escrow stores a key
+  after the fact and stays; this puts one in place before the disk exists.
+  Alongside it, the ability to declare that a secret exists in the vault and
+  must **never** reach the device - which is what makes emergency access (1.1)
+  and admin-device break-glass different risk classes from an ordinary secret.
+
+- **Compliance that says why a control is off (intake A1, A2, A3, G3).** We
+  have policies annotated with BIO/ISO controls and a comply-or-explain
+  register. What Sécurix adds is that **silence is a finding**: a rule that is
+  not enforced must be off for a named reason - excluded by scope, by level, or
+  by an explicit exception carrying a rationale - and anything else is reported
+  as unexplained and therefore non-compliant. With it come two artifacts: a
+  machine-readable posture document per device, which is what our evidence
+  export wants as input, and per-item results so a verdict reads "fails these
+  two keys" rather than "fails".
+
+- **Audit output a SOC can consume (intake A4, A5).** Our evidence export is
+  built for an auditor reading it once. A customer with a security operations
+  centre wants the same events continuously, in a format their tooling already
+  parses: OCSF and CEF alongside syslog. The class mapping is the work and Bor
+  has done it - roughly 240 lines of thinking we do not have to repeat.
+
+- **Configuration that can move between cells (intake G2).** A versioned export
+  envelope that round-trips through the schema and **refuses to import a type
+  this build does not understand**, because a policy that cannot round-trip is
+  one nobody can edit or enforce afterwards. The trigger is the second cell,
+  which the reseller portal above makes certain.
+
+- **Tell the user something changed (intake G4).** A pull model with rings
+  means the person using the laptop is the last to know why their browser
+  restarted. A notification naming what changed and what they must do about it,
+  with a cooldown so it is not noise. Both Sécurix and Bor do this; we converge
+  silently, which is precisely backwards.
 
 ## 1.3 - reach
 

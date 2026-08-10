@@ -87,7 +87,8 @@ produce evidence *for*, and Bor shows how thick it has to be.
 | B7 | Generators run sandboxed | clan | both | 3 | 2 | 2.0 | — |
 | B8 | Warn when a non-secret generated file has non-default mode | clan | core | 2 | 1 | 1.1 | — |
 | B9 | PKCS#11 / HSM for the cell CA key | Bor | sextant | 3 | 3 | unsched | — |
-| B10 | FIDO2 + recovery keyslot enrolled at install, `/recovery` partition | Sécurix | core | 4 | 3 | 1.2 | — |
+| B10 | Recovery keyslot enrolled at install, `/recovery` partition | Sécurix | core | 4 | 3 | 1.2 | — |
+| B11 | Secrets that only decrypt with a hardware token present | Sécurix | both | 5 | 3 | 1.2 | see I6 |
 
 **B1 is the largest single idea in the three repositories.** clan does not
 store secrets, it stores the *derivation* of secrets: a generator declares
@@ -125,8 +126,8 @@ off-disk half.
 | ID | Item | Source | Target | Value | Effort | Slot | Conflict |
 |---|---|---|---|---|---|---|---|
 | C1 | Per-user egress killswitch over an interface allowlist | clan | core | 5 | 2 | 1.1 | — |
-| C2 | PAM U2F/FIDO2 login, password as fallback only | Sécurix | core | 4 | 3 | 1.2 | — |
-| C3 | LUKS unlock via FIDO2 alongside TPM2 | Sécurix | core | 3 | 2 | 1.2 | — |
+| C2 | *(moved to theme I — hardware-token admin devices)* | Sécurix | core | — | — | — | — |
+| C3 | *(moved to I5)* | Sécurix | core | — | — | — | — |
 | C4 | SSH host and user keys sealed in the TPM | clan/Sécurix | core | 4 | 3 | 1.2 | — |
 | C5 | Emergency initrd access with a vault-only password | clan | core | 4 | 1 | 1.1 | — |
 | C6 | A working auditd ruleset | Sécurix | core | 3 | 2 | 1.1 | — |
@@ -336,6 +337,160 @@ last ten years, where the code enforces a 3072-bit minimum and issues for
 ninety days, and it lists as "future" several things that shipped. A reader who
 trusts the architecture document gets a picture that is both stale and less
 secure than reality. Our `architecture/` directory is larger than theirs.
+
+---
+
+## I. Hardware-token admin devices
+
+An **admin device** is a separate product shape, not a setting: the machine an
+operator uses to administer the fleet, held to a standard an ordinary
+workplace laptop is not. Sécurix is built around this idea — it is a *poste
+d'administration sécurisé* first and an office desktop second — and its
+YubiKey work is the most transferable part of it.
+
+The proposition is one token doing four jobs off one enrollment ceremony:
+unlock the disk, log in, escalate privilege, and authenticate outward. Sécurix
+ships two of the four and points at the rest.
+
+| ID | Item | Source | Target | Value | Effort | Slot | Conflict |
+|---|---|---|---|---|---|---|---|
+| I1 | PAM U2F login, password demoted to fallback | Sécurix | core | 4 | 2 | 1.2 | — |
+| I2 | Admin accounts that refuse to build without a registered key | Sécurix | core | 5 | 1 | 1.2 | — |
+| I3 | `sudo` gated on the token, not just login | *new* | core | 5 | 2 | 1.2 | — |
+| I4 | SSH via resident FIDO2 keys requiring a physical touch | *new* | core | 4 | 2 | 1.2 | — |
+| I5 | LUKS unlock via a FIDO2 keyslot alongside TPM2 | Sécurix | core | 4 | 2 | 1.2 | — |
+| I6 | Secrets encrypted to a YubiKey PIV slot | Sécurix | both | 5 | 3 | 1.2 | — |
+| I7 | Key registration as fleet data, and who owns the mapping | *product* | sextant | 5 | 3 | 1.2 | — |
+| I8 | A lockout matrix: four uses, four distinct recovery paths | *product* | both | 5 | 2 | 1.2 | — |
+| I9 | Smartcard stack on the device (pcscd, ykman, yubikey-agent) | Sécurix | core | 3 | 1 | 1.2 | — |
+
+### What Sécurix actually ships
+
+**I1 — `modules/pam/u2f.nix`.** `securix.pam.u2f` takes an `appId`, an `origin`
+and an attribute set of `username → [key handles]`, writes `/etc/u2f-mappings`,
+and sets `security.pam.u2f` with `control = "sufficient"` and `cue = true`.
+"Sufficient" is the honest word: a successful touch passes authentication, a
+failure falls through to the password. Their README states the intent —
+*"le mot de passe n'est qu'un mode secours"*.
+
+Two details that bite if missed. The key handles must be generated with
+`pamu2fcfg` using **the same appId and origin** the module configures, or the
+key is simply not recognised; the module documents this and it is still the
+most likely support call. And the default `pam://$HOSTNAME` scopes a key to one
+machine — their own example (`pam://acme-corp-workstations`) shows the
+alternative. See I7.
+
+**I2 — `modules/admins/default.nix`.** This is the piece worth copying
+verbatim, and it is fifteen lines. Admin accounts are declared as
+`{ name, u2f_keys }`; the generated user is `isNormalUser` plus `wheel` and
+**carries no password field at all**. Guarding it is an assertion:
+
+> `PAM U2F is required to use the local admin accounts. There is no password.`
+
+So a configuration that grants somebody administrative access without
+registering a hardware key does not build. Not a warning, not a lint — an
+evaluation failure. That is the correct severity, and it is the pattern our
+`riskClass = foundation` options should arguably borrow.
+
+**I6 — `modules/vpn/wireguard/default.nix`.** The surprise. The WireGuard
+private key is not stored in plaintext anywhere: it is age-encrypted, and the
+age identity lives in a YubiKey PIV slot. Decryption is
+`ykman piv objects export … | age -d -i <(age-plugin-yubikey -i --slot …)`,
+and the module generates the identity on first use if the slot is empty.
+
+The property is stronger than anything in our secrets story today: **the
+secret cannot be decrypted without the physical token in the machine.** Not
+"protected by a passphrase", not "readable by root" — absent the token, the
+ciphertext is inert. For an admin device holding fleet credentials that is
+exactly the right guarantee, and it composes with the whole B series: a vars
+generator (B1) whose output is encrypted to a PIV slot rather than to a host
+key.
+
+**I9 — `modules/security-keys.nix`.** The unglamorous enabling layer:
+`yubikey-personalization` and `yubikey-manager` as packages *and* as udev
+rules, `services.pcscd.enable` for smartcard access, `services.yubikey-agent`.
+GPG agent is deliberately off with a comment saying they have no need for GPG
+keys yet — a decision recorded rather than a gap.
+
+### What Sécurix does not do, and where the value is
+
+**I3 — the token gates login but not `sudo`.** Their PAM work covers
+authentication to the session; privilege escalation still takes a password
+(and their admin accounts have none, so the practical effect deserves
+checking on real hardware). For an admin device this is backwards: the moment
+that matters is `sudo`, not the morning login. `security.pam.services.sudo`
+with U2F required — not sufficient, *required* — is the control worth having,
+and it is a small module.
+
+**I4 — SSH is agent-only.** `yubikey-agent` is enabled, but nothing wires up
+resident FIDO2 SSH keys (`sk-ecdsa-sha2-nistp256@openssh.com`,
+`sk-ssh-ed25519@openssh.com`), which is the form where the private key cannot
+leave the token and every authentication needs a deliberate touch. For an
+operator SSHing into fleet infrastructure that is the difference between a
+stolen laptop being an inconvenience and being an incident.
+
+**I5.** Their `securix_v2` layout sets `enrollFido2 = true` on the LUKS
+container, so the same token that logs you in unlocks the disk. We have TPM2
+auto-unlock bound to PCR 7, which is the right default for a workplace laptop
+— it is invisible and it survives the user. For an admin device the trade-off
+inverts: you *want* the unlock to require something the thief does not have.
+Both should exist; the device profile chooses.
+
+### The product questions (I7, I8) — these are ours, not theirs
+
+**I7. Who owns the user → key-handle mapping?** A U2F key handle is public
+data, so it can live in the fleet document as an ordinary setting — no vault
+needed. But it is per-user *and* per-appId, and that forces a decision we have
+not made:
+
+- **appId per host** (`pam://$HOSTNAME`, the upstream default) — a key must be
+  registered against every device it may unlock. Safest, and unusable at any
+  scale.
+- **appId per fleet** (`pam://dawo-admin`) — one enrollment, works on every
+  admin device in the organisation. One stolen token also works on every admin
+  device, which is precisely what the token's own PIN and presence
+  requirement exist to answer.
+
+For admin devices the fleet-wide appId is the practical choice, and the
+argument for it should be written down rather than defaulted into.
+
+The second half: the ceremony. `pamu2fcfg` must run with the key present and
+the right appId, and it emits a string. Three possible owners — the
+provisioning station during imaging, a self-service page in the console where
+an operator registers their own key, or an administrator pasting the string.
+Self-service is the only one that scales and the only one where the private
+key never passes through anyone else's hands, but it means the console needs a
+page that produces the exact `pamu2fcfg` invocation for our appId.
+
+**I8. Every one of the four uses is a lockout, and they must not share a
+recovery path.** This is the item that decides whether I1–I6 are a feature or
+an outage:
+
+| Use | Lost-token fallback | Must not be |
+|---|---|---|
+| Disk unlock | recovery keyslot (B10) + escrow | the same secret as login |
+| Login | password, if the device keeps one | absent, per I2 |
+| `sudo` | a second registered token, or a break-glass local admin | a password everyone knows |
+| SSH | a separate key held elsewhere | on the same laptop |
+
+Sécurix generates a LUKS recovery key at install (`enrollRecovery`) and we
+already escrow recovery keys with audited reveals — so that column is close to
+answered. The rest is not. The rule to hold: **an admin device requires two
+registered tokens, or it requires a documented break-glass that is not itself
+protected by the thing being recovered.** That is the same ordering trap
+already recorded against OpenBao in the roadmap.
+
+### How this reaches the console
+
+Nothing here needs a new mechanism. It is an `dawo.adminDevice.*` block of
+annotated options in the core, which the catalog renders by itself, plus one
+new console surface for I7's self-service registration. The device profile —
+"this group is admin devices" — is an ordinary group setting.
+
+What it does need is the boundary decision from roadmap 1.1 (*"what stays in
+the image and what Sextant composes"*), because an admin-device profile is the
+first real case of a **named device class** rather than a pile of individual
+settings.
 
 ---
 
