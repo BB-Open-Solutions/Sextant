@@ -100,6 +100,29 @@ already known to be wrong; it simply has not mattered on a fleet of two.
 - **A garbage-collection policy for devices.** A one-day-old laptop already
   carried 101 dead store paths. Not a problem this year; certainly one in a
   fleet nobody prunes.
+- **Admin devices as a named class (intake theme I).** Decided 2026-08-10:
+  `admin` becomes a fifth entry in the overlay's `byClass`, alongside laptop,
+  desktop, station and server. That is the whole mechanical change - the
+  boundary question this was waiting on turned out to be two image-time
+  namespaces and one class distinction, all counted in the intake.
+
+  **This item carries its own trigger, and it has already fired.** Bram's
+  laptop joins the fleet as the first admin device in the week of
+  2026-08-10, and it arrives before any of the nine items exists: a managed
+  NixOS machine holding the fleet's SSH keys, forge push rights, cluster
+  credentials, secret identity and backup keys, protected like an office
+  laptop. Six of the nine are value 4-5 at effort 1-2, so they should follow
+  the machine rather than wait: I7 (key registration as fleet data) leads
+  because the others read from it, then I2 (an admin account that refuses to
+  build without a registered key), I3 (`sudo` behind the token), I8 (the
+  lockout matrix), I1 (PAM U2F), I4 (SSH via resident FIDO2) and I5 (a FIDO2
+  keyslot for LUKS, which is image-time under the existing `diskUnlock.`
+  prefix).
+
+  The rule to hold, and it is the same ordering trap already recorded against
+  OpenBao: **two registered tokens, or a documented break-glass that is not
+  itself protected by the thing being recovered.** I6 (secrets encrypted to a
+  PIV slot) waits for 2.0 with the secrets model.
 - **Make the Wazuh agent useful on NixOS.** The agent enrols and reports; most
   of what it then does is aimed at a distribution we are not running. Split by
   cause, because "does not work" covers two very different things here:

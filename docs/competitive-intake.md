@@ -379,14 +379,14 @@ ships two of the four and points at the rest.
 
 | ID | Item | Source | Target | Value | Effort | Slot | Conflict |
 |---|---|---|---|---|---|---|---|
-| I1 | PAM U2F login, password demoted to fallback | Sécurix | core | 4 | 2 | 1.2 | — |
-| I2 | Admin accounts that refuse to build without a registered key | Sécurix | core | 5 | 1 | 1.2 | — |
-| I3 | `sudo` gated on the token, not just login | *new* | core | 5 | 2 | 1.2 | — |
-| I4 | SSH via resident FIDO2 keys requiring a physical touch | *new* | core | 4 | 2 | 1.2 | — |
-| I5 | LUKS unlock via a FIDO2 keyslot alongside TPM2 | Sécurix | core | 4 | 2 | 1.2 | — |
-| I6 | Secrets encrypted to a YubiKey PIV slot | Sécurix | both | 5 | 3 | 1.2 | — |
+| I1 | PAM U2F login, password demoted to fallback | Sécurix | core | 4 | 2 | 1.1 | — |
+| I2 | Admin accounts that refuse to build without a registered key | Sécurix | core | 5 | 1 | 1.1 | — |
+| I3 | `sudo` gated on the token, not just login | *new* | core | 5 | 2 | 1.1 | — |
+| I4 | SSH via resident FIDO2 keys requiring a physical touch | *new* | core | 4 | 2 | 1.1 | — |
+| I5 | LUKS unlock via a FIDO2 keyslot alongside TPM2 | Sécurix | core | 4 | 2 | 1.1 | — |
+| I6 | Secrets encrypted to a YubiKey PIV slot | Sécurix | both | 5 | 3 | 2.0 | — |
 | I7 | Key registration as fleet data, and who owns the mapping | *product* | sextant | 5 | 3 | 1.2 | — |
-| I8 | A lockout matrix: four uses, four distinct recovery paths | *product* | both | 5 | 2 | 1.2 | — |
+| I8 | A lockout matrix: four uses, four distinct recovery paths | *product* | both | 5 | 2 | 1.1 | — |
 | I9 | Smartcard stack on the device (pcscd, ykman, yubikey-agent) | Sécurix | core | 3 | 1 | 1.2 | — |
 
 ### What Sécurix actually ships
@@ -544,7 +544,46 @@ Sorting theme I into those buckets:
   assertion evaluated at build time but *driven by console data* - the key
   registry from I7. It is not image-time: it re-evaluates every converge.
 - **I1, I3, I4, I9** are ordinary live settings on the class.
-- **I6, I8, B11** cross into the secrets model and wait for 2.0 regardless.
+- **I6** and **B11** cross into the secrets model and wait for 2.0 regardless.
+- **I8** (the lockout matrix) does not - correcting this line's first version.
+  It is a design rule spanning the four token uses, so it lands with them
+  rather than with the secrets model.
+
+#### Decided 2026-08-10 (Bram): `admin` becomes a fifth class
+
+`byClass` gains an entry. That is the whole mechanical change; everything in
+theme I then sorts into the three buckets above rather than waiting on an
+architectural question.
+
+**And the trigger is already met, which is uncomfortable enough to write
+down.** The fleet holds two devices - a station and a laptop. The machine that
+administers it is not one of them: it runs Fedora, it is outside the fleet
+entirely, and it holds the SSH keys to the station and the forge, kubectl
+against production, push rights to every forge, the age identity that opens
+the fleet's secrets, and the object-storage credentials for the backups.
+
+So the question theme I answers is not "what if an operator machine one day
+carries fleet credentials". It is "the one that does today is unmanaged, and
+we would not accept that from a customer".
+
+**And that changes in the week of 2026-08-10: Bram's laptop joins the fleet as
+the first admin device.** The trigger is not approaching, it fires this week.
+
+Which is worth stating plainly rather than filing as good news: **the machine
+arrives before any of the nine items exists.** On the day it enrols it is a
+managed NixOS device holding fleet credentials with the same protections as an
+office laptop - a password login, a TPM-unlocked disk, `sudo` behind that same
+password. Every item in this theme is about that gap, and none of it is built.
+
+That does not make it a crisis; it makes the ordering obvious. The cheap half
+(I2, I3, I8, I1, I4, I5 - value 4-5 at effort 1-2) should follow the machine
+closely rather than wait for a release trigger that has already fired. I7 (the
+key registry) is what several of them read from, so it leads.
+
+It also confirms the shape: an admin device is a managed NixOS machine, which
+is what Sécurix is built around. Note the step that hides in that sentence -
+the laptop runs Fedora today, so joining the fleet is a re-image, not a
+setting.
 
 One thing worth noticing before deciding: **`server` is already a class the
 core builds for.** It is in `byClass` in the overlay flake and it carries the
