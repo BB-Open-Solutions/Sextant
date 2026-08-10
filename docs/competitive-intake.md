@@ -517,6 +517,41 @@ the image and what Sextant composes"*), because an admin-device profile is the
 first real case of a **named device class** rather than a pile of individual
 settings.
 
+#### What that boundary actually is today, measured 2026-08-10
+
+The decision reads as an open architectural question and is narrower than it
+sounds. Three buckets exist and each was counted rather than estimated:
+
+| bucket | how it is expressed | size today |
+|---|---|---|
+| Image-time | `imageTimePrefixes` in `internal/http/web/settings.go` | **two namespaces**: `secureboot.`, `diskUnlock.` |
+| Class-specific | `classes` on a catalog entry, from one evaluated host per class | **31 of 70 entries**, all `[desktop, laptop, server]` |
+| Live, every class | no annotation | the other 39 |
+
+So the class mechanism today expresses exactly **one** distinction: `apps.*`
+does not exist on a station. The overlay feeds four classes into
+`exportCatalogFromClassOptions` (laptop, desktop, station, server) and the
+export shows three, because those 31 options are simply absent from the
+station image. That is the mechanism working, not failing - but it has never
+carried a distinction anybody argued about.
+
+Which makes the admin-device question answerable rather than philosophical.
+Sorting theme I into those buckets:
+
+- **I5** (FIDO2 keyslot for LUKS) is image-time and lands under the existing
+  `diskUnlock.` prefix. A keyslot is enrolled at install; nothing else is.
+- **I2** (an account that refuses to build without a registered key) is an
+  assertion evaluated at build time but *driven by console data* - the key
+  registry from I7. It is not image-time: it re-evaluates every converge.
+- **I1, I3, I4, I9** are ordinary live settings on the class.
+- **I6, I8, B11** cross into the secrets model and wait for 2.0 regardless.
+
+One thing worth noticing before deciding: **`server` is already a class the
+core builds for.** It is in `byClass` in the overlay flake and it carries the
+same 31 app options as a desktop. Adding `admin` is therefore not a new
+mechanism, it is a fifth entry in a map that already has four - which is the
+same reason ADR 0023's server-estate trigger is closer than it reads.
+
 ---
 
 ## Triaged out — already built, already scheduled, or already decided
