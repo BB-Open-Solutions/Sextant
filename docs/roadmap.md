@@ -12,7 +12,8 @@ roadmap that is only a wish list gets reordered by whoever shouts loudest.
 
 The same split applies to `competitive-intake.md`, which holds the reading of
 Sécurix, clan-core and Bor: **the argument lives there, the schedule lives
-here.** Items below carry their intake ID so the reasoning is one link away
+here.** That document also records why `git log` on this file points at three
+commits about unrelated work - see "Where this came from". Items below carry their intake ID so the reasoning is one link away
 instead of repeated. An intake item not named here is not scheduled - it is
 still being scored, or it was triaged out with a reason recorded in that
 document.

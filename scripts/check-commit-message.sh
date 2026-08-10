@@ -81,7 +81,12 @@ esac
 # only a leading capital followed by lowercase is refused - "LDAPS" passes.
 desc=${subject#*: }
 if printf '%s' "$desc" | grep -qE '^[A-Z][a-z]'; then
-  fail "the description starts with a capital"
+  # Proper nouns trip this - "Codeberg is ...", "Postgres now ...". The rule
+  # is still worth keeping (it catches sentence-style subjects), so the
+  # message names the way out rather than leaving you to guess it: start with
+  # a verb and the noun moves along with it, which usually reads better
+  # anyway. Twice on 2026-08-10 the rewrite improved the subject.
+  fail "the description starts with a capital (start with a verb, or move the proper noun later in the line)"
 fi
 
 # A body has to be separated from the subject, or git treats the whole thing as

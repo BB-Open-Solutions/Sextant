@@ -18,6 +18,28 @@ Items that duplicate something already built or already scheduled were dropped
 during triage and are listed at the bottom under "Triaged out", so the question
 does not come back.
 
+## Where this came from, since the log will not say
+
+This document and the ~280 lines it added to `roadmap.md` were written in a
+parallel session on 2026-08-10 that read the three repositories above. They
+reached `main` inside three commits about entirely different work - `dab6650`
+(a disaster-recovery runbook), `4ffac21` (i18n key tests) and `8ebf9eb` (the
+1.0 fit-gap), whose messages do not mention them.
+
+The cause was `git add -A` in a working tree that another session was writing
+to. Not a merge, not a mistake in this document: a commit that staged
+everything present rather than the files it was about.
+
+It is recorded here rather than repaired, because all three were already on
+`origin/main` and rewriting published history to tidy a provenance note costs
+every reader their line references. So `git log -- docs/roadmap.md` still
+points at three unrelated subjects, and this paragraph is the answer to the
+question that raises.
+
+The rule that follows from it is in `CONTRIBUTING.md`: stage the files a
+commit is about, by name. A message can be perfectly formed and still describe
+the wrong contents, and no hook can catch that - the check is naming them.
+
 ## How to read the table
 
 - **Target** — `sextant` (control plane), `core` (DAWO-NixOS device flake), or

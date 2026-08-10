@@ -94,6 +94,18 @@ is a body that says *why*: what was observed, what it cost, and what would
 have caught it. `git log` here is the closest thing to a design record, and
 it is read by people who were not in the room.
 
+**Stage the files the commit is about, by name.** Not `git add -A`, not
+`git add .`. On 2026-08-10 three commits - a runbook, a test file and a
+fit-gap update - each swept in part of a competitive-intake document another
+session was writing in the same tree, roughly 700 lines under messages that
+never mention it. `git log -- docs/roadmap.md` now points at three unrelated
+subjects, and it was already published, so it was recorded rather than
+repaired (`docs/competitive-intake.md`, "Where this came from").
+
+No hook catches this. A message can pass every check above and still describe
+the wrong contents; the only check is naming the files. `git add -p` or
+`git add <path>...`, and read `git status` before you commit.
+
 ## Engineering bar
 - Spec/ADR before a capability; pure domain with tests; effects behind
   ports; UI is a client of /api/v1 (see docs/capabilities.md).
