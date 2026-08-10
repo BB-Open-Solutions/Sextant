@@ -96,6 +96,13 @@ work is filed on Codeberg, and an item with an older number says so.
   cut.
 - This ADR is the thing to cite when a shortcut is proposed. "It is only a
   mirror" stops being an argument on the day this is accepted.
+- **Project boards are not used, and the tab is switched off** (2026-08-10).
+  Forgejo has no projects API - measured on both instances, 314 endpoints on
+  ours and none of them a project - so a board is hand-built and hand-rebuilt
+  on every move, while the milestones and labels already carry what it would
+  show. Leaving the tab enabled and empty would be the exact failure this ADR
+  is about: a shelf with nothing on it reads as neglect rather than as a
+  choice. Switched off is a choice.
 
 ## A known risk to this decision, accepted
 
