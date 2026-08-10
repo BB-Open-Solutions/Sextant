@@ -15,6 +15,20 @@ on:
 jobs:
   images:
     runs-on: nixos
+    # The registry lives on BB Open's forgejo and so do its credentials. This
+    # workflow must therefore only run there.
+    #
+    # Measured 2026-08-10, and it is why this guard exists rather than being
+    # tidy: a runner was registered against Codeberg, the mirror pushed the
+    # whole tag history, and Forgejo Actions started this workflow once per
+    # historical tag - dozens of runs, every one of them failing on a missing
+    # REGISTRY_TOKEN, on the forge we present as the public project. A
+    # newcomer's first impression would have been a wall of red.
+    #
+    # Guarding on the server rather than on the secret is deliberate: absent
+    # secrets fail late and loudly, and "loudly" is the part that was the
+    # problem.
+    if: github.server_url == 'https://forgejo.bb-open.com'
     steps:
       - name: Checkout tag
         run: |
