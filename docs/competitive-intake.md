@@ -61,12 +61,12 @@ the wrong contents, and no hook can catch that - the check is naming them.
 | ID | Item | Source | Target | Value | Effort | Slot | Conflict |
 |---|---|---|---|---|---|---|---|
 | A1 | Rules as data with a forced exclusion rationale | Sécurix | both | 5 | 3 | 1.2 | — |
-| A2 | Machine-readable compliance report artifact per device | Sécurix | core | 4 | 2 | 1.2 | — |
+| A2 | Machine-readable compliance report artifact per device | Sécurix | core | 4 | 2 | 1.1 | — |
 | A3 | On-device compliance check binary | Sécurix | core | 3 | 2 | 1.3 | — |
-| A4 | OCSF audit sink | Bor | sextant | 4 | 2 | 1.2 | — |
+| A4 | OCSF audit sink | Bor | sextant | 4 | 2 | unsched | — |
 | A5 | CEF + syslog audit sink | Bor | sextant | 3 | 1 | 1.2 | — |
 | A6 | Crypto-compliance reference doc with deployment checklist | Bor | both | 4 | 2 | 1.1 | — |
-| A7 | FIPS-validated build mode for the server binary | Bor | sextant | 2 | 2 | unsched | — |
+| A7 | FIPS-validated build mode for the server binary | Bor | sextant | 2 | 2 | triaged | — |
 
 **A1.** Sécurix models each ANSSI rule as data: `{ anssiRef, severity,
 category, tags, config, checkScript }`, with levels
@@ -108,9 +108,9 @@ produce evidence *for*, and Bor shows how thick it has to be.
 | B3 | Declarative rotation via a validation hash | clan | both | 4 | 2 | 2.0 | — |
 | B4 | Fleet-wide vs per-device secrets (`share`) | clan | both | 3 | 2 | 2.0 | — |
 | B5 | Generator dependencies (secret pipelines) | clan | both | 3 | 2 | 2.0 | — |
-| B6 | `deploy = false` — secret exists, never reaches the device | clan | both | 4 | 1 | 1.2 | — |
+| B6 | `deploy = false` — secret exists, never reaches the device | clan | both | 4 | 1 | unsched | — |
 | B7 | Generators run sandboxed | clan | both | 3 | 2 | 2.0 | — |
-| B8 | Warn when a non-secret generated file has non-default mode | clan | core | 2 | 1 | 1.1 | — |
+| B8 | Warn when a non-secret generated file has non-default mode | clan | core | 2 | 1 | triaged | — |
 | B9 | PKCS#11 / HSM for the cell CA key | Bor | sextant | 3 | 3 | unsched | — |
 | B10 | Recovery keyslot enrolled at install, `/recovery` partition | Sécurix | core | 4 | 3 | 1.2 | — |
 | B11 | Secrets that only decrypt with a hardware token present | Sécurix | both | 5 | 3 | 1.2 | see I6 |
@@ -215,7 +215,7 @@ these become annotated `dawo.*` options that the catalog renders by itself.
 | D2 | Server forces the certificate CN, CSR subject discarded | Bor | sextant | 4 | 1 | 1.1 | — |
 | D3 | Revocation checked per connection, surviving device deletion | Bor | sextant | 4 | 2 | 1.1 | — |
 | D4 | Short-lived device credentials with automatic renewal | Bor | sextant | 3 | 3 | 1.2 | — |
-| D5 | Built-in console MFA (TOTP + WebAuthn) | Bor | sextant | 2 | 4 | reject | — |
+| D5 | Built-in console MFA (TOTP + WebAuthn) | Bor | sextant | 2 | 4 | triaged | — |
 | D6 | Claimed identity must match the authenticated credential | Bor | sextant | 4 | 1 | 1.1 | — |
 
 **D2/D6 are one-line security properties with a test each, and they generalise
@@ -243,9 +243,9 @@ Recorded here so the "but Bor has WebAuthn built in" question has an answer.
 |---|---|---|---|---|---|---|---|
 | E1 | Installer built as a library from the target closure | Sécurix | core | 5 | 4 | 1.2 | — |
 | E2 | TUI autoinstall with confirm and a real-disk guard | Sécurix | core | 3 | 2 | 1.2 | — |
-| E3 | Idempotent-autoinstall VM test | clan/Sécurix | both | 4 | 3 | 1.1 | — |
+| E3 | Idempotent-autoinstall VM test | clan/Sécurix | both | 4 | 3 | 1.2 | — |
 | E4 | The instance serves its own signed agent packages | Bor | sextant | 4 | 3 | 1.2 | — |
-| E5 | Installer announces itself as a Tor onion service | clan | core | 2 | 2 | reject | ADR 0023 |
+| E5 | Installer announces itself as a Tor onion service | clan | core | 2 | 2 | triaged | ADR 0023 |
 
 **E1.** `lib/default.nix` in Sécurix composes an installer *from* the target
 system: `buildUSBInstallerISO` and `buildNetbootInstaller` take the machine's
@@ -274,9 +274,9 @@ provisioning station on the local network.
 
 | ID | Item | Source | Target | Value | Effort | Slot | Conflict |
 |---|---|---|---|---|---|---|---|
-| F1 | Transport ladder with priority and automatic fallback | clan | sextant | 2 | 4 | reject | ADR 0023 |
+| F1 | Transport ladder with priority and automatic fallback | clan | sextant | 2 | 4 | triaged | ADR 0023 |
 | F2 | P2P SSH break-glass, armed like the wipe intent | clan | both | 3 | 4 | 2.0 | ADR 0023 |
-| F3 | Documented emergency direct-target override | clan | sextant | 2 | 1 | 1.3 | — |
+| F3 | Documented emergency direct-target override | clan | sextant | 2 | 1 | triaged | — |
 
 clan configures several transports at once and works down a priority list —
 `p2p-ssh-iroh` 3000, `internet` 2000, `wireguard` 1000, `zerotier` 900,
@@ -297,8 +297,8 @@ need the threat model reopened, which is why it sits at 2.0 and not earlier.
 | ID | Item | Source | Target | Value | Effort | Slot | Conflict |
 |---|---|---|---|---|---|---|---|
 | G1 | Richer schema annotations for generated forms | Bor | both | 4 | 2 | 1.1 | — |
-| G2 | Versioned config export envelope that refuses unknown types | Bor | sextant | 4 | 2 | 1.2 | — |
-| G3 | Per-item compliance results, not one verdict per device | Bor | sextant | 4 | 2 | 1.2 | — |
+| G2 | Versioned config export envelope that refuses unknown types | Bor | sextant | 4 | 2 | unsched | — |
+| G3 | Per-item compliance results, not one verdict per device | Bor | sextant | 4 | 2 | 1.1 | — |
 | G4 | Notify the logged-in user when policy changes, with cooldown | Bor/Sécurix | both | 3 | 2 | 1.2 | — |
 | G5 | Backup and restore as a first-class abstraction | clan | both | 4 | 4 | 2.0 | — |
 | G6 | Central journal shipping | Sécurix | core | 3 | 2 | 1.2 | — |
@@ -615,6 +615,30 @@ Recorded so these do not come back as "but project X has…".
 | npins over flakes (Sécurix) | Settled; we are flakes |
 | mdbook manual (Sécurix) | We have `docs/handbook` |
 
+### Triaged out by score, 2026-08-10
+
+A different kind of triage from the table above: these were scored, came out
+at value 2 or below, and the rule says an item that low is answered rather
+than left pending. Recorded with the reason so the question does not return
+without new information.
+
+| ID | Item | Why it is answered |
+|---|---|---|
+| A7 | FIPS-validated build mode | Wrong jurisdiction. FIPS 140 is a US federal requirement; our market is assessed against the BIO and ISO 27002, with NCSC guidance for crypto. It returns if a customer names it as a requirement, and then it returns with that customer attached |
+| B8 | Warn on a non-secret generated file with a non-default mode | Has no meaning without the generator model (B1), which is 2.0. It is a property of a mechanism we do not have, so it goes wherever B1 goes or nowhere |
+| D5 | Built-in console MFA | Already argued in theme D: console auth is OIDC and the IdP owns MFA. A second authenticator is a second thing to get wrong |
+| E5 | Installer as a Tor onion service | Already argued in theme E, and now also ADR 0023: a listening remote channel. If reaching a NAT-ed machine needs solving, solve it in the provisioning station on the local network |
+| F1 | Transport ladder with automatic fallback | Already argued in theme F. Fallback between transports is the push model's problem; devices pull |
+| F3 | Documented emergency direct-target override | Presupposes a push tool we do not have. There is no CLI that targets a device, so there is nothing to override. It would arrive with a channel, not before one |
+
+**G7 (per-device metrics including power draw) is deliberately NOT triaged
+out**, despite scoring 2. The score looks wrong rather than the item: energy
+reporting is a live obligation for Dutch public bodies, and "what does this
+fleet draw" is the sort of question a municipality asks its supplier rather
+than its engineers. It needs re-scoring on value before it is answered either
+way, and answering it at 2 would be applying the rule to a number nobody
+checked.
+
 ## Scoring session
 
 Fill in the two number columns per row, then:
@@ -625,3 +649,55 @@ Fill in the two number columns per row, then:
   scheduled, not after.
 - **Anything scoring Value ≤ 2** → move to "Triaged out" with the reason, so
   it is answered rather than pending.
+
+### What the rule does not do, learned 2026-08-10
+
+Applied to the first-pass numbers, the rule disagreed with the proposed slot
+in 22 of 64 rows. Almost none of those were scoring errors. **A score says how
+much an item is worth and how cheap it is. A release slot is defined by its
+trigger.** The rule conflates the two, so a cheap valuable item whose trigger
+has not fired reads as misfiled.
+
+Three corrections follow from that, and they are how the remaining rows were
+resolved:
+
+1. **A slot needs a trigger, not just a score.** Where the arithmetic says 1.1
+   and no release trigger covers the item, it belongs in the roadmap's
+   *Unscheduled* section carrying its score - not in 1.2 by default. The
+   roadmap already says of that section: "these matter and none of them has a
+   trigger yet".
+2. **A blocked item is not a misfiled item.** Theme I sat at 1.2 because it
+   waited on a decision, not because of its numbers. The table has no column
+   for that, so blockers are written in the theme's prose.
+3. **Score the item, then look for its neighbours.** Several rows are one
+   piece of work seen from different sides. Scoring them separately triples
+   the apparent effort and hides that the second and third are nearly free
+   once the first is done. Two groupings found so far:
+   - **A2 + G3** - per-item compliance results, and the machine-readable
+     artifact that carries them. One capability, two ends.
+   - **D2 + D3 + D6** - the server forcing the certificate CN, revocation
+     checked per connection, and the claimed identity having to match the
+     credential. All three are "the server decides identity instead of
+     believing the client", all three are effort 1-2, and together they are
+     cheaper than the sum.
+
+### How the remaining rows landed
+
+- **A2 + G3 → 1.1.** Trigger written and realistic: *the first compliance
+  audit at a customer*. One aggregate verdict per device is not evidence an
+  auditor can work from, and a machine-readable artifact per device is what
+  they ask for instead. Scheduled as one capability, not two.
+- **A4 (OCSF audit sink), B6 (`deploy = false`), G2 (export envelope) →
+  unscheduled, carrying their scores.** All three are value 4 at effort ≤ 2,
+  so the arithmetic says 1.1 - and none of their triggers has fired. A4 waits
+  for a customer who wants our audit trail in their SIEM; B6 for the first
+  fleet secret that must exist and must never reach an endpoint; G2 for the
+  first consumer of an export that is not us. Cheap and valuable is a reason
+  to do them *quickly when asked*, not a reason to do them now.
+- **E3 (idempotent-autoinstall VM test) → 1.2.** It sat in 1.1 at effort 3,
+  which the rule sends to 1.2/1.3 with an issue first.
+- **Theme I → 1.1**, unblocked by the `admin` class decision; see that theme.
+- **Six rows triaged out by score**, with reasons, below.
+
+That closes the first scoring pass: every row now has a slot, and every slot
+has either a trigger, a blocker, or a reason it is answered.
