@@ -57,7 +57,7 @@ host is still evaluated.
 >
 > For the measured floor - what belongs to NixOS, what belongs to us, and the
 > figures behind each - read
-> [the scale architecture note](https://github.com/BB-Open-Solutions/Sextant/blob/main/docs/architecture/scale.md)
+> [the scale architecture note](https://codeberg.org/DAWO/DAWO-Sextant/src/branch/main/docs/architecture/scale.md)
 > in the repository. That document is maintained against measurements; this
 > chapter is the shape of the system around them.
 

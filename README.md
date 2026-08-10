@@ -30,7 +30,7 @@ you hoped it would.
 Two commands and a browser. No database, no cluster, no account.
 
 ```sh
-git clone https://github.com/BB-Open-Solutions/Sextant.git && cd Sextant
+git clone https://codeberg.org/DAWO/DAWO-Sextant.git && cd DAWO-Sextant
 just demo          # builds, seeds an example fleet, serves on :8080
 ```
 
@@ -264,28 +264,36 @@ where the arguments are, including the ones we lost.
 
 | | |
 |---|---|
-| **github.com/BB-Open-Solutions/Sextant** | Where to read it, clone it, and take part today. Issues and pull requests here. |
+| **codeberg.org/DAWO/DAWO-Sextant** | Where to read it, clone it, and take part today. Issues and pull requests here. |
 | **code.overheid.nl/MinBZK/DAWO-Sextant** | Canonical, and where it is published as Dutch government open source. No public accounts yet. |
-| **forgejo.bb-open.com** | BB Open's own Forgejo. Where CI runs. |
-| **codeberg.org/DAWO/DAWO-Sextant** | A second public mirror, on a European non-profit forge. Read-only. |
+| **forgejo.bb-open.com** | BB Open's own Forgejo. Where CI runs today. |
 
 Every push goes to code.overheid.nl and to BB Open's Forgejo at the same time,
-and Forgejo mirrors on to GitHub and Codeberg.
+and Forgejo mirrors on to Codeberg.
 
-**A mirror can lag, and it does not announce it.** The mirrors are pushed by
-Forgejo on its own schedule, so for a while after a change GitHub or Codeberg
-will serve the previous commit while claiming nothing. If you are about to
-depend on what you are reading - a line number, a version, a security fix -
-compare against code.overheid.nl, which is canonical by definition rather than
-by timing. Measured on 2026-08-08: Codeberg was two commits behind.
+Codeberg is the public front door because it is a European non-profit forge
+rather than a company's platform, which is the same reasoning that put the
+canonical copy on code.overheid.nl. There was a GitHub mirror; it is being
+retired rather than kept as a third address nobody maintains.
+
+**A mirror can lag, and it does not announce it.** Codeberg is pushed by
+Forgejo on its own schedule, so for a while after a change it serves the
+previous commit while claiming nothing. If you are about to depend on what you
+are reading - a line number, a version, a security fix - compare against
+code.overheid.nl, which is canonical by definition rather than by timing.
+Measured on 2026-08-08 Codeberg was two commits behind, and it had caught up
+without intervention by the 10th - so a mirror that looks stale is usually a
+schedule rather than a fault. Wait, or check canonical; do not conclude the
+push failed.
 
 **CI runs on BB Open's internal Forgejo**, on a self-hosted runner, and that is
 worth saying plainly rather than leaving a contributor to wonder why a pull
-request shows no checks. The canonical forge does not run our workflows yet and
-GitHub is a mirror rather than a place we build from, so for now the green tick
-lives somewhere you cannot see. If you open a pull request, we run it and report
-back; `.forgejo/workflows/ci.yml` is in this repository, so you can also read
-exactly what it does and run the same checks locally with `just ci`.
+request shows no checks. Neither Codeberg nor the canonical forge runs our
+workflows yet, so for now the green tick lives somewhere you cannot see. If you
+open a pull request, we run it and report back; `.forgejo/workflows/ci.yml` is
+in this repository, so you can also read exactly what it does and run the same
+checks locally with `just ci`. Moving the pipeline to Codeberg is the next step
+and is not done.
 
 **The end state is that all of it happens on code.overheid.nl** - the code, the
 issues, the pull requests and the pipeline. Everything above is scaffolding

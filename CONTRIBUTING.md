@@ -9,10 +9,14 @@ Development happens on **code.overheid.nl/MinBZK/DAWO-Sextant**. That is
 canonical: it is where the Dutch government's code belongs, and where the
 history is authoritative.
 
-**github.com/BB-Open-Solutions/Sextant** is a mirror. It exists because a
-mirror exists to be found, and the people who would contribute to a NixOS fleet
-control plane are already there. What makes this open source is the licence and
-the code, not the address.
+**codeberg.org/DAWO/DAWO-Sextant** is the public mirror and the place to take
+part today. It is a European non-profit forge rather than a company's
+platform, which is the same reasoning that put the canonical copy on
+code.overheid.nl. What makes this open source is the licence and the code, not
+the address.
+
+There was a GitHub mirror. It is being retired rather than left as a third
+address nobody maintains, so do not open anything there.
 
 A pull request on the mirror is welcome and will not be turned away for being
 in the wrong place. It travels back like this: a maintainer applies it to
