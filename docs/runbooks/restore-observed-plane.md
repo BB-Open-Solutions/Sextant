@@ -15,8 +15,12 @@ recovery key as soon as the console acknowledges it (design 0009), so this
 database holds the only copy of the material that gets a user back into an
 encrypted disk. It is the one thing here that no amount of waiting rebuilds.
 
-The config plane is not in scope: that is git, it has two remotes and a
-clone on every device.
+The config plane is not in scope here, but do not read that as "the config
+plane is safe". Corrected 2026-08-10: this sentence used to say it had two
+remotes and a clone on every device. That is true of the **Sextant**
+repository and not of the **overlay** the fleet actually follows, which has
+one remote, no mirror, and is the sole thing a device polls. See
+[disaster-recovery.md](disaster-recovery.md).
 
 ## Before you need it
 
