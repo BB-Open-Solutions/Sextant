@@ -57,8 +57,12 @@ v1.2.0|Governance a municipality asks for: capability RBAC on directory groups, 
 Backlog|Anything not added to a milestone, a nice to pick and choose next issues from.
 Ongoing|Items that are ongoing and have no defined end.'
 
+# curl exits 0 on HTTP 4xx unless told otherwise. The first run reported
+# "created" for twenty issues while Codeberg had accepted thirteen and
+# rate-limited the rest, and the run after that repeated the lie because this
+# fix had not been committed yet. --fail-with-body makes a refusal a failure.
 call() {
-  curl -sS -X "$1" "$2" \
+  curl -sS --fail-with-body -X "$1" "$2" \
     -H "Authorization: token ${CODEBERG_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "$3"
@@ -149,14 +153,56 @@ for m in json.loads(os.environ["MS"]):
 print(json.dumps(out))' "$issues_file" "$i")
     if call POST "${api}/issues" "$body" >/dev/null; then
       echo "  created  $title"
-      # Labels are applied by name in a second call; the create endpoint
-      # wants label IDs and resolving them here would only add a way to fail.
-      echo "           (labels: apply from docs/project/issues.json by hand or re-run once labels exist)"
+      :  # labels are applied in a pass of their own, below
     else
       echo "  FAILED   $title" >&2
     fi
     i=$((i+1))
   done
+fi
+
+
+# Labels, in a pass of its own after every issue exists. The create endpoint
+# wants label IDs rather than names, and resolving them inline would have made
+# one failure lose the issue body too.
+#
+# Applied only where an issue currently has none: a label somebody added or
+# removed by hand is a decision, not drift for a script to correct.
+echo "== labels on issues =="
+if [ -f "$issues_file" ]; then
+  live_labels=$(curl -sS "${api}/labels?limit=100")
+  live_issues=$(curl -sS "${api}/issues?state=all&limit=100")
+  plan=$(LBL="$live_labels" ISS="$live_issues" python3 - "$issues_file" <<'PYEOF'
+import json, os, sys
+want = json.load(open(sys.argv[1]))["issues"]
+live = {i["title"]: i for i in json.loads(os.environ["ISS"])}
+ids  = {l["name"]: l["id"] for l in json.loads(os.environ["LBL"])}
+for w in want:
+    here = live.get(w["title"])
+    if here is None or here.get("labels"):
+        continue
+    got = [ids[n] for n in (w.get("labels") or []) if n in ids]
+    if got:
+        print(here["number"], ",".join(str(g) for g in got))
+PYEOF
+)
+  if [ -z "$plan" ]; then
+    echo "  nothing to label"
+  else
+    while read -r num idlist; do
+      [ -z "$num" ] && continue
+      if [ "$dry" = true ]; then
+        echo "  would label #$num"
+        continue
+      fi
+      body="{\"labels\":[${idlist}]}"
+      if call POST "${api}/issues/${num}/labels" "$body" >/dev/null 2>&1; then
+        echo "  labelled #$num"
+      else
+        echo "  FAILED to label #$num" >&2
+      fi
+    done <<< "$plan"
+  fi
 fi
 
 echo
