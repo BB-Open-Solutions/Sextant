@@ -57,6 +57,13 @@ public side. **Codeberg becomes a second mirror alongside
 `code.overheid.nl`**, both reflecting what happens on forgejo, and the
 GitHub repository goes offline.
 
+**Done on the repository side, 2026-08-10** (commit `223e906`): every
+reference to `github.com/BB-Open-Solutions/Sextant` is gone - the table, the
+quickstart clone line, the CONTRIBUTING text that pointed contributors there,
+two handbook links and the issue-template redirect. Codeberg is named as the
+public front door. Taking the GitHub repository itself offline is Bram's step
+and is not done.
+
 This is deliberately not a migration. Nothing about the Go module path, the
 `.forgejo/workflows/` pipeline or the self-hosted nix runner moves, because
 the place the work happens is not moving. Mirrors are push targets.
@@ -380,23 +387,36 @@ piecemeal.
 - **Break-glass reachability, if the argument is won (intake F2).** Peer-to-peer
   SSH that is off by default, armed per device the way the wipe intent is
   armed, expiring, and audited. It is the *only* version of clan's reachability
-  work that could survive our threat model, and it still requires reopening it:
-  clan's own documentation warns that enabling their service exposes the SSH
-  daemon to anyone on that network. If the threat model says no, this becomes a
-  line under "deliberately not doing" and stops being asked.
+  work that could survive our threat model, and it still requires reopening
+  **ADR 0023** - not the threat model, which describes risks rather than making
+  choices. clan's own documentation warns that enabling their service exposes
+  the SSH daemon to anyone on that network. If the ADR's conditions are not
+  met, this becomes a line under "deliberately not doing" and stops being
+  asked.
 
 - **A device-local upgrade path, if it turns out not to be a channel (intake
   C8).** Pilot users cannot update anything themselves today. Sécurix ships an
   `upgrade` command usable by a device-local operator group, with a man page.
   Whether that violates pull-only is a genuine question rather than a
   formality: it is initiated *on* the device, by a local human, and it still
-  pulls. That may put it inside the rule. The argument gets settled before the
-  work, not during it.
+  pulls. ADR 0023 records that this is probably *not* a violation and is the
+  one of the four conflicts worth arguing. The argument gets settled there,
+  before the work rather than during it.
 
 ## Unscheduled, and honest about why
 
 These matter and none of them has a trigger yet. They move up the moment one
 appears.
+
+- **Push, for a fleet shape we do not have.** Devices pull, and **ADR 0023**
+  now records why and - the half that was missing until 2026-08-10 - what
+  would change it. Two triggers, both Bram's: **a server estate**, or **a
+  second operating system**. Servers invert every property that made pull
+  right; a non-NixOS target has nothing to converge with, so "pull" would stop
+  describing a design and start describing an absence. A mixed answer is
+  allowed: push for servers alongside pull for workstations. What is not
+  allowed is acquiring a channel by accident, for one feature, without the
+  argument. The reasoning is in the ADR; only the trigger belongs here.
 
 - **Tenant isolation for the gate.** A cold edit blocks for one evaluation.
   On a single console that is honest - the operator asked for something new.
