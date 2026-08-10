@@ -1,6 +1,8 @@
-<!-- Development happens on code.overheid.nl; this mirror is where most people
-     will find the project. A pull request here is welcome - see
-     CONTRIBUTING.md for how it travels back to canonical. -->
+<!-- Development happens on code.overheid.nl. Codeberg is where most people
+     will find the project and is where to take part today. A pull request
+     here is welcome and will not be turned away for being in the wrong
+     place - CONTRIBUTING.md describes how it travels back to canonical, and
+     you need no account on code.overheid.nl for that to happen. -->
 
 **What this changes, and why**
 The reason matters more than the diff. A commit message that explains the

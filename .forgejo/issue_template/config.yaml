@@ -5,4 +5,4 @@ contact_links:
     about: Do not open a public issue. Mail security@bb-open.com - see SECURITY.md.
   - name: Canonical repository
     url: https://code.overheid.nl/MinBZK/DAWO-Sextant
-    about: Development happens on code.overheid.nl. This mirror accepts issues and pull requests; see CONTRIBUTING.md for how they travel back.
+    about: Development happens on code.overheid.nl. Issues and pull requests are read here and travel back; see CONTRIBUTING.md.

@@ -18,6 +18,14 @@ the address.
 There was a GitHub mirror. It is being retired rather than left as a third
 address nobody maintains, so do not open anything there.
 
+**The two forges are held to different standards, deliberately** (ADR 0024).
+Codeberg is run as a public project: templates, labels, milestones per release,
+releases with notes, and nothing lands there half-finished.
+`forgejo.bb-open.com` is the workshop and keeps no such obligation - scratch
+branches and force-pushed ring refs belong there. The rule is not "be tidy
+everywhere", which nobody sustains; it is that the public project has a floor
+and the workshop does not.
+
 A pull request on the mirror is welcome and will not be turned away for being
 in the wrong place. It travels back like this: a maintainer applies it to
 canonical with your authorship intact, canonical is what releases are cut from,
