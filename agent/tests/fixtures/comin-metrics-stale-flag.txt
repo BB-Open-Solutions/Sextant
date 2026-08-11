@@ -1,0 +1,9 @@
+comin_build_info{version=""} 1
+comin_deployment_info{commit_id="3eb66714569fce0e4f2938f456e26e3eef494772",status="done"} 1
+comin_fetch_count{remote_name="dawo-image",status="succeeded"} 324
+comin_is_suspended 0
+comin_last_build_failed 0
+comin_last_deployment_failed 0
+comin_last_eval_failed 1
+comin_last_fetch_failed{remote_name="dawo-image"} 0
+comin_need_to_reboot 0

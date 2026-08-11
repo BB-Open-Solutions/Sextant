@@ -444,18 +444,29 @@ pub fn comin_metric_failure(body: &str) -> Option<String> {
                 .unwrap_or(false)
         })
     };
+    // STICKY, and the wording admits it. Measured 2026-08-11: half an hour
+    // after a broken ring was reverted and the station had deployed cleanly,
+    // comin_last_eval_failed was still 1. The flag records the last
+    // evaluation that RAN, and a poll with nothing new to evaluate does not
+    // clear it. So these say "last", not "is": a device on target with a
+    // stale flag is not broken. The console holds the target revision and can
+    // tell the difference; the agent does not, and must not pretend to.
+    //
     // Ordered by when they occur: the earliest failure explains the rest.
     for (metric, said) in [
-        ("comin_last_fetch_failed", "cannot reach the forge"),
+        (
+            "comin_last_fetch_failed",
+            "last fetch failed: cannot reach the forge",
+        ),
         (
             "comin_last_eval_failed",
-            "the configuration does not evaluate",
+            "last evaluation failed: the configuration does not evaluate",
         ),
         (
             "comin_last_build_failed",
-            "the configuration does not build",
+            "last build failed: the configuration does not build",
         ),
-        ("comin_last_deployment_failed", "the deployment failed"),
+        ("comin_last_deployment_failed", "last deployment failed"),
     ] {
         if flag(metric) {
             return Some(format!("comin: {said}"));
@@ -566,6 +577,27 @@ mod comin_metric_tests {
     /// exporter is the thing worth testing against, and this state cannot be
     /// reproduced once the ring is reverted.
     const FAILING: &str = include_str!("../tests/fixtures/comin-metrics-eval-failed.txt");
+    // Same station, half an hour later: the ring reverted, the deployment done,
+    // and the eval flag still 1. Captured rather than hand-edited, because the
+    // point of it is that this is what comin really reports.
+    const STALE: &str = include_str!("../tests/fixtures/comin-metrics-stale-flag.txt");
+
+    #[test]
+    fn a_stale_eval_flag_is_reported_as_the_last_evaluation_not_the_current_state() {
+        // Deliberately NOT asserting None. The agent cannot tell a stale flag
+        // from a live one - it has no target revision to compare against - so
+        // suppressing it here would be guessing. What it owes the reader is
+        // wording that does not overclaim.
+        let got = comin_metric_failure(STALE).expect("the flag is set, so it is reported");
+        assert!(got.contains("last evaluation failed"), "got {got}");
+        assert!(
+            !got.contains("is failing") && !got.contains("currently"),
+            "must not claim the failure is happening now: {got}"
+        );
+        // The deployment in this same reading succeeded, which is exactly why
+        // deployment status cannot be used to decide the flag is stale.
+        assert!(STALE.contains(r#"status="done""#));
+    }
 
     #[test]
     fn the_real_failing_exporter_is_recognised() {
