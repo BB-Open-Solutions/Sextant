@@ -177,6 +177,36 @@ func (d *Directory) warnCleartextBindOnce() {
 	})
 }
 
+// maxDial bounds the connect itself, not just post-connect operations: DialURL
+// otherwise inherits the OS connect timeout, around a minute, so an
+// unreachable directory would hang the page instead of degrading to "no
+// groups".
+const maxDial = 3 * time.Second
+
+// dialTimeout is the connect budget: maxDial, or whatever the caller has left
+// if that is less.
+//
+// Extracted from dial because the alternative was untestable. Driving it
+// through a real connect needs an address that HANGS rather than one that
+// refuses, and there is no portable one: a test against TEST-NET-1 passed in
+// twelve milliseconds with the timeout mutated to ninety seconds, because this
+// machine answers "network unreachable" immediately. A test that cannot fail
+// is worse than none, so the decision moved to where it can be checked.
+func dialTimeout(ctx context.Context) time.Duration {
+	dl, ok := ctx.Deadline()
+	if !ok {
+		return maxDial
+	}
+	// A deadline already past yields a non-positive remainder. Passing that to
+	// net.Dialer means NO timeout, which is the opposite of what the caller
+	// asked for, so an expired context keeps the ceiling and lets the dial
+	// fail on its own.
+	if rem := time.Until(dl); rem > 0 && rem < maxDial {
+		return rem
+	}
+	return maxDial
+}
+
 // dial connects with a per-call deadline; ldaps URLs get TLS.
 func (d *Directory) dial(ctx context.Context) (*ldapv3.Conn, error) {
 	d.warnCleartextBindOnce()
@@ -194,16 +224,7 @@ func (d *Directory) dial(ctx context.Context) (*ldapv3.Conn, error) {
 			MinVersion: tls.VersionTLS12,
 		}))
 	}
-	// Bound the dial itself, not just post-connect operations: DialURL
-	// otherwise inherits the OS connect timeout (~60s), so an unreachable
-	// directory would hang the page instead of degrading to "no groups".
-	dialTimeout := 3 * time.Second
-	if dl, ok := ctx.Deadline(); ok {
-		if rem := time.Until(dl); rem > 0 && rem < dialTimeout {
-			dialTimeout = rem
-		}
-	}
-	opts = append(opts, ldapv3.DialWithDialer(&net.Dialer{Timeout: dialTimeout}))
+	opts = append(opts, ldapv3.DialWithDialer(&net.Dialer{Timeout: dialTimeout(ctx)}))
 	conn, err := ldapv3.DialURL(d.cfg.URL, opts...)
 	if err != nil {
 		return nil, err
