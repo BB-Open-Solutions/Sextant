@@ -130,10 +130,10 @@ result: if the device happened to be on main already, the fix is not proven.
 
 | # | Action | Proof |
 |---|---|---|
-| A4.1 | Change a setting, merge | the device picks it up within the interval |
-| A4.2 | comin status | running on the right config; the guard did not have to intervene |
+| A4.1 | Change a setting, merge | **OK** (10 Aug, overlay `bd0b1b6`). Three identity settings changed in `fleet.json`, promoted to `rings/bb-laptops` as a single commit. `e2e5` converged on its own poll and reported the new revision to the console. The rendered result was checked on the machine, not only the revision string: `sssd.conf` went from `ldap://10.43.76.5` to `ldaps://10.43.76.5:636` |
+| A4.2 | comin status | **OK** (11 Aug). `comin` active on both devices, following `rings/infra` and `rings/bb-laptops` respectively, and its own store records the last deployment as `status: done` with an empty `error_msg`. `dawo-comin-config-guard` is a timer that fires hourly and has produced nothing but its own start and stop lines for seven days - it has never had to intervene, which is the half of this row that is easy to skip |
 | A4.3 | Force comin-config-guard | stale config -> the guard restarts comin within the hour |
-| A4.4 | Power the device off during a rollout | it catches up once powered on |
+| A4.4 | Power the device off during a rollout | **OK** (10 Aug), and unplanned, which makes it better evidence. `e2e5` had been shut since 6 August when `rings/bb-laptops` was promoted to `a0f5236` - a promotion carrying a core bump. It was opened hours later, converged without prompting, and reported the new revision. Nothing was done to it: the catching up is what the pull model does when nobody is watching |
 | A4.5 | Offer a broken config | the device refuses and stays on the old generation |
 
 A4.5 is in here explicitly: a device that *does* activate a broken
