@@ -205,10 +205,28 @@ PYEOF
   fi
 fi
 
+# Repository settings, which this script does not change: they are not content,
+# and setting them needs a scope this run should not ask for. But it CHECKS
+# them, because the version that only advised told Bram twice to add topics he
+# had already added. Advice nobody verifies is noise, and noise is how a
+# script's output stops being read.
 echo
-echo "Not done by this script, because they are repository settings rather than"
-echo "content, and they are the two a visitor notices first:"
-echo "  - Topics. Currently none, which is why nobody finds this by searching."
-echo "    Suggested: nixos nix fleet-management device-management gitops"
-echo "               public-sector self-hosted golang eupl"
-echo "  - Website. Currently empty; docs.sextantfleet.com exists."
+echo "== repository settings (read only) =="
+settings=$(curl -sS "https://codeberg.org/api/v1/repos/${owner_repo}" || true)
+if [ -z "$settings" ]; then
+  echo "  could not read them; not claiming either way" >&2
+else
+  printf '%s' "$settings" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+topics = d.get("topics") or []
+if topics:
+    print(f"  topics   {len(topics)}: " + " ".join(sorted(topics)))
+else:
+    print("  topics   NONE, which is why nobody finds this by searching.")
+    print("           Suggested: nixos nix fleet-management device-management")
+    print("                      gitops public-sector self-hosted golang eupl")
+site = d.get("website")
+print(f"  website  {site}" if site else "  website  NONE; docs.sextantfleet.com exists")
+'
+fi
