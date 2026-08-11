@@ -215,8 +215,8 @@ generation is more dangerous than a device that lags behind.
 | # | Action | Proof |
 |---|---|---|
 | A6.1 | Create a policy with settings | appears in `/policies` |
-| A6.2 | Assign to a group | devices in that group get the values |
-| A6.3 | Lock a key in the policy | a lower scope cannot override it |
+| A6.2 | Assign to a group | **OK** (11 Aug). A policy carrying two NTP servers, assigned to `group:infra`, arrives at `services.chrony.servers` on `dawo-inspoelstraat` and does **not** reach `e2e5`, which is in another group. The negative half is the half worth having: a policy that lands everywhere would pass a test that only looks at the intended device |
+| A6.3 | Lock a key in the policy | **OK** (11 Aug), with its control case. With `timesync.options.servers` in the policy's `enforced` list, a device-level value of `eigen.server.local` loses and the policy's servers stand. Removing only the lock lets the device value win, so the lock is what decided it and not the order of anything else |
 | A6.4 | **Open the settings editor on that group** | the row names the policy; locked shows as locked |
 | A6.5 | Fill in compliance controls (BIO/ISO) | tags on the policy page, and back in the CSV export |
 | A6.6 | Add a condition (`disk.free_percent >= 15`) | the policy accepts it |
