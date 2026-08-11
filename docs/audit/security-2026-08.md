@@ -218,6 +218,37 @@ a secret.
 **Advice.** ADR 0021 settles it: LDAPS is the supported transport, and plain
 LDAP must be explicitly acknowledged.
 
+**CLOSED 10 August 2026, proved on hardware.** The module enforced it since
+`db23306`; what was missing was a device that had actually taken it.
+
+Measured on `e2e5`, before and after, on the same machine within the hour:
+
+| | before | after |
+|---|---|---|
+| `ldap_uri` | `ldap://10.43.76.5` | `ldaps://10.43.76.5:636` |
+| `ldap_tls_reqcert` | `never` | `demand` |
+| `ldap_tls_cacert` | absent | `/etc/dawo/ldap-ca.pem` |
+| `ldap_auth_disable_tls_never_use_in_production` | **True** | absent |
+
+Then the two things that actually matter, because a rendered configuration is
+not a working one. **Resolution**: `id bbuijs` returned UID 10001 from the
+directory, which proves the TLS connection, certificate verification against
+our own CA under `demand`, the service bind and the search. **Authentication**:
+Bram logged in as a directory user over the new transport - a separate bind
+with the user's own password, and the one a rendered config cannot promise.
+
+Promoted as a single commit on its own ring so a failure would have been
+attributable to the transport rather than to a core bump that travelled with
+it. The recovery path was a git push rather than device access, which is worth
+noting: config as data means the fix is at the source, and no shell on the
+machine is required to undo it.
+
+**Not closed by this: enforcement on the directory** (`olcSecurity: ssf=128`
+with `olcLocalSSF`). Both live devices are off port 389; the fleet also carries
+test devices silent for 10 to 25 days, and one of them is still inside the
+inactivity window. Enforcing locks those out if they return. That is probably
+acceptable and it should be a decision rather than a discovery.
+
 **Status 6 August, 23:50.** The module enforces it (overlay `db23306`).
 Measured both ways on `dawo-inspoelstraat`: without the acknowledgement the
 evaluation refuses with a message naming the option, with it the evaluation
