@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
+	"sync"
 	"testing"
 	"time"
 )
@@ -169,5 +172,103 @@ func TestDefaultsAreGenerousAndNonZero(t *testing.T) {
 		if got < 90*24*time.Hour {
 			t.Errorf("%s default is %v - under three months is too aggressive for data nobody asked us to delete", name, got)
 		}
+	}
+}
+
+// countingRetention is memRetention with a signal, so a test can wait for
+// sweeps to happen instead of sleeping and hoping.
+type countingRetention struct {
+	*memRetention
+	mu     sync.Mutex
+	sweeps int
+	tick   chan struct{}
+}
+
+func newCountingRetention() *countingRetention {
+	return &countingRetention{memRetention: newMemRetention(), tick: make(chan struct{}, 64)}
+}
+
+func (c *countingRetention) DeleteNotificationsBefore(ctx context.Context, t string, cu time.Time) (int, error) {
+	c.mu.Lock()
+	c.sweeps++
+	c.mu.Unlock()
+	select {
+	case c.tick <- struct{}{}:
+	default:
+	}
+	return c.memRetention.DeleteNotificationsBefore(ctx, t, cu)
+}
+
+func (c *countingRetention) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.sweeps
+}
+
+// Run is the loop that makes retention a promise rather than a one-off. The
+// property worth pinning is not that it sweeps, it is that it KEEPS
+// sweeping: a sweep that returns an error must not end the loop.
+//
+// If it did, one transient database error would stop deletion for the life
+// of the process, with no symptom anywhere. The processing register says
+// records are removed after their window, and that sentence would quietly
+// stop being true.
+func TestRunKeepsSweepingAfterAFailure(t *testing.T) {
+	store := newCountingRetention()
+	store.fail["notifications"] = errors.New("database is having a moment")
+
+	s := NewRetentionSweeper(store, DefaultRetention(), "t1",
+		clockAt{time.Now()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() { defer close(done); s.Run(ctx, time.Millisecond) }()
+
+	// Three sweeps, every one of them failing. Waiting on the signal rather
+	// than on the clock: a sleep long enough to be reliable is a slow test,
+	// and one short enough to be fast is a flaky one.
+	for i := range 3 {
+		select {
+		case <-store.tick:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("the loop stopped after %d sweeps; a failing sweep ended it", i)
+		}
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return on a cancelled context")
+	}
+	if n := store.count(); n < 3 {
+		t.Errorf("only %d sweeps", n)
+	}
+}
+
+// The first sweep waits one interval. Worth stating rather than discovering:
+// a deployment that restarts often would sweep on every boot if it did not,
+// and the windows here are months.
+//
+// The first version of this test started the loop, cancelled it and read a
+// counter, which observed nothing at all: the goroutine need not have run
+// yet, and an added immediate sweep survived it. Waiting a bounded time for
+// a sweep SIGNAL is the version that can fail, because an immediate sweep
+// arrives in microseconds and a one-hour tick does not arrive at all.
+func TestRunDoesNotSweepBeforeTheFirstTick(t *testing.T) {
+	store := newCountingRetention()
+	s := NewRetentionSweeper(store, DefaultRetention(), "t1",
+		clockAt{time.Now()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx, time.Hour)
+
+	select {
+	case <-store.tick:
+		t.Fatal("a sweep happened before the first tick; with an hour between " +
+			"ticks that can only be a sweep at startup")
+	case <-time.After(250 * time.Millisecond):
 	}
 }
