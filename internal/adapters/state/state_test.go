@@ -2,6 +2,9 @@ package state
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,5 +85,99 @@ func TestRolloutStoreRoundTrip(t *testing.T) {
 	got, err = rs.Get(ctx)
 	if err != nil || got == nil || got.Target != "rev-9" || got.PromotedAt[0].IsZero() {
 		t.Fatalf("get = %+v, %v", got, err)
+	}
+}
+
+// The upstream store is the watcher's whole memory: it holds the last core
+// revision already staged as a change request. Forgetting it re-stages the
+// same core update on every tick; remembering the wrong thing means a real
+// core update never gets offered. Both are silent, and neither is visible
+// until somebody wonders why the update board looks the way it does.
+func TestUpstreamStoreRoundTripSurvivesAReopen(t *testing.T) {
+	dir := t.TempDir()
+	st, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	// Nothing staged yet. First boot must be an empty answer rather than an
+	// error, or the watcher fails on the one run where it has most to do.
+	got, err := st.Upstream().LastUpstream(ctx)
+	if err != nil {
+		t.Fatalf("reading an absent upstream.json: %v", err)
+	}
+	if got != "" {
+		t.Errorf("empty store returned %q", got)
+	}
+
+	const rev = "6269d0d1f3a04c9b8e2d5a71c4f80b3e9a6d2c11"
+	if err := st.Upstream().PutUpstream(ctx, rev); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reopened, because persisting it is the entire point: the process this
+	// serves is a watcher that restarts.
+	st2, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = st2.Upstream().LastUpstream(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != rev {
+		t.Errorf("after reopen got %q, want %q", got, rev)
+	}
+
+	// A newer revision replaces it rather than accumulating.
+	const newer = "3eb66714569fce0e4f2938f456e26e3eef494772"
+	if err := st2.Upstream().PutUpstream(ctx, newer); err != nil {
+		t.Fatal(err)
+	}
+	got, err = st2.Upstream().LastUpstream(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != newer {
+		t.Errorf("after overwrite got %q, want %q", got, newer)
+	}
+}
+
+// writeJSON writes to a temp file, fsyncs, renames, then fsyncs the
+// directory. That sequence exists so a crash mid-write leaves either the old
+// document or the new one, never half of either. What a test can check
+// cheaply is the observable half: the temp file does not survive the write,
+// and the mode is the restrictive one the code asked for.
+func TestWriteLeavesNoTempFileBehind(t *testing.T) {
+	dir := t.TempDir()
+	st, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Upstream().PutUpstream(context.Background(), "abc123"); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	for _, n := range names {
+		if strings.HasSuffix(n, ".tmp") {
+			t.Errorf("a temp file survived the write: %v", names)
+		}
+	}
+
+	fi, err := os.Stat(filepath.Join(dir, "upstream.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0o600 {
+		t.Errorf("mode %o, want 600", perm)
 	}
 }
