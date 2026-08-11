@@ -19,15 +19,48 @@ import (
 // module system with the key named in the error. This is gate=eval, the
 // write path's safety property, exercised for real.
 
+// stageSource exports HEAD into a temp directory and returns it, so the
+// sextant flake input points at something that cannot move.
+//
+// Pointing it at the live checkout is what it used to do, and it made this
+// test fail for reasons that had nothing to do with it. `nix flake lock`
+// records the narHash of a path: input when it locks; the eval that follows
+// re-reads it. Anything that writes inside the repository in between - a
+// parallel test run, a commit, a second session, an editor saving a file -
+// changes that hash, and nix reports
+//
+//	error: NAR hash mismatch in input 'path:/.../DAWO-Sextant'
+//
+// attached to whatever attribute it was evaluating, which reads as a broken
+// overlay. Measured 2026-08-11: a push hook and an interactive `go test` ran
+// together and this test was the only casualty.
+//
+// HEAD rather than the working tree is also the more honest subject: the
+// gate's job is to judge what would be pushed, and CI evaluates a commit.
+func stageSource(t *testing.T, root string) string {
+	t.Helper()
+	dst := t.TempDir()
+	// git archive writes a tar of the committed tree; no .git, no build
+	// artefacts, no untracked scratch - all of which would otherwise be
+	// hashed into the input and none of which the flake needs.
+	cmd := exec.Command("sh", "-c",
+		"git -C "+root+" archive --format=tar HEAD | tar -x -C "+dst)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("export HEAD: %v\n%s", err, out)
+	}
+	return dst
+}
+
 // stageOverlay copies the example overlay into a temp git repo and pins
-// the sextant flake input to this checkout (the relative path breaks when
-// copied).
+// the sextant flake input to an immutable export of this checkout (the
+// relative path breaks when copied, and the live path moves).
 func stageOverlay(t *testing.T) string {
 	t.Helper()
-	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	repo, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
+	root := stageSource(t, repo)
 	dst := t.TempDir()
 	src := filepath.Join(root, "examples", "overlay") + string(os.PathSeparator) + "."
 	if out, err := exec.Command("cp", "-r", src, dst).CombinedOutput(); err != nil {
