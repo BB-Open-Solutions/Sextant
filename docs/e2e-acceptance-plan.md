@@ -143,14 +143,14 @@ generation is more dangerous than a device that lags behind.
 
 | # | Action | Proof |
 |---|---|---|
-| A5.1 | Set an org setting | inherits to group and device |
-| A5.2 | Group overrides org | the group value wins on the device |
-| A5.3 | Device overrides group | the device value wins |
-| A5.4 | Lock an org setting | the group can no longer weaken it |
-| A5.5 | A dependent option without its enable | greyed out, with an explanation of when it lands |
-| A5.6 | Change an image-time option | says it lands at imaging, not now |
-| A5.7 | A list value (e.g. time servers) | editable line by line, arrives correctly |
-| A5.8 | Set a value back to "inherit" | falls back, does not stick |
+| A5.1 | Set an org setting | **OK** (11 Aug). `autoUpdate.options.pollSeconds` is 300 at org, unset for `bb-laptops` and unset on `e2e5`; the generator gives that device 300. Proved through the nix generator on a real host rather than through the console resolver, because the generator is what the device actually gets |
+| A5.2 | Group overrides org | **OK** (11 Aug), and it needed no change to prove: org 300, group `infra` 120, no device value, and `dawo-inspoelstraat` evaluates to 120 |
+| A5.3 | Device overrides group | **OK** (11 Aug). 45 set on the device against the group's 120; the station evaluates to 45 |
+| A5.4 | Lock an org setting | **OK** (11 Aug). With `autoUpdate.options.pollSeconds` in the org's `enforced` list, the station evaluates to the org's 300 even though its group sets 120. Removing the lock returns it to 120, so the lock is what changed and not the order of anything else |
+| A5.5 | A dependent option without its enable | **Console half open.** The mechanism was observed by accident: `timesync.options.servers` set without `timesync.enable` has no effect at all, because the module body sits behind an `mkIf`. That the console greys it out and explains when it lands is what the row asks and is not proved here |
+| A5.6 | Change an image-time option | **Console half open.** The mechanism exists and was counted during the UI audit on 10 Aug: `imageTimePrefixes` in `internal/http/web/settings.go` is `secureboot.` and `diskUnlock.`, and the catalog carries `settings.image_time` in both locales. That the console shows it is not proved here |
+| A5.7 | **Arrival half OK** (11 Aug). Three NTP servers set on the `infra` group arrive at `services.chrony.servers` as three separate values, with no `["[a b]"]` concatenation - the shape audit finding L2 produced. The console's line-by-line editing is the other half and is not covered here. Two earlier attempts read `networking.timeServers` and saw NixOS defaults: the wrong output path, not a wrong value |
+| A5.8 | Set a value back to "inherit" | **OK** (11 Aug). Removing the device value put the station back on its group's 120 in the same evaluation - nothing cached, nothing stuck |
 
 ## A6. Policies and conditions
 
