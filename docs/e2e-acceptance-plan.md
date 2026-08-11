@@ -287,7 +287,7 @@ silently is the worst thing this product can do.
 
 | # | Action | Proof |
 |---|---|---|
-| A11.1 | Add a secret | encrypted in git, plaintext nowhere |
+| A11.1 | Add a secret | **OK** (11 Aug), checked three ways rather than by looking at one file. Every `secrets/*.age` carries an age header, so all five are ciphertext. All five secret-typed catalog options used in the fleet hold a **name** from `secretRefs` and never a value - which is the product's actual claim. And the history was searched for plaintext: the only hit is `nix/test-fixtures/ssh_host_ed25519_key`, a throwaway host key `docs/testing.md` describes as public by design, no longer in the working tree. A fourth check was mine and was wrong: comparing 24 base64 characters of a public key matches every ed25519 key ever made |
 | A11.2 | A new device receives it | decrypts without a manual rekey |
 | A11.3 | Run a rekey | all recipients included, old ones gone |
 | A11.4 | Revoke a secret | the device can no longer read it |
