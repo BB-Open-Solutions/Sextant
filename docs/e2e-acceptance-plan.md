@@ -81,6 +81,64 @@ force the condition rather than hope for it.
 
 # Run A - without integrations
 
+## What each remaining row needs, sorted 2026-08-11
+
+Ninety-odd rows read as one wall of work, and they are not. Sorted by what
+they physically require, most of it can be done in a browser at a desk.
+
+**Note on A1 to A3.** They were walked on 4 August and almost none carries a
+recorded proof, so by this document's own rule they are untested. They are
+listed here as work rather than as history.
+
+### Console only - a browser, no device (about 30 rows)
+
+Can be done in one sitting, at a desk, with nothing plugged in.
+
+| Section | Rows |
+|---|---|
+| A1 Console and access | 1.1, 1.2, 1.3, 1.4, 1.5, 1.7 |
+| A2 Enrolment | 2.1, 2.2, 2.3, 2.4, 2.5 |
+| A5 Settings | 5.5, 5.6, and the editing half of 5.7 |
+| A6 Policies | 6.1, 6.3, 6.4, 6.5, 6.6, 6.7, 6.10 |
+| A7 Changes and the gate | 7.1, 7.2, 7.3, 7.4, 7.5, 7.7 |
+| A8 Rollout | 8.1, 8.6 |
+| A12 Demonstrability | 12.1, 12.2, 12.3, 12.4, 12.5, 12.6 |
+| A14 Local administrator | 14.2 |
+
+A7 is worth doing first: it is also gate item 6, the ref-merge fix that ships
+in production and whose behaviour nobody has re-measured. A change carrying a
+`flake.lock` bump proves both at once.
+
+### Console plus a running device - both ends observed (about 30 rows)
+
+Needs a device online and someone watching the console. The device does not
+need hands on it.
+
+A6.2, A6.8, A6.9 · A8.2 to A8.5, A8.7, A8.8 · all of A9 · A10.1, A10.2, A10.3
+· all of A11 · A13.1, A13.2, A13.2b · A14.1, A14.3 · A16.2, A16.5, A16.7 ·
+A17.1 to A17.5, A17.8
+
+### Hands on a machine (about 30 rows)
+
+Somebody sitting at the device: plugging things in, watching a dialog, timing
+a build.
+
+| Section | Why |
+|---|---|
+| A3 Imaging, all of it | a machine to image, and one to fail deliberately |
+| A10.4, A10.5 | a wipe, and a wipe that does not finish |
+| A13.3 to A13.6 | USB devices plugged in; a printer |
+| A15, all twelve | a desktop session and its dialogs |
+| A16.1, A16.3, A16.4, A16.6 | the elevation dialog on the laptop |
+| A17.6, A17.7 | substitution timed, and a credential broken on purpose |
+
+### What this changes about the order
+
+The console block is the largest single thing that needs no hardware and no
+travel, and it contains the gate proof that 1.0 is waiting on. A15 is the
+biggest hands-on block at twelve rows and needs one uninterrupted session at a
+laptop rather than being picked at.
+
 ## A1. Console and access
 
 | # | Action | Proof |
