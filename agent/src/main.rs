@@ -95,7 +95,20 @@ fn main() -> ExitCode {
         // deployment does not move a device out of the running stage; it
         // gives it an error to report, which is exactly what the server's
         // Error field is documented to carry.
-        let converge_error = collect::comin_failure("/var/lib/comin/store.json");
+        // Two sources, because they see different failures. comin's exporter
+        // knows a fetch, an evaluation, a build or a deployment went wrong;
+        // its store only records deployments it started, so an evaluation
+        // that never produced one is invisible there. Measured 2026-08-11:
+        // a station failed to evaluate for half an hour while the console
+        // showed it healthy, because only the store was being read.
+        //
+        // The metric names the failure, the store carries the message. Where
+        // both speak, both are reported; the metric alone is still an answer.
+        let metrics = collect::comin_metrics("http://127.0.0.1:4243/metrics");
+        let converge_error = collect::converge_error(
+            metrics.as_deref(),
+            collect::comin_failure("/var/lib/comin/store.json"),
+        );
         let beat = CheckIn {
             tag: &cfg.tag,
             revision: &revision,

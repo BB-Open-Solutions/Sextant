@@ -410,6 +410,60 @@ pub fn comin_failure(store_path: &str) -> Option<String> {
     Some(text.chars().take(480).collect())
 }
 
+/// What comin's own exporter says is wrong, if anything.
+///
+/// WHY THIS EXISTS, and why it is not the store. `comin_failure` above reads
+/// the deployment history, which only records deployments comin actually
+/// STARTED. A configuration that does not evaluate never reaches one, so it
+/// leaves no entry at all - and that is the common case, because it is what
+/// a bad change looks like when the gate did not catch it.
+///
+/// Measured on 2026-08-11 during acceptance row A4.5: a station failed to
+/// evaluate every two minutes for half an hour while the console showed it
+/// with no error, because the history's newest entry was an old success.
+///
+/// The exporter separates four failures and this reports the first that is
+/// set, in the order they happen: a fetch that fails explains an evaluation
+/// that never ran.
+pub fn comin_metric_failure(body: &str) -> Option<String> {
+    // Prometheus text: `name{labels} value`. Only the four booleans matter.
+    let flag = |needle: &str| -> bool {
+        body.lines().any(|l| {
+            let l = l.trim();
+            if !l.starts_with(needle) {
+                return false;
+            }
+            // Guard against a prefix match on a longer metric name.
+            let rest = &l[needle.len()..];
+            if !(rest.starts_with(' ') || rest.starts_with('{')) {
+                return false;
+            }
+            rest.rsplit(' ')
+                .next()
+                .map(|v| v.trim() != "0")
+                .unwrap_or(false)
+        })
+    };
+    // Ordered by when they occur: the earliest failure explains the rest.
+    for (metric, said) in [
+        ("comin_last_fetch_failed", "cannot reach the forge"),
+        (
+            "comin_last_eval_failed",
+            "the configuration does not evaluate",
+        ),
+        (
+            "comin_last_build_failed",
+            "the configuration does not build",
+        ),
+        ("comin_last_deployment_failed", "the deployment failed"),
+    ] {
+        if flag(metric) {
+            return Some(format!("comin: {said}"));
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod comin_tests {
     use super::comin_failure;
@@ -500,5 +554,126 @@ mod comin_tests {
             "got {} chars",
             got.chars().count()
         );
+    }
+}
+
+#[cfg(test)]
+mod comin_metric_tests {
+    use super::comin_metric_failure;
+
+    /// Captured from a live station on 2026-08-11 while acceptance row A4.5
+    /// had it failing to evaluate. Not written by hand: the shape of a real
+    /// exporter is the thing worth testing against, and this state cannot be
+    /// reproduced once the ring is reverted.
+    const FAILING: &str = include_str!("../tests/fixtures/comin-metrics-eval-failed.txt");
+
+    #[test]
+    fn the_real_failing_exporter_is_recognised() {
+        let got = comin_metric_failure(FAILING).expect("a live failure must be reported");
+        assert!(got.contains("does not evaluate"), "got {got}");
+    }
+
+    #[test]
+    fn a_healthy_exporter_says_nothing() {
+        let healthy = FAILING.replace("comin_last_eval_failed 1", "comin_last_eval_failed 0");
+        assert_eq!(comin_metric_failure(&healthy), None);
+    }
+
+    /// The earliest failure explains the later ones: a device that cannot
+    /// reach the forge has nothing to evaluate, and reporting the evaluation
+    /// sends somebody to read a nix error about a fetch problem.
+    #[test]
+    fn the_earliest_failure_wins() {
+        let both = FAILING.replace(
+            "comin_last_fetch_failed{remote_name=\"dawo-image\"} 0",
+            "comin_last_fetch_failed{remote_name=\"dawo-image\"} 1",
+        );
+        let got = comin_metric_failure(&both).unwrap();
+        assert!(got.contains("reach the forge"), "got {got}");
+    }
+
+    /// A metric whose name merely starts with another must not match it.
+    #[test]
+    fn a_longer_name_is_not_a_prefix_match() {
+        let s = "comin_last_eval_failed_total 7\ncomin_last_eval_failed 0\n";
+        assert_eq!(comin_metric_failure(s), None);
+    }
+
+    #[test]
+    fn nothing_to_read_is_not_a_failure() {
+        assert_eq!(comin_metric_failure(""), None);
+        assert_eq!(comin_metric_failure("garbage"), None);
+    }
+}
+
+/// Combine what the two sources know into one line for the console.
+///
+/// Extracted from the check-in loop so it can be tested. Wiring that only
+/// exists inside a loop is wiring nobody checks: reverting this to "read the
+/// store only" - the state that hid a failing station for half an hour on
+/// 2026-08-11 - compiled cleanly and passed every test until this function
+/// existed.
+///
+/// The metric names WHICH stage failed; the store carries the message from
+/// the last deployment it managed to record. Where both speak, both are
+/// reported, because "the configuration does not evaluate" is the diagnosis
+/// and the nix error is the evidence.
+pub fn converge_error(metrics: Option<&str>, store_detail: Option<String>) -> Option<String> {
+    match (metrics.and_then(comin_metric_failure), store_detail) {
+        (Some(what), Some(detail)) => Some(format!("{what} - {detail}")),
+        (Some(what), None) => Some(what),
+        (None, detail) => detail,
+    }
+}
+
+/// comin's exporter, read over loopback. Absent or unreachable is silence,
+/// not a failure: a device whose exporter is off is not a device in trouble.
+pub fn comin_metrics(url: &str) -> Option<String> {
+    ureq::get(url)
+        .timeout(std::time::Duration::from_secs(3))
+        .call()
+        .ok()?
+        .into_string()
+        .ok()
+}
+
+#[cfg(test)]
+mod converge_error_tests {
+    use super::converge_error;
+
+    const EVAL_FAILED: &str = "comin_last_eval_failed 1\ncomin_last_fetch_failed 0\n";
+    const HEALTHY: &str = "comin_last_eval_failed 0\ncomin_last_fetch_failed 0\n";
+
+    /// The case that was invisible: comin never started a deployment, so the
+    /// store has nothing to say, and only the metric knows.
+    #[test]
+    fn a_metric_failure_is_reported_without_the_store() {
+        let got = converge_error(Some(EVAL_FAILED), None).expect("must report");
+        assert!(got.contains("does not evaluate"), "got {got}");
+    }
+
+    #[test]
+    fn both_sources_are_combined_diagnosis_then_evidence() {
+        let got = converge_error(Some(EVAL_FAILED), Some("nix: boom".into())).unwrap();
+        assert!(
+            got.contains("does not evaluate") && got.contains("boom"),
+            "got {got}"
+        );
+    }
+
+    /// A deployment failure the exporter does not flag still reaches the
+    /// console through the store, which is what the first version did.
+    #[test]
+    fn the_store_still_speaks_when_the_metrics_are_quiet() {
+        assert_eq!(
+            converge_error(Some(HEALTHY), Some("comin failed: boom".into())).as_deref(),
+            Some("comin failed: boom")
+        );
+    }
+
+    #[test]
+    fn silence_when_neither_has_anything() {
+        assert_eq!(converge_error(Some(HEALTHY), None), None);
+        assert_eq!(converge_error(None, None), None);
     }
 }
