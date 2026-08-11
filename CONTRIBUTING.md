@@ -67,6 +67,22 @@ failure you have not read.
   responsibility. It must be understandable at a human level so
   troubleshooting can be done by mere mortals.
 
+## House rules
+
+`CLAUDE.md` holds the rules this project keeps having to relearn: the
+workflow below, how we write, and what makes a test acceptable. It is the
+first thing to read, and the mechanical half of it is enforced rather than
+requested:
+
+| rule | enforced by |
+|---|---|
+| Conventional Commits | `scripts/check-commit-message.sh`, hook and CI |
+| no em dash in a commit message | the same script |
+| no em dash, exclamation or trailing ellipsis in added text | `scripts/check-house-style.sh`, pre-commit hook and CI |
+| coverage floor | `justfile` and CI |
+
+Everything else in `CLAUDE.md` is judgement, and it says so.
+
 ## Workflow
 1. **Issue first**: features, bug fixes and enhancements start as an
    issue; discuss high-level requirements there.

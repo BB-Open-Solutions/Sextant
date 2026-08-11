@@ -100,6 +100,19 @@ jobs:
             git --no-pager log -1 --format=%B "$rev" \
               | ./scripts/check-commit-message.sh - || rc=1
           done
+
+          # House style over the same range. Added lines only: the repository
+          # holds text written before the rule existed, and a check that fails
+          # on all of it is a check somebody disables on its first run.
+          base="$before"
+          if [ -z "$base" ]; then
+            base=$(git rev-parse HEAD~1 2>/dev/null || true)
+          fi
+          if [ -n "$base" ]; then
+            ./scripts/check-house-style.sh "$base" || rc=1
+          else
+            echo "no base commit; house style not checked on this push" >&2
+          fi
           exit $rc
 
       - name: Format check
