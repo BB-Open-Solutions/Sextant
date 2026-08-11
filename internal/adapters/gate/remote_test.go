@@ -2,6 +2,7 @@ package gate
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -132,5 +133,71 @@ func TestRemoteGateOlderRunnerWithoutDetail(t *testing.T) {
 	err := NewRemoteGate(srv.URL).Validate(context.Background(), repoWithFleet(t), []string{"lt-1"})
 	if err == nil || !strings.Contains(err.Error(), "overlay sync failed") {
 		t.Fatalf("classification lost: %v", err)
+	}
+}
+
+// Validate and ValidateRef differ by one field on the wire, and getting it
+// backwards is silent in both directions. A ValidateRef that sent no ref
+// would judge a flake.lock change against the core it is replacing; a
+// Validate that sent one would make every ordinary write depend on a merge
+// that the change flow never asked for.
+func TestValidateRefPutsTheRefOnTheWireAndValidateDoesNot(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		call func(*RemoteGate, string) error
+		want string
+	}{
+		{"ValidateRef", func(g *RemoteGate, dir string) error {
+			return g.ValidateRef(context.Background(), dir, "cr/42", []string{"lt-1"})
+		}, "cr/42"},
+		{"Validate", func(g *RemoteGate, dir string) error {
+			return g.Validate(context.Background(), dir, []string{"lt-1"})
+		}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got validateRequest
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Errorf("decode request: %v", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"ok":true}`))
+			}))
+			defer srv.Close()
+
+			if err := tc.call(NewRemoteGate(srv.URL), repoWithFleet(t)); err != nil {
+				t.Fatalf("%s: %v", tc.name, err)
+			}
+			if got.Ref != tc.want {
+				t.Errorf("ref on the wire = %q, want %q", got.Ref, tc.want)
+			}
+			// The candidate document travels with it either way: the runner
+			// evaluates the fleet we are proposing, not the one on the branch.
+			if got.Fleet == "" {
+				t.Error("the candidate fleet.json did not travel with the request")
+			}
+			if len(got.Hosts) != 1 || got.Hosts[0] != "lt-1" {
+				t.Errorf("hosts = %v, want [lt-1]", got.Hosts)
+			}
+		})
+	}
+}
+
+// A ref does not soften the verdict. The merge path is the one a core update
+// takes, so a rejection there has to fail closed exactly like any other.
+func TestValidateRefFailsClosedOnRejection(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":false,"error":"attribute 'boom' missing"}`))
+	}))
+	defer srv.Close()
+
+	err := NewRemoteGate(srv.URL).ValidateRef(context.Background(), repoWithFleet(t), "cr/42", []string{"lt-1"})
+	if err == nil {
+		t.Fatal("a rejected merge candidate was accepted")
+	}
+	if !strings.Contains(err.Error(), "boom") {
+		t.Errorf("the runner's reason did not reach the caller: %v", err)
 	}
 }
