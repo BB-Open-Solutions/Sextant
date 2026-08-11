@@ -187,6 +187,15 @@
         "documentation"
       ],
       "body": "`docs/architecture/scale.md` carries real measurements, and this is the gap in them: how much memory a device needs while converging.\n\nIt matters because it is what a customer buys. And it stops being academic if the binary cache is unavailable - devices then build the closure themselves rather than substituting it.\n\nMeasurable on one existing machine, no fleet required:\n\n```\nsystemd-run --unit=c5 --remain-after-exit -p MemoryAccounting=yes \\\n  nixos-rebuild switch --flake <ref>\nsystemctl show c5.service -p MemoryPeak\n```\n\nIf `MemoryPeak` is empty on an older systemd, read `memory.peak` from the unit's cgroup before stopping it. Report the number with the device class and whether the cache was reachable."
+    },
+    {
+      "title": "Managed local administrator credentials, the way LUKS keys already are",
+      "milestone": "v1.1.0",
+      "labels": [
+        "enhancement",
+        "security"
+      ],
+      "body": "Sextant escrows a device's LUKS recovery key: stored sealed, revealed through the console, every reveal in the audit log. It does none of that for the **local administrator password**, which is the credential an operator actually reaches for when a device will not let them in.\n\nToday `dawo.localAdmin.passwordSecret` names a secret holding a **yescrypt hash**, which the device consumes and nobody can read back. The plaintext lives wherever the operator put it, or nowhere.\n\n**Found the hard way on 2026-08-10.** Before promoting a login-transport change to a ring, the break-glass account for that ring was checked. The account exists, its key-based SSH works, and its password is recorded in no vault, no document and no secret. The fallback was real only because a shared bootstrap account with a documented password still exists - itself an audit finding, and the thing the local admin was meant to replace.\n\n**Intune does this better and it is worth saying so.** Windows LAPS rotates the local administrator password, escrows it, and audits every reveal. We have the machinery for exactly this pattern and point it at disk-encryption keys only.\n\nDone when:\n\n- the console can generate a local administrator password, store it sealed, and reveal it with an audit entry - the same path recovery keys take\n- rotation is a console action rather than a commit, since the device consumes a hash and a new hash is a new generation\n- the reveal is scoped like other secrets, so it is not a fleet-wide capability\n- and the bootstrap account can finally be turned off, which today would remove the only recovery path anybody can prove\n\nThat last point is the reason this is not cosmetic. The migration the module documents - turn on localAdmin, prove login and sudo, then disable the shared bootstrap account - cannot be completed while nobody holds the replacement credential.\n\nBelongs with the lockout matrix in the admin-devices work: four uses, four recovery paths, and no path protected by the thing it recovers."
     }
   ]
 }
