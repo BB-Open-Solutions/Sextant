@@ -70,10 +70,12 @@
         <li><a href="/updates" class="nav-link {{if eq $n "updates"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">conveyor_belt</span>{{.L.T "nav.delivery"}}</a></li>
       </ul>
       {{end}}
-      <p class="nav-section">{{.L.T "layout.section_governance"}}</p>
-      <ul class="space-y-1 px-2">
-        <li><a href="/access" class="nav-link {{if eq $n "access"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">admin_panel_settings</span>{{.L.T "nav.access"}}</a></li>
-      </ul>
+      {{/* Access control lives under Organisation, not in this bar. Binding an
+           IdP group to a role is something you do when the organisation is set
+           up or when somebody joins - it is not part of running the fleet, and
+           a permanent item here put an administrator's task in front of every
+           operator all day. It sits with the other organisation-level things:
+           mail, forge, service accounts, audit. */}}
     </div>
 
     <!-- Help resources, anchored at the bottom. External, open in a new tab. -->
@@ -91,10 +93,16 @@
   <main id="content" tabindex="-1" class="ml-64 flex min-h-screen flex-1 flex-col">
 
     <!-- Top app bar -->
-    <header class="sticky top-0 z-30 flex items-center justify-between border-b border-border-hairline bg-canvas px-8 py-3">
+    <!-- h-14 rather than padding: a page that sticks something of its own
+         under this bar (the settings scope strip) needs the bar's height to be
+         a number it can name, not whatever the line-height works out to. -->
+    <header class="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border-hairline bg-canvas px-8">
       <nav class="flex items-center gap-1 text-label-md text-text-tertiary" aria-label="{{.L.T "layout.breadcrumb_aria"}}">
         <a href="/" class="transition-colors hover:text-ink">Sextant</a>
-        {{if or (eq .Nav "org") (eq .Nav "station") (eq .Nav "mail") (eq .Nav "service-accounts") (eq .Nav "audit") (eq .Nav "overlays") (eq .Nav "secrets")}}
+        {{/* The Organisation crumb is the PARENT of these pages; /org itself
+             must not list itself as its own parent ("Organisation ›
+             Organisation"). */}}
+        {{if or (eq .Nav "station") (eq .Nav "mail") (eq .Nav "service-accounts") (eq .Nav "audit") (eq .Nav "overlays") (eq .Nav "secrets") (eq .Nav "access")}}
         <span class="material-symbols-outlined msz-16 -mx-1 text-text-tertiary/70">chevron_right</span>
         <a href="/org" class="transition-colors hover:text-ink">{{.L.T "nav.org"}}</a>
         {{end}}
@@ -193,7 +201,9 @@
      (Scope, SelGroup, Groups, OrgName; optionally Devices, IsDevice). */}}
 {{$scope := .Scope}}
 <div class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border-hairline bg-canvas p-1 text-label-md shadow-sm">
-  <span class="pl-2 pr-1 text-text-tertiary">{{.L.T "common.scope"}}</span>
+  {{/* The caller may label the picker itself (the settings page puts it in a
+       "you are editing" strip); then this word is the same noun twice. */}}
+  {{if not .PickerLabelled}}<span class="pl-2 pr-1 text-text-tertiary">{{.L.T "common.scope"}}</span>{{end}}
   <a href="{{.PickerBase}}?scope=org" data-scope-link class="inline-flex items-center gap-1 rounded-md px-3 py-1.5 transition-colors {{if eq $scope "org"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}"><span class="material-symbols-outlined msz-16">domain</span>{{.OrgName}}</a>
   <span class="material-symbols-outlined msz-16 text-text-tertiary">chevron_right</span>
   <form method="get" action="{{.PickerBase}}" class="!m-0 !inline-flex !border-0 !p-0 !shadow-none">
