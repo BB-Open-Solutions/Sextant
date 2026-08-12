@@ -100,27 +100,47 @@
 {{end}}
 
 {{range $sec := .Sections}}
-<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center justify-between border-b border-border-hairline bg-surface-bright px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold capitalize text-ink">{{$sec.Name}}</h2><span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len $sec.Rows}} {{$.L.T "settings.keys_suffix"}}</span></div>
+<!-- No overflow-hidden: a row's hint panel has to be able to hang past the
+     card's bottom edge. The corners are rounded on the pieces that paint
+     instead (the header strip, the last row's hover tint). -->
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center justify-between rounded-t-lg border-b border-border-hairline bg-surface-bright px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold capitalize text-ink">{{$sec.Name}}</h2><span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len $sec.Rows}} {{$.L.T "settings.keys_suffix"}}</span></div>
   <div class="flex flex-col divide-y divide-border-hairline">
     {{range $i, $row := $sec.Rows}}
     {{$risk := $row.Entry.RiskClass}}{{$set := $row.Set}}{{$sl := slug $row.Entry.Name}}
-    <div class="relative px-6 py-4 transition-colors {{if $risk}}bg-status-error/[0.03] hover:bg-status-error/[0.06]{{else}}hover:bg-surface-container-low{{end}}">
+    <div class="relative px-6 py-4 transition-colors last:rounded-b-lg {{if $risk}}bg-status-error/[0.03] hover:bg-status-error/[0.06]{{else}}hover:bg-surface-container-low{{end}}">
       {{if $risk}}<div class="absolute inset-y-0 left-0 w-1 bg-status-error"></div>{{end}}
       <div class="flex flex-wrap items-start gap-x-4 gap-y-3">
         <!-- Identity: key + type pill + risk, then description -->
         <div class="min-w-0 flex-1">
           <!-- A labelled option leads with its human name; the dotted path
                stays as the small technical identity next to it. -->
+          {{/* A labelled row leads with its human name; an unlabelled entry has
+               nothing but its dotted path, so that stays the name. Everything
+               a row does not need in order to be recognised - the path, the
+               type, and the part of the description that explains WHY the
+               setting exists - moves into the "?" beside it. The type pill in
+               particular repeated what the control already shows: a toggle is
+               visibly boolean and a select visibly lists its options. */}}
           <div class="flex flex-wrap items-center gap-2">
             {{if $row.Entry.Label}}<span class="break-words font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Label}}</span>
-            <span class="break-all font-mono text-code-inline text-text-tertiary">{{$row.Entry.Name}}</span>
             {{else}}<span class="break-all font-mono font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Name}}</span>{{end}}
-            <span class="rounded-full bg-surface-container px-2 py-0.5 text-label-xs-caps capitalize text-text-tertiary">{{$row.Entry.Type}}</span>
             {{if $risk}}<span class="tag bad">{{$risk}} {{$.L.T "settings.risk_suffix"}}</span>{{end}}
+            <span class="hint">
+              <span class="hint-mark" tabindex="0" role="note" aria-label="{{$.L.T "settings.technical_detail"}}">?</span>
+              <span class="hint-panel">
+                <span class="mb-1 block break-all font-mono text-code-inline text-ink">{{$row.Entry.Name}}</span>
+                <span class="block text-label-md capitalize text-text-tertiary">{{$row.Entry.Type}}</span>
+                {{with sentenceRest $row.Entry.Description}}<span class="mt-2 block text-body-sm text-text-secondary">{{.}}</span>{{end}}
+              </span>
+            </span>
           </div>
-          {{with $row.Entry.Description}}<p class="mb-0 mt-1.5 max-w-2xl text-body-sm text-text-tertiary">{{.}}</p>{{end}}
-          {{if and $row.RequiresKey $row.RequiresOff}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-status-warn"><span class="material-symbols-outlined msz-14">link_off</span>{{$.L.T "settings.requires_off_pre"}} <span class="font-mono">{{$row.RequiresKey}}</span> {{$.L.T "settings.requires_off_post"}}</p>{{end}}
+          {{with sentence $row.Entry.Description}}<p class="mb-0 mt-1.5 max-w-2xl text-body-sm text-text-tertiary">{{.}}</p>{{end}}
+          {{/* The warning carries the same data-requires hook as the value
+               column beside it. Without it the control ungreyed the moment the
+               enable was switched on while this line kept claiming the setting
+               was still waiting on it (app.js only ever touched the column). */}}
+          {{if and $row.RequiresKey $row.RequiresOff}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-status-warn" data-requires-hint="v:{{$row.RequiresKey}}" data-requires-inherited="{{$row.RequiresInherited}}"><span class="material-symbols-outlined msz-14">link_off</span>{{$.L.T "settings.requires_off_pre"}} <span class="font-mono">{{$row.RequiresKey}}</span> {{$.L.T "settings.requires_off_post"}}</p>{{end}}
           {{/* Honesty over ceremony: an image-time key saved here changes
                nothing on a running device until it is re-imaged. */}}
           {{if $row.ImageTime}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-text-tertiary"><span class="material-symbols-outlined msz-14">deployed_code_update</span>{{$.L.T "settings.image_time"}}</p>{{end}}

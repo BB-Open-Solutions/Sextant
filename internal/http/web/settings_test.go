@@ -31,7 +31,7 @@ const seedFleet = `{
 const seedCatalog = `[
   {"name":"apps.office","type":"boolean","description":"Office suite","default":false,"riskClass":"high"},
   {"name":"apps.retries","type":"positive integer","description":"Retries","default":0},
-  {"name":"desktop","type":"string","description":"Desktop environment","default":"kde","label":"Bureaublad"},
+  {"name":"desktop","type":"string","description":"Desktop environment. Which one a device gets is a fleet decision, not a per-user one.","default":"kde","label":"Bureaublad"},
   {"name":"apps.licenseRef","type":"string","description":"App license key","secret":true},
   {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true},
   {"name":"usbDevices.enable","type":"boolean","description":"Block USB devices plugged in after boot","default":false,"riskClass":"high"},
@@ -421,21 +421,52 @@ func TestDependentFieldGreysWhileEnableOff(t *testing.T) {
 	}
 }
 
-// TestSettingsShowsHumanLabel: a labelled option leads with its human name;
-// the dotted path stays visible as the technical identity.
+// TestSettingsShowsHumanLabel: a labelled option leads with its human name,
+// and the dotted path it hides from the row is still reachable in the row's
+// hint panel. Losing the key entirely would be a regression of its own - it is
+// what an operator writes into fleet.json or quotes in an issue.
 func TestSettingsShowsHumanLabel(t *testing.T) {
 	ts, _ := newConsole(t)
-	resp, err := client().Get(ts.URL + "/settings?scope=org")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	page := string(body)
+	_, page := getPage(t, ts, "/settings?scope=org")
 	if !strings.Contains(page, "Bureaublad") {
 		t.Error("label missing")
 	}
-	if !strings.Contains(page, "desktop") {
-		t.Error("dotted path no longer visible")
+	panel := regexp.MustCompile(`(?s)<span class="hint-panel">.*?desktop.*?</span>`).FindString(page)
+	if panel == "" {
+		t.Error("dotted path not reachable in the hint panel")
+	}
+}
+
+// TestSettingsRowKeepsOneSentence: the row states WHAT a setting is and the
+// rest of the catalog's prose moves into the hint panel. Before this split
+// every row carried its full rationale paragraph, which is the reason the page
+// could not be scanned.
+func TestSettingsRowKeepsOneSentence(t *testing.T) {
+	ts, _ := newConsole(t)
+	_, page := getPage(t, ts, "/settings?scope=org")
+	if !strings.Contains(page, ">Desktop environment.</p>") {
+		t.Error("row paragraph is not the opening sentence on its own")
+	}
+	rest := "Which one a device gets is a fleet decision, not a per-user one."
+	if !strings.Contains(page, rest) {
+		t.Fatal("the rest of the description was dropped instead of moved")
+	}
+	// It must live in the panel, not beside the label: a page that merely
+	// repeats the paragraph in both places has not solved anything.
+	panel := regexp.MustCompile(`(?s)<span class="hint-panel">.*?` + regexp.QuoteMeta(rest) + `.*?</span>\s*</span>`).FindString(page)
+	if panel == "" {
+		t.Error("rationale is not inside the hint panel")
+	}
+}
+
+// TestDependentHintFollowsEnable: the "takes effect once <enable> is on" line
+// carries the same data-requires hook as the control beside it. Without it the
+// control ungreyed on the toggle while the warning kept claiming the setting
+// was still waiting - the state the console showed on 2026-08-13.
+func TestDependentHintFollowsEnable(t *testing.T) {
+	ts, _ := newConsole(t)
+	_, page := getPage(t, ts, "/settings?scope=org")
+	if !strings.Contains(page, `data-requires-hint="v:timesync.enable"`) {
+		t.Error("dependency warning has no hook for the enable it names")
 	}
 }
