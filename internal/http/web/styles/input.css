@@ -85,6 +85,21 @@
   .tag.warn { @apply bg-status-warn/10 text-status-warn border border-status-warn/30; }
   .tag.viewer { @apply bg-mint-vibrant/10 text-mint-deep border border-mint-vibrant/30; }
 
+  /* Row details ("?"): the option's dotted path, its type, and the part of a
+     description that explains why the setting exists rather than what it is.
+     Hover or keyboard focus opens it.
+     Two things it must do that a plain tooltip does not: the text has to be
+     selectable (people copy a key into fleet.json or an issue), and it must
+     therefore stay open while the pointer is INSIDE the panel - closing on the
+     way there is what makes hover cards impossible to use. Both fall out of
+     hovering the wrapper and letting the panel touch the mark: no gap to cross,
+     no dead zone. Pure CSS, so it needs no script under the strict CSP. */
+  .hint { @apply relative inline-flex; }
+  .hint-mark { @apply flex h-5 w-5 cursor-help select-none items-center justify-center rounded-full border border-border-hairline text-label-md leading-none text-text-tertiary transition-colors; }
+  .hint:hover .hint-mark, .hint:focus-within .hint-mark { @apply border-ink text-ink; }
+  .hint-panel { @apply invisible absolute left-0 top-full z-20 w-80 select-text rounded-lg border border-border-hairline bg-canvas p-3 text-left opacity-0 shadow-lg transition-opacity; }
+  .hint:hover .hint-panel, .hint:focus-within .hint-panel { @apply visible opacity-100; }
+
   /* Role: plain coloured text with a small icon - no pill. */
   .role { @apply inline-flex items-center gap-1 text-label-md font-semibold capitalize; }
   .role.owner  { @apply text-ink; }
@@ -123,6 +138,12 @@
      vertical centre (the common "button floats above the field" misalign). */
   form:not(.inline) { @apply flex flex-wrap items-end gap-3; }
   form:not(.inline) textarea { @apply basis-full; }
+  /* Bottom alignment is not enough on its own: a control is text-body-md
+     (16px/1.5) plus py-2 plus a 1px border top and bottom = 42px, while a
+     button is the smaller text-label-md with no border = ~34px. Flush bottoms
+     then left the button visibly short, reading as if it sat too low. Give a
+     form's own buttons the control's height so both edges line up. */
+  form:not(.inline) > button, form:not(.inline) > .btn { @apply min-h-[2.625rem]; }
 }
 
 /* Suggestion inputs (datalist-backed): hide the browser's built-in picker
