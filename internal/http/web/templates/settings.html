@@ -2,15 +2,33 @@
 {{$ctl := "h-9 rounded-lg border border-border-hairline bg-canvas px-3 text-label-md text-ink focus:border-mint-vibrant focus:outline-none focus:ring-2 focus:ring-mint-vibrant/20"}}
 <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
   <div>
-    <h1 class="mb-1">{{.L.T "settings.title"}}</h1>
-    <p class="mb-1 max-w-2xl text-body-md text-text-tertiary">{{.L.T "settings.scope_help_pre"}} <strong>{{.L.T "common.enforce"}}</strong> {{.L.T "settings.scope_help_post"}}</p>
-  {{/* ADR 0017: a setting becomes a policy by default, and a plain setting is
-       the deliberate exception. This page is where somebody lands when they
-       want to change something, so it is where that has to be said - an
-       editor that silently offers a key with a compliance story is inviting
-       the wrong tool. */}}
-  <p class="mb-0 max-w-2xl text-body-sm text-text-tertiary">{{.L.T "settings.policy_pointer"}} <a href="/policies" class="underline">{{.L.T "nav.policies"}}</a>.</p>
+    {{/* The page explains itself behind the mark rather than above the fold.
+         Both paragraphs are worth reading once - what enforce does, and (ADR
+         0017) that a control somebody has to demonstrate belongs in a policy
+         and not here - and then they are wall furniture on every later visit.
+         Kept together in one panel so the pointer to Policies stays next to
+         the sentence that earns it, and reachable because the panel holds
+         while the pointer is inside it. */}}
+    <h1 class="mb-1 flex items-center gap-2">{{.L.T "settings.title"}}
+      <span class="hint">
+        <span class="hint-mark" tabindex="0" role="note" aria-label="{{.L.T "common.about_page"}}"><span class="material-symbols-outlined msz-18">info</span></span>
+        <span class="hint-panel">
+          <span class="block text-body-sm text-text-secondary">{{.L.T "settings.scope_help_pre"}} <strong>{{.L.T "common.enforce"}}</strong> {{.L.T "settings.scope_help_post"}}</span>
+          <span class="mt-2 block text-body-sm text-text-secondary">{{.L.T "settings.policy_pointer"}} <a href="/policies" class="underline">{{.L.T "nav.policies"}}</a>.</span>
+        </span>
+      </span>
+    </h1>
   </div>
+</div>
+
+{{/* The scope belongs ON TOP OF the thing it governs, not in the far corner
+     of the header: every value below is written at exactly this scope, and a
+     picker parked across the page from the rows reads like page furniture
+     rather than the subject of the edit. It sticks while the sections scroll,
+     because the rows run far past one screen and "which scope am I writing
+     to" is the one question that must never need a scroll up. */}}
+<div class="sticky top-14 z-20 mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border-hairline bg-surface-bright px-4 py-3 shadow-sm">
+  <span class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "settings.editing"}}</span>
   {{template "scopePicker" .}}
 </div>
 
@@ -27,8 +45,12 @@
      real choices visible. Applying writes the bundle's settings at the current
      scope through the normal gated save. -->
 <section class="mb-6">
-  <h2 class="mb-1 flex items-center gap-2 text-headline-sm text-ink"><span class="material-symbols-outlined text-mint-deep">apps</span>{{.L.T "bundles.title"}}</h2>
-  <p class="mb-3 max-w-2xl text-body-md text-text-tertiary">{{.L.T "bundles.intro"}}</p>
+  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="material-symbols-outlined text-mint-deep">apps</span>{{.L.T "bundles.title"}}
+    <span class="hint">
+      <span class="hint-mark" tabindex="0" role="note" aria-label="{{.L.T "common.about_section"}}"><span class="material-symbols-outlined msz-18">info</span></span>
+      <span class="hint-panel text-body-sm font-normal text-text-secondary">{{.L.T "bundles.intro"}}</span>
+    </span>
+  </h2>
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
     {{range .Bundles}}
     <div class="flex flex-col rounded-lg border border-border-hairline bg-canvas shadow-sm">
@@ -74,8 +96,12 @@
      "default" there. -->
 {{$inhWord := .L.T "common.inherit"}}{{if eq .Scope "org"}}{{$inhWord = .L.T "settings.default_word"}}{{end}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">inventory_2</span>{{.L.T "settings.apps_title"}}</h2>
-  <p class="muted mb-4">{{.L.T "settings.apps_help"}}</p>
+  <h2 class="mt-0 mb-4 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">inventory_2</span>{{.L.T "settings.apps_title"}}
+    <span class="hint">
+      <span class="hint-mark" tabindex="0" role="note" aria-label="{{.L.T "common.about_section"}}"><span class="material-symbols-outlined msz-18">info</span></span>
+      <span class="hint-panel text-body-sm font-normal text-text-secondary">{{.L.T "settings.apps_help"}}</span>
+    </span>
+  </h2>
   <div class="flex flex-col gap-3">
   {{range .Apps}}
   <form method="post" action="/apps" class="!items-center">
@@ -127,7 +153,7 @@
             {{else}}<span class="break-all font-mono font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Name}}</span>{{end}}
             {{if $risk}}<span class="tag bad">{{$risk}} {{$.L.T "settings.risk_suffix"}}</span>{{end}}
             <span class="hint">
-              <span class="hint-mark" tabindex="0" role="note" aria-label="{{$.L.T "settings.technical_detail"}}">?</span>
+              <span class="hint-mark" tabindex="0" role="note" aria-label="{{$.L.T "settings.technical_detail"}}"><span class="material-symbols-outlined msz-16">info</span></span>
               <span class="hint-panel">
                 <span class="mb-1 block break-all font-mono text-code-inline text-ink">{{$row.Entry.Name}}</span>
                 <span class="block text-label-md capitalize text-text-tertiary">{{$row.Entry.Type}}</span>

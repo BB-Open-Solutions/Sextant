@@ -95,7 +95,10 @@
      hovering the wrapper and letting the panel touch the mark: no gap to cross,
      no dead zone. Pure CSS, so it needs no script under the strict CSP. */
   .hint { @apply relative inline-flex; }
-  .hint-mark { @apply flex h-5 w-5 cursor-help select-none items-center justify-center rounded-full border border-border-hairline text-label-md leading-none text-text-tertiary transition-colors; }
+  /* An info glyph, not a bordered question mark: the panel holds background and
+     identity, not an answer to a question the reader asked. Material Symbols is
+     already loaded for the rest of the console, so it costs nothing. */
+  .hint-mark { @apply flex cursor-help select-none items-center justify-center leading-none text-text-tertiary transition-colors; }
   .hint:hover .hint-mark, .hint:focus-within .hint-mark { @apply border-ink text-ink; }
   .hint-panel { @apply invisible absolute left-0 top-full z-20 w-80 select-text rounded-lg border border-border-hairline bg-canvas p-3 text-left opacity-0 shadow-lg transition-opacity; }
   .hint:hover .hint-panel, .hint:focus-within .hint-panel { @apply visible opacity-100; }

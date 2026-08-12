@@ -355,6 +355,9 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 
 	s.render(w, "settings", map[string]any{
 		"PickerBase": "/settings",
+		// The page puts the picker in a "you are editing" strip, so the picker
+		// must not repeat the word Scope inside it.
+		"PickerLabelled": true,
 		"Title":      "Settings", "Nav": "settings",
 		"Scope": scope, "ScopeLabel": scopeLabel(scope),
 		"Groups": groups, "Devices": devices, "SelGroup": selGroup, "Sections": sections,
