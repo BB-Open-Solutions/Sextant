@@ -226,8 +226,13 @@ func (s *Server) postScopeApps(w http.ResponseWriter, r *http.Request, v view) e
 	if err := s.requireWeb(v, scope, identity.Editor); err != nil {
 		return err
 	}
+	// Commas and newlines both separate: the editor shows a textarea with one
+	// name per line, the older field was comma-separated, and a list pasted
+	// from somewhere else usually carries both.
 	var names []string
-	for _, n := range strings.Split(r.FormValue("names"), ",") {
+	for _, n := range strings.FieldsFunc(r.FormValue("names"), func(c rune) bool {
+		return c == ',' || c == '\n' || c == '\r'
+	}) {
 		if n = strings.TrimSpace(n); n != "" {
 			names = append(names, n)
 		}
