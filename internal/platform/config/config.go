@@ -170,41 +170,62 @@ type Getenv func(key string) string
 // values; it never calls os.Exit.
 func Load(args []string, getenv Getenv) (*Config, error) {
 	cfg := &Config{
-		Addr:               envOr(getenv, "ADDR", "127.0.0.1:8080"),
-		MetricsAddr:        envOr(getenv, "METRICS_ADDR", ""),
-		LogLevel:           envOr(getenv, "LOG_LEVEL", "info"),
-		LogFormat:          envOr(getenv, "LOG_FORMAT", "text"),
-		ShutdownGrace:      15 * time.Second,
-		RepoDir:            envOr(getenv, "REPO", ""),
-		GateMode:           envOr(getenv, "GATE", "eval"),
-		GateURL:            envOr(getenv, "GATE_URL", ""),
-		GateToken:          envOr(getenv, "GATE_TOKEN", ""),
-		AllowUnvalidated:   envOr(getenv, "ALLOW_UNVALIDATED", "") == "true",
-		DisableDiagnostics: envOr(getenv, "DISABLE_DIAGNOSTICS", "") == "true",
-		ReleaseCache:       envOr(getenv, "RELEASE_CACHE", "") == "true",
-		GitRemote:          envOr(getenv, "GIT_REMOTE", ""),
-		APIToken:           getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
-		CheckinToken:       getenv(EnvPrefix + "CHECKIN_TOKEN"), // env-only secret
-		PgDSN:              getenv(EnvPrefix + "PG_DSN"),        // env-only secret
-		SecretKey:          getenv(EnvPrefix + "SECRET_KEY"),    // env-only secret
-		SecretDir:          envOr(getenv, "SECRET_DIR", "/run/secrets"),
-		OIDCIssuer:         envOr(getenv, "OIDC_ISSUER", ""),
-		OIDCClientID:       envOr(getenv, "OIDC_CLIENT_ID", ""),
-		OIDCRedirectURL:    envOr(getenv, "OIDC_REDIRECT_URL", ""),
-		OIDCGroupsClaim:    envOr(getenv, "OIDC_GROUPS_CLAIM", ""),
-		OIDCClientSecret:   getenv(EnvPrefix + "OIDC_CLIENT_SECRET"), // env-only secret
-		LDAPURL:            envOr(getenv, "LDAP_URL", ""),
-		LDAPBindDN:         envOr(getenv, "LDAP_BIND_DN", ""),
-		LDAPBindPass:       getenv(EnvPrefix + "LDAP_BIND_PASSWORD"), // env-only secret
-		LDAPBaseDN:         envOr(getenv, "LDAP_BASE_DN", ""),
-		LDAPGroupFilter:    envOr(getenv, "LDAP_GROUP_FILTER", ""),
-		LDAPNameAttr:       envOr(getenv, "LDAP_NAME_ATTR", ""),
-		DefaultLocale:      envOr(getenv, "DEFAULT_LOCALE", "en"),
-		DefaultTimezone:    envOr(getenv, "DEFAULT_TIMEZONE", "UTC"),
-		OrgName:            envOr(getenv, "ORG_NAME", ""),
-		UpstreamRepo:       envOr(getenv, "UPSTREAM_REPO", ""),
-		ConsoleURL:         envOr(getenv, "CONSOLE_URL", ""),
+		Addr:             envOr(getenv, "ADDR", "127.0.0.1:8080"),
+		MetricsAddr:      envOr(getenv, "METRICS_ADDR", ""),
+		LogLevel:         envOr(getenv, "LOG_LEVEL", "info"),
+		LogFormat:        envOr(getenv, "LOG_FORMAT", "text"),
+		ShutdownGrace:    15 * time.Second,
+		RepoDir:          envOr(getenv, "REPO", ""),
+		GateMode:         envOr(getenv, "GATE", "eval"),
+		GateURL:          envOr(getenv, "GATE_URL", ""),
+		GateToken:        envOr(getenv, "GATE_TOKEN", ""),
+		GitRemote:        envOr(getenv, "GIT_REMOTE", ""),
+		APIToken:         getenv(EnvPrefix + "API_TOKEN"),     // env-only secret
+		CheckinToken:     getenv(EnvPrefix + "CHECKIN_TOKEN"), // env-only secret
+		PgDSN:            getenv(EnvPrefix + "PG_DSN"),        // env-only secret
+		SecretKey:        getenv(EnvPrefix + "SECRET_KEY"),    // env-only secret
+		SecretDir:        envOr(getenv, "SECRET_DIR", "/run/secrets"),
+		OIDCIssuer:       envOr(getenv, "OIDC_ISSUER", ""),
+		OIDCClientID:     envOr(getenv, "OIDC_CLIENT_ID", ""),
+		OIDCRedirectURL:  envOr(getenv, "OIDC_REDIRECT_URL", ""),
+		OIDCGroupsClaim:  envOr(getenv, "OIDC_GROUPS_CLAIM", ""),
+		OIDCClientSecret: getenv(EnvPrefix + "OIDC_CLIENT_SECRET"), // env-only secret
+		LDAPURL:          envOr(getenv, "LDAP_URL", ""),
+		LDAPBindDN:       envOr(getenv, "LDAP_BIND_DN", ""),
+		LDAPBindPass:     getenv(EnvPrefix + "LDAP_BIND_PASSWORD"), // env-only secret
+		LDAPBaseDN:       envOr(getenv, "LDAP_BASE_DN", ""),
+		LDAPGroupFilter:  envOr(getenv, "LDAP_GROUP_FILTER", ""),
+		LDAPNameAttr:     envOr(getenv, "LDAP_NAME_ATTR", ""),
+		DefaultLocale:    envOr(getenv, "DEFAULT_LOCALE", "en"),
+		DefaultTimezone:  envOr(getenv, "DEFAULT_TIMEZONE", "UTC"),
+		OrgName:          envOr(getenv, "ORG_NAME", ""),
+		UpstreamRepo:     envOr(getenv, "UPSTREAM_REPO", ""),
+		ConsoleURL:       envOr(getenv, "CONSOLE_URL", ""),
 	}
+	// Environment-only bools. Parsed with ParseBool rather than compared to
+	// the literal "true": the refusal message for --gate none tells operators
+	// to set SEXTANT_ALLOW_UNVALIDATED=1, and a string compare made that
+	// instruction silently wrong. Strict, so a typo cannot read as false and
+	// turn an acknowledgement into a refusal nobody can explain.
+	for _, b := range []struct {
+		key string
+		dst *bool
+	}{
+		{"ALLOW_UNVALIDATED", &cfg.AllowUnvalidated},
+		{"DISABLE_DIAGNOSTICS", &cfg.DisableDiagnostics},
+		{"RELEASE_CACHE", &cfg.ReleaseCache},
+	} {
+		v := getenv(EnvPrefix + b.key)
+		if v == "" {
+			continue
+		}
+		parsed, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("%s%s: %w", EnvPrefix, b.key, err)
+		}
+		*b.dst = parsed
+	}
+
 	if v := getenv(EnvPrefix + "SHUTDOWN_GRACE"); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {

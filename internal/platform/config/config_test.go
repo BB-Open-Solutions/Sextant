@@ -244,3 +244,35 @@ func TestIsLoopback(t *testing.T) {
 		}
 	}
 }
+
+// TestEnvBools pins the spelling the refusal message advertises. The message
+// for --write with --gate none tells operators to set
+// SEXTANT_ALLOW_UNVALIDATED=1; a string compare against "true" made that
+// instruction silently wrong, so the console refused to start with exactly
+// the environment it asked for.
+func TestEnvBools(t *testing.T) {
+	for _, v := range []string{"1", "true", "TRUE", "t"} {
+		cfg, err := Load([]string{"--write", "--repo", "/tmp/x", "--gate", "none"},
+			env(map[string]string{"SEXTANT_ALLOW_UNVALIDATED": v}))
+		if err != nil {
+			t.Fatalf("ALLOW_UNVALIDATED=%q: %v", v, err)
+		}
+		if !cfg.AllowUnvalidated {
+			t.Errorf("ALLOW_UNVALIDATED=%q did not set the acknowledgement", v)
+		}
+	}
+	for _, v := range []string{"0", "false", "f"} {
+		cfg, err := Load(nil, env(map[string]string{"SEXTANT_RELEASE_CACHE": v}))
+		if err != nil {
+			t.Fatalf("RELEASE_CACHE=%q: %v", v, err)
+		}
+		if cfg.ReleaseCache {
+			t.Errorf("RELEASE_CACHE=%q read as true", v)
+		}
+	}
+	// A typo must be loud: reading it as false would turn an acknowledgement
+	// into a refusal, or a kill switch into a no-op.
+	if _, err := Load(nil, env(map[string]string{"SEXTANT_DISABLE_DIAGNOSTICS": "yes"})); err == nil {
+		t.Error("DISABLE_DIAGNOSTICS=yes: want an error, got none")
+	}
+}
