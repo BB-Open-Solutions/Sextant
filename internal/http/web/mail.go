@@ -44,6 +44,9 @@ func (s *Server) postMailSave(w http.ResponseWriter, r *http.Request, v view) er
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
+	if s.svc.Mail == nil {
+		return errMailUnavailable
+	}
 	port, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("port")))
 	cfg := mail.Config{
 		Host:        strings.TrimSpace(r.FormValue("host")),
@@ -65,6 +68,9 @@ func (s *Server) postMailTest(w http.ResponseWriter, r *http.Request, v view) er
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
+	if s.svc.Mail == nil {
+		return errMailUnavailable
+	}
 	to := strings.TrimSpace(r.FormValue("to"))
 	if to == "" {
 		to = v.User.Email
@@ -81,9 +87,30 @@ func (s *Server) postMailDelete(w http.ResponseWriter, r *http.Request, v view) 
 	if err := s.requireWeb(v, "org", identity.Owner); err != nil {
 		return err
 	}
+	if s.svc.Mail == nil {
+		return errMailUnavailable
+	}
 	if err := s.svc.Mail.Delete(r.Context()); err != nil {
 		return err
 	}
 	http.Redirect(w, r, "/mail", http.StatusSeeOther)
 	return nil
+}
+
+// errMailUnavailable is what the three write handlers return when no mail
+// service is wired, instead of dereferencing nil.
+//
+// mailPage already guarded this and rendered "Unavailable", so the form is
+// not offered - but the routes exist regardless, and a POST to one of them
+// panicked. Measured 2026-08-12: POST /mail/test on a console without the
+// service produced a nil pointer dereference and a dropped connection. In
+// production mw.Recover turns that into a 500, which still tells an owner
+// that something is broken when the truth is that a feature is not
+// configured.
+var errMailUnavailable = mailUnavailable{}
+
+type mailUnavailable struct{}
+
+func (mailUnavailable) Error() string {
+	return "e-mail is not configured on this console (no SMTP service wired)"
 }

@@ -196,3 +196,47 @@ func TestErasureWithoutTheDatabaseRefusesRatherThanReportingNothing(t *testing.T
 		}
 	}
 }
+
+// The mail write handlers had no guard for a console without an SMTP service,
+// while the page they belong to did. The form is not offered in that state,
+// but the routes exist, and a POST to one of them dereferenced nil.
+//
+// Measured before the fix: POST /mail/test panicked and dropped the
+// connection. Under mw.Recover in production that is a 500, which tells an
+// owner something is broken when the truth is that a feature is not set up.
+func TestMailWritesWithoutAServiceRefuseInsteadOfPanicking(t *testing.T) {
+	ts := erasureConsole(t, nil) // Mail is nil in this harness
+
+	for _, path := range []string{"/mail", "/mail/test", "/mail/delete"} {
+		code, body := post(t, ts, path, url.Values{
+			"host": {"smtp.example.org"}, "port": {"587"}, "to": {"ada@example.org"},
+		})
+		// The connection surviving at all is half the assertion: a panic here
+		// used to close it, and the test would fail on the request rather than
+		// on the status.
+		if code == http.StatusSeeOther {
+			t.Errorf("%s reported success with no mail service wired", path)
+		}
+		if !strings.Contains(strings.ToLower(body), "not configured") {
+			t.Errorf("%s answered %d without saying why: %.120s", path, code, body)
+		}
+	}
+}
+
+// The page itself already said so, and must keep saying so: it is the only
+// place an owner finds out that mail is unavailable rather than broken.
+func TestMailPageSaysItIsUnavailableRatherThanFailing(t *testing.T) {
+	ts := erasureConsole(t, nil)
+	resp, err := client().Get(ts.URL + "/mail")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("mail page = %d", resp.StatusCode)
+	}
+	if len(body) == 0 {
+		t.Error("the mail page rendered nothing")
+	}
+}
