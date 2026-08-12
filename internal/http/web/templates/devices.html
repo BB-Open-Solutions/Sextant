@@ -33,8 +33,10 @@
     {{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}">{{end}}{{if .Dir}}<input type="hidden" name="dir" value="{{.Dir}}">{{end}}
     {{/* !py-0/!h-9/!rounded-lg override the primary-button base (py-2,
          rounded-full), which otherwise renders this a fraction taller than
-         the h-9 inputs beside it. */}}
-    <button type="submit" class="!m-0 inline-flex !h-9 items-center gap-1 !rounded-lg bg-ink !px-4 !py-0 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">filter_list</span>{{.L.T "common.filter"}}</button>
+         the h-9 inputs beside it. !min-h-0 joins them: a form's buttons carry
+         the control min-height that lines them up with a stacked label+field,
+         and min-height beats height. */}}
+    <button type="submit" class="!m-0 inline-flex !h-9 !min-h-0 items-center gap-1 !rounded-lg bg-ink !px-4 !py-0 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">filter_list</span>{{.L.T "common.filter"}}</button>
     {{if or .Q .FClass .FGroup .FStatus .FBaseline}}<a href="/devices" class="inline-flex h-9 items-center rounded-lg border border-border-hairline px-3 text-label-md text-text-secondary hover:bg-surface-container-low">{{.L.T "common.clear"}}</a>{{end}}
     {{if .CanExport}}<a href="{{.ExportURL}}" class="ml-auto inline-flex h-9 items-center gap-1 rounded-lg border border-border-hairline px-3 text-label-md text-text-secondary hover:bg-surface-container-low"><span class="material-symbols-outlined msz-18">download</span>{{.L.T "devices.export_csv"}}</a>{{end}}
   </form>
