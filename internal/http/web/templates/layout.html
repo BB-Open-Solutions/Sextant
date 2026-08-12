@@ -78,8 +78,11 @@
 
     <!-- Help resources, anchored at the bottom. External, open in a new tab. -->
     <div class="border-t border-border-hairline p-2">
-      <a href="https://bb-open.com/en/contact" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">help</span>{{.L.T "footer.support"}}</a>
-      <a href="https://docs.sextant.bb-open.com" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">menu_book</span>{{.L.T "footer.docs"}}</a>
+      {{/* Support and docs point at the project's own site, not at the company
+           that stewards it: Sextant is the thing an operator is using, and
+           bb-open.com answers a different question (ADR 0024). */}}
+      <a href="https://sextantfleet.com/contact" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">help</span>{{.L.T "footer.support"}}</a>
+      <a href="https://docs.sextantfleet.com" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">menu_book</span>{{.L.T "footer.docs"}}</a>
     </div>
 
   </nav>
