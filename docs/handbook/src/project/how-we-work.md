@@ -1,8 +1,8 @@
 # How this project works
 
-Sextant is a DAWO community project. This chapter is the part of the handbook
-that is not about running a fleet: who decides, how a change reaches a release,
-what we ask of a contributor, and where to send a vulnerability.
+Sextant Fleet is a DAWO community project. This chapter is the part of the
+handbook that is not about running a fleet: who decides, how a change reaches a
+release, what we ask of a contributor, and where to send a vulnerability.
 
 It exists because those questions get asked by people evaluating the project,
 not just by people writing code, and answering them once in public is cheaper
@@ -15,7 +15,7 @@ than answering them per e-mail.
 | Licence | EUPL 1.2, for the whole product. No paid tier holds a feature back. |
 | Where the code lives | `code.overheid.nl/MinBZK/DAWO-Sextant` is canonical; `codeberg.org/DAWO/DAWO-Sextant` is the public mirror and the place to take part. |
 | Who steers it | BB Open is the steward: it keeps the roadmap, reviews contributions and cuts releases. Stewardship is a role, not ownership of what you run. |
-| Who may run it for others | Anyone. The licence permits hosting, supporting and reselling Sextant without asking us. |
+| Who may run it for others | Anyone. The licence permits hosting, supporting and reselling Sextant Fleet without asking us. |
 | Language | English for everything that lands in the repository. |
 | Security reports | `security@bb-open.com`, acknowledged within three working days. |
 
@@ -25,11 +25,13 @@ The steward keeps the roadmap, reviews what comes in, cuts the releases and
 answers for the security process. That is work, and somebody has to do it.
 
 It is not a licence to change the deal. The code is EUPL 1.2 and stays that
-way; an organisation that wants to run, support or resell Sextant needs
+way; an organisation that wants to run, support or resell Sextant Fleet needs
 nobody's permission, and a fork is a right rather than a threat. The one thing
-that is not covered by the licence is the name: *Sextant* and the mark belong
-to BB Open Solutions B.V., so a fork may say it is based on Sextant but may not
-present itself as Sextant.
+that is not covered by the licence is the name the project ships under.
+*Sextant Fleet*, and sextantfleet.com with it, is claimed as a trademark by BB
+Open Solutions B.V.; the application is filed and the registration is not
+granted yet. A fork may say it is based on Sextant Fleet; it may not present
+itself as Sextant Fleet.
 
 ## Decisions are written before they are code
 
