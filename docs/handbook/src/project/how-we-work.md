@@ -13,7 +13,7 @@ than answering them per e-mail.
 | Question | Answer |
 |---|---|
 | Licence | EUPL 1.2, for the whole product. No paid tier holds a feature back. |
-| Where the code lives | `code.overheid.nl/MinBZK/DAWO-Sextant` is canonical; `codeberg.org/DAWO/DAWO-Sextant` is the public mirror and the place to take part. |
+| Where the code lives | `code.overheid.nl/MinBZK/DAWO-Sextant` is canonical; `codeberg.org/DAWO/DAWO-Sextant` is the public project and the place to take part. Every push goes to both, and CI runs on Codeberg. |
 | Who steers it | BB Open is the steward: it keeps the roadmap, reviews contributions and cuts releases. Stewardship is a role, not ownership of what you run. |
 | Who may run it for others | Anyone. The licence permits hosting, supporting and reselling Sextant Fleet without asking us. |
 | Language | English for everything that lands in the repository. |
@@ -61,8 +61,8 @@ trip over are:
   formatting, vet, lint, race tests, the coverage floor, the Nix build, the
   catalog drift guard and the agent checks.
 
-Pull requests on the mirror are welcome and are not turned away for being in
-the wrong place; a maintainer applies them to canonical with your authorship
+Pull requests on Codeberg are welcome and are not turned away for being in the
+wrong place; a maintainer applies them to canonical with your authorship
 intact.
 
 ## AI assistance is disclosed
