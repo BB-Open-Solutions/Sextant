@@ -102,14 +102,32 @@
         <div class="text-text-tertiary">{{$.L.T "policies.no_settings"}}</div>
         {{end}}
       </div>
+      {{/* Who gets this, as a sentence per assignment rather than a row of
+           chips the reader has to assemble. The filter is a qualifier inside
+           the sentence, not a second object to go and look up, and the count
+           is the proof: an assignment that reaches nothing used to be a chip
+           reading "0 devices" among other chips, which is exactly the thing
+           nobody notices. Unassign sits on the line it removes. */}}
+      {{$pol := .ID}}
+      <div class="flex flex-col divide-y divide-border-soft border-t border-border-hairline">
+        {{range .Assignments}}
+        <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-2.5 text-body-sm">
+          <span class="text-text-tertiary">{{$.L.T "policies.applies_to"}}</span>
+          <span class="font-medium text-ink">{{.Target}}</span>
+          {{with .Filter}}<span class="text-text-tertiary">·</span><span class="text-text-secondary">{{.}}</span>{{end}}
+          {{if .Devices}}
+          <span class="ml-auto whitespace-nowrap text-text-secondary">{{.Devices}} {{if eq .Devices 1}}{{$.L.T "policies.device_one"}}{{else}}{{$.L.T "policies.devices_suffix"}}{{end}}{{if .Behind}} <span class="text-status-warn" title="{{$.L.T "policies.behind_hint"}}">({{.Behind}} {{$.L.T "policies.behind_suffix"}})</span>{{end}}</span>
+          {{else}}
+          <span class="ml-auto flex items-center gap-1 whitespace-nowrap text-status-error" title="{{$.L.T "policies.assignment_zero_hint"}}"><span class="material-symbols-outlined msz-14">error</span>{{$.L.T "policies.reaches_nothing"}}</span>
+          {{end}}
+          {{if $.CanOwn}}<form method="post" action="/assignments/delete" class="inline !m-0"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="policy" value="{{$pol}}"><input type="hidden" name="target" value="{{.Target}}"><input type="hidden" name="filter" value="{{.Filter}}"><button type="submit" aria-label="{{$.L.T "policies.unassign"}} {{$pol}}" title="{{$.L.T "policies.unassign"}}" class="!m-0 !min-h-0 !rounded-full !border-0 !bg-transparent !p-0 !pl-2 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined msz-16">close</span></button></form>{{end}}
+        </div>
+        {{else}}
+        <div class="px-5 py-2.5"><span class="muted">{{$.L.T "policies.unassigned"}}</span></div>
+        {{end}}
+      </div>
       <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border-hairline px-5 py-3">
         <div class="flex flex-wrap items-center gap-1">
-          {{/* Unassign lives on the assignment it removes. It used to sit in a
-               separate rail that repeated every assignment already shown here,
-               so the same fact was on the page twice and the delete was the
-               copy furthest from it. */}}
-          {{$pol := .ID}}
-          {{range .Assignments}}<span class="tag {{if not .Devices}}bad{{end}}" {{if not .Devices}}title="{{$.L.T "policies.assignment_zero_hint"}}"{{end}}>{{.Target}}{{with .Filter}} | {{.}}{{end}} · {{.Devices}} {{$.L.T "policies.devices_suffix"}}{{if .Behind}} <span class="text-status-warn" title="{{$.L.T "policies.behind_hint"}}">({{.Behind}} {{$.L.T "policies.behind_suffix"}})</span>{{end}}{{if $.CanOwn}}<form method="post" action="/assignments/delete" class="inline !m-0"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="policy" value="{{$pol}}"><input type="hidden" name="target" value="{{.Target}}"><input type="hidden" name="filter" value="{{.Filter}}"><button type="submit" aria-label="{{$.L.T "policies.unassign"}} {{$pol}}" title="{{$.L.T "policies.unassign"}}" class="!m-0 !min-h-0 !rounded-full !border-0 !bg-transparent !p-0 !pl-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined msz-14">close</span></button></form>{{end}}</span>{{else}}<span class="muted">{{$.L.T "policies.unassigned"}}</span>{{end}}
           {{range .Controls}}<span class="tag" title="{{$.L.T "policies.control_hint"}}"><span class="material-symbols-outlined msz-14">verified_user</span>{{.}}</span>{{end}}
         </div>
         {{if $.CanOwn}}<label for="pol-{{.ID}}" class="btn quiet !min-h-0 !py-1"><span class="material-symbols-outlined msz-18">edit</span>{{$.L.T "common.edit"}}</label>{{end}}
