@@ -90,7 +90,11 @@ func TestPolicyFilterNarrowsAssignment(t *testing.T) {
 	}
 }
 
-func TestPolicyPriorityBreaksTies(t *testing.T) {
+// ADR 0026: priority no longer decides anything. An assignment that still
+// carries one from an older fleet document keeps loading, and the number is
+// inert - the first declared assignment wins, as it always did when the
+// priorities were equal.
+func TestPolicyPriorityIsIgnored(t *testing.T) {
 	f := policyFleet(t)
 	apply(t, f,
 		PutPolicy("base", Policy{Settings: map[string]any{"desktop": "gnome"}}),
@@ -98,11 +102,12 @@ func TestPolicyPriorityBreaksTies(t *testing.T) {
 		Assign(Assignment{Policy: "base", Target: "group:frontoffice", Priority: 1}),
 		Assign(Assignment{Policy: "special", Target: "group:frontoffice", Priority: 5}),
 	)
-	// Same scope, both defaults: higher priority wins.
-	want(t, f.Resolve("lt-1"), "desktop", "plasma", "policy:special@group:frontoffice", false)
+	// The higher number used to win. Now declaration order does, and the
+	// collision is reported instead (see TestConflictsAreReported).
+	want(t, f.Resolve("lt-1"), "desktop", "gnome", "policy:base@group:frontoffice", false)
 }
 
-func TestPolicyDeterministicOrderOnEqualPriority(t *testing.T) {
+func TestPolicyDeterministicOrder(t *testing.T) {
 	f := policyFleet(t)
 	apply(t, f,
 		PutPolicy("p1", Policy{Settings: map[string]any{"x": "a"}}),
@@ -110,7 +115,7 @@ func TestPolicyDeterministicOrderOnEqualPriority(t *testing.T) {
 		Assign(Assignment{Policy: "p1", Target: "org"}),
 		Assign(Assignment{Policy: "p2", Target: "org"}),
 	)
-	// Equal specificity and priority: the earlier assignment wins,
+	// Equal specificity: the earlier assignment wins,
 	// deterministically, on every call.
 	first := f.Resolve("lt-1")["x"]
 	for i := 0; i < 20; i++ {

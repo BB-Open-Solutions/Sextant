@@ -32,7 +32,7 @@ func TestPoliciesCSVExport(t *testing.T) {
 		t.Errorf("content-type = %q", ct)
 	}
 	csv := string(body)
-	if !strings.HasPrefix(csv, "policy,description,controls,profile,state,settings,enforced_keys,target,filter,priority,devices_reached,devices_behind") {
+	if !strings.HasPrefix(csv, "policy,description,controls,profile,state,settings,enforced_keys,target,filter,devices_reached,devices_behind") {
 		t.Errorf("missing header row:\n%s", csv)
 	}
 	// The unassigned policy exports with its controls and empty coverage.

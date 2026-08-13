@@ -55,6 +55,34 @@
 </section>
 {{end}}
 
+{{if or .Conflicts .InertPriorities}}
+{{/* Two policies claiming one key at one scope. Declaration order decides
+     what devices get - resolution is total, a fleet that cannot render is
+     worse than a documented tie-break - but the collision is a modelling
+     mistake, so it is said out loud here rather than settled quietly (ADR
+     0026). The fix is to make one policy more specific, or to take the key
+     out of one of them. */}}
+<section class="mb-6 rounded-lg border border-status-warn/40 bg-canvas p-5 shadow-sm">
+  <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="material-symbols-outlined msz-18 text-status-warn">rule</span>{{.L.T "policies.conflicts_title"}}</h2>
+  {{range .Conflicts}}
+  <div class="mb-2 flex flex-wrap items-baseline gap-x-2 text-body-sm last:mb-0">
+    <span class="font-mono text-ink">{{.Key}}</span>
+    <span class="text-text-tertiary">{{$.L.T "policies.conflict_at"}}</span>
+    <span class="font-medium text-ink">{{.Target}}</span>
+    <span class="text-text-secondary">{{$.L.T "policies.conflict_wins_pre"}} <span class="font-medium">{{.Winner}}</span>, {{$.L.T "policies.conflict_loses"}} <span class="font-medium">{{.Loser}}</span></span>
+    {{with .Filters}}<span class="text-text-tertiary">({{$.L.T "common.filter"}}: {{range $i, $f := .}}{{if $i}}, {{end}}{{$f}}{{end}})</span>{{end}}
+  </div>
+  {{end}}
+  {{range .InertPriorities}}
+  <div class="mb-2 flex flex-wrap items-baseline gap-x-2 text-body-sm text-text-secondary last:mb-0">
+    <span class="material-symbols-outlined msz-14 text-text-tertiary">info</span>
+    <span class="font-medium text-ink">{{.Policy}}</span>
+    <span>{{$.L.T "policies.priority_inert"}} ({{.Target}}, priority {{.Priority}})</span>
+  </div>
+  {{end}}
+</section>
+{{end}}
+
 {{/* One column, and assignment at the top of it. The form used to sit in a
      right-hand rail that began below the profiles section, so on a page with
      profiles it started halfway down, level with nothing in particular. It is
@@ -70,7 +98,6 @@
         <select name="policy" required aria-label="{{.L.T "common.policy"}}" class="min-w-48"><option value="" disabled selected>{{.L.T "policies.policy_option"}}</option>{{range .PolicyIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
         <select name="target" required aria-label="{{.L.T "common.target"}}" class="min-w-40"><option value="org">{{.L.T "common.scope_org"}}</option>{{range .Groups}}<option value="group:{{.}}">{{$.L.T "common.scope_group_prefix"}} {{.}}</option>{{end}}</select>
         <select name="filter" aria-label="{{$.L.T "common.filter"}}" class="min-w-40"><option value="">{{.L.T "policies.no_filter_option"}}</option>{{range .FilterIDs}}<option value="{{.}}">{{.}}</option>{{end}}</select>
-        <input name="priority" type="number" placeholder="{{.L.T "policies.priority_placeholder"}}" aria-label="{{.L.T "policies.priority_placeholder"}}" class="w-44">
         <button type="submit">{{.L.T "policies.add_assignment"}}</button>
       </form>
     </div>

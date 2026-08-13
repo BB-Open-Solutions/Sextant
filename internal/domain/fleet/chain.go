@@ -18,9 +18,11 @@ type contributor struct {
 	// values. At equal specificity, inline wins: a value set directly on the
 	// scope is more explicit than one a policy delivers there.
 	inline bool
-	// priority is the assignment priority (higher wins among policies at the
-	// same scope).
-	priority int
+	// The assignment's priority used to sit here and break ties. ADR 0026
+	// removed it: it was a third precedence rule for a question specificity
+	// and inline-over-policy already answer, and the number recorded that
+	// somebody wanted this one to win, never why. The field is gone from the
+	// contributor so nothing can start reading it again by accident.
 	// order is the assignment index, the final deterministic tiebreak.
 	order int
 
@@ -127,7 +129,6 @@ func (f *Fleet) chainFor(tag string) []contributor {
 		chain = append(chain, contributor{
 			specificity: spec,
 			inline:      false,
-			priority:    a.Priority,
 			order:       i,
 			source:      Source{Scope: displayScope(a.Target), Policy: a.Policy},
 			settings:    p.Settings,

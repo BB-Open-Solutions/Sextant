@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
@@ -136,13 +135,9 @@ func (s *Server) postAssignmentAdd(w http.ResponseWriter, r *http.Request, v vie
 		Target: r.FormValue("target"),
 		Filter: r.FormValue("filter"),
 	}
-	if p := r.FormValue("priority"); p != "" {
-		n, err := strconv.Atoi(p)
-		if err != nil {
-			return fmt.Errorf("priority expects a number")
-		}
-		in.Priority = n
-	}
+	// No priority is read from the form (ADR 0026). A value in an existing
+	// fleet document stays and is inert; the console does not let anybody add
+	// a new one, because it would do nothing and read as though it did.
 	if err := s.requireWeb(v, in.Target, identity.Owner); err != nil {
 		return err
 	}

@@ -44,13 +44,19 @@ func TestPolicyEditorFlow(t *testing.T) {
 		"attr0": {"class"}, "op0": {"eq"}, "value0": {"laptop"}}); resp.StatusCode != 303 {
 		t.Fatalf("create filter = %d", resp.StatusCode)
 	}
+	// A priority in the form is ignored (ADR 0026): the console no longer
+	// offers the field, and a request that carries one anyway must not write
+	// a number that decides nothing.
 	if resp := post("/assignments", url.Values{"policy": {"baseline"},
 		"target": {"group:pilot"}, "filter": {"laptops"}, "priority": {"5"}}); resp.StatusCode != 303 {
 		t.Fatalf("assign = %d", resp.StatusCode)
 	}
 	f := cfg.Fleet()
-	if len(f.Assignments) != 1 || f.Assignments[0].Filter != "laptops" || f.Assignments[0].Priority != 5 {
+	if len(f.Assignments) != 1 || f.Assignments[0].Filter != "laptops" {
 		t.Fatalf("assignments = %+v", f.Assignments)
+	}
+	if f.Assignments[0].Priority != 0 {
+		t.Errorf("priority %d was written from the form; the field is gone", f.Assignments[0].Priority)
 	}
 
 	// Page renders the editor state.

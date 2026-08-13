@@ -30,7 +30,7 @@ func (s *Server) policiesCSV(w http.ResponseWriter, r *http.Request, v view) {
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	cw := csv.NewWriter(w)
 	_ = cw.Write([]string{"policy", "description", "controls", "profile", "state",
-		"settings", "enforced_keys", "target", "filter", "priority",
+		"settings", "enforced_keys", "target", "filter",
 		"devices_reached", "devices_behind"})
 	rows := 0
 	for _, id := range sortedKeys(f.Policies) {
@@ -54,8 +54,11 @@ func (s *Server) policiesCSV(w http.ResponseWriter, r *http.Request, v view) {
 				continue
 			}
 			devs := f.AssignmentDevices(a)
+			// No priority column (ADR 0026): it decides nothing, and an
+			// export that carries it invites a spreadsheet to be built on a
+			// number that does not apply.
 			_ = cw.Write(append(append([]string{}, base...), a.Target, a.Filter,
-				strconv.Itoa(a.Priority), strconv.Itoa(len(devs)), strconv.Itoa(behindOf(devs))))
+				strconv.Itoa(len(devs)), strconv.Itoa(behindOf(devs))))
 			rows++
 			wrote = true
 		}

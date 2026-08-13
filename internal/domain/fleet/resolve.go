@@ -79,9 +79,10 @@ func resolveKey(chain []contributor, key string) Resolution {
 		if a.inline != b.inline {
 			return a.inline // inline scope settings beat policy contributions
 		}
-		if a.priority != b.priority {
-			return a.priority > b.priority
-		}
+		// No priority number (ADR 0026): declaration order decides, and the
+		// collision itself is reported rather than settled quietly. A third
+		// precedence rule for a question specificity and inline-over-policy
+		// already answer is a rule somebody has to guess at.
 		return a.order < b.order
 	}
 

@@ -111,6 +111,11 @@ func (s *Server) policies(w http.ResponseWriter, r *http.Request, v view) {
 	sort.Strings(groups)
 	s.render(w, "policies", map[string]any{
 		"Title": "Policies", "Nav": "policies", "Policies": rows, "Filters": frows,
+		// ADR 0026: two policies claiming one key at one scope is reported
+		// rather than settled by a number. Declaration order still decides
+		// what a device gets - resolution stays total - but the page says the
+		// collision exists instead of letting the tie-break hide it.
+		"Conflicts": f.PolicyConflicts(), "InertPriorities": f.InertPriorities(),
 		"Profiles": prof,
 		"Groups":   groups, "PolicyIDs": sortedKeys(f.Policies), "FilterIDs": sortedKeys(f.Filters),
 		"RuleRows": []int{0, 1, 2},
