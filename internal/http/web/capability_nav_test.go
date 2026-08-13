@@ -31,3 +31,29 @@ func TestSidebarHidesWhatThisDeploymentCannotDo(t *testing.T) {
 		}
 	}
 }
+
+// Hiding the link is not the whole answer: a bookmark, a notification link or
+// a typed URL still arrives. Those pages answered with http.NotFound or a
+// line of plain text - a blank white page with no frame, no explanation and
+// no way back, and in one case a 404 claiming the page does not exist when
+// the truth is that this deployment has no database behind it.
+func TestPagesThatNeedTheStoreExplainThemselves(t *testing.T) {
+	ts, _ := newConsole(t)
+	for _, path := range []string{"/elevation", "/enroll"} {
+		code, page := getPage(t, ts, path)
+		if code != 503 {
+			t.Errorf("%s answered %d; a missing dependency is 503, not 404 or 200", path, code)
+		}
+		if !strings.Contains(page, "PostgreSQL") {
+			t.Errorf("%s does not say what is missing", path)
+		}
+		// The console's own frame, so the reader is still somewhere.
+		if !strings.Contains(page, `href="/settings"`) {
+			t.Errorf("%s renders outside the console layout", path)
+		}
+		// And it says what still works, so nobody concludes the console is down.
+		if !strings.Contains(page, "policies") {
+			t.Errorf("%s does not say what is unaffected", path)
+		}
+	}
+}

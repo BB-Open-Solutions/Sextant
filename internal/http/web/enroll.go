@@ -38,7 +38,7 @@ var slugRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 // station picker and discovered list need Editor at org to be useful.
 func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request, v view) {
 	if s.svc.Discovery == nil {
-		http.Error(w, "imaging stations need the observed store", http.StatusServiceUnavailable)
+		s.unavailable(w, r, v, v.L.T("degraded.needs_store"))
 		return
 	}
 	full := s.svc.Config.Fleet()

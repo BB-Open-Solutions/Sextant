@@ -112,7 +112,7 @@ func (s *Server) enrollWizard(w http.ResponseWriter, r *http.Request, v view) {
 		return
 	}
 	if s.svc.Imaging == nil {
-		http.Error(w, "imaging execution needs the database (postgres not configured)", http.StatusServiceUnavailable)
+		s.unavailable(w, r, v, v.L.T("degraded.needs_store"))
 		return
 	}
 	// A one-shot LUKS recovery key is break-glass material: only an org Owner may

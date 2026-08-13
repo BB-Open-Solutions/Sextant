@@ -118,7 +118,7 @@ func reportURL(r *http.Request, station string) string {
 // their own POST handlers.
 func (s *Server) stationPage(w http.ResponseWriter, r *http.Request, v view) {
 	if s.svc.Discovery == nil {
-		http.Error(w, "imaging stations need the observed store (Postgres)", http.StatusNotFound)
+		s.unavailable(w, r, v, v.L.T("degraded.needs_store"))
 		return
 	}
 	if err := s.requireWeb(v, "org", identity.Viewer); err != nil {
