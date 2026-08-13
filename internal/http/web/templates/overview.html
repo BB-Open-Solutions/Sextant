@@ -8,7 +8,7 @@
 
 <!-- Quick actions -->
 <div class="mb-4 flex flex-wrap gap-3 border-b border-border-hairline pb-4">
-  {{if .CanEnroll}}<a href="/enroll" class="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">add_circle</span>{{.L.T "layout.enroll_device"}}</a>{{end}}
+  {{if and .CanEnroll .HasEnrolment}}<a href="/enroll" class="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">add_circle</span>{{.L.T "layout.enroll_device"}}</a>{{end}}
   {{if .CanOrgView}}<a href="/policies" class="inline-flex items-center gap-2 rounded-md border border-border-hairline bg-canvas px-4 py-2 text-label-md text-ink transition-colors hover:bg-surface-container"><span class="material-symbols-outlined msz-18">policy</span>{{.L.T "page.overview.qa_policy"}}</a>{{end}}
   {{if .CanOrgView}}<a href="/audit/evidence" class="inline-flex items-center gap-2 rounded-md border border-border-hairline bg-canvas px-4 py-2 text-label-md text-ink transition-colors hover:bg-surface-container"><span class="material-symbols-outlined msz-18">file_download</span>{{.L.T "page.overview.qa_audit"}}</a>{{end}}
 </div>
