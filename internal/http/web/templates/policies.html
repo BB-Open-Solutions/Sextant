@@ -112,21 +112,39 @@
           {{range .Assignments}}<span class="tag {{if not .Devices}}bad{{end}}" {{if not .Devices}}title="{{$.L.T "policies.assignment_zero_hint"}}"{{end}}>{{.Target}}{{with .Filter}} | {{.}}{{end}} · {{.Devices}} {{$.L.T "policies.devices_suffix"}}{{if .Behind}} <span class="text-status-warn" title="{{$.L.T "policies.behind_hint"}}">({{.Behind}} {{$.L.T "policies.behind_suffix"}})</span>{{end}}{{if $.CanOwn}}<form method="post" action="/assignments/delete" class="inline !m-0"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="policy" value="{{$pol}}"><input type="hidden" name="target" value="{{.Target}}"><input type="hidden" name="filter" value="{{.Filter}}"><button type="submit" aria-label="{{$.L.T "policies.unassign"}} {{$pol}}" title="{{$.L.T "policies.unassign"}}" class="!m-0 !min-h-0 !rounded-full !border-0 !bg-transparent !p-0 !pl-1 text-text-tertiary hover:!text-status-error"><span class="material-symbols-outlined msz-14">close</span></button></form>{{end}}</span>{{else}}<span class="muted">{{$.L.T "policies.unassigned"}}</span>{{end}}
           {{range .Controls}}<span class="tag" title="{{$.L.T "policies.control_hint"}}"><span class="material-symbols-outlined msz-14">verified_user</span>{{.}}</span>{{end}}
         </div>
-        {{if $.CanOwn}}
-        <details class="relative">
-          <summary class="cursor-pointer list-none text-label-md text-text-tertiary hover:text-primary">{{$.L.T "common.edit"}}</summary>
-          <form method="post" action="/policies" class="!absolute right-0 z-10 mt-2 w-72 !flex-col !items-stretch gap-2 rounded-md border border-border-soft bg-canvas p-3 shadow-lg">
-            <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}">
-            <input name="description" value="{{.Description}}" placeholder="{{$.L.T "common.description"}}" aria-label="{{$.L.T "common.description"}}">
-            <textarea name="settings" rows="4" placeholder="{{$.L.T "policies.settings_placeholder"}}" aria-label="{{$.L.T "policies.settings_placeholder"}}">{{.SettingsText}}</textarea>
-            <input name="enforced" value="{{.EnforcedText}}" placeholder="{{$.L.T "policies.locked_keys_placeholder"}}" aria-label="{{$.L.T "policies.locked_keys_placeholder"}}">
-            <input name="controls" value="{{.ControlsText}}" placeholder="{{$.L.T "policies.controls_placeholder"}}" aria-label="{{$.L.T "policies.controls_placeholder"}}">
-            <div class="flex gap-2"><button type="submit">{{$.L.T "common.save"}}</button><button type="submit" formaction="/policies/{{.ID}}/delete" class="quiet">{{$.L.T "common.delete"}}</button></div>
-          </form>
-        </details>
-        {{end}}
+        {{if $.CanOwn}}<label for="pol-{{.ID}}" class="btn quiet !min-h-0 !py-1"><span class="material-symbols-outlined msz-18">edit</span>{{$.L.T "common.edit"}}</label>{{end}}
       </div>
     </div>
+    {{if $.CanOwn}}
+    {{/* An edit window, not a 288px popover hanging off a summary: a policy is
+         four fields and one of them is its whole settings payload, which was
+         being typed into a textarea the width of a sidebar. */}}
+    <input type="checkbox" id="pol-{{.ID}}" class="modal-toggle">
+    <div class="modal">
+      <label for="pol-{{.ID}}" class="modal-backdrop" aria-label="{{$.L.T "common.cancel"}}"></label>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-label="{{$.L.T "common.edit"}} {{.ID}}">
+        <h2 class="mt-0 mb-3 text-headline-sm text-ink">{{$.L.T "common.edit"}} · <span class="font-mono">{{.ID}}</span></h2>
+        <form method="post" action="/policies" class="!flex-col !items-stretch gap-3">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}">
+          <div class="flex flex-col gap-1"><label for="pol-desc-{{.ID}}">{{$.L.T "common.description"}}</label>
+            <input id="pol-desc-{{.ID}}" name="description" value="{{.Description}}" placeholder="{{$.L.T "common.description"}}"></div>
+          <div class="flex flex-col gap-1"><label for="pol-set-{{.ID}}">{{$.L.T "policies.payload_config"}}</label>
+            <textarea id="pol-set-{{.ID}}" name="settings" rows="10" class="font-mono" placeholder="{{$.L.T "policies.settings_placeholder"}}">{{.SettingsText}}</textarea></div>
+          <div class="flex flex-col gap-1"><label for="pol-enf-{{.ID}}">{{$.L.T "policies.locked_keys_placeholder"}}</label>
+            <input id="pol-enf-{{.ID}}" name="enforced" value="{{.EnforcedText}}" class="font-mono"></div>
+          <div class="flex flex-col gap-1"><label for="pol-ctl-{{.ID}}">{{$.L.T "policies.controls_placeholder"}}</label>
+            <input id="pol-ctl-{{.ID}}" name="controls" value="{{.ControlsText}}" class="font-mono"></div>
+          <div class="flex items-center justify-between gap-2">
+            <button type="submit" formaction="/policies/{{.ID}}/delete" data-confirm="{{$.L.T "policies.delete_confirm"}} {{.ID}}" class="quiet !border-status-error/40 !text-status-error"><span class="material-symbols-outlined msz-18">delete</span>{{$.L.T "common.delete"}}</button>
+            <span class="flex items-center gap-2">
+              <label for="pol-{{.ID}}" class="btn quiet">{{$.L.T "common.cancel"}}</label>
+              <button type="submit">{{$.L.T "common.save"}}</button>
+            </span>
+          </div>
+        </form>
+      </div>
+    </div>
+    {{end}}
     {{else}}
     <div class="rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm"><p class="muted mb-0">{{.L.T "policies.no_policies"}}</p></div>
     {{end}}
