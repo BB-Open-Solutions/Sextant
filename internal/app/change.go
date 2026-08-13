@@ -370,7 +370,10 @@ func (s *ChangeService) finishSubmit(ctx context.Context, id string, gateErr err
 		return change.CR{}, err
 	}
 	if err := gateErr; err != nil {
-		cr.Error = err.Error()
+		// Scrubbed on the way IN, not on the way out: this string is about to
+		// be persisted, and a secret that reaches the store has already
+		// escaped (see scrub.go).
+		cr.Error = ScrubCredentials(err.Error())
 		if terr := cr.Transition(change.Failed, s.clock.Now()); terr != nil {
 			return change.CR{}, terr
 		}

@@ -36,6 +36,15 @@ func (stubBuilder) Build(context.Context, string, []string) error { return nil }
 // driven end to end: open, edit, submit, then merge through the HTTP layer.
 func newChangeConsole(t *testing.T) (*httptest.Server, *app.ConfigService, *app.ChangeService) {
 	t.Helper()
+	return newChangeConsoleWithGate(t, ports.GateFunc(func(context.Context, string, []string) error { return nil }))
+}
+
+// newChangeConsoleWithGate is newChangeConsole with a caller-chosen gate for
+// the CHANGE flow, so a test can watch what a rejection does to the pages
+// that render it. The config service keeps its own allow-gate: the seed has
+// to be loadable, or the test proves nothing about the rejection.
+func newChangeConsoleWithGate(t *testing.T, changeGate ports.Gate) (*httptest.Server, *app.ConfigService, *app.ChangeService) {
+	t.Helper()
 	dir := t.TempDir()
 	run := func(args ...string) {
 		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
@@ -67,8 +76,7 @@ func newChangeConsole(t *testing.T) (*httptest.Server, *app.ConfigService, *app.
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	clock := &stubClock{time.Now()}
 	openWT := func(d string) (ports.ConfigRepo, error) { return git.Open(d, "") }
-	changeSvc := app.NewChangeService(repo, st.Changes(),
-		ports.GateFunc(func(context.Context, string, []string) error { return nil }),
+	changeSvc := app.NewChangeService(repo, st.Changes(), changeGate,
 		stubBuilder{}, clock, openWT, cfg)
 	rolloutSvc := app.NewRolloutService(cfg, st.Rollouts(), &stubConvergence{}, clock, log)
 	srv, err := web.New(web.Services{Config: cfg, Changes: changeSvc, Rollouts: rolloutSvc}, web.DevSessions{}, true,

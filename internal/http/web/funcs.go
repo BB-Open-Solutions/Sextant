@@ -6,6 +6,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 )
 
 // diffLine is one classified line of a unified diff for the change viewer.
@@ -54,6 +56,18 @@ func templateFuncs() template.FuncMap {
 		// where every row carries a paragraph is a page nobody scans.
 		"sentence":     func(s string) string { head, _ := splitSentence(s); return head },
 		"sentenceRest": func(s string) string { _, rest := splitSentence(s); return rest },
+		// errHead is the readable half of a rejection: its first line, capped.
+		// A gate or git failure arrives as a paragraph of command lines and
+		// stack traces, and printing all of it in the review queue made the
+		// page unreadable while still not being the whole story - the rest
+		// belongs behind a disclosure, not on the row.
+		"errHead": errHead,
+		// errHasMore says whether the disclosure is worth rendering at all.
+		"errHasMore": func(s string) bool { return errHead(s) != strings.TrimSpace(s) },
+		// scrub removes credentials from text that reaches a page. Applied on
+		// the way into the store as well (app.ScrubCredentials); this is the
+		// second layer, for rows written before that existed.
+		"scrub": app.ScrubCredentials,
 		// initial is the uppercase first letter of a name, for the avatar
 		// fallback when no profile photo is available.
 		"initial": func(s string) string {
@@ -185,6 +199,31 @@ func splitSentence(s string) (head, rest string) {
 		return candidate, tail
 	}
 	return s, ""
+}
+
+// errHeadMax is how much of a rejection fits on a row without pushing the
+// rest of the card off the screen. Long enough for a git or nix first line to
+// still say what failed.
+const errHeadMax = 160
+
+// errHead returns the first line of an error, capped, with an ellipsis when
+// it was cut. Whitespace-only input returns empty, so a template can decide
+// not to render the block at all.
+func errHead(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = strings.TrimSpace(s[:i])
+	}
+	if len(s) > errHeadMax {
+		// Cut on a rune boundary: an error can carry a path with non-ASCII in
+		// it, and half a rune renders as a replacement character.
+		cut := errHeadMax
+		for cut > 0 && !utf8.RuneStart(s[cut]) {
+			cut--
+		}
+		s = strings.TrimSpace(s[:cut]) + "…"
+	}
+	return s
 }
 
 // barClass maps a 0..100 percentage onto its nearest-5% CSP-safe width
