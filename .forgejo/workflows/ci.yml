@@ -171,6 +171,15 @@ jobs:
       - name: Catalog drift guard
         run: cd "$GITHUB_WORKSPACE/src" && examples/overlay/regen-catalog.sh --check
 
+      # Same shape of drift, other generated file: app.css is built from the
+      # Tailwind sources and committed because the binary embeds it. A class
+      # added to a template without `just css` ships markup whose styles are
+      # simply absent - the page looks wrong rather than broken, so nothing
+      # fails and nobody is told. An edit window shipped invisible that way on
+      # 2026-08-13.
+      - name: Stylesheet drift guard
+        run: cd "$GITHUB_WORKSPACE/src" && nix develop --command just css-check
+
       # Packaging must not break silently: the chart lints/renders and the
       # images build on every push, not just when a human happens to try.
       # The chart's DEFAULTS deliberately refuse to render (P4 fail-safe:
