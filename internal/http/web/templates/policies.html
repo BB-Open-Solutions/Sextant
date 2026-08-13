@@ -8,7 +8,7 @@
       </span>
     </h1>
   </div>
-  <div class="flex shrink-0 gap-2"><a href="/policies.csv" class="btn quiet"><span class="material-symbols-outlined msz-18">download</span>{{.L.T "policies.export_csv"}}</a>{{if .CanOwn}}<a href="#create-filter" class="btn quiet"><span class="material-symbols-outlined msz-18">add</span>{{.L.T "policies.create_filter"}}</a><a href="#create-policy" class="btn !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">add_circle</span>{{.L.T "policies.create_policy"}}</a>{{end}}</div>
+  <div class="flex shrink-0 gap-2"><a href="/policies.csv" class="btn quiet"><span class="material-symbols-outlined msz-18">download</span>{{.L.T "policies.export_csv"}}</a>{{if .CanOwn}}<a href="#create-filter" class="btn quiet"><span class="material-symbols-outlined msz-18">add</span>{{.L.T "policies.new_filter"}}</a><a href="#create-policy" class="btn !bg-mint-vibrant !text-ink"><span class="material-symbols-outlined msz-18">add_circle</span>{{.L.T "policies.new_policy"}}</a>{{end}}</div>
 </div>
 
 {{if .Profiles}}
