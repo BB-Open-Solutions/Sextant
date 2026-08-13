@@ -71,6 +71,10 @@
               ./vendor
               ./cmd
               ./internal
+              # The committed manual page: the package does not install this
+              # copy (sxctl writes its own), but the drift test in cmd/sxctl
+              # reads it, and the check phase runs inside this source.
+              ./docs/man
             ];
           };
           # Dependencies are vendored; no network during build.
@@ -78,6 +82,13 @@
           subPackages = [ "cmd/sextant" "cmd/sxctl" ];
           env.CGO_ENABLED = "0";
           ldflags = [ "-s" "-w" ];
+          # sxctl writes its own manual, so the package installs the page the
+          # binary itself produces rather than a copy of a file in the tree.
+          # A packaged sxctl and its `man sxctl` cannot disagree.
+          postInstall = ''
+            mkdir -p $out/share/man/man1
+            $out/bin/sxctl man > $out/share/man/man1/sxctl.1
+          '';
           meta = {
             description = "Declarative fleet control-plane for NixOS";
             homepage = "https://code.overheid.nl/MinBZK/DAWO-Sextant";

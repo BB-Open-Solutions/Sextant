@@ -67,6 +67,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
+	// `sxctl man` writes its own manual page and talks to nothing. It has to
+	// come before the URL and token check: a packager generating the page at
+	// build time has no console to point at, and neither has somebody reading
+	// the manual to find out how to configure one.
+	if rest[0] == "man" && len(rest) == 1 {
+		if err := writeMan(stdout); err != nil {
+			_, _ = fmt.Fprintln(stderr, "sxctl:", err)
+			return 1
+		}
+		return 0
+	}
 	token := os.Getenv("SEXTANT_TOKEN")
 	if *url == "" || token == "" {
 		_, _ = fmt.Fprintln(stderr, "sxctl: SEXTANT_URL and SEXTANT_TOKEN are required")

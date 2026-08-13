@@ -1,0 +1,78 @@
+.TH SXCTL 1 "2026-08-13" "Sextant" "Sextant Manual"
+.SH NAME
+sxctl \- headless client for the Sextant fleet control plane
+.SH SYNOPSIS
+.B sxctl
+[\fB\-url\fR \fIURL\fR] [\fB\-json\fR] \fIRESOURCE\fR \fIVERB\fR [\fIARGS\fR...]
+.SH DESCRIPTION
+.B sxctl
+speaks the same HTTP API as the console (\fI/api/v1\fR) and nothing else.
+Everything the console can do, it can do, and it authenticates the same
+way \- with a token, never with a session. It holds no state of its own:
+the fleet document in git is the state, and every write goes through the
+same gate and audit trail as a change made in the browser.
+.SH COMMANDS
+.nf
+  devices   list | get TAG | enroll TAG \-hardware H [\-group G] [\-class C] |
+            update TAG [\-hardware H] [\-class C] [\-user U] [\-groups a,b] |
+            retire TAG | reactivate TAG | remove TAG |
+            lock TAG | wipe TAG [\-force] | unlock TAG
+  groups    add NAME [\-parent P] [\-idp G] | update NAME [\-parent P|\-] [\-idp G] |
+            remove NAME
+  apps      set SCOPE KIND [NAME ...]   (kind: packages|flatpaks|overlays)
+  settings  set SCOPE KEY VALUE [\-enforce] | clear SCOPE KEY
+  changes   list | open ID TITLE | edit ID SCOPE KEY VALUE | diff ID |
+            submit ID | merge ID | abandon ID
+  rollout   status | start TARGET | tick | cancel
+  status    [TAG]
+  access    list | grant GROUP ROLE SCOPE | revoke GROUP SCOPE
+  secrets   list | add NAME [\-description D] | remove NAME
+            (secret REFERENCES \- the names settings point at, never values)
+  tokens    list | mint NAME [\-ceiling R] [\-ttl\-days N] | revoke ID
+  me        [prefs [TIMEZONE LOCALE]]   (who am I; get/set preferences)
+  audit     (config commit trail)
+  evidence  [FROM TO]   (audit bundle, RFC 3339; default last 30 days)
+  fleet     get
+.fi
+.SH SCOPE
+A scope is \fBorg\fR, \fBgroup:\fR\fINAME\fR or \fBdevice:\fR\fITAG\fR.
+Values parse as JSON where they can (\fBtrue\fR, \fB42\fR, \fB"text"\fR)
+and as a plain string otherwise.
+.SH OPTIONS
+.TP
+.BR \-url " " \fIURL\fR
+Base URL of the console. Defaults to \fBSEXTANT_URL\fR.
+.TP
+.B \-json
+Emit JSON for list commands instead of the table meant for a terminal.
+.SH ENVIRONMENT
+.TP
+.B SEXTANT_URL
+Base URL of the console, when \fB\-url\fR is not given.
+.TP
+.B SEXTANT_TOKEN
+API token. Required. Read from the environment on purpose: a secret
+passed on the command line is visible in the process table and in shell
+history to everybody on the machine.
+.SH EXIT STATUS
+.TP
+.B 0
+The command succeeded.
+.TP
+.B 1
+The command was understood and the server refused it, or the request failed.
+.TP
+.B 2
+Usage error: unknown resource or verb, missing argument, or missing
+\fBSEXTANT_URL\fR / \fBSEXTANT_TOKEN\fR.
+.SH EXAMPLES
+.nf
+export SEXTANT_URL=https://console.example.org SEXTANT_TOKEN=...
+sxctl devices list
+sxctl settings set group:pilot desktop \(dqgnome\(dq
+sxctl changes open raise\-poll \(dqraise the poll interval\(dq
+sxctl changes submit raise\-poll
+.fi
+.SH SEE ALSO
+The API contract this speaks is published at \fI/api/v1/openapi.json\fR
+on any console, and the handbook at \fIhttps://docs.sextantfleet.com\fR.

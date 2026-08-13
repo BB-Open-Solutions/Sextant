@@ -114,6 +114,12 @@ css-check:
         exit 1
     fi
 
+# Regenerate sxctl(1). The page is generated from the CLI's own command list
+# and committed, like app.css and catalog.json; a Go test refuses a stale copy,
+# so this is the command that test is telling you to run.
+man:
+    go run ./cmd/sxctl man > docs/man/sxctl.1
+
 build:
     go build -trimpath -o sextant ./cmd/sextant
 
