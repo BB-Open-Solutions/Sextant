@@ -27,9 +27,15 @@
      rather than the subject of the edit. It sticks while the sections scroll,
      because the rows run far past one screen and "which scope am I writing
      to" is the one question that must never need a scroll up. */}}
-<div class="sticky top-14 z-20 mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border-hairline bg-surface-bright px-4 py-3 shadow-sm">
-  <span class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "settings.editing"}}</span>
-  {{template "scopePicker" .}}
+{{/* The wrapper is what sticks, not the card: it carries the page background
+     across the small gap under the top bar. A bare margin would leave that
+     gap transparent, and the rows would be visible sliding through a 6px slot
+     while you scroll - which reads as a rendering fault, not as spacing. */}}
+<div class="sticky top-14 z-20 mb-6 -mt-1.5 bg-surface pt-1.5">
+  <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border-hairline bg-surface-bright px-4 py-3 shadow-sm">
+    <span class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "settings.editing"}}</span>
+    {{template "scopePicker" .}}
+  </div>
 </div>
 
 {{if .Empty}}
