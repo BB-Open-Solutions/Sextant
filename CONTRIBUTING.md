@@ -9,8 +9,8 @@ Development happens on **code.overheid.nl/MinBZK/DAWO-Sextant**. That is
 canonical: it is where the Dutch government's code belongs, and where the
 history is authoritative.
 
-**codeberg.org/DAWO/DAWO-Sextant** is the public mirror and the place to take
-part today. It is a European non-profit forge rather than a company's
+**codeberg.org/DAWO/DAWO-Sextant** is the public project and the place to take
+part today. It is pushed directly, not mirrored, and CI runs there. It is a European non-profit forge rather than a company's
 platform, which is the same reasoning that put the canonical copy on
 code.overheid.nl. What makes this open source is the licence and the code, not
 the address.
@@ -26,10 +26,10 @@ branches and force-pushed ring refs belong there. The rule is not "be tidy
 everywhere", which nobody sustains; it is that the public project has a floor
 and the workshop does not.
 
-A pull request on the mirror is welcome and will not be turned away for being
-in the wrong place. It travels back like this: a maintainer applies it to
+A pull request on Codeberg is welcome and will not be turned away for being in
+the wrong place. It travels back like this: a maintainer applies it to
 canonical with your authorship intact, canonical is what releases are cut from,
-and the mirror follows. You do not have to do anything for that to happen, and
+and every push goes to both forges. You do not have to do anything for that to happen, and
 you do not need an account on code.overheid.nl to contribute.
 
 Issues are read on both. Security reports go to neither - see SECURITY.md.
