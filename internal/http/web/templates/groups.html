@@ -1,8 +1,12 @@
 {{define "content"}}
 <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
   <div>
-    <h1 class="mb-1">{{.L.T "groups.title"}}</h1>
-    <p class="mb-0 max-w-2xl text-body-md text-text-tertiary">{{.L.T "groups.intro"}}</p>
+    <h1 class="mb-1 flex items-center gap-2">{{.L.T "groups.title"}}
+      <span class="hint">
+        <span class="hint-mark" tabindex="0" role="note" aria-label="{{.L.T "common.about_page"}}"><span class="material-symbols-outlined msz-18">info</span></span>
+        <span class="hint-panel text-body-sm font-normal text-text-secondary">{{.L.T "groups.intro"}}</span>
+      </span>
+    </h1>
   </div>
   {{if .CanOrgOwn}}<label for="gc-toggle" class="btn shrink-0 cursor-pointer"><span class="material-symbols-outlined msz-18">create_new_folder</span>{{.L.T "groups.create"}}</label>{{end}}
 </div>
@@ -12,16 +16,25 @@
   <div class="flex h-[600px] flex-col overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm xl:col-span-2">
     <div class="flex items-center justify-between border-b border-border-hairline bg-surface-bright px-6 py-4">
       <h2 class="mt-0 mb-0 flex items-center gap-2 text-label-md font-bold uppercase tracking-wide text-ink"><span class="material-symbols-outlined msz-18 text-text-tertiary">account_tree</span>{{.L.T "groups.hierarchy_title"}}</h2>
+      {{/* The three words used to float in this corner as a legend, lined up
+           with nothing, reading like buttons - and one of them advertised
+           "pinned", which is not something a person can do (only the rollout
+           engine pins a ring; a human may release one). They are column
+           headings now, sitting over the columns they name. */}}
       <div class="flex items-center gap-4">
-        <div class="hidden items-center gap-4 text-label-xs-caps uppercase text-text-tertiary sm:flex">
-          <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">push_pin</span>{{.L.T "groups.legend_pinned"}}</span>
-          <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">devices</span>{{.L.T "groups.legend_devices"}}</span>
-          <span class="flex items-center gap-1"><span class="material-symbols-outlined msz-14">vpn_key</span>{{.L.T "groups.legend_idp"}}</span>
-        </div>
         {{if .CanOrgOwn}}<label for="gc-toggle" title="{{.L.T "groups.create"}}" aria-label="{{.L.T "groups.create"}}" class="flex cursor-pointer items-center justify-center rounded-full border border-border-hairline p-1 text-text-tertiary transition-colors hover:border-ink hover:bg-canvas hover:text-ink"><span class="material-symbols-outlined msz-18">add</span></label>{{end}}
       </div>
     </div>
     <div class="flex-1 overflow-y-auto p-2">
+      <!-- Column headings, laid out exactly like a row below: the name column
+           flexes, the device count is the same w-16 right-aligned box, and
+           the last cell is the IdP mark. -->
+      <div class="flex items-center gap-2 border-b border-border-hairline py-1 pr-3 pl-1 text-label-xs-caps uppercase text-text-tertiary">
+        <span class="msz-20 w-5 shrink-0"></span>
+        <span class="min-w-0 flex-1">{{.L.T "common.group"}}</span>
+        <span class="w-16 text-right">{{.L.T "groups.legend_devices"}}</span>
+        <span class="w-[18px] shrink-0 text-right" title="{{.L.T "groups.legend_idp"}}">{{.L.T "groups.legend_idp"}}</span>
+      </div>
       <!-- The organisation is the tree's root: every top-level group hangs
            under it. Shown by name so "root" is never an abstract word. -->
       <div class="flex items-center gap-2 rounded-md border-b border-border-soft py-2 pr-3 pl-1">

@@ -39,10 +39,15 @@
       <p class="text-body-sm font-normal normal-case tracking-normal text-text-tertiary">{{.L.T "layout.tagline"}}</p>
     </div>
 
-    <!-- Primary action: enroll a device (the "start something new" CTA). -->
+    <!-- Primary action: enroll a device (the "start something new" CTA).
+         Gated with the nav entry below it: without the observed plane the
+         page it opens cannot work, and a dead primary action is worse than a
+         missing one. -->
+    {{if .HasEnrolment}}
     <div class="px-4 py-3">
       <a href="/enroll" class="flex w-full items-center justify-center gap-2 rounded-full bg-ink px-4 py-2 text-label-md text-canvas transition-opacity hover:opacity-90"><span class="material-symbols-outlined msz-18">add</span>{{.L.T "layout.enroll_device"}}</a>
     </div>
+    {{end}}
 
     <div class="flex-1 overflow-y-auto py-2">
       {{$n := .Nav}}
@@ -51,14 +56,14 @@
         <li><a href="/" class="nav-link {{if eq $n "overview"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">dashboard</span>{{.L.T "nav.overview"}}</a></li>
         <li><a href="/devices" class="nav-link {{if eq $n "devices"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">devices</span>{{.L.T "nav.devices"}}</a></li>
         <li><a href="/groups" class="nav-link {{if eq $n "groups"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">group_work</span>{{.L.T "nav.groups"}}</a></li>
-        <li><a href="/enroll" class="nav-link {{if eq $n "enroll"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">cable</span>{{.L.T "nav.enroll"}}</a></li>
+        {{if .HasEnrolment}}<li><a href="/enroll" class="nav-link {{if eq $n "enroll"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">cable</span>{{.L.T "nav.enroll"}}</a></li>{{end}}
       </ul>
       <p class="nav-section">{{.L.T "layout.section_configuration"}}</p>
       <ul class="space-y-1 px-2">
         <li><a href="/settings" class="nav-link {{if eq $n "settings"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">settings</span>{{.L.T "nav.settings"}}</a></li>
         <li><a href="/policies" class="nav-link {{if eq $n "policies"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">policy</span>{{.L.T "nav.policies"}}</a></li>
         <li><a href="/compliance" class="nav-link {{if eq $n "compliance"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">verified_user</span>{{.L.T "nav.compliance"}}</a></li>
-        {{if .CanOrgView}}<li><a href="/elevation" class="nav-link {{if eq $n "elevation"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">pan_tool</span>{{.L.T "nav.elevation"}}</a></li>{{end}}
+        {{if and .CanOrgView .HasElevation}}<li><a href="/elevation" class="nav-link {{if eq $n "elevation"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">pan_tool</span>{{.L.T "nav.elevation"}}</a></li>{{end}}
         {{if .CanOrgView}}<li><a href="/integrations" class="nav-link {{if eq $n "integrations"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">extension</span>{{.L.T "nav.integrations"}}</a></li>{{end}}
       </ul>
       {{if .CanOrgView}}
@@ -70,16 +75,21 @@
         <li><a href="/updates" class="nav-link {{if eq $n "updates"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">conveyor_belt</span>{{.L.T "nav.delivery"}}</a></li>
       </ul>
       {{end}}
-      <p class="nav-section">{{.L.T "layout.section_governance"}}</p>
-      <ul class="space-y-1 px-2">
-        <li><a href="/access" class="nav-link {{if eq $n "access"}}nav-active{{end}}"><span class="material-symbols-outlined nav-ico">admin_panel_settings</span>{{.L.T "nav.access"}}</a></li>
-      </ul>
+      {{/* Access control lives under Organisation, not in this bar. Binding an
+           IdP group to a role is something you do when the organisation is set
+           up or when somebody joins - it is not part of running the fleet, and
+           a permanent item here put an administrator's task in front of every
+           operator all day. It sits with the other organisation-level things:
+           mail, forge, service accounts, audit. */}}
     </div>
 
     <!-- Help resources, anchored at the bottom. External, open in a new tab. -->
     <div class="border-t border-border-hairline p-2">
-      <a href="https://bb-open.com/en/contact" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">help</span>{{.L.T "footer.support"}}</a>
-      <a href="https://docs.sextant.bb-open.com" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">menu_book</span>{{.L.T "footer.docs"}}</a>
+      {{/* Support and docs point at the project's own site, not at the company
+           that stewards it: Sextant is the thing an operator is using, and
+           bb-open.com answers a different question (ADR 0024). */}}
+      <a href="https://sextantfleet.com/contact" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">help</span>{{.L.T "footer.support"}}</a>
+      <a href="https://docs.sextantfleet.com" target="_blank" rel="noreferrer noopener" class="nav-link"><span class="material-symbols-outlined nav-ico">menu_book</span>{{.L.T "footer.docs"}}</a>
     </div>
 
   </nav>
@@ -88,10 +98,16 @@
   <main id="content" tabindex="-1" class="ml-64 flex min-h-screen flex-1 flex-col">
 
     <!-- Top app bar -->
-    <header class="sticky top-0 z-30 flex items-center justify-between border-b border-border-hairline bg-canvas px-8 py-3">
+    <!-- h-14 rather than padding: a page that sticks something of its own
+         under this bar (the settings scope strip) needs the bar's height to be
+         a number it can name, not whatever the line-height works out to. -->
+    <header class="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border-hairline bg-canvas px-8">
       <nav class="flex items-center gap-1 text-label-md text-text-tertiary" aria-label="{{.L.T "layout.breadcrumb_aria"}}">
         <a href="/" class="transition-colors hover:text-ink">Sextant</a>
-        {{if or (eq .Nav "org") (eq .Nav "station") (eq .Nav "mail") (eq .Nav "service-accounts") (eq .Nav "audit") (eq .Nav "overlays") (eq .Nav "secrets")}}
+        {{/* The Organisation crumb is the PARENT of these pages; /org itself
+             must not list itself as its own parent ("Organisation ›
+             Organisation"). */}}
+        {{if or (eq .Nav "station") (eq .Nav "mail") (eq .Nav "service-accounts") (eq .Nav "audit") (eq .Nav "overlays") (eq .Nav "secrets") (eq .Nav "access")}}
         <span class="material-symbols-outlined msz-16 -mx-1 text-text-tertiary/70">chevron_right</span>
         <a href="/org" class="transition-colors hover:text-ink">{{.L.T "nav.org"}}</a>
         {{end}}
@@ -190,7 +206,9 @@
      (Scope, SelGroup, Groups, OrgName; optionally Devices, IsDevice). */}}
 {{$scope := .Scope}}
 <div class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border-hairline bg-canvas p-1 text-label-md shadow-sm">
-  <span class="pl-2 pr-1 text-text-tertiary">{{.L.T "common.scope"}}</span>
+  {{/* The caller may label the picker itself (the settings page puts it in a
+       "you are editing" strip); then this word is the same noun twice. */}}
+  {{if not .PickerLabelled}}<span class="pl-2 pr-1 text-text-tertiary">{{.L.T "common.scope"}}</span>{{end}}
   <a href="{{.PickerBase}}?scope=org" data-scope-link class="inline-flex items-center gap-1 rounded-md px-3 py-1.5 transition-colors {{if eq $scope "org"}}bg-ink text-canvas{{else}}text-text-secondary hover:bg-surface-bright{{end}}"><span class="material-symbols-outlined msz-16">domain</span>{{.OrgName}}</a>
   <span class="material-symbols-outlined msz-16 text-text-tertiary">chevron_right</span>
   <form method="get" action="{{.PickerBase}}" class="!m-0 !inline-flex !border-0 !p-0 !shadow-none">

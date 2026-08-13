@@ -61,6 +61,25 @@ func (s *Server) requireWeb(v view, ref string, role identity.Role) error {
 // right code. Anything else is a handler's own user-facing validation message
 // (plain error) - shown as 400 - and is logged in full by the caller either
 // way, so nothing sensitive rides on the response.
+// unavailable renders "this deployment cannot do that" as a page, with the
+// console's own frame around it.
+//
+// These handlers used to answer with http.NotFound or a line of plain text,
+// which is how an operator following a link from the sidebar met a blank
+// white page reading "imaging stations need the observed store" - true, and
+// useless: no frame, no way back, and a 404 that says the page does not
+// exist when the truth is that this deployment has no database behind it.
+// The sidebar no longer offers those links, but a bookmark, a notification
+// link or a typed URL still arrives here.
+func (s *Server) unavailable(w http.ResponseWriter, r *http.Request, v view, msg string) {
+	s.render(w, "error", map[string]any{
+		"Title": "Unavailable", "Message": msg,
+		"Detail":   "",
+		"Back":     backLink(r),
+		"__status": http.StatusServiceUnavailable,
+	}, v)
+}
+
 func classifyActionError(err error) (status int, msg, detail string) {
 	var verr *ports.ValidationError
 	switch {

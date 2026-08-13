@@ -7,16 +7,55 @@ jobs:
   test:
     runs-on: nixos
     steps:
+      # What this run actually is, in one line, before anything can fail. Run
+      # 103 (the first pull_request event this repository ever had) failed with
+      # no log to read and no step to blame; the next one will at least say
+      # which ref it was handed and which runner picked it up.
+      - name: Event
+        run: |
+          echo "event=${GITHUB_EVENT_NAME:-?} ref=${GITHUB_REF:-?} ref_name=${GITHUB_REF_NAME:-?}"
+          echo "sha=${GITHUB_SHA:-?} runner=${RUNNER_NAME:-?} workspace=${GITHUB_WORKSPACE:-?}"
+
       # Plain git clone: actions/checkout is a Node action and the NixOS
       # runner deliberately carries no Node runtime.
+      #
+      # Fetch a REF, do not clone a branch. On a pull_request event
+      # GITHUB_REF_NAME is not a branch that exists on the remote (Forgejo
+      # reports this run's head_branch as "#24"), so `clone --branch` cannot
+      # succeed and the job dies before its first real step. GITHUB_REF is the
+      # thing both events agree on: refs/heads/<branch> for a push,
+      # refs/pull/<n>/head for a pull request.
+      #
+      # The fallbacks are ordered by how specific they are, and each one says
+      # so out loud: a checkout that silently lands on the wrong commit would
+      # make every step below test something nobody asked about.
       - name: Checkout
         run: |
+          set -eu
           rm -rf "$GITHUB_WORKSPACE/src"
-          git clone --depth 1 --branch "${GITHUB_REF_NAME:-main}" \
-            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" "$GITHUB_WORKSPACE/src"
+          mkdir -p "$GITHUB_WORKSPACE/src"
+          cd "$GITHUB_WORKSPACE/src"
+          git init -q .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          if [ -n "${GITHUB_REF:-}" ] && git fetch -q --depth 50 origin "$GITHUB_REF"; then
+            echo "checked out ${GITHUB_REF}"
+          elif [ -n "${GITHUB_SHA:-}" ] && git fetch -q --depth 50 origin "$GITHUB_SHA"; then
+            echo "ref ${GITHUB_REF:-} not fetchable; checked out ${GITHUB_SHA} by hash"
+          else
+            echo "neither ref nor sha could be fetched; falling back to the default branch" >&2
+            git fetch -q --depth 50 origin HEAD
+          fi
+          git checkout -q --detach FETCH_HEAD
+          # The commit we ended up on must be the commit this run is about.
+          # Without this a fallback could quietly test the default branch and
+          # report the answer as if it were about the change.
+          if [ -n "${GITHUB_SHA:-}" ] && [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then
+            echo "checked out $(git rev-parse HEAD), expected $GITHUB_SHA" >&2
+            echo "(a pull_request event points at a merge commit; that is fine, but say so)" >&2
+          fi
           # --no-pager: the NixOS runner has no `less`, so git's default pager
           # would abort this command (and the whole job) with exit 128.
-          git --no-pager -C "$GITHUB_WORKSPACE/src" log -1 --oneline
+          git --no-pager log -1 --oneline
 
       # Cheap and first: a message problem should not cost a full nix build to
       # discover. Only the commits THIS push carries are checked - history
@@ -170,6 +209,15 @@ jobs:
       # vocabulary with no signal. The script exists exactly for this hook.
       - name: Catalog drift guard
         run: cd "$GITHUB_WORKSPACE/src" && examples/overlay/regen-catalog.sh --check
+
+      # Same shape of drift, other generated file: app.css is built from the
+      # Tailwind sources and committed because the binary embeds it. A class
+      # added to a template without `just css` ships markup whose styles are
+      # simply absent - the page looks wrong rather than broken, so nothing
+      # fails and nobody is told. An edit window shipped invisible that way on
+      # 2026-08-13.
+      - name: Stylesheet drift guard
+        run: cd "$GITHUB_WORKSPACE/src" && nix develop --command just css-check
 
       # Packaging must not break silently: the chart lints/renders and the
       # images build on every push, not just when a human happens to try.

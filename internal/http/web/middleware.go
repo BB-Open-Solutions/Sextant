@@ -159,6 +159,12 @@ func (s *Server) render(w http.ResponseWriter, name string, data map[string]any,
 	// listener /status is not on this port at all, so the link 404s for
 	// everybody. Being logged in does not help - the split is by port.
 	data["HasStatusPage"] = s.statusOnMain
+	// Two more doors that only open with the observed plane (Postgres):
+	// elevation approvals and the imaging flow. Without it /elevation answers
+	// a bare 404 and /enroll a line of plain text, both from a link the
+	// sidebar offered - so the sidebar stops offering them instead.
+	data["HasElevation"] = s.svc.Elevation != nil
+	data["HasEnrolment"] = s.svc.Discovery != nil
 	// CanOrgOwn gates owner-only nav entries (service accounts); pages that
 	// already set their own CanOrgOwn keep theirs.
 	if _, ok := data["CanOrgOwn"]; !ok {

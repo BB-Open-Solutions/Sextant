@@ -2,15 +2,33 @@
 {{$ctl := "h-9 rounded-lg border border-border-hairline bg-canvas px-3 text-label-md text-ink focus:border-mint-vibrant focus:outline-none focus:ring-2 focus:ring-mint-vibrant/20"}}
 <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
   <div>
-    <h1 class="mb-1">{{.L.T "settings.title"}}</h1>
-    <p class="mb-1 max-w-2xl text-body-md text-text-tertiary">{{.L.T "settings.scope_help_pre"}} <strong>{{.L.T "common.enforce"}}</strong> {{.L.T "settings.scope_help_post"}}</p>
-  {{/* ADR 0017: a setting becomes a policy by default, and a plain setting is
-       the deliberate exception. This page is where somebody lands when they
-       want to change something, so it is where that has to be said - an
-       editor that silently offers a key with a compliance story is inviting
-       the wrong tool. */}}
-  <p class="mb-0 max-w-2xl text-body-sm text-text-tertiary">{{.L.T "settings.policy_pointer"}} <a href="/policies" class="underline">{{.L.T "nav.policies"}}</a>.</p>
+    {{/* The page explains itself behind the mark rather than above the fold.
+         Both paragraphs are worth reading once - what enforce does, and (ADR
+         0017) that a control somebody has to demonstrate belongs in a policy
+         and not here - and then they are wall furniture on every later visit.
+         Kept together in one panel so the pointer to Policies stays next to
+         the sentence that earns it, and reachable because the panel holds
+         while the pointer is inside it. */}}
+    <h1 class="mb-1 flex items-center gap-2">{{.L.T "settings.title"}}
+      <span class="hint">
+        <span class="hint-mark" tabindex="0" role="note" aria-label="{{.L.T "common.about_page"}}"><span class="material-symbols-outlined msz-18">info</span></span>
+        <span class="hint-panel">
+          <span class="block text-body-sm text-text-secondary">{{.L.T "settings.scope_help_pre"}} <strong>{{.L.T "common.enforce"}}</strong> {{.L.T "settings.scope_help_post"}}</span>
+          <span class="mt-2 block text-body-sm text-text-secondary">{{.L.T "settings.policy_pointer"}} <a href="/policies" class="underline">{{.L.T "nav.policies"}}</a>.</span>
+        </span>
+      </span>
+    </h1>
   </div>
+</div>
+
+{{/* The scope belongs ON TOP OF the thing it governs, not in the far corner
+     of the header: every value below is written at exactly this scope, and a
+     picker parked across the page from the rows reads like page furniture
+     rather than the subject of the edit. It sticks while the sections scroll,
+     because the rows run far past one screen and "which scope am I writing
+     to" is the one question that must never need a scroll up. */}}
+<div class="sticky top-14 z-20 mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border-hairline bg-surface-bright px-4 py-3 shadow-sm">
+  <span class="text-label-xs-caps uppercase text-text-tertiary">{{.L.T "settings.editing"}}</span>
   {{template "scopePicker" .}}
 </div>
 
@@ -27,8 +45,12 @@
      real choices visible. Applying writes the bundle's settings at the current
      scope through the normal gated save. -->
 <section class="mb-6">
-  <h2 class="mb-1 flex items-center gap-2 text-headline-sm text-ink"><span class="material-symbols-outlined text-mint-deep">apps</span>{{.L.T "bundles.title"}}</h2>
-  <p class="mb-3 max-w-2xl text-body-md text-text-tertiary">{{.L.T "bundles.intro"}}</p>
+  <h2 class="mb-3 flex items-center gap-2 text-headline-sm text-ink"><span class="material-symbols-outlined text-mint-deep">apps</span>{{.L.T "bundles.title"}}
+    <span class="hint">
+      <span class="hint-mark" tabindex="0" role="note" aria-label="{{.L.T "common.about_section"}}"><span class="material-symbols-outlined msz-18">info</span></span>
+      <span class="hint-panel text-body-sm font-normal text-text-secondary">{{.L.T "bundles.intro"}}</span>
+    </span>
+  </h2>
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
     {{range .Bundles}}
     <div class="flex flex-col rounded-lg border border-border-hairline bg-canvas shadow-sm">
@@ -74,19 +96,54 @@
      "default" there. -->
 {{$inhWord := .L.T "common.inherit"}}{{if eq .Scope "org"}}{{$inhWord = .L.T "settings.default_word"}}{{end}}
 <div class="mb-6 rounded-lg border border-border-hairline bg-canvas p-6 shadow-sm">
-  <h2 class="mt-0 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">inventory_2</span>{{.L.T "settings.apps_title"}}</h2>
-  <p class="muted mb-4">{{.L.T "settings.apps_help"}}</p>
-  <div class="flex flex-col gap-3">
+  <h2 class="mt-0 mb-4 flex items-center gap-2 text-headline-sm"><span class="material-symbols-outlined text-text-tertiary">inventory_2</span>{{.L.T "settings.apps_title"}}
+    <span class="hint">
+      <span class="hint-mark" tabindex="0" role="note" aria-label="{{.L.T "common.about_section"}}"><span class="material-symbols-outlined msz-18">info</span></span>
+      <span class="hint-panel text-body-sm font-normal text-text-secondary">{{.L.T "settings.apps_help"}}</span>
+    </span>
+  </h2>
+  {{/* Read first, edit on purpose. The three lists used to be three
+       comma-separated one-line fields: you could not see what was in them
+       without dragging through the field, and a save wrote whatever the line
+       happened to contain. The page now shows what is there (and how much
+       more), and editing opens a window with one name per line. */}}
+  <div class="flex flex-col divide-y divide-border-hairline">
   {{range .Apps}}
-  <form method="post" action="/apps" class="!items-center">
-    <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{$.Scope}}"><input type="hidden" name="kind" value="{{.Kind}}">
-    <label class="w-24">{{.Kind}}</label>
-    <input name="names" value="{{.Names}}" placeholder="{{$.L.T "common.comma_separated"}}" class="flex-1" aria-label="{{$.L.T "common.comma_separated"}}">
-    {{if $.CanEdit}}<button type="submit" class="quiet">{{$.L.T "common.save"}}</button>{{end}}
-  </form>
+  <div class="flex flex-wrap items-start gap-3 py-3 first:pt-0 last:pb-0">
+    <span class="w-24 shrink-0 text-label-md font-medium text-ink">{{.Kind}}</span>
+    <span class="min-w-0 flex-1 text-body-sm text-text-secondary">
+      {{if .Count}}{{range $i, $n := .Shown}}{{if $i}}, {{end}}<span class="font-mono">{{$n}}</span>{{end}}{{if .Rest}}<span class="text-text-tertiary"> · {{printf ($.L.T "settings.apps_more") .Rest}}</span>{{end}}
+      {{else}}<span class="text-text-tertiary">{{$.L.T "settings.apps_empty"}}</span>{{end}}
+    </span>
+    {{if $.CanEdit}}<label for="apps-{{.Kind}}" class="btn quiet shrink-0 !min-h-0 !py-1"><span class="material-symbols-outlined msz-18">edit</span>{{$.L.T "common.edit"}}</label>{{end}}
+  </div>
   {{end}}
   </div>
 </div>
+
+{{if .CanEdit}}
+{{/* The edit windows live here, OUTSIDE the settings form below: each one is a
+     form of its own, and a form nested in a form is invalid HTML that browsers
+     silently discard. Checkbox plus labels, no script (strict CSP). */}}
+{{range .Apps}}
+<input type="checkbox" id="apps-{{.Kind}}" class="modal-toggle">
+<div class="modal">
+  <label for="apps-{{.Kind}}" class="modal-backdrop" aria-label="{{$.L.T "common.cancel"}}"></label>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-label="{{$.L.T "settings.apps_edit_title"}} {{.Kind}}">
+    <h2 class="mt-0 mb-1 text-headline-sm text-ink">{{$.L.T "settings.apps_edit_title"}} · <span class="capitalize">{{.Kind}}</span></h2>
+    <p class="mb-3 text-body-sm text-text-tertiary">{{$.L.T "settings.apps_hint"}}</p>
+    <form method="post" action="/apps" class="!flex-col !items-stretch gap-3">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{$.Scope}}"><input type="hidden" name="kind" value="{{.Kind}}">
+      <textarea name="names" rows="12" class="font-mono" aria-label="{{$.L.T "settings.apps_edit_title"}}">{{.Text}}</textarea>
+      <div class="flex items-center justify-end gap-2">
+        <label for="apps-{{.Kind}}" class="btn quiet">{{$.L.T "common.cancel"}}</label>
+        <button type="submit">{{$.L.T "common.save"}}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
+{{end}}
 
 {{if .CanEdit}}
 <!-- One form saves every editable setting at this scope in a single commit;
@@ -100,27 +157,47 @@
 {{end}}
 
 {{range $sec := .Sections}}
-<div class="mb-6 overflow-hidden rounded-lg border border-border-hairline bg-canvas shadow-sm">
-  <div class="flex items-center justify-between border-b border-border-hairline bg-surface-bright px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold capitalize text-ink">{{$sec.Name}}</h2><span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len $sec.Rows}} {{$.L.T "settings.keys_suffix"}}</span></div>
+<!-- No overflow-hidden: a row's hint panel has to be able to hang past the
+     card's bottom edge. The corners are rounded on the pieces that paint
+     instead (the header strip, the last row's hover tint). -->
+<div class="mb-6 rounded-lg border border-border-hairline bg-canvas shadow-sm">
+  <div class="flex items-center justify-between rounded-t-lg border-b border-border-hairline bg-surface-bright px-6 py-4"><h2 class="mt-0 mb-0 text-label-md font-bold capitalize text-ink">{{$sec.Name}}</h2><span class="rounded bg-surface-container px-2 py-1 text-label-xs-caps uppercase text-text-tertiary">{{len $sec.Rows}} {{$.L.T "settings.keys_suffix"}}</span></div>
   <div class="flex flex-col divide-y divide-border-hairline">
     {{range $i, $row := $sec.Rows}}
     {{$risk := $row.Entry.RiskClass}}{{$set := $row.Set}}{{$sl := slug $row.Entry.Name}}
-    <div class="relative px-6 py-4 transition-colors {{if $risk}}bg-status-error/[0.03] hover:bg-status-error/[0.06]{{else}}hover:bg-surface-container-low{{end}}">
+    <div class="relative px-6 py-4 transition-colors last:rounded-b-lg {{if $risk}}bg-status-error/[0.03] hover:bg-status-error/[0.06]{{else}}hover:bg-surface-container-low{{end}}">
       {{if $risk}}<div class="absolute inset-y-0 left-0 w-1 bg-status-error"></div>{{end}}
       <div class="flex flex-wrap items-start gap-x-4 gap-y-3">
         <!-- Identity: key + type pill + risk, then description -->
         <div class="min-w-0 flex-1">
           <!-- A labelled option leads with its human name; the dotted path
                stays as the small technical identity next to it. -->
+          {{/* A labelled row leads with its human name; an unlabelled entry has
+               nothing but its dotted path, so that stays the name. Everything
+               a row does not need in order to be recognised - the path, the
+               type, and the part of the description that explains WHY the
+               setting exists - moves into the "?" beside it. The type pill in
+               particular repeated what the control already shows: a toggle is
+               visibly boolean and a select visibly lists its options. */}}
           <div class="flex flex-wrap items-center gap-2">
             {{if $row.Entry.Label}}<span class="break-words font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Label}}</span>
-            <span class="break-all font-mono text-code-inline text-text-tertiary">{{$row.Entry.Name}}</span>
             {{else}}<span class="break-all font-mono font-medium {{if $risk}}text-status-error{{else}}text-ink{{end}}">{{$row.Entry.Name}}</span>{{end}}
-            <span class="rounded-full bg-surface-container px-2 py-0.5 text-label-xs-caps capitalize text-text-tertiary">{{$row.Entry.Type}}</span>
             {{if $risk}}<span class="tag bad">{{$risk}} {{$.L.T "settings.risk_suffix"}}</span>{{end}}
+            <span class="hint">
+              <span class="hint-mark" tabindex="0" role="note" aria-label="{{$.L.T "settings.technical_detail"}}"><span class="material-symbols-outlined msz-16">info</span></span>
+              <span class="hint-panel">
+                <span class="mb-1 block break-all font-mono text-code-inline text-ink">{{$row.Entry.Name}}</span>
+                <span class="block text-label-md capitalize text-text-tertiary">{{$row.Entry.Type}}</span>
+                {{with sentenceRest $row.Entry.Description}}<span class="mt-2 block text-body-sm text-text-secondary">{{.}}</span>{{end}}
+              </span>
+            </span>
           </div>
-          {{with $row.Entry.Description}}<p class="mb-0 mt-1.5 max-w-2xl text-body-sm text-text-tertiary">{{.}}</p>{{end}}
-          {{if and $row.RequiresKey $row.RequiresOff}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-status-warn"><span class="material-symbols-outlined msz-14">link_off</span>{{$.L.T "settings.requires_off_pre"}} <span class="font-mono">{{$row.RequiresKey}}</span> {{$.L.T "settings.requires_off_post"}}</p>{{end}}
+          {{with sentence $row.Entry.Description}}<p class="mb-0 mt-1.5 max-w-2xl text-body-sm text-text-tertiary">{{.}}</p>{{end}}
+          {{/* The warning carries the same data-requires hook as the value
+               column beside it. Without it the control ungreyed the moment the
+               enable was switched on while this line kept claiming the setting
+               was still waiting on it (app.js only ever touched the column). */}}
+          {{if and $row.RequiresKey $row.RequiresOff}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-status-warn" data-requires-hint="v:{{$row.RequiresKey}}" data-requires-inherited="{{$row.RequiresInherited}}"><span class="material-symbols-outlined msz-14">link_off</span>{{$.L.T "settings.requires_off_pre"}} <span class="font-mono">{{$row.RequiresKey}}</span> {{$.L.T "settings.requires_off_post"}}</p>{{end}}
           {{/* Honesty over ceremony: an image-time key saved here changes
                nothing on a running device until it is re-imaged. */}}
           {{if $row.ImageTime}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-text-tertiary"><span class="material-symbols-outlined msz-14">deployed_code_update</span>{{$.L.T "settings.image_time"}}</p>{{end}}

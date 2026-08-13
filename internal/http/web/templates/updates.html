@@ -159,7 +159,20 @@
     <div class="flex flex-col gap-3 rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div class="min-w-0">
         <div class="flex items-center gap-2">{{if .Error}}<span class="tag bad">{{$.L.T "page.pipeline.failed"}}</span>{{else}}<span class="tag">{{$.L.T "page.pipeline.draft"}}</span>{{end}}<span class="truncate font-semibold text-ink">{{.Title}}</span></div>
-        {{if .Error}}<div class="mt-1 font-mono text-code-inline text-status-error">{{.Error}}</div>{{end}}
+        {{/* The first line says what failed; the rest - the command, its
+             arguments, the trace - sits behind a disclosure. Printing all of
+             it here made the queue unreadable and still buried the one line
+             that names the cause. Scrubbed a second time on the way out for
+             rows stored before the store scrubbed them. */}}
+        {{if .Error}}
+        <div class="mt-1 font-mono text-code-inline text-status-error">{{errHead (scrub .Error)}}</div>
+        {{if errHasMore (scrub .Error)}}
+        <details class="mt-1">
+          <summary class="cursor-pointer text-label-md text-text-tertiary hover:text-ink">{{$.L.T "error.show_detail"}}</summary>
+          <pre class="mt-1 max-h-64 overflow-auto rounded-md border border-border-hairline bg-surface-container-low p-3 text-code-inline text-ink">{{scrub .Error}}</pre>
+        </details>
+        {{end}}
+        {{end}}
         <div class="mt-1 text-label-md text-text-tertiary">{{.Author}} · {{$.L.TimeSec .Created}}</div>
       </div>
       <div class="flex shrink-0 items-center gap-2">

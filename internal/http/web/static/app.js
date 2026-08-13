@@ -253,13 +253,25 @@ document.addEventListener("click", function (e) {
       c.disabled = !on;
     });
   }
+  // "Takes effect once <enable> is on" is only true while the enable is off.
+  // It follows the same toggle as the control it belongs to; leaving it behind
+  // told the operator the setting was still waiting on something they had just
+  // switched on.
+  function applyHint(hint, on) {
+    hint.hidden = on;
+  }
+  function resolve(t, el) {
+    if (t.value === "") return el.getAttribute("data-requires-inherited") === "true";
+    return t.value === "true";
+  }
   document.addEventListener("change", function (e) {
     var t = e.target;
     if (!t || !t.name || t.type !== "radio") return;
     document.querySelectorAll('[data-requires="' + t.name + '"]').forEach(function (col) {
-      var on = t.value === "true";
-      if (t.value === "") on = col.getAttribute("data-requires-inherited") === "true";
-      apply(col, on);
+      apply(col, resolve(t, col));
+    });
+    document.querySelectorAll('[data-requires-hint="' + t.name + '"]').forEach(function (hint) {
+      applyHint(hint, resolve(t, hint));
     });
   });
 })();

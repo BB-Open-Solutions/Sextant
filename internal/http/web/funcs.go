@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"html/template"
 	"strings"
+	"unicode"
 	"unicode/utf8"
+
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
 )
 
 // diffLine is one classified line of a unified diff for the change viewer.
@@ -45,6 +48,26 @@ func templateFuncs() template.FuncMap {
 		// slug turns a setting key into a suggested secret-reference name, so a
 		// secret field can deep-link to the Secrets page prefilled.
 		"slug": slugify,
+		// sentence and sentenceRest split a catalog description in two: the
+		// opening sentence says WHAT a setting is and stays on the row, the
+		// rest (why it exists, what it deliberately excludes, what it must not
+		// be confused with) moves into the row's details panel. Catalog prose
+		// is written to be read once and then never again, and a settings page
+		// where every row carries a paragraph is a page nobody scans.
+		"sentence":     func(s string) string { head, _ := splitSentence(s); return head },
+		"sentenceRest": func(s string) string { _, rest := splitSentence(s); return rest },
+		// errHead is the readable half of a rejection: its first line, capped.
+		// A gate or git failure arrives as a paragraph of command lines and
+		// stack traces, and printing all of it in the review queue made the
+		// page unreadable while still not being the whole story - the rest
+		// belongs behind a disclosure, not on the row.
+		"errHead": errHead,
+		// errHasMore says whether the disclosure is worth rendering at all.
+		"errHasMore": func(s string) bool { return errHead(s) != strings.TrimSpace(s) },
+		// scrub removes credentials from text that reaches a page. Applied on
+		// the way into the store as well (app.ScrubCredentials); this is the
+		// second layer, for rows written before that existed.
+		"scrub": app.ScrubCredentials,
 		// initial is the uppercase first letter of a name, for the avatar
 		// fallback when no profile photo is available.
 		"initial": func(s string) string {
@@ -133,6 +156,74 @@ func initials(name string) string {
 		return "?"
 	}
 	return b.String()
+}
+
+// abbreviations are the trailing forms whose full stop does NOT end a
+// sentence. Without them "a deployment has to say no on purpose (e.g. it
+// ships a vault)" splits after "e.g." and the row shows half a clause.
+var abbreviations = []string{"e.g.", "i.e.", "etc.", "cf.", "vs.", "approx.", "no.", "incl.", "resp."}
+
+// splitSentence cuts a description after its first sentence and returns both
+// halves; the rest is empty when there is only one sentence. A split needs a
+// full stop (or ? / !) followed by whitespace AND an upper-case letter, which
+// is what keeps "dawo.apps.office is enabled." intact - a dotted option path
+// mid-sentence is followed by a lower-case word, never a capital.
+func splitSentence(s string) (head, rest string) {
+	s = strings.TrimSpace(s)
+	for i := 0; i < len(s)-1; i++ {
+		if s[i] != '.' && s[i] != '!' && s[i] != '?' {
+			continue
+		}
+		if s[i+1] != ' ' && s[i+1] != '\n' && s[i+1] != '\t' {
+			continue
+		}
+		candidate := strings.TrimSpace(s[:i+1])
+		lower := strings.ToLower(candidate)
+		abbrev := false
+		for _, a := range abbreviations {
+			if strings.HasSuffix(lower, a) {
+				abbrev = true
+				break
+			}
+		}
+		if abbrev {
+			continue
+		}
+		tail := strings.TrimSpace(s[i+1:])
+		if tail == "" {
+			return candidate, ""
+		}
+		if r, _ := utf8.DecodeRuneInString(tail); !unicode.IsUpper(r) {
+			continue
+		}
+		return candidate, tail
+	}
+	return s, ""
+}
+
+// errHeadMax is how much of a rejection fits on a row without pushing the
+// rest of the card off the screen. Long enough for a git or nix first line to
+// still say what failed.
+const errHeadMax = 160
+
+// errHead returns the first line of an error, capped, with an ellipsis when
+// it was cut. Whitespace-only input returns empty, so a template can decide
+// not to render the block at all.
+func errHead(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = strings.TrimSpace(s[:i])
+	}
+	if len(s) > errHeadMax {
+		// Cut on a rune boundary: an error can carry a path with non-ASCII in
+		// it, and half a rune renders as a replacement character.
+		cut := errHeadMax
+		for cut > 0 && !utf8.RuneStart(s[cut]) {
+			cut--
+		}
+		s = strings.TrimSpace(s[:cut]) + "…"
+	}
+	return s
 }
 
 // barClass maps a 0..100 percentage onto its nearest-5% CSP-safe width

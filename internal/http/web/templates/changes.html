@@ -35,7 +35,17 @@
         </div>
         <div class="mt-1 text-body-md font-medium text-ink">{{.Title}}</div>
         <div class="mt-1 flex items-center gap-2 text-label-md text-text-tertiary"><span class="material-symbols-outlined msz-14">person</span>{{.Author}} | {{$.L.Time .Updated}}</div>
-        {{with .Error}}<div class="mt-2"><span class="tag bad">{{.}}</span></div>{{end}}
+        {{/* Same shape as the review queue: the naming line on the row, the
+             full text behind the disclosure, credentials removed. */}}
+        {{with .Error}}
+        <div class="mt-2"><span class="tag bad">{{errHead (scrub .)}}</span></div>
+        {{if errHasMore (scrub .)}}
+        <details class="mt-1">
+          <summary class="cursor-pointer text-label-md text-text-tertiary hover:text-ink">{{$.L.T "error.show_detail"}}</summary>
+          <pre class="mt-1 max-h-64 overflow-auto rounded-md border border-border-hairline bg-surface-container-low p-3 text-code-inline text-ink">{{scrub .}}</pre>
+        </details>
+        {{end}}
+        {{end}}
       </div>
       <div class="flex flex-wrap items-center gap-2">
         {{if .Open}}<a href="/changes/{{.ID}}/diff" class="btn quiet !py-1.5"><span class="material-symbols-outlined msz-16">difference</span>{{$.L.T "changes.diff_link"}}</a>{{end}}

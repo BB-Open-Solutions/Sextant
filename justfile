@@ -6,7 +6,7 @@ default: ci
 # ci mirrors .forgejo/workflows/ci.yml - the REAL merge bar. If a step is
 # added there, add it here (and vice versa); a narrower local bar teaches
 # people the wrong definition of green.
-ci: fmt-check vet lint test coverage-floor build nix-build catalog-check agent-ci
+ci: fmt-check vet lint test coverage-floor build nix-build catalog-check css-check agent-ci
 
 # The logic layer must stay above 75%. Transport, ports, logging and the
 # capability wiring are excluded: they are glue, and counting them lets real
@@ -95,6 +95,24 @@ css:
     tailwindcss -c internal/http/web/styles/tailwind.config.js \
       -i internal/http/web/styles/input.css \
       -o internal/http/web/static/app.css --minify
+
+# The stylesheet is generated but COMMITTED, because it is embedded in the
+# binary. So a template that uses a new class, or a rule added to input.css,
+# ships as dead markup until somebody remembers `just css` - the page renders
+# with the styles simply missing, which looks like a design mistake rather
+# than a build one. This is how an edit window shipped invisible on
+# 2026-08-13. The guard regenerates and refuses a difference.
+css-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out=$(mktemp)
+    trap 'rm -f "$out"' EXIT
+    tailwindcss -c internal/http/web/styles/tailwind.config.js \
+      -i internal/http/web/styles/input.css -o "$out" --minify 2>/dev/null
+    if ! diff -q "$out" internal/http/web/static/app.css >/dev/null; then
+        echo "internal/http/web/static/app.css is out of date - run 'just css'" >&2
+        exit 1
+    fi
 
 build:
     go build -trimpath -o sextant ./cmd/sextant

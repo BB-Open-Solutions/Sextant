@@ -36,3 +36,17 @@ func TestCompliancePageRenders(t *testing.T) {
 		t.Error("critical filter still lists a to-spec device")
 	}
 }
+
+// A device's groups read as plain text. As pills their own padding wrapped a
+// name like "bb-laptops" onto a second line in this narrow column, which is a
+// lot of ceremony for a word.
+func TestComplianceGroupsAreNotPills(t *testing.T) {
+	ts, _ := newConsole(t)
+	_, page := getPage(t, ts, "/compliance")
+	if !strings.Contains(page, "pilot") {
+		t.Fatal("the device's group is not on the page at all")
+	}
+	if strings.Contains(page, `<span class="tag">pilot</span>`) {
+		t.Error("group still rendered as a pill")
+	}
+}

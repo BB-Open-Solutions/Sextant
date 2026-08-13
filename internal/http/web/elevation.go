@@ -38,7 +38,7 @@ type elevationRow struct {
 
 func (s *Server) elevationPage(w http.ResponseWriter, r *http.Request, v view) {
 	if s.svc.Elevation == nil {
-		http.NotFound(w, r)
+		s.unavailable(w, r, v, v.L.T("degraded.needs_store"))
 		return
 	}
 	// Approving is an act of administration over somebody else's machine, so
