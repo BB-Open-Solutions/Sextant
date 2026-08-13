@@ -74,6 +74,26 @@ type settingRow struct {
 	PolicyOnly bool
 }
 
+// appsShown caps how many names an app list prints before it says "N more".
+// Ten is what fits on one line at the widths this page uses, and the point of
+// the summary is that it can be read at a glance rather than dragged through.
+const appsShown = 10
+
+// appsRow prepares one app list for the settings page: what to print, how many
+// are left over, and the whole list one name per line for the edit window.
+// Splitting it here rather than in the template keeps arithmetic out of the
+// markup - a template that can count is a template that can be wrong quietly.
+func appsRow(kind string, names []string) map[string]any {
+	shown, rest := names, 0
+	if len(names) > appsShown {
+		shown, rest = names[:appsShown], len(names)-appsShown
+	}
+	return map[string]any{
+		"Kind": kind, "Shown": shown, "Rest": rest, "Count": len(names),
+		"Text": strings.Join(names, "\n"),
+	}
+}
+
 // imageTimePrefixes are the dotted namespaces whose options only take hold
 // when a device is (re)imaged: Secure Boot key enrollment and TPM2 disk
 // unlock are decided at install time (design 0001, decision 2026-07-28).
@@ -366,10 +386,8 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 		"IsDevice":   strings.HasPrefix(scope, "device:"),
 		"Empty":      len(cat.Entries) == 0,
 		"CanEdit":    v.roleAt(scope).Meets(identity.Editor),
-		"Apps": []map[string]string{
-			{"Kind": "packages", "Names": strings.Join(pkgs, ", ")},
-			{"Kind": "flatpaks", "Names": strings.Join(flats, ", ")},
-			{"Kind": "overlays", "Names": strings.Join(ovs, ", ")},
+		"Apps": []map[string]any{
+			appsRow("packages", pkgs), appsRow("flatpaks", flats), appsRow("overlays", ovs),
 		},
 	}, v)
 }

@@ -102,17 +102,48 @@
       <span class="hint-panel text-body-sm font-normal text-text-secondary">{{.L.T "settings.apps_help"}}</span>
     </span>
   </h2>
-  <div class="flex flex-col gap-3">
+  {{/* Read first, edit on purpose. The three lists used to be three
+       comma-separated one-line fields: you could not see what was in them
+       without dragging through the field, and a save wrote whatever the line
+       happened to contain. The page now shows what is there (and how much
+       more), and editing opens a window with one name per line. */}}
+  <div class="flex flex-col divide-y divide-border-hairline">
   {{range .Apps}}
-  <form method="post" action="/apps" class="!items-center">
-    <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{$.Scope}}"><input type="hidden" name="kind" value="{{.Kind}}">
-    <label class="w-24">{{.Kind}}</label>
-    <input name="names" value="{{.Names}}" placeholder="{{$.L.T "common.comma_separated"}}" class="flex-1" aria-label="{{$.L.T "common.comma_separated"}}">
-    {{if $.CanEdit}}<button type="submit" class="quiet">{{$.L.T "common.save"}}</button>{{end}}
-  </form>
+  <div class="flex flex-wrap items-start gap-3 py-3 first:pt-0 last:pb-0">
+    <span class="w-24 shrink-0 text-label-md font-medium text-ink">{{.Kind}}</span>
+    <span class="min-w-0 flex-1 text-body-sm text-text-secondary">
+      {{if .Count}}{{range $i, $n := .Shown}}{{if $i}}, {{end}}<span class="font-mono">{{$n}}</span>{{end}}{{if .Rest}}<span class="text-text-tertiary"> · {{printf ($.L.T "settings.apps_more") .Rest}}</span>{{end}}
+      {{else}}<span class="text-text-tertiary">{{$.L.T "settings.apps_empty"}}</span>{{end}}
+    </span>
+    {{if $.CanEdit}}<label for="apps-{{.Kind}}" class="btn quiet shrink-0 !min-h-0 !py-1"><span class="material-symbols-outlined msz-18">edit</span>{{$.L.T "common.edit"}}</label>{{end}}
+  </div>
   {{end}}
   </div>
 </div>
+
+{{if .CanEdit}}
+{{/* The edit windows live here, OUTSIDE the settings form below: each one is a
+     form of its own, and a form nested in a form is invalid HTML that browsers
+     silently discard. Checkbox plus labels, no script (strict CSP). */}}
+{{range .Apps}}
+<input type="checkbox" id="apps-{{.Kind}}" class="modal-toggle">
+<div class="modal">
+  <label for="apps-{{.Kind}}" class="modal-backdrop" aria-label="{{$.L.T "common.cancel"}}"></label>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-label="{{$.L.T "settings.apps_edit_title"}} {{.Kind}}">
+    <h2 class="mt-0 mb-1 text-headline-sm text-ink">{{$.L.T "settings.apps_edit_title"}} · <span class="capitalize">{{.Kind}}</span></h2>
+    <p class="mb-3 text-body-sm text-text-tertiary">{{$.L.T "settings.apps_hint"}}</p>
+    <form method="post" action="/apps" class="!flex-col !items-stretch gap-3">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="scope" value="{{$.Scope}}"><input type="hidden" name="kind" value="{{.Kind}}">
+      <textarea name="names" rows="12" class="font-mono" aria-label="{{$.L.T "settings.apps_edit_title"}}">{{.Text}}</textarea>
+      <div class="flex items-center justify-end gap-2">
+        <label for="apps-{{.Kind}}" class="btn quiet">{{$.L.T "common.cancel"}}</label>
+        <button type="submit">{{$.L.T "common.save"}}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
+{{end}}
 
 {{if .CanEdit}}
 <!-- One form saves every editable setting at this scope in a single commit;

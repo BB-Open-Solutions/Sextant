@@ -103,6 +103,25 @@
   .hint-panel { @apply invisible absolute left-0 top-full z-20 w-80 select-text rounded-lg border border-border-hairline bg-canvas p-3 text-left opacity-0 shadow-lg transition-opacity; }
   .hint:hover .hint-panel, .hint:focus-within .hint-panel { @apply visible opacity-100; }
 
+  /* Edit windows. A list you edit in place is a one-line field you cannot read
+     top to bottom; the window gives it a textarea with one name per line, which
+     is how people check a list. Built on a hidden checkbox and labels, like the
+     group-create panel, so it needs no script under the strict CSP - and it
+     therefore cannot close on Escape. The backdrop is a label, so a click
+     outside closes it, and the window renders OUTSIDE any other form: a form
+     inside a form is not valid HTML and browsers silently drop the inner one.
+     Every control inside stays keyboard-reachable because the window is in the
+     document, not conjured. */
+  .modal-toggle { @apply sr-only; }
+  .modal { @apply pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 opacity-0 transition-opacity; }
+  /* "+", not "~": the general sibling selector matched EVERY later window on
+     the page, so opening the packages list opened all three stacked and the
+     last one drawn (overlays) is what you saw. Adjacent only - each window
+     immediately follows its own toggle. */
+  .modal-toggle:checked + .modal { @apply pointer-events-auto opacity-100; }
+  .modal-backdrop { @apply absolute inset-0 cursor-default; }
+  .modal-panel { @apply relative z-10 w-full max-w-xl rounded-lg border border-border-hairline bg-canvas p-6 shadow-lg; }
+
   /* Role: plain coloured text with a small icon - no pill. */
   .role { @apply inline-flex items-center gap-1 text-label-md font-semibold capitalize; }
   .role.owner  { @apply text-ink; }
