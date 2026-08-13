@@ -1,6 +1,18 @@
 name: ci
+# One run per change, not two. A push to a branch that has a pull request
+# fired BOTH a push run and a pull_request run doing identical work, and this
+# repository has one runner: the second run is not redundancy, it is a queue
+# somebody is waiting in. Measured 13 Aug 2026 - six runs deep, "waiting for a
+# runner with the following label: nixos", for three changes.
+#
+# So: pushes are only built on main (the branch nothing may reach except by
+# merge, and the one flux serves the chart from), and everything else is built
+# as the pull request it belongs to. A branch without a pull request gets no
+# CI, which is the correct answer under issue -> PR -> merge: the checks
+# belong to the request for review, not to every intermediate commit.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
