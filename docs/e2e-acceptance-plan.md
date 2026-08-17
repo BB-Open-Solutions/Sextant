@@ -109,6 +109,15 @@ A7 is worth doing first: it is also gate item 6, the ref-merge fix that ships
 in production and whose behaviour nobody has re-measured. A change carrying a
 `flake.lock` bump proves both at once.
 
+**Done for the gate half, 2026-08-18.** The overlay change
+`chore/core-follows-main` carries a `flake.lock` bump (core to 0.1.2, and with
+it nixpkgs 4 July to 9 August). The production gate-runner validated that ref
+for `dawo-inspoelstraat` and `e2e5` and returned `ok:true`; a control run with
+a ref that does not exist failed with `couldn't find remote ref`, which is what
+makes the `ok` mean something. See gate item 6 in `1.0-fit-gap.md`. The console
+half of A7 is still open: this went to `/validate` directly, so what is proved
+is the runner, not the console screens around it.
+
 ### Console plus a running device - both ends observed (about 30 rows)
 
 Needs a device online and someone watching the console. The device does not
