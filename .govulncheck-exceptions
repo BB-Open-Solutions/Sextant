@@ -5,7 +5,11 @@
 #
 # Format: one GO-XXXX-NNNN id at the start of a line; the rest is the reason.
 
-GO-2026-5856 crypto/tls ECH client privacy leak. Sextant never enables
-Encrypted Client Hello (no ECHConfig anywhere in the tree), so the leaking
-path cannot be reached. Fixed in go1.26.5 - REMOVE this entry when nixpkgs
-ships it (the pinned devshell go is 1.26.4 today).
+# Empty on purpose since 2026-08-18. The one entry that stood here,
+# GO-2026-5856 (crypto/tls ECH client privacy leak), is fixed in go1.26.5 and
+# the toolchain is now 1.26.6, so the exception did what it promised and left.
+#
+# An empty list is the state to defend. Seven advisories landed between 13 and
+# 18 August and the answer was to move the toolchain, not to write seven
+# reasons here. Adding an entry means accepting a reachable vulnerability, so
+# it needs a reason somebody else can check and a condition that removes it.

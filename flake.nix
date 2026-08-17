@@ -6,7 +6,33 @@
   outputs = { self, nixpkgs }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
-      forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+
+      # Go 1.26.6, ahead of nixpkgs, because seven called advisories are fixed
+      # there and nowhere earlier: GO-2026-5026, 5972, 6088, 6089, 6090, 6091
+      # and 6218. They reach net/http, net/url, html/template, crypto/tls and
+      # encoding/asn1, all of which a web console calls, so excepting them in
+      # .govulncheck-exceptions would have been risk acceptance rather than a
+      # fix. nixpkgs unstable carried 1.26.4 when they landed and 1.26.5 after
+      # the input bump in this commit; neither is enough.
+      #
+      # REMOVE THIS the moment nixpkgs ships 1.26.6 or later. A local version
+      # override is a small fork of the toolchain: it stops receiving whatever
+      # nixpkgs does to its go derivation, and the longer it stays the more of
+      # that it silently misses. `nix flake update nixpkgs` then `nix develop
+      # --command go version` is the whole check.
+      goVersion = "1.26.6";
+      goOverlay = _final: prev: {
+        go = prev.go.overrideAttrs (_old: {
+          version = goVersion;
+          src = prev.fetchurl {
+            url = "https://go.dev/dl/go${goVersion}.src.tar.gz";
+            hash = "sha256-oHIcVMaIkBRI13rZs+x+p8R0cwdV/4kTgukuy5P/LLE=";
+          };
+        });
+      };
+
+      forAll = f: nixpkgs.lib.genAttrs systems
+        (system: f (import nixpkgs { inherit system; overlays = [ goOverlay ]; }));
     in
     {
       # The resolver/generator contract (ADR 0005): overlays import these
