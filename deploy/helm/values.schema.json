@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sextant",
+  "description": "Fleet control plane for NixOS devices. Helm validates values against this schema on install and upgrade, so nothing here is marked required: a field that is required in practice but has a working default would turn an ordinary upgrade into a refusal. Types and choices are enforced; completeness is the wizard's job.",
+  "type": "object",
+  "properties": {
+    "orgName": { "type": "string", "title": "Organisation name", "description": "Shown in the console. One deployment serves one organisation." },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "title": "Image repository" },
+        "tag": { "type": "string", "title": "Image tag", "description": "Empty tracks the chart's appVersion, which is what you want unless you are pinning deliberately." },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "replicaCount": { "type": "integer", "minimum": 1, "title": "Console replicas", "description": "More than one needs persistence off: the volume is ReadWriteOnce and the chart refuses the combination." },
+    "secretName": { "type": "string", "title": "Secret with SEXTANT_* keys", "description": "Name of an existing Secret in this namespace. It carries the sealing key and the database credentials; the chart never creates it, so the secret is not in anybody's git history." },
+    "write": { "type": "boolean", "title": "Allow configuration writes", "description": "Off makes the console read-only, which is a real mode: a demo or a second replica that only shows state." },
+    "gateMode": {
+      "type": "string",
+      "enum": ["remote", "eval", "none"],
+      "title": "Validation gate",
+      "description": "remote delegates every write to the gate-runner and is the only fail-closed option. eval needs nix in the console image, which the release image does not ship. none commits without validating and the chart refuses it unless allowUnvalidated is set."
+    },
+    "allowUnvalidated": { "type": "boolean", "title": "Acknowledge unvalidated writes", "description": "Required to render gateMode: none together with write. Deliberately awkward." },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "engine": {
+          "type": "string",
+          "enum": ["cilium", "kubernetes", "none"],
+          "title": "Network policy engine",
+          "description": "cilium ships CiliumNetworkPolicy, which is an unknown kind on any other CNI and fails the install there. kubernetes ships the same intent as plain NetworkPolicy. none leaves egress to the platform."
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string", "title": "Ingress class", "description": "cilium, nginx, traefik: whatever this cluster runs." },
+        "host": { "type": "string", "title": "Console hostname" },
+        "tls": { "type": "boolean" }
+      }
+    },
+    "certManager": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "issuerName": { "type": "string" },
+        "issuerKind": { "type": "string", "enum": ["ClusterIssuer", "Issuer"] }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "title": "Single sign-on",
+      "description": "One SSO authority per deployment (ADR 0015). The console has no password login of its own, by design.",
+      "properties": {
+        "issuer": { "type": "string", "title": "OIDC issuer URL" },
+        "clientId": { "type": "string", "title": "Client ID" },
+        "scopes": { "type": "string" }
+      }
+    },
+    "gitRemote": {
+      "type": "object",
+      "title": "Fleet overlay repository",
+      "description": "The git repository this console writes configuration to. Devices follow branches in it, so it is the fleet's source of truth rather than a backup target.",
+      "properties": {
+        "url": { "type": "string" },
+        "branch": { "type": "string" },
+        "netrcSecret": { "type": "string", "description": "Name of an existing Secret holding the push credential." }
+      }
+    },
+    "cnpg": {
+      "type": "object",
+      "title": "Database",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Renders a CloudNativePG Cluster, so the CNPG operator has to be on the cluster." },
+        "name": { "type": "string" },
+        "instances": { "type": "integer", "minimum": 1 },
+        "storage": { "type": "string", "title": "Database volume size", "description": "WAL lives here. With archiving broken a small volume fills in hours, so this is not the place to be frugal." },
+        "storageClass": { "type": "string" },
+        "backup": {
+          "type": "object",
+          "description": "Off-cluster backup. The chart renders the object store and a scheduled backup together or neither: WAL archiving with no base backup cannot restore.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "destinationPath": { "type": "string", "description": "s3:// prefix." },
+            "endpointURL": { "type": "string" },
+            "secretName": { "type": "string" },
+            "schedule": { "type": "string", "description": "Six fields, seconds first. CNPG cron is not five-field cron." },
+            "retention": { "type": "string" }
+          }
+        }
+      }
+    },
+    "gateRunner": {
+      "type": "object",
+      "title": "Gate runner",
+      "description": "Evaluates every candidate configuration with nix before it reaches git. Wants real memory and a volume; it is the safety property this product sells.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "type": "object", "properties": { "repository": { "type": "string" }, "tag": { "type": "string" } } },
+        "cache": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string" },
+            "keySecret": { "type": "string" },
+            "persistent": { "type": "boolean" },
+            "storageClass": { "type": "string" }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "size": { "type": "string" },
+        "storageClass": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
-{{- if .Values.cnpg.enabled }}
+{{- if and (eq .Values.networkPolicy.engine "cilium") .Values.cnpg.enabled }}
 # Platform pattern (see allow-odoo-to-cnpg): once any egress policy selects
 # the pod, Cilium denies all other egress - so this policy carries the FULL
 # egress set: DNS, the CNPG cluster, and 443 for the OIDC provider.
@@ -47,7 +47,7 @@ spec:
               protocol: TCP
     {{- end }}
 {{- end }}
-{{- if .Values.gateRunner.enabled }}
+{{- if and (eq .Values.networkPolicy.engine "cilium") .Values.gateRunner.enabled }}
 ---
 # gate-runner egress: DNS + HTTPS to the overlay git remote, cache.nixos.org
 # and the flake inputs it evaluates. Once selected, Cilium denies all other

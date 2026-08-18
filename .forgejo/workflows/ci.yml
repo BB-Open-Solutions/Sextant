@@ -275,6 +275,18 @@ jobs:
               --set cnpg.backup.secretName=s)
             echo "$back" | grep -q "barmanObjectStore" || { echo "backup enabled but no barmanObjectStore"; exit 1; }
             echo "$back" | grep -q "kind: ScheduledBackup" || { echo "barmanObjectStore without a ScheduledBackup: WAL with no base is not recoverable"; exit 1; }
+            # The chart has to install on a cluster that is not Cilium, which
+            # is most of them. A CiliumNetworkPolicy is an unknown kind there
+            # and the whole release fails, so the engine is asserted in all
+            # three positions rather than trusted.
+            k8s=$(helm template deploy/helm --set gateMode=eval --set networkPolicy.engine=kubernetes)
+            echo "$k8s" | grep -q "kind: CiliumNetworkPolicy" && { echo "engine=kubernetes still rendered a CiliumNetworkPolicy"; exit 1; }
+            echo "$k8s" | grep -q "kind: NetworkPolicy" || { echo "engine=kubernetes rendered no NetworkPolicy at all"; exit 1; }
+            cil=$(helm template deploy/helm --set gateMode=eval --set networkPolicy.engine=cilium)
+            echo "$cil" | grep -q "kind: CiliumNetworkPolicy" || { echo "engine=cilium rendered no CiliumNetworkPolicy"; exit 1; }
+            non=$(helm template deploy/helm --set gateMode=eval --set networkPolicy.engine=none)
+            echo "$non" | grep -qE "kind: (Cilium)?NetworkPolicy" && { echo "engine=none rendered a policy anyway"; exit 1; }
+
             # Every setting the server reads from the environment is looked up
             # with a SEXTANT_ prefix (config.EnvPrefix). A chart env var without
             # it is not a typo the server complains about - it is silently

@@ -202,6 +202,23 @@ ldap:
 # CloudNativePG single-instance cluster for the observed plane. The
 # operator must be installed cluster-wide. DSN comes from the generated
 # <name>-app secret.
+# Network policy engine. The policies this chart ships were written against
+# Cilium, because that is what the platform it grew up on runs. On any other
+# CNI a CiliumNetworkPolicy is an unknown kind and the install fails outright,
+# which is a poor first impression for a chart somebody found in a catalogue.
+#
+#   cilium      the CiliumNetworkPolicy set (default, unchanged behaviour)
+#   kubernetes  the same intent as plain NetworkPolicy, portable to any CNI
+#               that implements them
+#   none        render none, for a cluster that governs egress elsewhere
+#
+# "none" is a real answer rather than a cop-out: a platform that already puts
+# a default-deny on the namespace does not want a second author of the same
+# rule. It is not the default, because a chart that quietly ships no egress
+# policy at all is how a console ends up talking to the whole internet.
+networkPolicy:
+  engine: cilium
+
 cnpg:
   enabled: true
   name: sextant-pg

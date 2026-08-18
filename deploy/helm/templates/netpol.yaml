@@ -1,0 +1,95 @@
+{{/* The portable half of cnp-cnpg.yaml: the same intent expressed as plain
+     NetworkPolicy, for a cluster whose CNI is not Cilium. Kept as a separate
+     file rather than a branch inside that one, because the two express the
+     same rule in genuinely different vocabularies and interleaving them makes
+     both harder to read than either is alone.
+
+     What is deliberately NOT identical: Cilium's toEntities world/cluster has
+     no NetworkPolicy equivalent, so 443 egress is written as the whole IPv4
+     space minus nothing. A cluster that needs that narrowed should govern
+     egress at the namespace instead and set engine: none. Saying so here is
+     better than shipping a rule that looks tighter than it is. */}}
+{{- if and (eq .Values.networkPolicy.engine "kubernetes") .Values.cnpg.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-{{ .Release.Name }}-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  policyTypes: [Egress]
+  egress:
+    # DNS. Selecting a pod at all denies its other egress, so this has to be
+    # spelled out before anything else works.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ .Values.cnpg.name }}
+      ports:
+        - port: 5432
+          protocol: TCP
+    # The OIDC issuer and the git remote, which live outside the cluster.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
+    {{- if .Values.gateRunner.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app: {{ .Release.Name }}-gate
+      ports:
+        - port: 8090
+          protocol: TCP
+    {{- end }}
+{{- end }}
+{{- if and (eq .Values.networkPolicy.engine "kubernetes") .Values.gateRunner.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-{{ .Release.Name }}-gate-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Release.Name }}-gate
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # The overlay git remote, cache.nixos.org and the flake inputs it evaluates.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
+    # The console, to verify a substituting device's credential. In-cluster
+    # and plain HTTP on purpose; see the Cilium policy for why.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: {{ .Release.Name }}
+      ports:
+        - port: 8080
+          protocol: TCP
+{{- end }}
