@@ -64,7 +64,7 @@ func newConsole(t *testing.T) (*httptest.Server, *app.ConfigService) {
 // newConsoleWithGate builds the console over the seed fleet with a caller-chosen
 // gate, so a test can prove how a handler behaves when the nix gate rejects
 // (e.g. metadata handlers that skip the gate must still succeed).
-func newConsoleWithGate(t *testing.T, gate ports.Gate) (*httptest.Server, *app.ConfigService) {
+func newConsoleWithGate(t *testing.T, gate ports.Gate, opts ...func(*web.Server)) (*httptest.Server, *app.ConfigService) {
 	t.Helper()
 	dir := t.TempDir()
 	run := func(args ...string) {
@@ -96,6 +96,9 @@ func newConsoleWithGate(t *testing.T, gate ports.Gate) (*httptest.Server, *app.C
 		nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, o := range opts {
+		o(srv)
 	}
 	mux := http.NewServeMux()
 	srv.Routes(mux)
@@ -468,6 +471,27 @@ func TestDependentHintFollowsEnable(t *testing.T) {
 	_, page := getPage(t, ts, "/settings?scope=org")
 	if !strings.Contains(page, `data-requires-hint="v:timesync.enable"`) {
 		t.Error("dependency warning has no hook for the enable it names")
+	}
+}
+
+// TestBuildIdentityIsOnThePage: the footer and the organisation page name the
+// release this console was built as. Before 0.89.0 neither did, and
+// sextant_build_info reported version="dev" on every deployment ever made, so
+// "what is running here" was answerable only by reading image tags in
+// Kubernetes - the access a console exists to make unnecessary.
+//
+// The version is set to something no template could plausibly hardcode, which
+// is the point: asserting the "dev" default would pass just as well against a
+// literal in the HTML.
+func TestBuildIdentityIsOnThePage(t *testing.T) {
+	const v = "9.9.9-testbuild"
+	ts, _ := newConsoleWithGate(t, ports.GateFunc(func(context.Context, string, []string) error { return nil }),
+		func(s *web.Server) { s.SetVersion(v) })
+	for _, page := range []string{"/settings?scope=org", "/org"} {
+		_, body := getPage(t, ts, page)
+		if !strings.Contains(body, v) {
+			t.Errorf("%s does not name the build: an operator cannot tell which version this is", page)
+		}
 	}
 }
 

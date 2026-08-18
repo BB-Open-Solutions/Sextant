@@ -708,6 +708,9 @@ func (d *deps) consoleCapability() capability.Capability {
 			}
 			console.SetDefaults(d.cfg.DefaultLocale, d.cfg.DefaultTimezone)
 			console.SetOrgName(d.cfg.OrgName)
+			// The same string sextant_build_info carries, so the page and the
+			// metric can never disagree about what is running.
+			console.SetVersion(version)
 			console.SetSyntaxChecker(d.syntax)
 			// The same condition main.go uses to mount /status: with a separate
 			// metrics listener it is not on this port, and a footer link to it

@@ -73,4 +73,17 @@
   </div>
   <p class="muted mt-2 mb-0">{{.L.T "org.defaults_help"}}</p>
 </div>
+
+{{/* Build identity. Not vanity: an operator asked what version this console
+     was during an outage and the honest answer came from image tags in
+     Kubernetes, which is exactly the access a console is supposed to make
+     unnecessary. It sits by the presentation defaults because that is where
+     somebody looks for facts about the deployment rather than the fleet. */}}
+<div class="mt-6 rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+  <p class="mb-3 text-label-xs-caps uppercase text-text-tertiary">{{.L.T "org.build"}}</p>
+  <div class="flex flex-wrap gap-6 text-body-sm">
+    <div><span class="text-text-tertiary">{{.L.T "org.build_version"}}</span> <span class="ml-1 font-mono text-ink">{{.Version}}</span></div>
+  </div>
+  <p class="muted mt-2 mb-0">{{.L.T "org.build_help"}}</p>
+</div>
 {{end}}

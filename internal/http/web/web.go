@@ -87,6 +87,13 @@ type Server struct {
 	// the organisation, and showing its actual name (instead of a generic
 	// "root") keeps that legible everywhere scopes appear.
 	orgName string
+	// version is the release this binary was built as, shown in the footer
+	// and on the organisation page. "dev" until an ldflag says otherwise,
+	// which is honest: an unversioned build should say so rather than claim
+	// a number. The console could not answer "what is running here" at all
+	// before this, and during the outage of 13 to 18 August the answer came
+	// from reading image tags in Kubernetes.
+	version string
 }
 
 // SetDefaults configures the organisation's presentation defaults
@@ -104,6 +111,14 @@ func (s *Server) SetDefaults(locale, tz string) {
 func (s *Server) SetOrgName(name string) {
 	if name != "" {
 		s.orgName = name
+	}
+}
+
+// SetVersion records the release identity this binary was built as. Empty is
+// ignored so the "dev" default survives a caller that has nothing to pass.
+func (s *Server) SetVersion(v string) {
+	if v != "" {
+		s.version = v
 	}
 }
 
@@ -140,7 +155,7 @@ func New(svc Services, sessions Sessions, write bool,
 	tmpl["login"] = login
 	return &Server{svc: svc, sessions: sessions, tmpl: tmpl, log: log, write: write,
 		baseViewer: baseViewer, baseEditor: baseEditor, baseOwner: baseOwner,
-		defaultLocale: "en", defaultTZ: "UTC", orgName: "Organisation"}, nil
+		defaultLocale: "en", defaultTZ: "UTC", orgName: "Organisation", version: "dev"}, nil
 }
 
 // Routes registers the console.

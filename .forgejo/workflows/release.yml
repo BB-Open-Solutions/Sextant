@@ -60,7 +60,13 @@ jobs:
               name=\${spec%%:*}; file=\${spec#*:}
               img=$REGISTRY/bb-open/\$name:$VERSION
               echo \"== building \$img\"
-              podman build -t \"\$img\" -f \"\$file\" .
+              # --build-arg VERSION is what puts the release into the binary: the
+              # Dockerfile declares ARG VERSION=dev and hands it to -ldflags
+              # -X main.version. Without it every image ever built reported
+              # version="dev", in sextant_build_info and, now that the console
+              # shows it, on the page too. Measured on 0.88.0, which shipped
+              # with this line still missing.
+              podman build --build-arg VERSION=$VERSION -t \"\$img\" -f \"\$file\" .
               podman push \"\$img\"
             done
             # The tools image (fleetsim + sxctl) is a separate target on the
@@ -70,7 +76,7 @@ jobs:
             # release, not because production needs it.
             tools=$REGISTRY/bb-open/sextant:$VERSION-tools
             echo \"== building \$tools\"
-            podman build --target tools -t \"\$tools\" -f Dockerfile .
+            podman build --build-arg VERSION=$VERSION --target tools -t \"\$tools\" -f Dockerfile .
             podman push \"\$tools\"
           "
         env:
