@@ -1,0 +1,42 @@
+# Marketplace listing for the Proxy platform (ProxyBeheerdeDiensten/charts).
+#
+# This file is the SOURCE. It is copied into apps/sextant/metadata.yaml of
+# that repository by ./sync.sh, together with the chart itself, so the two
+# copies cannot drift apart by hand. See README.md next to this file.
+name: sextant
+displayName: Sextant
+description: >
+  Fleet control plane for NixOS devices. Configuration is data in git, every
+  change is validated by a nix evaluation before it lands, and devices pull
+  their own updates in waves.
+version: 0.88.0
+type: helm
+path: helm
+icon: compass
+tags:
+  - infrastructure
+  - endpoint-management
+
+# restricted, and it is measured rather than hoped for: every container in
+# both deployments renders runAsNonRoot, seccompProfile RuntimeDefault,
+# allowPrivilegeEscalation false and capabilities drop ALL. If that ever stops
+# being true this line has to change in the same commit, because a namespace
+# that enforces restricted will refuse the pods and helm --wait will report it
+# as a timeout rather than as a policy refusal.
+security_policy:
+  pod_security:
+    enforce: restricted
+    warn: restricted
+    audit: restricted
+  # The gate runner evaluates whole NixOS configurations. It is the heaviest
+  # thing here by a wide margin and the quota has to leave room for it, or the
+  # first configuration write fails on eviction instead of on anything the
+  # operator did.
+  resource_quota:
+    cpu: "4"
+    memory: 10Gi
+    storage: 40Gi
+    pods: "20"
+  network_policy:
+    default_deny_ingress: false
+    allow_dns: true
