@@ -152,13 +152,13 @@ laptop rather than being picked at.
 
 | # | Action | Proof |
 |---|---|---|
-| A1.1 | Log in through Zitadel | own name on `/profile`, role visible |
-| A1.2 | Open every page | 200, complete document, no empty sections |
-| A1.3 | Log in as a reader (non-editor) | edit buttons absent, not merely greyed out |
-| A1.4 | Group-scoped user | sees only their own group in `/devices` and `/compliance` |
+| A1.1 | Log in through Zitadel | **OK** (18 Aug, 0.87.0). `/profile` shows `b.buijs@bb-open.com`, IDP group `dawo-beheer`, and an effective-roles table: Owner at `org` and at each of the five groups. The role is named, not implied |
+| A1.2 | Open every page | **OK** (18 Aug, 0.87.0). Every entry in the navigation returns a complete document: Overview, Devices, Groups, Enrollment, Settings, Policies, Compliance, Requests, Integrations, Updates, plus `/changes`, `/org` and `/profile`. Empty states are written rather than blank ("Nobody is waiting", "No policies defined", "Select a group from the hierarchy"). One note for whoever walks this next: the Requests item points at `/elevation`, so a hand-typed `/requests` 404s and that is the URL being wrong, not the page |
+| A1.3 | Log in as a reader (non-editor) | edit buttons absent, not merely greyed out. **Not tested:** needs a second account that is not an Owner, and this deployment's only human account holds Owner at org |
+| A1.4 | Group-scoped user | sees only their own group in `/devices` and `/compliance`. **Not tested:** same reason as A1.3 |
 | A1.5 | Log out | session gone, `/devices` redirects to login |
 | A1.6 | Request `/status` and `/metrics` from outside | **OK** (10 Aug, 0.86.0). Measured from outside the cluster against `console.bb-open.com`: `/status` 404, `/metrics` 404, `/healthz` 200, `/readyz` 200. The probes answer `ok` and nothing else. `SEXTANT_METRICS_ADDR=0.0.0.0:9090` is set, which is the condition that closes them - with it empty they land on the public mux instead |
-| A1.7 | Build identity in the footer and on the org page | visible once logged in |
+| A1.7 | Build identity in the footer and on the org page | **FAIL** (18 Aug, 0.87.0). Neither carries one: the footer is the tagline plus an audit-log link, and `/org` ends in presentation defaults. The one place that does carry a version is wrong - the running pod reports `sextant_build_info{version="dev"}` while the deployment is `sextant:0.87.0`. `cmd/sextant/main.go:36` declares `var version = "dev"` and nothing sets it: `flake.nix` builds with `ldflags = [ "-s" "-w" ]`. Filed as issue #42. This also blocks P1, which tells you to establish the console version from exactly these two places |
 
 A1.3 asks for actually looking: a button that is present but returns 403 is
 a different bug from a button that is absent, and the second is the intent.
@@ -214,8 +214,8 @@ generation is more dangerous than a device that lags behind.
 | A5.2 | Group overrides org | **OK** (11 Aug), and it needed no change to prove: org 300, group `infra` 120, no device value, and `dawo-inspoelstraat` evaluates to 120 |
 | A5.3 | Device overrides group | **OK** (11 Aug). 45 set on the device against the group's 120; the station evaluates to 45 |
 | A5.4 | Lock an org setting | **OK** (11 Aug). With `autoUpdate.options.pollSeconds` in the org's `enforced` list, the station evaluates to the org's 300 even though its group sets 120. Removing the lock returns it to 120, so the lock is what changed and not the order of anything else |
-| A5.5 | A dependent option without its enable | **Console half open.** The mechanism was observed by accident: `timesync.options.servers` set without `timesync.enable` has no effect at all, because the module body sits behind an `mkIf`. That the console greys it out and explains when it lands is what the row asks and is not proved here |
-| A5.6 | Change an image-time option | **Console half open.** The mechanism exists and was counted during the UI audit on 10 Aug: `imageTimePrefixes` in `internal/http/web/settings.go` is `secureboot.` and `diskUnlock.`, and the catalog carries `settings.image_time` in both locales. That the console shows it is not proved here |
+| A5.5 | A dependent option without its enable | **OK** (18 Aug, 0.87.0), console half now closed. With `desktop.plasma.enable` off, "Chat client" renders dimmed and carries a broken-link marker with the sentence "Takes effect once `desktop.plasma.enable` is on - saving a value now is fine, it stays staged." Both halves of the row: it greys out AND it says when the value lands. Worth recording the nuance, because it looked like a failure at first glance: a dependent field that already holds a value stays fully editable and is marked "Modified", as `autoUpdate.options.pollSeconds` is at org. The dimming marks "nothing here yet", not "you may not type here" |
+| A5.6 | Change an image-time option | **OK** (18 Aug, 0.87.0), console half now closed. Both DiskUnlock keys carry "Image-time setting: takes effect when a device is (re)imaged, not on running devices" under the description, and the LUKS mapper field shows it alongside its takes-effect-once line, so the two kinds of "not yet" are distinguishable in one glance |
 | A5.7 | **Arrival half OK** (11 Aug). Three NTP servers set on the `infra` group arrive at `services.chrony.servers` as three separate values, with no `["[a b]"]` concatenation - the shape audit finding L2 produced. The console's line-by-line editing is the other half and is not covered here. Two earlier attempts read `networking.timeServers` and saw NixOS defaults: the wrong output path, not a wrong value |
 | A5.8 | Set a value back to "inherit" | **OK** (11 Aug). Removing the device value put the station back on its group's 120 in the same evaluation - nothing cached, nothing stuck |
 
@@ -241,8 +241,8 @@ it cannot measure teaches operators to ignore the whole category.
 
 | # | Action | Proof |
 |---|---|---|
-| A7.1 | Submit a change | appears in `/changes` with a diff |
-| A7.2 | The gate runs | builds, verdict on the change |
+| A7.1 | Submit a change | **OK for the queue and the diff** (18 Aug, 0.87.0). `/changes` lists 22 with id, status, author and timestamp, and the diff view names the file and its state. The change walked here was staged by the watcher rather than typed by hand, so the opening half of the row still wants a human-authored change |
+| A7.2 | The gate runs | **FAIL** (18 Aug, 0.87.0), and the failure is a diagnosis defect rather than a broken gate. Pressing Build on the staged `core-06b0d7df76c8` returns `gate-runner error (status 500): staging candidate failed: fetch cr/core-06b0d7df76c8 ... couldn't find remote ref`. The change carries no commits, so no branch was ever pushed: the diff view says "No changes on this branch yet" and `git ls-remote <overlay> 'refs/heads/cr/*'` returns nothing at all. Seven changes in this queue died with that same message since 30 July. The gate itself is healthy - `/validate` returns `ok:true` on a ref that does exist, and `/bump` returns a full lock. Filed as issue #41 |
 | A7.3 | Make the gate fail | the change cannot be merged |
 | A7.4 | Turn on four-eyes | you cannot approve your own change |
 | A7.5 | Second approver | the merge succeeds |
