@@ -135,3 +135,45 @@ jobs:
             echo "Chart.yaml version does not match tag $GITHUB_REF_NAME" >&2
             exit 1
           }
+
+      # The marketplace mirror (bb-open/sextant-charts) carries this chart in
+      # the layout the Proxy platform expects. It is generated, so it can only
+      # stay true if a release writes it - a copy somebody remembers to update
+      # by hand is the copy a customer installs six weeks stale.
+      #
+      # This does NOT fail the release when the token is missing. The images
+      # are the release; the mirror is a shop window. But it says so loudly,
+      # because a mirror that silently stopped tracking is worse than none.
+      - name: Marketplace mirror
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "${MIRROR_TOKEN:-}" ]; then
+            echo "::warning::MIRROR_TOKEN is not set, so bb-open/sextant-charts still offers the PREVIOUS version." >&2
+            echo "run this by hand to catch it up:" >&2
+            echo "  ./deploy/marketplace/sync.sh <checkout> && git -C <checkout> tag -a sextant-$VERSION" >&2
+            exit 0
+          fi
+          # metadata.yaml carries the listing version and sync.sh refuses when
+          # it disagrees with the chart. Bump it here rather than asking a
+          # human to remember two files at release time.
+          sed -i "s/^version: .*/version: $VERSION/" deploy/marketplace/metadata.yaml
+          rm -rf /tmp/mirror
+          git clone -q "https://release-bot:${MIRROR_TOKEN}@forgejo.bb-open.com/bb-open/sextant-charts.git" /tmp/mirror
+          ./deploy/marketplace/sync.sh /tmp/mirror
+          cd /tmp/mirror
+          git config user.name "release-bot"
+          git config user.email "release-bot@sextant"
+          git add -A apps
+          if git diff --cached --quiet; then
+            echo "mirror already matches $VERSION; nothing to push"
+          else
+            git commit -q -m "sextant $VERSION, generated from DAWO-Sextant deploy/helm"
+            git push -q origin main
+          fi
+          # The tag is what the marketplace resolves, so it is pushed even when
+          # the tree happened not to change (a chart-only version bump).
+          git tag -a "sextant-$VERSION" -m "sextant $VERSION" || true
+          git push -q origin "sextant-$VERSION" || echo "tag sextant-$VERSION already exists on the mirror"
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
