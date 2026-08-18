@@ -470,3 +470,27 @@ func TestDependentHintFollowsEnable(t *testing.T) {
 		t.Error("dependency warning has no hook for the enable it names")
 	}
 }
+
+// TestDependentHintIsASentence: the "takes effect once <enable> is on" line is
+// a sentence with a key inside it, so it must NOT be a flex container. Under
+// `flex items-center` each word becomes a flex item and the key is aligned as
+// a box against the tallest one instead of sitting on the text baseline, which
+// reads as the key floating a few pixels above the words beside it. Reported
+// against 0.87.0 on 2026-08-18, on cacheAuth.enable.
+//
+// The icon lines around it are genuinely icon-plus-label and may stay flex;
+// this asserts only the paragraph that carries a key mid-sentence.
+func TestDependentHintIsASentence(t *testing.T) {
+	ts, _ := newConsole(t)
+	_, page := getPage(t, ts, "/settings?scope=org")
+	re := regexp.MustCompile(`<p class="([^"]*)" data-requires-hint="v:timesync\.enable"`)
+	m := re.FindStringSubmatch(page)
+	if m == nil {
+		t.Fatal("no dependency warning paragraph to check")
+	}
+	for _, cls := range strings.Fields(m[1]) {
+		if cls == "flex" || cls == "inline-flex" {
+			t.Errorf("the dependency sentence is a flex container (%q); its key will not sit on the baseline", m[1])
+		}
+	}
+}

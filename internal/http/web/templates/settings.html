@@ -208,7 +208,13 @@
                column beside it. Without it the control ungreyed the moment the
                enable was switched on while this line kept claiming the setting
                was still waiting on it (app.js only ever touched the column). */}}
-          {{if and $row.RequiresKey $row.RequiresOff}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-status-warn" data-requires-hint="v:{{$row.RequiresKey}}" data-requires-inherited="{{$row.RequiresInherited}}"><span class="material-symbols-outlined msz-14">link_off</span>{{$.L.T "settings.requires_off_pre"}} <span class="font-mono">{{$row.RequiresKey}}</span> {{$.L.T "settings.requires_off_post"}}</p>{{end}}
+          {{/* NOT a flex row, unlike the icon lines around it. This one is a
+               sentence with a key inside it, and flex makes every word its own
+               flex item: the key is then aligned as a box against the tallest
+               item rather than sitting on the text baseline, which shows up as
+               the key floating a few pixels above the words beside it. Plain
+               flow with an inline-aligned icon keeps the sentence a sentence. */}}
+          {{if and $row.RequiresKey $row.RequiresOff}}<p class="mb-0 mt-1 text-body-sm text-status-warn" data-requires-hint="v:{{$row.RequiresKey}}" data-requires-inherited="{{$row.RequiresInherited}}"><span class="material-symbols-outlined msz-14 mr-1 align-middle">link_off</span>{{$.L.T "settings.requires_off_pre"}} <span class="font-mono">{{$row.RequiresKey}}</span> {{$.L.T "settings.requires_off_post"}}</p>{{end}}
           {{/* Honesty over ceremony: an image-time key saved here changes
                nothing on a running device until it is re-imaged. */}}
           {{if $row.ImageTime}}<p class="mb-0 mt-1 flex items-center gap-1 text-body-sm text-text-tertiary"><span class="material-symbols-outlined msz-14">deployed_code_update</span>{{$.L.T "settings.image_time"}}</p>{{end}}
