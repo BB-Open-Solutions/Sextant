@@ -9,7 +9,7 @@ description: >
   Fleet control plane for NixOS devices. Configuration is data in git, every
   change is validated by a nix evaluation before it lands, and devices pull
   their own updates in waves.
-version: 0.88.0
+version: 0.89.0
 type: helm
 path: helm
 icon: compass
