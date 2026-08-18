@@ -53,6 +53,13 @@ type settingRow struct {
 	RequiresKey       string
 	RequiresOff       bool
 	RequiresInherited bool
+	// RequiresLabel is the human name of that enable, so the sentence names
+	// what the reader can actually find on the page. Without it the hint
+	// under "Office suite" read "takes effect once apps.office.enable is
+	// on" while the switch three rows up is labelled "Office apps": three
+	// different strings for two things. Empty when the overlay authored no
+	// label, and then the key stands alone as before.
+	RequiresLabel string
 	// ImageTime marks an option that is written into the image rather than
 	// applied to a running device (see imageTimeKey), so the editor says when
 	// it lands instead of implying a live ceremony.
@@ -292,6 +299,9 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, v view) {
 			}
 			if req := requiresOf(cat, e.Name); req != "" {
 				row.RequiresKey = req
+				if re, ok := cat.Lookup(req); ok && re.Label != "" {
+					row.RequiresLabel = re.DisplayName()
+				}
 				row.RequiresOff = !effectiveBool(cat, own, resolved, req)
 				row.RequiresInherited = effectiveBool(cat, nil, resolved, req)
 			}

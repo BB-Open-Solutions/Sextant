@@ -36,7 +36,7 @@ const seedCatalog = `[
   {"name":"netbird.setupKey","type":"string","description":"NetBird join key","secret":true},
   {"name":"usbDevices.enable","type":"boolean","description":"Block USB devices plugged in after boot","default":false,"riskClass":"high"},
   {"name":"usbDevices.allowlist","type":"list of string","description":"USBGuard rules for devices that must keep working","default":[]},
-  {"name":"timesync.enable","type":"boolean","description":"Time sync","default":false},
+  {"name":"timesync.enable","type":"boolean","description":"Time sync","default":false,"label":"Time synchronisation"},
   {"name":"netbird.enable","type":"boolean","description":"Join the mesh","default":false},
   {"name":"netbird.managementUrl","type":"string","description":"Management server URL"},
   {"name":"timesync.servers","type":"string","description":"NTP servers"}
@@ -468,6 +468,28 @@ func TestDependentHintFollowsEnable(t *testing.T) {
 	_, page := getPage(t, ts, "/settings?scope=org")
 	if !strings.Contains(page, `data-requires-hint="v:timesync.enable"`) {
 		t.Error("dependency warning has no hook for the enable it names")
+	}
+}
+
+// TestDependentHintNamesTheSetting: the sentence names the enable by the label
+// the reader can find on the page, not only by its dotted key. Reported against
+// 0.88.0: the row "Office suite" said "takes effect once apps.office.enable is
+// on" while the switch it means is three rows up and labelled "Office apps".
+// Three strings for two things, and the reader does the mapping.
+func TestDependentHintNamesTheSetting(t *testing.T) {
+	ts, _ := newConsole(t)
+	_, page := getPage(t, ts, "/settings?scope=org")
+	re := regexp.MustCompile(`data-requires-hint="v:timesync\.enable"[^>]*>(.*?)</p>`)
+	m := re.FindStringSubmatch(page)
+	if m == nil {
+		t.Fatal("no dependency warning paragraph to check")
+	}
+	hint := m[1]
+	if !strings.Contains(hint, "timesync.enable") {
+		t.Error("the key is gone; somebody working in the config file needs it")
+	}
+	if !strings.Contains(hint, "Time synchronisation") {
+		t.Errorf("hint names only the key, not the label a reader can find: %s", hint)
 	}
 }
 
