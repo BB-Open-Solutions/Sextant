@@ -110,8 +110,26 @@ jobs:
       - name: Vet
         run: cd "$GITHUB_WORKSPACE/src" && nix develop --command go vet ./...
 
+      # The cache is cleared first, and that is not superstition. golangci-lint
+      # reads a //nolint directive out of the SOURCE FILE, and its cache stores
+      # absolute paths. The host executor gives every job a fresh
+      # .cache/act/<hash>/hostexecutor/src, so a cached entry points at a
+      # directory that no longer exists; the suppression cannot be read and the
+      # finding is reported anyway.
+      #
+      # Measured on run 780 (2026-08-18), which failed with
+      #   cmd/fleetsim/station.go:100: G404: Use of weak random number generator
+      # on a line carrying //nolint:gosec, right after
+      #   WARN Failed to get line 100 for file .../aebe7948bc2bce24/... :
+      #   no such file or directory
+      #
+      # It also explains the part that made this hard to believe: the same
+      # commit passed and failed depending on nothing in the commit, because it
+      # depended on what happened to be in a cache on one machine.
       - name: Lint
-        run: cd "$GITHUB_WORKSPACE/src" && nix develop --command golangci-lint run ./...
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          nix develop --command bash -c 'golangci-lint cache clean; golangci-lint run ./...'
 
       - name: Test (race + coverage)
         run: |
