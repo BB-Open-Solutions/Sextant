@@ -43,7 +43,15 @@ spec:
                 -token "$SEXTANT_CHECKIN_TOKEN" \
                 -repo {{ .Values.gitRemote.url }} \
                 -fleet /tmp/overlay/fleet.json \
-                -interval {{ .Values.simulator.interval | default "30s" }}
+                -interval {{ .Values.simulator.interval | default "30s" }} \
+                {{- with .Values.simulator.station }}
+                {{- if .tag }}
+                -station {{ .tag }} \
+                -station-pool {{ .pool | default 3 }} \
+                -station-fail {{ .failPercent | default 10 }} \
+                -station-secureboot={{ .secureBoot | default true }}
+                {{- end }}
+                {{- end }}
           envFrom:
             - secretRef: { name: {{ .Values.secretName }} }
           securityContext:

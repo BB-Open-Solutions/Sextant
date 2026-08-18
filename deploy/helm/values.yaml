@@ -288,6 +288,25 @@ simulator:
   image:
     repository: ""
     tag: ""
+  # An imaging station on the same simulated fleet. Machines appear on its
+  # PXE network by themselves, an operator enrols one from the console, and
+  # the station walks the install and the firmware ceremonies.
+  #
+  # It is here because imaging is the one part of this product a demo cannot
+  # show from a database. Everything else can be seeded; a laptop arriving on
+  # a network cannot. A tag turns it on; empty leaves the fleet simulation
+  # exactly as it was.
+  station:
+    tag: ""
+    # How many machines wait on the network. One finishes, a fresh one takes
+    # its place, so a demo never runs out and never grows unboundedly.
+    pool: 3
+    # Some jobs fail once. A failed install and a retry is demo material:
+    # it is the question every buyer asks and the screen most products hide.
+    failPercent: 10
+    # Walk sb-pending and sb-enrolled before sealing to the TPM. Off shows the
+    # shorter road hardware without Secure Boot takes, which is also real.
+    secureBoot: true
 
 # Metrics. separatePort moves /metrics onto its own container port, off the
 # listener the ingress publishes. Leave it on: the endpoint discloses the exact

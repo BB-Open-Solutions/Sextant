@@ -62,6 +62,10 @@ func main() {
 		pctSlow  = flag.Int("slow", 15, "percent of devices that converge slowly (3-6 beats late)")
 		pctOff   = flag.Int("offline", 5, "percent of devices that go silent mid-run")
 		pctErr   = flag.Int("error", 3, "percent of devices that report a deploy error")
+		station  = flag.String("station", "", "also simulate this imaging station (tag); empty disables it")
+		staPool  = flag.Int("station-pool", 3, "machines waiting on the station's PXE network")
+		staFail  = flag.Int("station-fail", 10, "percent of image jobs that fail once, so a retry can be shown")
+		staSB    = flag.Bool("station-secureboot", true, "walk the Secure Boot ceremony before TPM2 sealing")
 	)
 	flag.Parse()
 
@@ -93,6 +97,25 @@ func main() {
 	// real fleet, one IP per device, would never see). Each device gets a
 	// deterministic offset within the interval.
 	sim.spread = *interval
+	// The imaging station beats on its own clock and its own goroutine: it
+	// talks to different endpoints, and a station that stalled while 150
+	// devices checked in would be the one thing on screen not moving.
+	if *station != "" {
+		sta := newStationSim(*url, *token, *station, *staPool, *staFail, *staSB)
+		log.Printf("simulating imaging station %s with %d machines on its network", *station, *staPool)
+		go func() {
+			t := time.NewTicker(*interval)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					sta.tick(ctx)
+				}
+			}
+		}()
+	}
 	t := time.NewTicker(*interval / 10)
 	defer t.Stop()
 	for {
