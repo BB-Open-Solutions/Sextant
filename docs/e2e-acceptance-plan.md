@@ -253,7 +253,7 @@ it cannot measure teaches operators to ignore the whole category.
 
 | # | Action | Proof |
 |---|---|---|
-| A8.1 | Define rings | `/updates/rollout` shows the plan |
+| A8.1 | Define rings | **OK** (18 Aug, 0.87.0). `/updates/rollout` names both waves, Testtoestel and Inspoelstraat, each with its gates (soak 0 min, min healthy 95%) and its current state. It also showed something the row does not ask for, recorded below |
 | A8.2 | Promote a wave | only ring 1 gets the revision |
 | A8.3 | Wait out the soak | does not promote before the time is up |
 | A8.4 | Health threshold not met | promotion stops |
@@ -261,6 +261,28 @@ it cannot measure teaches operators to ignore the whole category.
 | A8.6 | `[risk:high]` in a change | extra confirmation required |
 | A8.7 | Auto-flow on | promotes by itself up to the last ring |
 | A8.8 | Roll a ring back (pin) | devices go back, with no handwork |
+
+**The rollout has been halted since 5 August, and the row above is how it was
+found.** `/updates/rollout` reports:
+
+```
+Halted by a check - 79989d902391
+Delivering: Core update 41d6ad18ac99
+release build failed: The option `dawo.printing.enable' in `<store>' is already
+declared in `<store>' via option flake.modules.nixos.services-printing.
+this target is behind main by releases: 13
+```
+
+That is the option collision between the overlay's own printing module and the
+core's, which is exactly what the branch pin existed to avoid and what core
+0.1.2 ends. It explains the two standing compliance findings ("running an older
+DAWO core") and the ring-catch-up warning without either of them naming a
+cause. Thirteen releases behind is the cost of a halt nobody was alerted about.
+
+The current configuration (`4eec77d`) evaluates for both device classes, so a
+rollout started from it should walk past this. That is a fleet decision rather
+than an acceptance row: the first promotion after the repin carries five weeks
+of nixpkgs.
 
 ## A9. Update board and incidents
 
@@ -305,7 +327,7 @@ silently is the worst thing this product can do.
 
 | # | Action | Proof |
 |---|---|---|
-| A12.1 | Audit log | every change with who, what, when |
+| A12.1 | Audit log | **OK** (18 Aug, 0.87.0). `/audit` lists 100 entries, each with when, who (display name plus address), what (the commit subject) and the commit hash. The actors are kept apart rather than flattened into one operator: people by name, and `sextant-api`, `sextant-rollout`, `sextant-upstream`, `sextant-agent`, `sextant-station` for the machine paths. The evidence-export panel sits under it |
 | A12.2 | Evidence export | a file with the assurance configuration |
 | A12.3 | Devices CSV | matches the screen |
 | A12.4 | Policies CSV | controls are in it |
