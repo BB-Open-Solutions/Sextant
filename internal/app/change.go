@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
@@ -285,6 +287,12 @@ func (s *ChangeService) Edit(ctx context.Context, id string, mut fleet.Mutation,
 	return s.store.Put(ctx, cr)
 }
 
+// errNothingToValidate is a verdict about the change, not a transport failure.
+// It exists so an empty change fails with a sentence somebody can act on
+// ("edit it or abandon it") instead of with a git error about a ref that was
+// never pushed.
+var errNothingToValidate = errors.New("this change carries no commits, so there is nothing to validate: edit it first, or abandon it")
+
 // Submit runs the build gate on the change's branch. Green moves the change
 // to ready; a rejection records the reason and moves it to failed.
 // Synchronous by design at this tier; a job runner can wrap it later.
@@ -320,6 +328,22 @@ func (s *ChangeService) Submit(ctx context.Context, id string) (change.CR, error
 	// needs concrete hosts (there is no whole-set flake target). In remote
 	// gate mode the local builder is a no-op until the runner's /build is
 	// wired here.
+	// A change with no commits carries nothing to validate, and asking the
+	// gate about it produces the wrong story. Nothing was pushed, so the
+	// runner cannot fetch cr/<id> and reports "couldn't find remote ref",
+	// which reads as a broken gate or an unreachable forge. Seven core
+	// updates in one deployment died with that message between 30 July and
+	// 18 August 2026, while the diff view had been saying "No changes on
+	// this branch yet" the whole time.
+	//
+	// A diff error is NOT treated as empty: a repo that cannot answer is a
+	// different thing from a branch with nothing on it, and guessing here
+	// would turn an infrastructure problem into a verdict about somebody's
+	// change.
+	if diff, derr := s.repo.Diff(ctx, change.BranchFor(id)); derr == nil && strings.TrimSpace(diff) == "" {
+		return s.finishSubmit(ctx, id, errNothingToValidate)
+	}
+
 	gateErr := s.validate(ctx, dir, s.gateRef(change.CR{Branch: change.BranchFor(id)}), hosts)
 	if gateErr == nil && len(hosts) > 0 {
 		gateErr = s.builder.Build(ctx, dir, hosts)

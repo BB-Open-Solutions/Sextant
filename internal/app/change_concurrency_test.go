@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
@@ -16,13 +18,25 @@ var submitAuthor = ports.Author{Name: "ada", Subject: "ada-subject"}
 type blockingGate struct {
 	entered chan struct{}
 	release chan struct{}
+	// armed lets a test give its change a commit before the gate starts
+	// blocking: an empty change is refused before the gate is reached.
+	armed atomic.Bool
 }
 
 func newBlockingGate() *blockingGate {
 	return &blockingGate{entered: make(chan struct{}, 1), release: make(chan struct{})}
 }
 
+// arm makes the gate start blocking. Before that it waves everything through,
+// so a test can give its change an actual commit first - an empty change is
+// refused before the gate is reached, and this file is about the lock, not
+// about that rule.
+func (g *blockingGate) arm() { g.armed.Store(true) }
+
 func (g *blockingGate) Validate(context.Context, string, []string) error {
+	if !g.armed.Load() {
+		return nil
+	}
 	select {
 	case g.entered <- struct{}{}:
 	default:
@@ -44,7 +58,15 @@ func TestSubmitDoesNotHoldTheLockDuringTheGate(t *testing.T) {
 	if _, err := cs.Open(ctx, "cr-slow", "slow change", submitAuthor); err != nil {
 		t.Fatal(err)
 	}
+	// The change needs a commit: an empty one is refused before the gate is
+	// reached, which is the point of TestSubmitRefusesAnEmptyChange. This test
+	// is about the lock, so give it something real to validate.
+	if err := cs.Edit(ctx, "cr-slow", fleet.SetScopeSetting("device:lt-1", "apps.office", true),
+		"edit", ports.Author{}, "lt-1"); err != nil {
+		t.Fatal(err)
+	}
 
+	gate.arm()
 	done := make(chan error, 1)
 	go func() {
 		_, err := cs.Submit(ctx, "cr-slow")
@@ -94,6 +116,14 @@ func TestChangeBeingGatedCannotBeMutated(t *testing.T) {
 	if _, err := cs.Open(ctx, "cr-gated", "gated change", submitAuthor); err != nil {
 		t.Fatal(err)
 	}
+	// The change needs a commit: an empty one is refused before the gate is
+	// reached, which is the point of TestSubmitRefusesAnEmptyChange. This test
+	// is about the lock, so give it something real to validate.
+	if err := cs.Edit(ctx, "cr-gated", fleet.SetScopeSetting("device:lt-1", "apps.office", true),
+		"edit", ports.Author{}, "lt-1"); err != nil {
+		t.Fatal(err)
+	}
+	gate.arm()
 	done := make(chan error, 1)
 	go func() {
 		_, err := cs.Submit(ctx, "cr-gated")

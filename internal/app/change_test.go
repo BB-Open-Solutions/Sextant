@@ -99,6 +99,42 @@ func newChangeStackWithGate(t *testing.T, gate ports.Gate) (*ChangeService, *Con
 // Submit must re-prove the WHOLE branch through the eval gate, not ride on
 // the per-edit verdicts: a branch whose edits passed earlier can still be
 // invalid by submit time (out-of-band commits, a moved base).
+// countingGate records whether the gate was consulted at all, which is the
+// point of the test below: an empty change must be refused BEFORE the gate is
+// asked, not after it fails on a ref that was never pushed.
+type countingGate struct{ calls int }
+
+func (g *countingGate) Validate(context.Context, string, []string) error { g.calls++; return nil }
+
+// TestSubmitRefusesAnEmptyChange: a change nobody edited carries no commits,
+// so there is nothing to validate. Before this it went to the gate anyway; the
+// runner could not fetch a branch that was never pushed and answered
+// "couldn't find remote ref", which reads as a broken gate or an unreachable
+// forge. Seven core updates died with that message in one deployment while
+// the diff view had been saying "No changes on this branch yet" all along.
+func TestSubmitRefusesAnEmptyChange(t *testing.T) {
+	gate := &countingGate{}
+	cs, _, _ := newChangeStackWithGate(t, gate)
+	ctx := context.Background()
+
+	if _, err := cs.Open(ctx, "cr-empty", "t", ports.Author{Name: "ada", Subject: "s"}); err != nil {
+		t.Fatal(err)
+	}
+	cr, err := cs.Submit(ctx, "cr-empty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cr.Status != change.Failed {
+		t.Fatalf("an empty change was not refused: %+v", cr)
+	}
+	if !strings.Contains(cr.Error, "nothing to validate") {
+		t.Errorf("the verdict does not say what is wrong: %q", cr.Error)
+	}
+	if gate.calls != 0 {
+		t.Errorf("the gate was asked about a branch that was never pushed (%d calls)", gate.calls)
+	}
+}
+
 func TestSubmitRevalidatesViaGate(t *testing.T) {
 	gate := &switchGate{}
 	cs, _, _ := newChangeStackWithGate(t, gate)

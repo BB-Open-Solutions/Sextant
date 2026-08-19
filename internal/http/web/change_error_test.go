@@ -4,8 +4,10 @@ import (
 	"context"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
@@ -25,7 +27,13 @@ func TestFailedChangeShowsHeadlineAndHidesTheRest(t *testing.T) {
 		"remote: https://release-bot:ghp_secret123@forge.example.com/bb-open/overlay.git",
 		"fatal: couldn't find remote ref cr/x",
 	}, "\n")
+	// Rejects only once armed: an edit validates too, and this test needs a
+	// change that carries a commit before the submit is refused.
+	var armed atomic.Bool
 	reject := ports.GateFunc(func(context.Context, string, []string) error {
+		if !armed.Load() {
+			return nil
+		}
 		return &ports.ValidationError{Detail: detail}
 	})
 	ts, _, changes := newChangeConsoleWithGate(t, reject)
@@ -33,6 +41,15 @@ func TestFailedChangeShowsHeadlineAndHidesTheRest(t *testing.T) {
 	if _, err := changes.Open(context.Background(), "cr-err", "A change that will fail", testAuthor); err != nil {
 		t.Fatalf("opening the change: %v", err)
 	}
+	// The change needs a commit, or it is refused before the gate is reached
+	// (see TestSubmitRefusesAnEmptyChange). This test is about what the page
+	// does with a gate REJECTION, so give the gate something to reject.
+	if err := changes.Edit(context.Background(), "cr-err",
+		fleet.SetScopeSetting("device:t-1", "apps.office", true),
+		"edit", ports.Author{}, "t-1"); err != nil {
+		t.Fatalf("editing the change: %v", err)
+	}
+	armed.Store(true)
 	// The submit is refused by the gate; that is the point.
 	postForm(t, ts, "/changes/cr-err/submit", url.Values{"csrf": {"dev-csrf"}})
 
