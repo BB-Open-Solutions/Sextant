@@ -235,7 +235,17 @@ spec:
             - { containerPort: {{ .Values.metrics.port }}, name: metrics }
             {{- end }}
           startupProbe:
+            {{- if .Values.devAuth.enabled }}
+            # Same reason as the two probes below: kubelet dials the pod IP,
+            # and a loopback listener is not there. Missing this one is the
+            # expensive mistake - a startup probe that can never pass keeps the
+            # pod out of Ready forever, so helm --wait times out and the
+            # release rolls back with "context deadline exceeded", which names
+            # neither the probe nor the address.
+            exec: { command: ["wget", "-q", "-O-", "http://127.0.0.1:8080/healthz"] }
+            {{- else }}
             httpGet: { path: /healthz, port: http }
+            {{- end }}
             periodSeconds: 5
             failureThreshold: 36 # 3 minutes for dependency dial-in
           {{- if .Values.devAuth.enabled }}
