@@ -1,3 +1,17 @@
+{{/* Passwordless demo guards. Each of these combinations renders something
+     that looks like it works and is not what anybody meant, so the chart
+     refuses instead of shipping it. */}}
+{{- if .Values.devAuth.enabled }}
+  {{- if .Values.ingress.enabled }}
+    {{- fail "devAuth.enabled binds the console to loopback, so an Ingress in front of it can only serve 503s. Set ingress.enabled=false and reach the demo with kubectl port-forward." }}
+  {{- end }}
+  {{- if .Values.oidc.issuer }}
+    {{- fail "devAuth.enabled and oidc.issuer are mutually exclusive: the server refuses to start with both, and the pod would crash-loop with the reason three levels deep in a log." }}
+  {{- end }}
+  {{- if and .Values.simulator.enabled (not .Values.simulator.sidecar) }}
+    {{- fail "devAuth.enabled needs simulator.sidecar=true: a loopback console is not reachable through its Service, so a separate simulator would post into a void and the demo would show a fleet that never checks in." }}
+  {{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -88,7 +102,14 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
+            {{- if .Values.devAuth.enabled }}
+            # Loopback is the whole safety property of devAuth: nothing on the
+            # network can reach a console that hands out owner sessions.
+            - --addr=127.0.0.1:8080
+            - --dev-auth
+            {{- else }}
             - --addr=0.0.0.0:8080
+            {{- end }}
             - --repo=/data/overlay
             - --state-dir=/data/state
             {{- if .Values.write }}
@@ -217,6 +238,19 @@ spec:
             httpGet: { path: /healthz, port: http }
             periodSeconds: 5
             failureThreshold: 36 # 3 minutes for dependency dial-in
+          {{- if .Values.devAuth.enabled }}
+          # kubelet probes dial the POD IP, and a loopback listener does not
+          # answer there. Probing from inside the container is the same
+          # question asked from a place that can hear the answer.
+          readinessProbe:
+            exec: { command: ["wget", "-q", "-O-", "http://127.0.0.1:8080/readyz"] }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            exec: { command: ["wget", "-q", "-O-", "http://127.0.0.1:8080/healthz"] }
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          {{- else }}
           readinessProbe:
             httpGet: { path: /readyz, port: http }
             initialDelaySeconds: 3
@@ -225,6 +259,7 @@ spec:
             httpGet: { path: /healthz, port: http }
             initialDelaySeconds: 5
             periodSeconds: 20
+          {{- end }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
@@ -236,6 +271,42 @@ spec:
             {{- if .Values.ldap.caSecret }}
             - { name: ldap-ca, mountPath: /ldap-ca, readOnly: true }
             {{- end }}
+        {{- if and .Values.simulator.enabled .Values.simulator.sidecar }}
+        # The simulator runs here rather than beside the console because a
+        # loopback-bound console has no address on the network. Same image and
+        # same arguments as the standalone deployment; only the URL differs,
+        # and that difference is the entire reason this container exists.
+        - name: fleetsim
+          image: "{{ .Values.simulator.image.repository | default .Values.image.repository }}:{{ .Values.simulator.image.tag | default (printf "%s-tools" (.Values.image.tag | default .Chart.AppVersion)) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              git clone -q --depth 1 --branch {{ .Values.gitRemote.branch }} {{ .Values.gitRemote.url }} /tmp/overlay
+              exec fleetsim -url http://127.0.0.1:8080 \
+                -token "$SEXTANT_CHECKIN_TOKEN" \
+                -repo {{ .Values.gitRemote.url }} \
+                -fleet /tmp/overlay/fleet.json \
+                -interval {{ .Values.simulator.interval | default "30s" }} \
+                {{- with .Values.simulator.station }}
+                {{- if .tag }}
+                -station {{ .tag }} \
+                -station-pool {{ .pool | default 3 }} \
+                -station-fail {{ .failPercent | default 10 }} \
+                -station-secureboot={{ .secureBoot | default true }}
+                {{- end }}
+                {{- end }}
+          envFrom:
+            - secretRef: { name: {{ .Values.secretName }} }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+        {{- end }}
+
       volumes:
         - name: tmp
           emptyDir: {}

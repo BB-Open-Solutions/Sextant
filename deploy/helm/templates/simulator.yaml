@@ -1,4 +1,4 @@
-{{- if .Values.simulator.enabled }}
+{{- if and .Values.simulator.enabled (not .Values.simulator.sidecar) }}
 # The simulated fleet (demo instances only): fleetsim drives N fake agents
 # against this release's own service, following the overlay's rings/<group>
 # branches like comin would. Never enable this next to real devices - the demo

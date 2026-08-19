@@ -277,6 +277,18 @@ resources:
 
 # The simulated fleet (demo instances only): fleetsim as a sidecar deployment
 # against this release's own console. Keep off anywhere real devices report.
+# Passwordless demo. The console then has no identity provider at all: every
+# request arrives as a synthetic owner session, which is only defensible
+# because the chart also pins the listen address to loopback. Nothing on the
+# network can reach it - not the Service, not an Ingress - so the way in is
+# `kubectl port-forward` and the person doing that already has cluster access.
+#
+# This is for a demo instance: invented devices, its own repository, its own
+# database, nothing that outlives the room it is shown in. The guards below
+# refuse the combinations that would quietly make it public.
+devAuth:
+  enabled: false
+
 simulator:
   enabled: false
   interval: 30s
@@ -288,6 +300,11 @@ simulator:
   image:
     repository: ""
     tag: ""
+  # Run the simulator inside the console pod instead of beside it. Required
+  # with devAuth: a console bound to loopback cannot be reached through its
+  # Service, so a separate deployment would post into a void and the demo
+  # would show a fleet that never checks in.
+  sidecar: false
   # An imaging station on the same simulated fleet. Machines appear on its
   # PXE network by themselves, an operator enrols one from the console, and
   # the station walks the install and the firmware ceremonies.

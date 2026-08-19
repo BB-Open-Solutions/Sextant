@@ -293,6 +293,18 @@ jobs:
               --set cnpg.backup.secretName=s)
             echo "$back" | grep -q "barmanObjectStore" || { echo "backup enabled but no barmanObjectStore"; exit 1; }
             echo "$back" | grep -q "kind: ScheduledBackup" || { echo "barmanObjectStore without a ScheduledBackup: WAL with no base is not recoverable"; exit 1; }
+            # Passwordless demo: the guards refuse the three combinations that
+            # would quietly make an owner-session console reachable. A guard
+            # that is never asserted is a comment.
+            helm template deploy/helm --set gateMode=eval --set devAuth.enabled=true \
+              --set ingress.enabled=false >/dev/null
+            for bad in "ingress.enabled=true" "oidc.issuer=https://x" "simulator.enabled=true"; do
+              if helm template deploy/helm --set gateMode=eval --set devAuth.enabled=true \
+                --set ingress.enabled=false --set "$bad" >/dev/null 2>&1; then
+                echo "devAuth guard did not fire for $bad"; exit 1
+              fi
+            done
+
             # The chart has to install on a cluster that is not Cilium, which
             # is most of them. A CiliumNetworkPolicy is an unknown kind there
             # and the whole release fails, so the engine is asserted in all
