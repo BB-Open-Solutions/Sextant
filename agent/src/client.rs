@@ -40,6 +40,12 @@ pub struct CheckIn<'a> {
     /// the second to be able to veto the first (e2e5, 2026-08-04).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub health: Option<&'a crate::collect::Health>,
+    /// integrations is what this device observed of the integrations the
+    /// fleet turned on for it. Omitted entirely when the probe could not run,
+    /// because the console keeps the previous reading on a silent beat and
+    /// sending an empty map instead would clear it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub integrations: Option<&'a crate::collect::Integrations>,
     /// recoveryKey carries a provisioning-minted LUKS recovery key exactly
     /// until the server confirms sealing it (design 0009); None otherwise.
     #[serde(rename = "recoveryKey", skip_serializing_if = "Option::is_none")]
@@ -302,6 +308,7 @@ mod tests {
             facts: None,
             usage: None,
             health: None,
+            integrations: None,
             recovery_key: None,
         }
     }
@@ -445,6 +452,7 @@ mod tests {
             facts: None,
             usage: None,
             health: None,
+            integrations: None,
             recovery_key: None,
         };
         // The plain server sends no X-Recovery-Key-Stored header, so the

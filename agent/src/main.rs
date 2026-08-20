@@ -77,6 +77,7 @@ fn main() -> ExitCode {
         };
         let usage = collect::collect_usage();
         let health = collect::collect_health();
+        let integrations = collect::collect_integrations();
         // A collected diagnostics bundle (design 0010) uploads BEFORE the
         // check-in: the standing intent clears on the ack this beat carries,
         // and the upload should not race that clear. Deleted only on a
@@ -122,6 +123,7 @@ fn main() -> ExitCode {
             facts: facts.as_ref(),
             usage: Some(&usage),
             health: Some(&health),
+            integrations: Some(&integrations),
             recovery_key: recovery.as_deref(),
         };
         let (outcome, recovery_stored) = client.send(&beat);

@@ -243,6 +243,36 @@
     {{end}}
     {{end}}
 
+    <!-- Integrations (issue #49). One row per integration the fleet turned ON
+         for this device, and what the device itself observed of it. An
+         integration nobody enabled gets no row.
+
+         "No reading" is its own state, on purpose. An old agent, or a probe
+         that could not run, must not paint a working mesh red - so an
+         unmeasured integration is muted, never a warning. -->
+    {{if .Integrations}}
+    <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
+      <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">hub</span>{{.L.T "device.integrations_title"}}</h2>
+      {{if not .IntegrationsReported}}
+      <p class="muted mb-0">{{.L.T "device.integrations_waiting"}}</p>
+      {{else}}
+      <div class="flex flex-col gap-1">
+        {{range .Integrations}}
+        <div class="flex items-center justify-between rounded p-2 hover:bg-surface-bright">
+          <span class="flex items-center gap-2 text-body-sm text-ink">
+            {{if .Up}}<span class="material-symbols-outlined msz-20 text-mint-deep">check_circle</span>{{else if .Down}}<span class="material-symbols-outlined msz-20 text-status-warn">error</span>{{else}}<span class="material-symbols-outlined msz-20 text-text-tertiary">help</span>{{end}}
+            <span class="material-symbols-outlined msz-16 text-text-tertiary">{{.Icon}}</span>{{.Name}}
+          </span>
+          {{if .Up}}<span class="rounded bg-mint-vibrant/10 px-2 py-0.5 text-label-xs-caps uppercase text-mint-deep">{{$.L.T "device.integration_up"}}</span>
+          {{else if .Down}}<span class="tag bad" {{with .Detail}}title="{{.}}"{{end}}>{{$.L.T "device.integration_down"}}</span>
+          {{else}}<span class="muted">{{$.L.T "device.integration_no_reading"}}</span>{{end}}
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+    </section>
+    {{end}}
+
     <!-- Identity (the CMDB card): class, groups and the assigned user are
          operator-editable in place; hardware profile is set at imaging. -->
     <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">

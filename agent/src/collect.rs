@@ -709,3 +709,216 @@ mod converge_error_tests {
         assert_eq!(converge_error(None, None), None);
     }
 }
+
+/// Integrations is what this device observed of the integrations the fleet
+/// turned on for it. Field names match the console's wire contract
+/// (observed.Integrations): a map of integration name to state.
+///
+/// WHY THIS IS REPORTED. The console could configure NetBird, Wazuh and
+/// OpenBao and then see nothing at all of them. Answering "is this laptop on
+/// the mesh" meant running `ip` and `ss` on the machine by hand, and the
+/// fit-gap called two of those integrations a GAP for a fortnight after they
+/// had started working, because nothing in the product contradicted it.
+///
+/// It rides on the CHECK-IN and not on facts: facts run an external `facter`
+/// on a 24-hour interval, and an integration that fell over this morning is
+/// not news tomorrow.
+pub type Integrations = std::collections::BTreeMap<String, IntegrationState>;
+
+/// IntegrationState is one integration's state as this device sees it.
+#[derive(Serialize, Default, Debug, PartialEq, Clone)]
+pub struct IntegrationState {
+    /// state is "up", "down", or empty when the unit is in flight and there
+    /// is no honest answer yet. Empty is a real answer console-side ("no
+    /// reading") and deliberately not the same as down.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub state: String,
+    /// detail is the device's own words on a failure. "wazuh-agent.service:
+    /// exit-code" tells an operator where to look; "down" does not.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub detail: String,
+}
+
+/// INTEGRATION_UNITS maps an integration to the units that carry it, in the
+/// order they are tried. The first unit systemd has LOADED decides; a unit
+/// that is not on this machine means the overlay did not turn the integration
+/// on here, and then nothing is reported for it at all.
+///
+/// More than one candidate per integration on purpose: the netbird module
+/// names its unit after the client (`services.netbird.clients.dawo`), and a
+/// fleet that renames its client should degrade to "no reading" rather than
+/// to a confident "down".
+const INTEGRATION_UNITS: &[(&str, &[&str])] = &[
+    ("netbird", &["netbird-dawo.service", "netbird.service"]),
+    ("identity", &["sssd.service"]),
+    ("wazuh", &["wazuh-agent.service"]),
+    ("openbao", &["openbao-secrets.service"]),
+];
+
+/// collect_integrations asks systemd about each known integration's unit.
+/// Best-effort, like the other probes: a device where systemctl cannot run
+/// reports an empty map, which the console reads as "reported, nothing to
+/// say" rather than as an outage.
+pub fn collect_integrations() -> Integrations {
+    let mut out = Integrations::new();
+    for (name, units) in INTEGRATION_UNITS {
+        for unit in *units {
+            let Some(props) = show_unit(unit) else {
+                continue;
+            };
+            let (state, detail) = judge_unit(unit, &props);
+            if state.is_empty() && detail.is_empty() {
+                // Not loaded: this unit is not on this machine. Try the next
+                // candidate, and report nothing if none of them are here.
+                continue;
+            }
+            out.insert((*name).to_string(), IntegrationState { state, detail });
+            break;
+        }
+    }
+    out
+}
+
+/// show_unit reads the properties this judgement needs. None when systemctl
+/// itself could not run - which is different from a unit that is absent, and
+/// both end up reporting nothing rather than a guess.
+fn show_unit(unit: &str) -> Option<Vec<(String, String)>> {
+    let out = Command::new("systemctl")
+        .args([
+            "show",
+            unit,
+            "--property=LoadState,ActiveState,SubState,Result,ExecMainStartTimestamp",
+        ])
+        .output()
+        .ok()?;
+    Some(parse_show(&String::from_utf8_lossy(&out.stdout)))
+}
+
+/// parse_show turns `systemctl show`'s KEY=VALUE lines into pairs. Split out
+/// so the judgement below is testable without systemd.
+pub fn parse_show(s: &str) -> Vec<(String, String)> {
+    s.lines()
+        .filter_map(|l| l.split_once('='))
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .collect()
+}
+
+/// judge_unit turns systemd's properties into the state the console renders.
+/// Returns ("", "") when the unit is not on this machine.
+///
+/// The oneshot case is the one worth spelling out. `openbao-secrets` is
+/// Type=oneshot WITHOUT RemainAfterExit, so a run that fetched every secret
+/// correctly leaves ActiveState=inactive - the same word as a unit that never
+/// ran. Only the start timestamp separates the two, and reading "inactive" as
+/// down would have reported a working vault as broken on every device.
+pub fn judge_unit(unit: &str, props: &[(String, String)]) -> (String, String) {
+    let get = |k: &str| -> &str {
+        props
+            .iter()
+            .find(|(pk, _)| pk == k)
+            .map(|(_, v)| v.as_str())
+            .unwrap_or("")
+    };
+    if get("LoadState") != "loaded" {
+        return (String::new(), String::new());
+    }
+    let (active, sub) = (get("ActiveState"), get("SubState"));
+    match active {
+        "active" | "reloading" => ("up".into(), String::new()),
+        "failed" => ("down".into(), format!("{unit}: {sub}")),
+        "inactive" => {
+            // A oneshot that has run and succeeded is up; one that has never
+            // started is down, and says so in words an operator can act on.
+            let ran = !get("ExecMainStartTimestamp").is_empty();
+            match (ran, get("Result")) {
+                (true, "success") => ("up".into(), String::new()),
+                (true, r) => ("down".into(), format!("{unit}: {r}")),
+                (false, _) => ("down".into(), format!("{unit}: never started")),
+            }
+        }
+        // activating, deactivating: in flight. No honest answer yet, and an
+        // unknown must not be reported as a failure.
+        _ => (String::new(), format!("{unit}: {active}")),
+    }
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+
+    // The oneshot trap: `openbao-secrets` has no RemainAfterExit, so a run
+    // that fetched every secret leaves ActiveState=inactive - the same word a
+    // unit that never started reports. Only the start timestamp separates
+    // them, and reading "inactive" as down would have called a working vault
+    // broken on every device in the fleet.
+    #[test]
+    fn a_successful_oneshot_is_up_and_an_unstarted_one_is_down() {
+        let ran = parse_show(
+            "LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStartTimestamp=Tue 2026-08-19 06:00:01 UTC\n",
+        );
+        assert_eq!(
+            judge_unit("openbao-secrets.service", &ran),
+            ("up".to_string(), String::new())
+        );
+
+        let never = parse_show(
+            "LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStartTimestamp=\n",
+        );
+        let (state, detail) = judge_unit("openbao-secrets.service", &never);
+        assert_eq!(state, "down");
+        assert!(detail.contains("never started"), "detail = {detail}");
+    }
+
+    // A unit that is not on this machine reports NOTHING, so the console can
+    // tell "the overlay did not turn this on here" apart from "it is off".
+    #[test]
+    fn an_absent_unit_reports_nothing() {
+        let absent = parse_show("LoadState=not-found\nActiveState=inactive\nSubState=dead\n");
+        assert_eq!(
+            judge_unit("wazuh-agent.service", &absent),
+            (String::new(), String::new())
+        );
+    }
+
+    // A failure names the unit and systemd's own sub-state: "wazuh-agent.
+    // service: exit-code" tells an operator where to look, "down" does not.
+    #[test]
+    fn a_failed_unit_carries_its_own_words() {
+        let failed = parse_show(
+            "LoadState=loaded\nActiveState=failed\nSubState=exit-code\nResult=exit-code\nExecMainStartTimestamp=Tue 2026-08-19 06:00:01 UTC\n",
+        );
+        let (state, detail) = judge_unit("wazuh-agent.service", &failed);
+        assert_eq!(state, "down");
+        assert_eq!(detail, "wazuh-agent.service: exit-code");
+    }
+
+    // A unit still coming up is neither: an unknown must not be reported as a
+    // failure, because a beat lands every minute and a device that reboots
+    // would otherwise flash red across the fleet page.
+    #[test]
+    fn a_unit_in_flight_has_no_state_yet() {
+        let starting = parse_show(
+            "LoadState=loaded\nActiveState=activating\nSubState=start\nResult=success\n",
+        );
+        let (state, detail) = judge_unit("netbird-dawo.service", &starting);
+        assert!(state.is_empty(), "state = {state}");
+        assert!(
+            !detail.is_empty(),
+            "an in-flight unit still says what it is doing"
+        );
+    }
+
+    // The empty state must not be serialized: the console distinguishes a
+    // silent beat from a reported one, and an omitted field is what keeps the
+    // previous reading in place.
+    #[test]
+    fn an_unknown_state_is_left_off_the_wire() {
+        let s = serde_json::to_string(&IntegrationState::default()).unwrap();
+        assert_eq!(s, "{}");
+        let up = IntegrationState {
+            state: "up".into(),
+            detail: String::new(),
+        };
+        assert_eq!(serde_json::to_string(&up).unwrap(), r#"{"state":"up"}"#);
+    }
+}

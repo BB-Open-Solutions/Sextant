@@ -63,6 +63,51 @@ type CheckIn struct {
 	// all dead on it. A device that reports failed units is not on spec,
 	// whatever its revision says.
 	Health Health `json:"health,omitempty"`
+
+	// Integrations is what the device makes of the integrations the fleet
+	// turned on for it: is it really on the mesh, is the endpoint agent
+	// really talking to its manager, did the secrets really arrive.
+	//
+	// It exists because the console configured all three and could see none
+	// of them. On 2026-08-18 the answer to "is this laptop on the mesh" came
+	// from running `ip` and `ss` on the device by hand, which is the work a
+	// fleet console exists to make unnecessary - and it is why a document
+	// could call an integration a GAP for a fortnight after it started
+	// working, with nothing in the product to contradict it.
+	Integrations Integrations `json:"integrations,omitempty"`
+}
+
+// Integrations maps an integration name (the overlay's own: "netbird",
+// "wazuh", "openbao") to what the device observed of it.
+//
+// A map rather than named fields, because which integrations exist is the
+// overlay's decision and not the console's: a fleet that gains one should not
+// need a schema change here to be able to say so.
+type Integrations map[string]IntegrationState
+
+// IntegrationState is one device's observation of one integration.
+type IntegrationState struct {
+	// State is "up", "down" or "" for unknown. Unknown is the important one:
+	// an agent that is too old to report, or a probe that could not run,
+	// must never read as working - and must never read as broken either. The
+	// same rule the compliance view already lives by: unmeasured is not a
+	// violation.
+	State string `json:"state,omitempty"`
+	// Detail is the one line an operator can act on: the mesh address, the
+	// manager it reached, the names of the secrets that landed. "up" tells
+	// somebody the light is green; this tells them what they are looking at.
+	Detail string `json:"detail,omitempty"`
+}
+
+// Up reports whether the device said this integration works. Absent and
+// unknown both answer false, and neither means broken - see State.
+func (i Integrations) Up(name string) bool { return i[name].State == "up" }
+
+// Reported reports whether the device said anything at all about this
+// integration, which is what separates "off" from "we never asked".
+func (i Integrations) Reported(name string) bool {
+	_, ok := i[name]
+	return ok
 }
 
 // Health is systemd's verdict on a device: its overall state and the units
@@ -165,7 +210,38 @@ func (c CheckIn) Validate() error {
 	if err := validateUsage(c.Usage); err != nil {
 		return err
 	}
+	if err := validateIntegrations(c.Integrations); err != nil {
+		return err
+	}
 	return validatePosture(c.SB, c.TPM2)
+}
+
+// maxIntegrations bounds one check-in's integration map. A device reports on
+// what the fleet turned on for it, which is a handful; the cap is here so a
+// misbehaving or hostile agent cannot grow a row without limit.
+const maxIntegrations = 16
+
+// validateIntegrations bounds the map and rejects a state word the console
+// would not know how to render. Unknown ("") is allowed on purpose: it is the
+// honest answer from an agent whose probe could not run.
+func validateIntegrations(in Integrations) error {
+	if len(in) > maxIntegrations {
+		return fmt.Errorf("check-in reports %d integrations, over the %d limit", len(in), maxIntegrations)
+	}
+	for name, st := range in {
+		if name == "" || len(name) > 64 {
+			return fmt.Errorf("integration name %q is empty or too long", name)
+		}
+		switch st.State {
+		case "", "up", "down":
+		default:
+			return fmt.Errorf("integration %q reports unknown state %q", name, st.State)
+		}
+		if len(st.Detail) > 256 {
+			return fmt.Errorf("integration %q detail too long", name)
+		}
+	}
+	return nil
 }
 
 // DeviceStatus is the stored, per-device observed state.
@@ -185,6 +261,11 @@ type DeviceStatus struct {
 	// units is not on spec however well its revision matches - the revision
 	// says what it meant to run, this says whether it works.
 	Health Health `json:"health,omitempty"`
+	// Integrations is what the device last observed of the integrations the
+	// fleet turned on for it. A nil map means no device ever reported, which
+	// reads as unknown rather than down: an integration nobody measured is
+	// not thereby broken.
+	Integrations Integrations `json:"integrations,omitempty"`
 }
 
 // OnlineWindow is how recently a device must have checked in to count as

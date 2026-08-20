@@ -499,6 +499,8 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request, v view) {
 		if hasSt {
 			data["HasStatus"], data["Status"] = true, st
 			data["Posture"] = s.postureView(f, tag, st)
+			data["Integrations"] = deviceIntegrations(f, tag, st)
+			data["IntegrationsReported"] = reportedIntegrations(st)
 			// Same version chip as the device list, but this is the page an
 			// operator opens to dig: the release number and the full revision
 			// stay on screen next to it rather than in a hover title.

@@ -95,3 +95,45 @@ func TestUsageValidationAndReported(t *testing.T) {
 		}
 	}
 }
+
+// A check-in is the one place a device can push text into the console's
+// storage, so the integration map is bounded on every axis: how many, how long
+// a name, and which state words mean anything. Unknown ("") stays legal - it
+// is what an agent honestly reports when its probe could not run.
+func TestCheckInRejectsMalformedIntegrations(t *testing.T) {
+	base := func(in Integrations) CheckIn {
+		return CheckIn{Tag: "lt-1", Revision: "rev", Integrations: in}
+	}
+	tooMany := Integrations{}
+	for i := 0; i < maxIntegrations+1; i++ {
+		tooMany[string(rune('a'+i))+"x"] = IntegrationState{State: "up"}
+	}
+	cases := map[string]CheckIn{
+		"too many":      base(tooMany),
+		"empty name":    base(Integrations{"": {State: "up"}}),
+		"long name":     base(Integrations{strings.Repeat("n", 65): {State: "up"}}),
+		"unknown state": base(Integrations{"netbird": {State: "sort of"}}),
+		"long detail":   base(Integrations{"netbird": {State: "down", Detail: strings.Repeat("d", 257)}}),
+	}
+	for name, c := range cases {
+		if err := c.Validate(); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+
+	ok := base(Integrations{
+		"netbird": {State: "up"},
+		"wazuh":   {State: "down", Detail: "wazuh-agent.service failed"},
+		"openbao": {State: ""},
+	})
+	if err := ok.Validate(); err != nil {
+		t.Fatalf("a well-formed report was rejected: %v", err)
+	}
+	if !ok.Integrations.Up("netbird") || ok.Integrations.Up("wazuh") {
+		t.Fatal("Up does not follow the reported state")
+	}
+	// Reported separates "said nothing about it" from "said it is unknown".
+	if !ok.Integrations.Reported("openbao") || ok.Integrations.Reported("nothing") {
+		t.Fatal("Reported does not follow presence in the map")
+	}
+}

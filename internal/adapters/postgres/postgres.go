@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -135,8 +136,9 @@ func (s *Store) Upsert(ctx context.Context, tenant string, c observed.CheckIn, n
 			SELECT ack FROM device_status WHERE tenant = $1 AND tag = $2
 		)
 		INSERT INTO device_status (tenant, tag, revision, phase, error, last_seen, sb_state, tpm2_state, ack,
-			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, health_state, failed_units)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, health_state, failed_units,
+			integrations)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT (tenant, tag) DO UPDATE SET
 			revision   = CASE WHEN EXCLUDED.revision = ''   THEN device_status.revision   ELSE EXCLUDED.revision   END,
 			phase      = CASE WHEN EXCLUDED.phase = ''       THEN device_status.phase      ELSE EXCLUDED.phase      END,
@@ -162,26 +164,64 @@ func (s *Store) Upsert(ctx context.Context, tenant string, c observed.CheckIn, n
 			-- make a broken device look healthy, which is the exact failure
 			-- this column exists to catch.
 			health_state = CASE WHEN EXCLUDED.health_state = '' THEN device_status.health_state ELSE EXCLUDED.health_state END,
-			failed_units = CASE WHEN EXCLUDED.health_state = '' THEN device_status.failed_units ELSE EXCLUDED.failed_units END
+			failed_units = CASE WHEN EXCLUDED.health_state = '' THEN device_status.failed_units ELSE EXCLUDED.failed_units END,
+			-- NULL means the beat said nothing about integrations, so the last
+			-- reading stands; '{}' means it reported and has nothing to say,
+			-- which clears the row. See 0019_device_integrations.sql.
+			integrations = CASE WHEN EXCLUDED.integrations IS NULL THEN device_status.integrations ELSE EXCLUDED.integrations END
 		RETURNING (SELECT ack FROM prev) IS DISTINCT FROM ack`,
 		tenant, c.Tag, c.Revision, string(c.Phase), c.Error, now, string(c.SB), string(c.TPM2), c.Ack,
 		u.CPUPct, u.MemUsedMB, u.MemTotalMB, u.DiskUsedGB, u.DiskTotalGB,
-		c.Health.State, failed,
+		c.Health.State, failed, integrationsJSON(c.Integrations),
 	).Scan(&ackChanged)
 	return ackChanged, err
+}
+
+// integrationsJSON encodes the check-in's integration map for the nullable
+// column. A nil map becomes SQL NULL ("this beat said nothing") and an empty
+// map becomes '{}' ("reported, nothing to say"); the upsert treats those two
+// differently on purpose - see 0019_device_integrations.sql.
+func integrationsJSON(in observed.Integrations) any {
+	if in == nil {
+		return nil
+	}
+	b, err := json.Marshal(in)
+	if err != nil {
+		// A map of short strings does not fail to marshal. If it somehow
+		// does, saying nothing beats writing something that is not what the
+		// device reported.
+		return nil
+	}
+	return b
+}
+
+// decodeIntegrations reads the nullable column back. A NULL column (no device
+// ever reported) and an unreadable one both give nil, which the console shows
+// as unknown - the one thing it must never do is invent a state.
+func decodeIntegrations(raw []byte) observed.Integrations {
+	if len(raw) == 0 {
+		return nil
+	}
+	var out observed.Integrations
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
+	}
+	return out
 }
 
 // Get implements ports.StatusStore.
 func (s *Store) Get(ctx context.Context, tenant, tag string) (observed.DeviceStatus, bool, error) {
 	var st observed.DeviceStatus
 	var phase, sb, tpm2 string
+	var integrations []byte
 	err := s.pool.QueryRow(ctx, `
 		SELECT tag, revision, phase, error, last_seen, sb_state, tpm2_state, ack,
-			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, health_state, failed_units
+			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, health_state, failed_units,
+			integrations
 		FROM device_status WHERE tenant = $1 AND tag = $2`, tenant, tag).
 		Scan(&st.Tag, &st.Revision, &phase, &st.Error, &st.LastSeen, &sb, &tpm2, &st.Ack,
 			&st.Usage.CPUPct, &st.Usage.MemUsedMB, &st.Usage.MemTotalMB, &st.Usage.DiskUsedGB, &st.Usage.DiskTotalGB,
-			&st.Health.State, &st.Health.FailedUnits)
+			&st.Health.State, &st.Health.FailedUnits, &integrations)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return observed.DeviceStatus{}, false, nil
 	}
@@ -190,6 +230,7 @@ func (s *Store) Get(ctx context.Context, tenant, tag string) (observed.DeviceSta
 	}
 	st.Phase = observed.Phase(phase)
 	st.SB, st.TPM2 = observed.SBState(sb), observed.TPM2State(tpm2)
+	st.Integrations = decodeIntegrations(integrations)
 	return st, true, nil
 }
 
@@ -197,7 +238,8 @@ func (s *Store) Get(ctx context.Context, tenant, tag string) (observed.DeviceSta
 func (s *Store) List(ctx context.Context, tenant string) ([]observed.DeviceStatus, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT tag, revision, phase, error, last_seen, sb_state, tpm2_state, ack,
-			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, health_state, failed_units
+			cpu_pct, mem_used_mb, mem_total_mb, disk_used_gb, disk_total_gb, health_state, failed_units,
+			integrations
 		FROM device_status WHERE tenant = $1 ORDER BY tag`, tenant)
 	if err != nil {
 		return nil, err
@@ -207,13 +249,15 @@ func (s *Store) List(ctx context.Context, tenant string) ([]observed.DeviceStatu
 	for rows.Next() {
 		var st observed.DeviceStatus
 		var phase, sb, tpm2 string
+		var integrations []byte
 		if err := rows.Scan(&st.Tag, &st.Revision, &phase, &st.Error, &st.LastSeen, &sb, &tpm2, &st.Ack,
 			&st.Usage.CPUPct, &st.Usage.MemUsedMB, &st.Usage.MemTotalMB, &st.Usage.DiskUsedGB, &st.Usage.DiskTotalGB,
-			&st.Health.State, &st.Health.FailedUnits); err != nil {
+			&st.Health.State, &st.Health.FailedUnits, &integrations); err != nil {
 			return nil, err
 		}
 		st.Phase = observed.Phase(phase)
 		st.SB, st.TPM2 = observed.SBState(sb), observed.TPM2State(tpm2)
+		st.Integrations = decodeIntegrations(integrations)
 		out = append(out, st)
 	}
 	return out, rows.Err()
