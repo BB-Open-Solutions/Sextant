@@ -223,8 +223,22 @@ cnpg:
   enabled: true
   name: sextant-pg
   instances: 1
-  storage: 2Gi
+  # WHY NOT 2Gi. It was, and it is the fuse that took production down on
+  # 2026-08-13. With archiving on, Postgres switches a 16 MiB WAL segment every
+  # archive_timeout whether or not anything happened - about 4.6 GiB a day at
+  # five minutes - and wal_keep_size holds 512 MB on top. So the moment
+  # archiving fails, a 2Gi volume has roughly ten hours before CNPG stops the
+  # instance to protect itself. Those ten hours ran out overnight and the
+  # console was down before anyone was awake.
+  #
+  # 8Gi is not a calculation, it is a floor: enough that a failed archive is a
+  # problem you find in the morning rather than an outage you wake up to.
+  storage: 8Gi
   storageClass: longhorn
+  # A deliberate small cell (a demo, a laptop cluster) sets this to render a
+  # volume under the floor with backups on. Named rather than a number so the
+  # decision is visible in the values file, like allowUnvalidated.
+  acknowledgeSmallVolume: false
   # Off-cluster backup of the observed plane. OFF by default because it needs
   # an object store this chart cannot assume, and a default pointing nowhere
   # would fail every install.

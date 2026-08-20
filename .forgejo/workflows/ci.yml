@@ -293,6 +293,24 @@ jobs:
               --set cnpg.backup.secretName=s)
             echo "$back" | grep -q "barmanObjectStore" || { echo "backup enabled but no barmanObjectStore"; exit 1; }
             echo "$back" | grep -q "kind: ScheduledBackup" || { echo "barmanObjectStore without a ScheduledBackup: WAL with no base is not recoverable"; exit 1; }
+            # The WAL fuse. Archiving switches a segment on a timer whether or
+            # not anything happened, so a volume too small to absorb a failed
+            # archive stops the database within hours - production, 2026-08-13.
+            # Asserted per unit, because a guard that only understood "Gi"
+            # would wave 500Mi through, which is the case it exists to catch.
+            for size in 2Gi 500Mi 1G; do
+              if helm template deploy/helm --set gateMode=eval --set cnpg.storage=$size \
+                --set cnpg.backup.enabled=true --set cnpg.backup.destinationPath=s3://b/x/ \
+                --set cnpg.backup.secretName=s >/dev/null 2>&1; then
+                echo "WAL fuse guard did not fire: $size with archiving rendered"; exit 1
+              fi
+            done
+            # A deliberate small cell still renders, and a small volume WITHOUT
+            # archiving was never the problem.
+            helm template deploy/helm --set gateMode=eval --set cnpg.storage=2Gi \
+              --set cnpg.acknowledgeSmallVolume=true --set cnpg.backup.enabled=true \
+              --set cnpg.backup.destinationPath=s3://b/x/ --set cnpg.backup.secretName=s >/dev/null
+            helm template deploy/helm --set gateMode=eval --set cnpg.storage=2Gi >/dev/null
             # Passwordless demo: the guards refuse the three combinations that
             # would quietly make an owner-session console reachable. A guard
             # that is never asserted is a comment.
