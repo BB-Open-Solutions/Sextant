@@ -31,4 +31,10 @@ external CDN.
 5. **Retire or wipe it** - an audited intent the device acts on locally; a
    crypto-wipe destroys the disk's keys, and is armed per device.
 
-Start with [setting up an imaging station](./operators/station-nuc.md).
+To see all of that on your own machine first, clone the repository and run
+`just demo`: a console, a database, sixty simulated devices and an imaging
+line, gone again when you press ctrl-c. To run it for real, start with
+[Install and configure Sextant](./operators/deploy.md).
+
+For the hardware end, start with
+[setting up an imaging station](./operators/station-nuc.md).

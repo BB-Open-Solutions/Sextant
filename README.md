@@ -27,35 +27,62 @@ you hoped it would.
 
 ## Quickstart
 
-Two commands and a browser. No database, no cluster, no account.
+Two commands and a browser. No cluster, no account, nothing that leaves your
+machine.
 
 ```sh
 git clone https://codeberg.org/DAWO/DAWO-Sextant.git && cd DAWO-Sextant
-just demo          # builds, seeds an example fleet, serves on :8080
+just demo          # console, database, simulated fleet and imaging line
 ```
 
-Then open **http://127.0.0.1:8080**. You get a working console on the example
-fleet in `examples/overlay`: enroll a device, change a setting, watch the
-change become a git commit.
+Then open **http://127.0.0.1:8080**. You get a console with sixty simulated
+devices checking in, a wave plan to promote a release through, and machines
+waiting on an imaging line. Enroll one, change a setting, watch the change
+become a git commit.
+
+Ctrl-c stops everything and deletes the directory it made, including the
+database.
+
+**It needs `initdb`, `pg_ctl` and `createdb` on your PATH** (any PostgreSQL
+package; `nix develop` provides them). The demo starts a throwaway database of
+its own on a unix socket - no container, no port, no root. That is not
+ceremony: the observed plane lives in Postgres, so without one the console
+mounts three capabilities instead of five and no device ever has a status.
 
 <details>
 <summary>No <code>just</code>?</summary>
 
 ```sh
 go build -o sextant ./cmd/sextant
+go build -o fleetsim ./cmd/fleetsim
+
+# a throwaway database
+initdb -D /tmp/sxdemo/pg -U sextant --auth=trust
+pg_ctl -D /tmp/sxdemo/pg -o "-k /tmp/sxdemo -h ''" -w start
+createdb -h /tmp/sxdemo -U sextant sextant
 
 # the config plane is a git working tree, so give the demo one
-cp -r examples/overlay /tmp/sextant-demo
-git -C /tmp/sextant-demo init -q -b main
-git -C /tmp/sextant-demo add -A
-git -C /tmp/sextant-demo -c user.name=demo -c user.email=demo@localhost commit -qm "example fleet"
+cp -r examples/overlay /tmp/sxdemo/overlay
+./fleetsim -gen 60 > /tmp/sxdemo/overlay/fleet.json
+git -C /tmp/sxdemo/overlay init -q -b main
+git -C /tmp/sxdemo/overlay add -A
+git -C /tmp/sxdemo/overlay -c user.name=demo -c user.email=demo@localhost commit -qm "example fleet"
 
-./sextant --repo /tmp/sextant-demo --dev-auth --gate none --allow-unvalidated --write
+export SEXTANT_PG_DSN="postgres://sextant@/sextant?host=/tmp/sxdemo"
+export SEXTANT_CHECKIN_TOKEN="demo-checkin-token"
+./sextant --repo /tmp/sxdemo/overlay --dev-auth --gate none --allow-unvalidated --write &
+
+./fleetsim -fleet /tmp/sxdemo/overlay/fleet.json -repo /tmp/sxdemo/overlay \
+  -url http://127.0.0.1:8080 -token "$SEXTANT_CHECKIN_TOKEN" -station st-1
 ```
 
 `--dev-auth` mints a synthetic owner session and only works on loopback;
 `--gate none` skips Nix validation, which is why it makes you say
 `--allow-unvalidated` out loud. Neither belongs anywhere near a real fleet.
+
+Leaving out the database and the simulator still gives you a console and the
+config plane - enough to click through settings and see a commit - but no
+device status, no compliance verdicts and no imaging line.
 
 </details>
 
@@ -179,9 +206,10 @@ ring's revision on its own schedule.
 
 ## Running it for real
 
-The quickstart above is a demo on your laptop: no database, no cluster, and
-validation switched off. A real instance needs four things, and it is worth
-knowing that before you invest an afternoon:
+The quickstart above is a simulation on your laptop: a throwaway database, no
+cluster, no identity provider and validation switched off. A real instance
+needs four things, and it is worth knowing that before you invest an
+afternoon:
 
 | | |
 |---|---|
