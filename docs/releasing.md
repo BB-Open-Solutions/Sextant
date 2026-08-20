@@ -23,15 +23,18 @@ a developer laptop.
    at. It is also a separate Flux Kustomization, so it rolls on its own
    schedule - check the pod, not the commit.
 
-   **On the mirror.** This step used to say "NOT the github-mirror remote -
-   that was a real trap". Measured on 2026-08-05: `origin` in the platform
-   repo carries TWO pushurls (`git config --get-regexp remote.origin.pushurl`),
-   forgejo and `github.com/brambuijs/bb-open-platform-v2`. So the documented
-   command reaches GitHub whether or not you name the mirror remote, and has
-   been doing so for previous releases too. Following the warning does not
-   avoid what it warns about. Either the config is intended and this note
-   should say so plainly, or the pushurl should go - but the instruction as it
-   stood described something that was not happening.
+   **On the mirror.** `origin` in the platform repo carries TWO pushurls
+   (`git config --get-regexp remote.origin.pushurl`): forgejo and
+   `github.com/brambuijs/bb-open-platform-v2`. That is intended, and this note
+   used to warn against reaching GitHub while the config reached it anyway.
+
+   Settled 2026-08-21: **forgejo is the one that matters**, because it is what
+   flux reads. The GitHub mirror is a backup and is allowed to lag - it was 17
+   commits behind on that date and nothing was wrong. Do not force-push it into
+   line; a mirror that has to be corrected by hand is not a backup.
+
+   What DOES need checking after a push is forgejo, and for the Sextant
+   repository also Codeberg, which carries the issues and pull requests.
 4. `flux reconcile source git flux-system -n flux-system` then
    `kustomization sextant` then `source git sextant` then
    `helmrelease sextant -n sextant`
@@ -48,6 +51,23 @@ v0.65.9 and v0.79.0, so no released image could be traced to a commit.
 If you ever need to build by hand again, `--build-arg VERSION=<v>` feeds
 `sextant_build_info`, and the tools image (`--target tools`, carrying fleetsim
 and sxctl) is only needed when a demo instance runs the simulator sidecar.
+
+## The chart does not wait for the tag
+
+Worth knowing before you plan a release, because it caught me out on
+2026-08-21: production and the demo both consume `deploy/helm` from a
+GitRepository on **main**, with the chart version set to `*`. Every merge to
+main therefore reaches production within the reconcile interval.
+
+The version tag is about the **images**, not the chart. So a chart change is
+live as soon as it merges, while the image it was written against may not exist
+yet. That is fine when the two are independent - a guard, a default, a template
+comment - and it is not fine when a chart change assumes a new image. In that
+case merge them together and expect the chart half to arrive first.
+
+Measured that day: the demo cell was running chart `0.90.0+bdc6e396` with its
+images pinned at `0.89.0`, and was healthy, because those images are pinned
+explicitly rather than following `appVersion`.
 
 ## Releasing DAWO-NixOS (upstream, not ours)
 
