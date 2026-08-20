@@ -75,6 +75,14 @@ func newRolloutStack(t *testing.T) (*RolloutService, *ConfigService, *fakeConver
 		}
 	}
 	shr("init", "-q", "-b", "main")
+	// Git may start maintenance of its own behind a commit, and that outlives
+	// the test: seen once on 2026-08-20 as "TempDir RemoveAll cleanup:
+	// unlinkat .../.git: directory not empty" under a full -race run, which
+	// failed a push on a green tree. Not reproducible in two further full
+	// runs, so this is not a proven diagnosis - it removes the only writer
+	// that can still touch .git after the test has returned.
+	shr("config", "gc.auto", "0")
+	shr("config", "maintenance.auto", "false")
 	if err := os.WriteFile(filepath.Join(dir, "fleet.json"), []byte(rolloutFleet), 0o644); err != nil {
 		t.Fatal(err)
 	}
