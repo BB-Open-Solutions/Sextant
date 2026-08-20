@@ -71,10 +71,10 @@ zolang die bewaartermijn loopt. Een subverwerker die nog data onder zich heeft
 schrappen zou deze bijlage onjuist maken, niet actueler. De einddatum van die
 periode is in te vullen; daarna vervalt de tweede regel.
 
-**Op de meetdatum verzendt de verwerker feitelijk niets nieuws**: de back-up van
-de observed plane staat sinds 13 augustus 2026 uit. Dat is een openstaand punt
-in bijlage B en geen kenmerk van de dienst; de reeds opgeslagen back-ups blijven
-bij beide partijen liggen.
+De back-up van de observed plane draait. Gemeten op 21 augustus 2026 op de
+productiecel: `ContinuousArchiving` en `LastBackupSucceeded` beide waar, de
+laatste geslaagde back-up van 20 augustus 02:45 UTC, en een herstelpunt dat
+teruggaat tot 17 augustus 22:51 UTC. De bewaartermijn is 30 dagen.
 
 De verwerker meldt voorgenomen wijzigingen tijdig genoeg dat de
 verantwoordelijke bezwaar kan maken.
