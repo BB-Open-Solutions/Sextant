@@ -33,7 +33,7 @@ import (
 
 const populatedFleet = `{
   "version": 3,
-  "org": {"settings": {"desktop": "plasma", "apps.office": true}},
+  "org": {"settings": {"desktop": "plasma", "apps.office": true, "netbird.enable": true}},
   "assurance": {"requireFourEyes": true},
   "groups": {
     "pilot": {"settings": {"desktop": "gnome"}},
@@ -77,7 +77,8 @@ func (s twoStatuses) rows() []observed.DeviceStatus {
 	return []observed.DeviceStatus{
 		{Tag: "lt-1", Revision: "abc123", Phase: observed.Running, LastSeen: s.now,
 			Usage: observed.Usage{CPUPct: 20, MemUsedMB: 2048, MemTotalMB: 8192,
-				DiskUsedGB: 480, DiskTotalGB: 500}}, // 4% free: fails the condition
+				DiskUsedGB: 480, DiskTotalGB: 500}, // 4% free: fails the condition
+			Integrations: observed.Integrations{"netbird": {State: "up"}}},
 		{Tag: "lt-2", Revision: "def456", Phase: observed.Running,
 			LastSeen: s.now.Add(-30 * 24 * time.Hour), Error: "activation failed"},
 	}
@@ -181,5 +182,44 @@ func TestPagesRenderWithAPopulatedFleet(t *testing.T) {
 		if !strings.Contains(string(body), "</html>") {
 			t.Errorf("%s: 200 with a truncated document (%d bytes)", p, len(body))
 		}
+	}
+}
+
+// The panel has to render, not just compute. A template block that is only
+// ever exercised in production ships invisible - this repo has already had a
+// styling change do exactly that - so one page is fetched with an integration
+// switched on and its row asserted in the HTML.
+func TestDevicePageShowsIntegrationState(t *testing.T) {
+	ts := populatedConsole(t)
+
+	fetch := func(path string) string {
+		t.Helper()
+		resp, err := client().Get(ts.URL + path)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != 200 {
+			t.Fatalf("%s: %d", path, resp.StatusCode)
+		}
+		return string(b)
+	}
+
+	// lt-1 reports NetBird up.
+	body := fetch("/devices/lt-1")
+	if !strings.Contains(body, "NetBird VPN") {
+		t.Fatal("the integrations panel did not render on a device with one turned on")
+	}
+
+	// lt-2 has the same integration turned on and reported nothing about it.
+	// That must read as no reading, never as down: an old agent must not make
+	// a working mesh look broken.
+	body = fetch("/devices/lt-2")
+	if !strings.Contains(body, "NetBird VPN") {
+		t.Fatal("an enabled integration got no row on a device that never reported it")
+	}
+	if !strings.Contains(body, "no reading") {
+		t.Fatal("an unreported integration is not shown as unmeasured")
 	}
 }

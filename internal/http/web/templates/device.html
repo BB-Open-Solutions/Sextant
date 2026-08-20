@@ -253,9 +253,15 @@
     {{if .Integrations}}
     <section class="rounded-lg border border-border-hairline bg-canvas p-4 shadow-sm">
       <h2 class="mt-0 mb-3 flex items-center gap-2 text-label-md font-bold text-ink"><span class="material-symbols-outlined msz-18">hub</span>{{.L.T "device.integrations_title"}}</h2>
+      {{/* The rows show even when no agent on this device has ever reported.
+           Hiding them behind the waiting line was worse: an operator opening
+           a device with an old agent then saw nothing at all of what the
+           fleet had switched on for it, which is the exact blindness this
+           panel exists to remove. The line explains WHY every row reads "no
+           reading"; it does not replace them. */}}
       {{if not .IntegrationsReported}}
-      <p class="muted mb-0">{{.L.T "device.integrations_waiting"}}</p>
-      {{else}}
+      <p class="muted mb-3">{{.L.T "device.integrations_waiting"}}</p>
+      {{end}}
       <div class="flex flex-col gap-1">
         {{range .Integrations}}
         <div class="flex items-center justify-between rounded p-2 hover:bg-surface-bright">
@@ -269,7 +275,6 @@
         </div>
         {{end}}
       </div>
-      {{end}}
     </section>
     {{end}}
 
