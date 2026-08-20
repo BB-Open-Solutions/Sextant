@@ -453,3 +453,58 @@ func TestNoteClearsTheWaitOnATerminalAction(t *testing.T) {
 		t.Error("a completed run reports a stuck duration")
 	}
 }
+
+// The night hole. Absence starts after an hour of silence, so a wave of forty
+// office laptops run at 02:00 has thirty-eight absent and two present. Two
+// healthy devices are 100% of that denominator, and the run would soak on it
+// and promote to the next wave having proved nothing.
+func TestAWaveNeedsEnoughDevicesToProveAnything(t *testing.T) {
+	night := Ring{Group: "kantoor", MinHealthyPercent: 95}
+	thin := RingStatus{Total: 40, Absent: 38, OnTarget: 2, Healthy: 2}
+	if thin.Present() != 2 || thin.Healthy*100/thin.Present() < 95 {
+		t.Fatal("the fixture is wrong: it should meet the percentage")
+	}
+	if night.Converged(thin) {
+		t.Fatal("a wave converged on two of forty devices")
+	}
+	if night.EnoughEvidence(thin) {
+		t.Fatal("two of forty counts as enough evidence")
+	}
+
+	// Morning: the laptops come back and the same percentage now means
+	// something.
+	morning := RingStatus{Total: 40, Absent: 6, OnTarget: 34, Healthy: 34}
+	if !night.Converged(morning) {
+		t.Fatalf("a wave with 34 of 40 healthy did not converge: %+v", morning)
+	}
+}
+
+// The floor is half the cohort, capped at the cohort size, so a small wave is
+// never asked for more devices than it has - a three-device test group must
+// not be unable to converge by construction.
+func TestTheEvidenceFloorScalesToTheCohort(t *testing.T) {
+	small := Ring{Group: "ict-test", MinHealthyPercent: 100}
+	// Two of three present, both healthy: half of three is two, so this is
+	// enough evidence and the (strict) percentage is met.
+	if !small.Converged(RingStatus{Total: 3, Absent: 1, OnTarget: 2, Healthy: 2}) {
+		t.Fatal("a three-device wave could not converge on two present devices")
+	}
+	// One of three is below the floor.
+	if small.Converged(RingStatus{Total: 3, Absent: 2, OnTarget: 1, Healthy: 1}) {
+		t.Fatal("one of three counted as enough evidence")
+	}
+}
+
+// A wave may set its own floor, in both directions: 1 restores the old
+// promote-on-whoever-is-around behaviour for a fleet that wants it, and a
+// number above half raises the bar.
+func TestAWaveCanSetItsOwnEvidenceFloor(t *testing.T) {
+	thin := RingStatus{Total: 40, Absent: 38, OnTarget: 2, Healthy: 2}
+	if !(Ring{Group: "g", MinDevices: 1}.Converged(thin)) {
+		t.Fatal("an explicit floor of 1 did not restore promotion on two devices")
+	}
+	strict := Ring{Group: "g", MinDevices: 35}
+	if strict.Converged(RingStatus{Total: 40, Absent: 6, OnTarget: 34, Healthy: 34}) {
+		t.Fatal("a floor of 35 converged on 34 reachable devices")
+	}
+}

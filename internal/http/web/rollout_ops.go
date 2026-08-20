@@ -369,6 +369,7 @@ func rolloutPlanData(f *fleet.Fleet) map[string]any {
 	planHealthy := make([]string, ringRows)
 	planApproval := make([]bool, ringRows)
 	planMax := make([]string, ringRows)
+	planMinDevices := make([]string, ringRows)
 	if f.Rollout != nil {
 		for i, ring := range f.Rollout.Rings {
 			planGroups[i] = strings.Join(ring.GroupList(), ", ")
@@ -382,6 +383,9 @@ func rolloutPlanData(f *fleet.Fleet) map[string]any {
 			}
 			if ring.MaxDevices > 0 {
 				planMax[i] = fmt.Sprint(ring.MaxDevices)
+			}
+			if ring.MinDevices > 0 {
+				planMinDevices[i] = fmt.Sprint(ring.MinDevices)
 			}
 		}
 	}
@@ -398,6 +402,7 @@ func rolloutPlanData(f *fleet.Fleet) map[string]any {
 		"RingRows": rows, "AllGroups": allGroups,
 		"PlanGroups": planGroups, "PlanSoaks": planSoaks, "PlanHealthy": planHealthy,
 		"PlanNames": planNames, "PlanApproval": planApproval, "PlanMax": planMax,
+		"PlanMinDevices": planMinDevices,
 	}
 }
 

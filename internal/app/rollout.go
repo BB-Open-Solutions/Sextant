@@ -445,11 +445,7 @@ func (s *RolloutService) planRings() ([]rollout.Ring, error) {
 				return nil, fmt.Errorf("rollout ring names unknown group %q", g)
 			}
 		}
-		out = append(out, rollout.Ring{
-			Group: r.Group, Groups: r.Groups, Name: r.Name, SoakMinutes: r.SoakMinutes,
-			MinHealthyPercent: r.MinHealthyPercent, RequireApproval: r.RequireApproval,
-			MaxDevices: r.MaxDevices,
-		})
+		out = append(out, ringFromFleet(r))
 	}
 	return out, nil
 }
@@ -457,6 +453,22 @@ func (s *RolloutService) planRings() ([]rollout.Ring, error) {
 // Start begins a rollout to the target revision. One run at a time.
 func (s *RolloutService) Start(ctx context.Context, target string, a ports.Author) (*rollout.State, error) {
 	return s.StartWith(ctx, target, StartOpts{}, a)
+}
+
+// ringFromFleet converts one wave from the fleet document into the domain's
+// ring. One function and not a literal at each call site: the two that
+// existed drifted the moment a field was added, and a wave that silently
+// loses its evidence floor or its approval gate on one of the two paths is
+// the kind of difference nobody notices until a run promotes.
+func ringFromFleet(r fleet.RolloutRing) rollout.Ring {
+	return rollout.Ring{
+		Group: r.Group, Groups: r.Groups, Name: r.Name,
+		SoakMinutes:       r.SoakMinutes,
+		MinHealthyPercent: r.MinHealthyPercent,
+		RequireApproval:   r.RequireApproval,
+		MinDevices:        r.MinDevices,
+		MaxDevices:        r.MaxDevices,
+	}
 }
 
 // StartOpts tunes one run without touching the org plan.

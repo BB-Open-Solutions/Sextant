@@ -147,9 +147,7 @@ func (s *ComplianceService) currentRing(f *fleet.Fleet, st *rollout.State) (roll
 		return rollout.Ring{}, false
 	}
 	r := f.Rollout.Rings[st.Ring]
-	return rollout.Ring{Group: r.Group, Groups: r.Groups, Name: r.Name,
-		SoakMinutes: r.SoakMinutes, MinHealthyPercent: r.MinHealthyPercent,
-		RequireApproval: r.RequireApproval, MaxDevices: r.MaxDevices}, true
+	return ringFromFleet(r), true
 }
 
 // offTargetTags names the wave's released devices that are not reporting the

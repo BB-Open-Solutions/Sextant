@@ -110,6 +110,13 @@ func (s *Server) postRolloutPlan(w http.ResponseWriter, r *http.Request, v view)
 			}
 			ring.MinHealthyPercent = n
 		}
+		if m := r.FormValue(fmt.Sprintf("minDevices%d", i)); m != "" {
+			n, err := strconv.Atoi(m)
+			if err != nil || n < 0 {
+				return fmt.Errorf("ring %d: min devices expects a non-negative number", i+1)
+			}
+			ring.MinDevices = n
+		}
 		if m := r.FormValue(fmt.Sprintf("maxDevices%d", i)); m != "" {
 			n, err := strconv.Atoi(m)
 			if err != nil || n < 0 {

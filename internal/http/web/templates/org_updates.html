@@ -131,6 +131,8 @@
               <input name="healthy{{$i}}" type="number" min="0" max="100" placeholder="95" value="{{index $.PlanHealthy $i}}" aria-label="95"></div>
           </div>
           <div class="mt-2 flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2"><label class="!text-label-xs-caps">{{$.L.T "rollout.min_devices_label"}}</label>
+              <input name="minDevices{{$i}}" type="number" min="0" placeholder="{{$.L.T "rollout.half_the_wave"}}" value="{{index $.PlanMinDevices $i}}" class="!w-32" title="{{$.L.T "rollout.min_devices_title"}}" aria-label="{{$.L.T "rollout.min_devices_label"}}"></div>
             <div class="flex items-center gap-2"><label class="!text-label-xs-caps">{{$.L.T "rollout.max_label"}}</label>
               <input name="maxDevices{{$i}}" type="number" min="0" placeholder="0 = {{$.L.T "rollout.all_at_once"}}" value="{{index $.PlanMax $i}}" class="!w-28" title="{{$.L.T "rollout.max_at_once_title"}}" aria-label="0 = {{$.L.T "rollout.all_at_once"}}"></div>
             <label class="flex items-center gap-2 !normal-case !tracking-normal text-label-md text-text-secondary"><input type="checkbox" name="approval{{$i}}" value="1" {{if index $.PlanApproval $i}}checked{{end}} class="!w-auto">{{$.L.T "rollout.require_approval"}}</label>

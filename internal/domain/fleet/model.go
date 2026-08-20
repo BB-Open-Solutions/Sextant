@@ -393,6 +393,10 @@ type RolloutRing struct {
 	SoakMinutes       int      `json:"soakMinutes,omitempty"`
 	MinHealthyPercent int      `json:"minHealthyPercent,omitempty"`
 	RequireApproval   bool     `json:"requireApproval,omitempty"` // manual promotion gate
+	// MinDevices is the wave's evidence floor: how many of its devices must
+	// be reachable before the health percentage means anything. 0 means half
+	// the cohort. See rollout.Ring.MinDevices for why.
+	MinDevices int `json:"minDevices,omitempty"`
 	// MaxDevices caps how many of the group's devices receive the target at
 	// once (count-capped canary, ADR 0013); 0 releases the whole group.
 	MaxDevices int `json:"maxDevices,omitempty"`

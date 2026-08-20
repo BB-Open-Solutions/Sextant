@@ -38,6 +38,16 @@ type Ring struct {
 	// healthy, the pipeline waits for an operator to approve promotion to the
 	// next wave (the enterprise "test sign-off" step). Auto-advance otherwise.
 	RequireApproval bool `json:"requireApproval,omitempty"`
+	// MinDevices is the wave's EVIDENCE floor: how many of its devices must
+	// be present (reachable) before a percentage means anything. Zero means
+	// half the cohort - see minPresent.
+	//
+	// Without it a percentage can be met by an accident of timing. Absence
+	// starts after an hour of silence, so a wave of forty office laptops run
+	// at 02:00 has thirty-eight absent, and two present devices reporting
+	// healthy are 100% of the denominator. The run would soak on that and
+	// promote to the next wave having proved nothing at all.
+	MinDevices int `json:"minDevices,omitempty"`
 	// MaxDevices caps how many of the group's devices receive the target at
 	// once (a count-capped canary): 0 releases the whole group (the default),
 	// N > 0 releases at most N at a time, widening as each cohort converges.
@@ -71,6 +81,28 @@ func (r Ring) minHealthy() int {
 	return r.MinHealthyPercent
 }
 
+// minPresent is how many of the cohort must be reachable before the wave can
+// prove anything. Half the cohort by default, at least one: a release cannot
+// be proved on devices that are not there, and half is the smallest share
+// that cannot be reached by a handful of machines that happen to be awake.
+//
+// A wave may lower it (MinDevices: 1 restores the old behaviour of promoting
+// on whoever is around) or raise it. It is capped at the cohort size, so a
+// three-device test group is never asked for more devices than it has.
+func (r Ring) minPresent(total int) int {
+	want := r.MinDevices
+	if want <= 0 {
+		want = (total + 1) / 2
+	}
+	if want > total {
+		want = total
+	}
+	if want < 1 {
+		want = 1
+	}
+	return want
+}
+
 // Present is the promotion denominator: the cohort minus its absent
 // devices. Absence (a laptop shut for days) is normal life, so the wave
 // proves itself on the devices that are actually there; the absent catch
@@ -88,7 +120,18 @@ func (rs RingStatus) Present() int {
 // nothing and never converges; the run waits (or the operator cancels).
 func (r Ring) Converged(rs RingStatus) bool {
 	p := rs.Present()
+	if p < r.minPresent(rs.Total) {
+		return false
+	}
 	return p > 0 && rs.Healthy*100/p >= r.minHealthy()
+}
+
+// EnoughEvidence reports whether enough of the cohort is reachable for the
+// percentage to mean anything. Split out so the engine can say "waiting for
+// devices" rather than "0% healthy", which are different problems with
+// different answers: one waits for morning, the other needs an operator.
+func (r Ring) EnoughEvidence(rs RingStatus) bool {
+	return rs.Present() >= r.minPresent(rs.Total)
 }
 
 // TooBroken reports whether the wave can no longer reach its threshold on
@@ -381,6 +424,17 @@ func Decide(rings []Ring, s *State, ringStatus RingStatus, now time.Time) Action
 			"ring %d (%s): all %d device(s) absent, so this ring cannot converge. "+
 				"Cancel the run, or retire the devices that are gone",
 			s.Ring, ring.Group, ringStatus.Total)}
+	}
+
+	// Not enough of the cohort is reachable to prove anything yet. Said
+	// separately from the health gate because the answer is different: this
+	// one resolves itself when the laptops come back, and reporting it as
+	// "2/40 healthy" invites an operator to force a promotion that has no
+	// evidence under it.
+	if !ring.EnoughEvidence(ringStatus) {
+		return Action{Kind: Wait, Reason: fmt.Sprintf(
+			"ring %d (%s): %d of %d device(s) reachable, %d needed before a health gate means anything",
+			s.Ring, ring.Group, ringStatus.Present(), ringStatus.Total, ring.minPresent(ringStatus.Total))}
 	}
 
 	// Still short of the success threshold? Keep converging; the devices
