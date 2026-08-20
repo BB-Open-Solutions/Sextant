@@ -59,7 +59,10 @@ metadata:
 spec:
   instances: 1
   storage:
-    size: 2Gi
+    # At least as large as the cluster you are restoring FROM, and never
+    # under the chart's 8Gi floor: a restored cluster archives too, and a
+    # volume that cannot absorb a failed archive is what put you here.
+    size: 10Gi
     storageClass: longhorn
   bootstrap:
     recovery:
@@ -70,14 +73,21 @@ spec:
   externalClusters:
     - name: sextant-pg-backup
       barmanObjectStore:
+        # These three must match what production was ARCHIVING TO, not what
+        # this document happened to say when it was written. Read them from
+        # apps/sextant/helmrelease.yaml before you paste, and check the live
+        # Cluster too - the two disagreed on 2026-08-13, which is how the
+        # archive started failing in the first place:
+        #   kubectl -n sextant get cluster sextant-pg \
+        #     -o jsonpath='{.spec.backup.barmanObjectStore.endpointURL}{"\n"}'
         destinationPath: s3://bbopen-backups/sextant/v1/
-        endpointURL: https://nbg1.your-objectstorage.com
+        endpointURL: https://leafcloud.store
         s3Credentials:
           accessKeyId:
-            name: hetzner-bbopen-backups-nbg1
+            name: leafcloud-bbopen-backups
             key: ACCESS_KEY_ID
           secretAccessKey:
-            name: hetzner-bbopen-backups-nbg1
+            name: leafcloud-bbopen-backups
             key: SECRET_ACCESS_KEY
         wal:
           compression: gzip
@@ -86,6 +96,39 @@ spec:
 Then point the console at it: the DSN comes from the CNPG-generated secret
 `<cluster>-app`, so `cnpg.name` in the HelmRelease has to name the restored
 cluster (or copy the secret across).
+
+## When the database will not start because its volume is full
+
+The failure this runbook did not cover, and the one production actually had on
+2026-08-13. Archiving fails, WAL segments pile up locally, CNPG stops the
+instance to protect the disk, and the console answers 503. There is nothing to
+restore - the data is fine and unreachable.
+
+Do not try to `kubectl exec` into it. The pod restarts every forty seconds and
+you will lose the shell mid-command. **Fence the instance instead**: it stays
+down, keeps its volume mounted, and gives you a shell that survives.
+
+```
+kubectl -n <ns> annotate cluster <name> \
+  cnpg.io/fencedInstances='["<name>-1"]' --overwrite
+```
+
+With the instance fenced you can see what is actually filling the volume, run
+`barman-cloud-wal-archive` by hand and read its exit code rather than guessing,
+and grow the PVC. Unfence by setting the annotation to `[]`.
+
+Two things that cost hours on the day:
+
+- **Growing the volume can be refused by the storage layer, not by CNPG.**
+  Longhorn declines every expansion while a node sits under its
+  `storage-minimal-available-percentage` floor. The message names neither the
+  floor nor the node.
+- **A partial Helm patch can silently drop what it does not mention.** The live
+  Cluster had lost its whole `spec.backup` block because `destinationPath` was
+  identical on both sides and therefore absent from the computed patch. The
+  result was a `barmanObjectStore` with no destination, which CNPG rejected on
+  every apply. Compare the live object against the chart's render, not the
+  chart against itself.
 
 ## Verifying a restore, properly
 
