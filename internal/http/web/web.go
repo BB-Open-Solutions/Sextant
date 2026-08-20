@@ -139,7 +139,7 @@ func (s *Server) SetStatusOnMain(v bool) { s.statusOnMain = v }
 func New(svc Services, sessions Sessions, write bool,
 	baseViewer, baseEditor, baseOwner []string, log *slog.Logger) (*Server, error) {
 	funcs := templateFuncs()
-	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "compliance", "elevation", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "org_updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "forge", "erasure", "notifications", "mail", "org", "error", "rollout_confirm", "merge_confirm", "assurance_confirm"}
+	pages := []string{"overview", "devices", "device", "groups", "settings", "policies", "hardware", "compliance", "elevation", "changes", "diff", "rollout", "access", "audit", "profile", "station", "secrets", "updates", "org_updates", "service_accounts", "enroll", "wizard", "secret_reveal", "integrations", "overlays", "forge", "erasure", "notifications", "mail", "org", "error", "rollout_confirm", "merge_confirm", "assurance_confirm"}
 	tmpl := make(map[string]*template.Template, len(pages)+1)
 	for _, p := range pages {
 		t, err := template.New("layout.html").Funcs(funcs).ParseFS(assets, "templates/layout.html", "templates/"+p+".html")
@@ -176,6 +176,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	get("/devices/{tag}", s.device)
 	get("/groups", s.groupsPage)
 	get("/settings", s.settingsPage)
+	get("/hardware", s.hardwarePage)
 	get("/policies", s.policies)
 	get("/policies.csv", s.policiesCSV)
 	get("/compliance", s.compliancePage)
@@ -239,6 +240,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	post("/devices/group", s.postDevicesGroupCreate)
 	post("/settings", s.postSetting)
 	post("/settings/bundle/{name}/apply", s.postBundleApply)
+	post("/hardware/{name}/configure", s.postHardwareConfigure)
 	post("/policies", s.postPolicyPut)
 	post("/policies/{id}/delete", s.postPolicyDelete)
 	post("/policies/profiles/{name}/apply", s.postProfileApply)

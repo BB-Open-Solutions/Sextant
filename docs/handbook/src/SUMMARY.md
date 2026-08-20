@@ -8,6 +8,7 @@
 - [Set up an imaging station (NUC)](./operators/station-nuc.md)
 - [Image a device from the console](./operators/image-devices.md)
 - [Ship an update](./operators/updates.md)
+- [Configure a hardware model](./operators/hardware.md)
 - [Track compliance](./operators/compliance.md)
 - [Update, retire and wipe](./operators/lifecycle.md)
 - [Endpoint controls](./operators/endpoint-controls.md)

@@ -1,0 +1,76 @@
+{{define "content"}}
+<h1 class="mb-1">{{.L.T "hardware.title"}}</h1>
+<p class="muted mb-6 max-w-3xl">{{.L.T "hardware.intro"}}</p>
+
+{{if not .Rows}}
+<div class="panel"><p class="muted mb-0">{{.L.T "hardware.none"}}</p></div>
+{{end}}
+
+<div class="flex flex-col gap-4">
+{{$ := .}}
+{{range .Rows}}
+<section class="rounded-lg border border-border-hairline bg-canvas p-5 shadow-sm">
+  <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+    <div class="flex min-w-0 flex-col gap-1">
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span class="font-mono font-medium text-ink">{{.Name}}</span>
+        {{with .Vendor}}<span class="text-body-sm text-text-tertiary">{{.}}</span>{{end}}
+        {{if .Configured}}<span class="tag ok"><span class="material-symbols-outlined msz-14">tune</span>{{$.L.T "hardware.configured"}}</span>{{end}}
+        {{if not .Known}}<span class="tag warn" title="{{$.L.T "hardware.unknown_title"}}"><span class="material-symbols-outlined msz-14">help</span>{{$.L.T "hardware.not_in_catalog"}}</span>{{end}}
+      </div>
+      <div class="flex flex-wrap items-center gap-x-3 text-label-md text-text-tertiary">
+        <a href="/devices?q={{.Name}}">{{.Devices}} {{$.L.T "hardware.devices"}}</a>
+        {{if .Models}}<span class="truncate">{{range $i, $m := .Models}}{{if $i}} · {{end}}{{$m}}{{end}}</span>{{end}}
+      </div>
+      {{with .Notes}}<p class="muted mb-0 text-body-sm">{{.}}</p>{{end}}
+    </div>
+    {{if $.CanOwn}}
+    <label for="hw-{{.Name}}" class="btn quiet shrink-0 !min-h-0 !py-1"><span class="material-symbols-outlined msz-18">tune</span>{{if .Configured}}{{$.L.T "common.edit"}}{{else}}{{$.L.T "hardware.configure"}}{{end}}</label>
+    {{end}}
+  </div>
+
+  {{if $.CanOwn}}
+  {{/* Same edit window the policies page uses: a settings payload typed into
+       a sidebar-width box is not readable, and the window keeps the model's
+       own configuration on the page it belongs to rather than sending an
+       operator to /policies to find a policy they did not name. */}}
+  <input type="checkbox" id="hw-{{.Name}}" class="modal-toggle">
+  <div class="modal">
+    <label for="hw-{{.Name}}" class="modal-backdrop" aria-label="{{$.L.T "common.cancel"}}"></label>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-label="{{$.L.T "hardware.configure"}} {{.Name}}">
+      <h2 class="mt-0 mb-1 text-headline-sm text-ink">{{$.L.T "hardware.configure"}} · <span class="font-mono">{{.Name}}</span></h2>
+      <p class="muted mb-3 text-body-sm">{{$.L.T "hardware.window_hint"}}</p>
+      <form method="post" action="/hardware/{{.Name}}/configure" class="!flex-col !items-stretch gap-3">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <div class="flex flex-col gap-1"><label for="hw-set-{{.Name}}">{{$.L.T "hardware.settings_label"}}</label>
+          <textarea id="hw-set-{{.Name}}" name="settings" rows="8" class="font-mono" placeholder="{{$.L.T "policies.settings_placeholder"}}">{{.SettingsText}}</textarea></div>
+        <div class="flex flex-col gap-1"><label for="hw-enf-{{.Name}}">{{$.L.T "policies.locked_keys_placeholder"}}</label>
+          <input id="hw-enf-{{.Name}}" name="enforced" value="{{.EnforcedText}}" class="font-mono"></div>
+        <div class="flex flex-col gap-1"><label for="hw-tgt-{{.Name}}">{{$.L.T "hardware.target_label"}}</label>
+          <select id="hw-tgt-{{.Name}}" name="target">
+            <option value="org" {{if eq .Target "org"}}selected{{end}}>{{$.L.T "hardware.target_whole_fleet"}}</option>
+            {{$t := .Target}}{{range $.Groups}}<option value="group:{{.}}" {{if eq $t (printf "group:%s" .)}}selected{{end}}>{{$.L.T "hardware.target_group_prefix"}} {{.}}</option>{{end}}
+          </select>
+          <span class="text-label-md text-text-tertiary">{{$.L.T "hardware.target_hint"}}</span></div>
+        <div class="flex items-center gap-2">
+          <button type="submit"><span class="material-symbols-outlined msz-18">save</span>{{$.L.T "common.save"}}</button>
+          <label for="hw-{{.Name}}" class="btn quiet">{{$.L.T "common.cancel"}}</label>
+        </div>
+      </form>
+      {{/* Removal is its own control, not an empty text box. Clearing a
+           textarea and pressing save is a plausible accident; asking for
+           removal is not, and the confirmation says which model. */}}
+      {{if .Configured}}
+      <form method="post" action="/hardware/{{.Name}}/configure" class="!mt-3 inline" data-confirm="{{$.L.T "hardware.remove_confirm"}} {{.Name}}?">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="settings" value="">
+        <button type="submit" class="quiet !text-error"><span class="material-symbols-outlined msz-18">delete</span>{{$.L.T "hardware.remove"}}</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+</section>
+{{end}}
+</div>
+{{end}}

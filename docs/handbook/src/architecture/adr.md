@@ -6,6 +6,7 @@ compiles to the scope chain, Postgres-only durable state, the SSR + API
 contract, the generated settings catalog, assurance and approvals, API and
 credential security, tenant isolation, language choice per workload, the
 update funnel's ring branches, the remote gate-runner, cohort/canary pinning
-within a wave, and custom overlays managed from the console.
+within a wave, custom overlays managed from the console, and why hardware is
+a filter rather than a fourth scope.
 
 Read them in `docs/adr/` in the source repository.
