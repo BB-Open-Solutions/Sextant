@@ -26,8 +26,10 @@ external CDN.
    the install and reports progress until the device is on disk and converging.
 3. **Manage it** - configuration flows organisation -> group -> device; every
    change passes the Nix gate and can be reviewed as a change-request.
-4. **Update it** - a rollout ships a new revision in waves, each gated on health
-   and soak, with an optional manual test gate.
+4. **Update it** - a rollout ships a new revision in waves. A wave promotes on
+   evidence: enough of its devices reachable for a percentage to mean
+   anything, enough of those healthy on the new revision, and a soak on top.
+   Not on a timer, and optionally not without someone signing off.
 5. **Retire or wipe it** - an audited intent the device acts on locally; a
    crypto-wipe destroys the disk's keys, and is armed per device.
 
