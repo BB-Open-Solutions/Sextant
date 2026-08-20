@@ -115,7 +115,10 @@ func TestStationEnrollCapturesSpecsAndValidatesProfile(t *testing.T) {
 	ts, cfg, disc := newStationConsole(t)
 	c := client()
 
-	// Page offers the profile as a dropdown and suggests it from the make.
+	// Page offers the profile as a searchable picker and suggests it from the
+	// make. Searchable and not a closed select, but still not free-form: the
+	// server refuses a profile the overlay does not publish, which the second
+	// half of this test pins.
 	resp, _ := c.Get(ts.URL + "/enroll?station=nuc-1")
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -123,8 +126,11 @@ func TestStationEnrollCapturesSpecsAndValidatesProfile(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("page = %d", resp.StatusCode)
 	}
-	if !strings.Contains(s, `<select name="hardware"`) {
-		t.Fatal("hardware profile is not a dropdown")
+	if !strings.Contains(s, `<input name="hardware" list="hw-profiles"`) {
+		t.Fatal("hardware profile is not a searchable picker")
+	}
+	if !strings.Contains(s, `<datalist id="hw-profiles">`) {
+		t.Fatal("the picker has no list to search")
 	}
 	if !strings.Contains(s, `value="lenovo-t495s"`) {
 		t.Fatalf("lenovo profile not offered as a batch option\n%s", s)

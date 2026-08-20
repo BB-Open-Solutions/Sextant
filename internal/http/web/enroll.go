@@ -36,6 +36,28 @@ var slugRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 // enrollPage renders the guided flow. Editor (somewhere) may image; the
 // station picker and discovered list need Editor at org to be useful.
+// hardwareInUse lists hardware names devices already carry that the overlay's
+// profile catalog does not describe, sorted. They are offered in the picker
+// beside the catalogued ones: an operator enrolling the second machine of a
+// model should find the name the first one got, not type it again.
+func hardwareInUse(f *fleet.Fleet, profiles *fleet.HardwareProfiles) []string {
+	known := map[string]bool{}
+	for _, p := range profiles.All() {
+		known[p.Name] = true
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, d := range f.Devices {
+		if d.Hardware == "" || known[d.Hardware] || seen[d.Hardware] {
+			continue
+		}
+		seen[d.Hardware] = true
+		out = append(out, d.Hardware)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request, v view) {
 	if s.svc.Discovery == nil {
 		s.unavailable(w, r, v, v.L.T("degraded.needs_store"))
@@ -69,6 +91,11 @@ func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request, v view) {
 
 		profiles := s.svc.Config.HardwareProfiles()
 		data["Profiles"] = profiles.All()
+		// Names already carried by devices, on top of the catalog. A fleet
+		// enrolled before its overlay described a model still has that model
+		// in use, and leaving it out of the picker is how the same machine
+		// ends up spelled two ways.
+		data["HardwareInUse"] = hardwareInUse(full, profiles)
 
 		discovered, err := s.svc.Discovery.List(r.Context(), station)
 		if err != nil {

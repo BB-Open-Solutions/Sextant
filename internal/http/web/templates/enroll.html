@@ -66,9 +66,16 @@
     <p class="mb-0 text-body-sm text-text-secondary">{{.L.T "enroll.batch_desc"}}</p>
     <!-- Shared profile/class/group for this rack of identical machines. -->
     <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <!-- Searchable picker (the same CSP-safe datalist the policy rules use)
+           rather than a select: a fleet with thirty models turns a select into
+           a scroll, and the name is the one field an operator knows by sight.
+           Typing is narrowing, not inventing - the server still refuses a
+           profile the overlay does not publish, because imaging needs that
+           model's disk layout and steps, and a name alone builds nothing. -->
       <div class="flex flex-col gap-1"><label>{{.L.T "common.hardware_profile"}}</label>
-        {{if .Profiles}}<select name="hardware" required aria-label="{{.L.T "common.hardware"}}"><option value="" disabled selected>{{.L.T "common.select"}}</option>{{range .Profiles}}<option value="{{.Name}}">{{.Name}}{{with .Vendor}} ({{.}}){{end}}</option>{{end}}</select>
-        {{else}}<input name="hardware" placeholder="{{.L.T "enroll.profile_name_placeholder"}}" required aria-label="{{.L.T "enroll.profile_name_placeholder"}}">{{end}}
+        <datalist id="hw-profiles">{{range .Profiles}}<option value="{{.Name}}">{{with .Vendor}}{{.}}{{end}}</option>{{end}}{{range .HardwareInUse}}<option value="{{.}}"></option>{{end}}</datalist>
+        <input name="hardware" list="hw-profiles" required placeholder="{{.L.T "enroll.profile_name_placeholder"}}" aria-label="{{.L.T "common.hardware_profile"}}">
+        <span class="text-label-md text-text-tertiary">{{.L.T "enroll.profile_new_hint"}}</span>
       </div>
       <div class="flex flex-col gap-1"><label>{{.L.T "common.class"}}</label><select name="class">{{range .Classes}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
       <div class="flex flex-col gap-1"><label>{{.L.T "common.group"}}</label><select name="group"><option value="">{{.L.T "common.no_group"}}</option>{{range .Groups}}<option value="{{.}}">{{.}}</option>{{end}}</select></div>
