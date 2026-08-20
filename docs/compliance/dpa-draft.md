@@ -59,10 +59,22 @@ Toestemming vooraf voor elke subverwerker. Op de meetdatum:
 
 | Subverwerker | Waarvoor | Waar |
 |---|---|---|
-| Hetzner | object storage voor databaseback-ups | Duitsland (nbg1) |
+| Leafcloud | object storage voor databaseback-ups, bestemming vanaf de migratie (`leafcloud.store`) | te bevestigen |
+| Hetzner | object storage voor databaseback-ups, houdt de back-ups van vóór de migratie | Duitsland (nbg1) |
 | de hostingpartij van het cluster | draaien van de console | in te vullen |
 
 Geen doorgifte buiten de EER.
+
+**De opslag migreert van Hetzner naar Leafcloud.** Beide staan hier omdat ze er
+beide zijn: nieuwe back-ups gaan naar Leafcloud, en Hetzner houdt de oudere
+zolang die bewaartermijn loopt. Een subverwerker die nog data onder zich heeft
+schrappen zou deze bijlage onjuist maken, niet actueler. De einddatum van die
+periode is in te vullen; daarna vervalt de tweede regel.
+
+**Op de meetdatum verzendt de verwerker feitelijk niets nieuws**: de back-up van
+de observed plane staat sinds 13 augustus 2026 uit. Dat is een openstaand punt
+in bijlage B en geen kenmerk van de dienst; de reeds opgeslagen back-ups blijven
+bij beide partijen liggen.
 
 De verwerker meldt voorgenomen wijzigingen tijdig genoeg dat de
 verantwoordelijke bezwaar kan maken.

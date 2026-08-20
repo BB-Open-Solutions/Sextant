@@ -73,11 +73,20 @@ spec:
   externalClusters:
     - name: sextant-pg-backup
       barmanObjectStore:
-        # These three must match what production was ARCHIVING TO, not what
-        # this document happened to say when it was written. Read them from
-        # apps/sextant/helmrelease.yaml before you paste, and check the live
-        # Cluster too - the two disagreed on 2026-08-13, which is how the
-        # archive started failing in the first place:
+        # These three must match what production was ARCHIVING TO AT THE
+        # POINT YOU ARE RESTORING TO, not what this document happened to say
+        # when it was written.
+        #
+        # The storage is migrating from Hetzner to Leafcloud, so during the
+        # grace period there are TWO buckets and the older base backups are in
+        # the other one. Restoring to a point before the migration means
+        # pointing this at Hetzner (nbg1.your-objectstorage.com, secret
+        # hetzner-bbopen-backups-nbg1) instead. Check which one holds the
+        # recovery point you need before you paste.
+        #
+        # Read the current values from apps/sextant/helmrelease.yaml, and check
+        # the live Cluster too - the two disagreed on 2026-08-13, which is how
+        # the archive started failing in the first place:
         #   kubectl -n sextant get cluster sextant-pg \
         #     -o jsonpath='{.spec.backup.barmanObjectStore.endpointURL}{"\n"}'
         destinationPath: s3://bbopen-backups/sextant/v1/
