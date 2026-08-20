@@ -3,6 +3,7 @@
 /sxctl
 /gate-runner
 /dfctl
+/fleetsim
 /dist/
 
 # Test and coverage artifacts

@@ -44,6 +44,23 @@ type fleetDoc struct {
 	Org     map[string]any         `json:"org"`
 	Groups  map[string]struct{}    `json:"groups"`
 	Devices map[string]fleetDevice `json:"devices"`
+	Rollout *fleetRollout          `json:"rollout,omitempty"`
+}
+
+// fleetRollout is the generated wave plan. Without one the demo has devices
+// and no ladder, and the ladder is the part that is hard to explain in words:
+// a wave promotes on a MEASURED share of its devices being healthy on the
+// target, not on a timer.
+type fleetRollout struct {
+	Rings []fleetRing `json:"rings"`
+}
+
+type fleetRing struct {
+	Group             string `json:"group"`
+	Name              string `json:"name,omitempty"`
+	SoakMinutes       int    `json:"soakMinutes,omitempty"`
+	MinHealthyPercent int    `json:"minHealthyPercent,omitempty"`
+	RequireApproval   bool   `json:"requireApproval,omitempty"`
 }
 
 type fleetDevice struct {
@@ -301,6 +318,15 @@ func writeDemoFleet(w *os.File, n int) error {
 		Org:     map[string]any{"settings": map[string]any{}},
 		Groups:  map[string]struct{}{},
 		Devices: map[string]fleetDevice{},
+		// Three waves, deliberately not identical: a strict test group that
+		// must be whole, a first office that may leave stragglers behind, and
+		// the rest of the fleet behind a manual sign-off. Between them they
+		// show every knob the plan has.
+		Rollout: &fleetRollout{Rings: []fleetRing{
+			{Group: "ict-test", Name: "Test", SoakMinutes: 10, MinHealthyPercent: 100},
+			{Group: "kantoor-a", Name: "First office", SoakMinutes: 30},
+			{Group: "kantoor-b", Name: "The rest", SoakMinutes: 30, RequireApproval: true},
+		}},
 	}
 	base := 0
 	for _, g := range demoGroups {

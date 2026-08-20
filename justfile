@@ -126,27 +126,114 @@ build:
 run: build
     ./sextant --addr 127.0.0.1:8080
 
-# A console you can click through in under a minute, on an example fleet.
+# A console you can click through in under a minute, on a simulated fleet.
 #
-# The config plane is a git working tree, so a demo needs one: this copies
-# examples/overlay somewhere writable and commits it. Everything unsafe is
-# explicit rather than defaulted - --dev-auth mints a synthetic owner session
-# (loopback only), --gate none skips the Nix validation, and
-# --allow-unvalidated makes you say out loud that you meant it.
-demo DIR="/tmp/sextant-demo": build
-    rm -rf {{DIR}}
-    cp -r examples/overlay {{DIR}}
-    git -C {{DIR}} init -q -b main
-    git -C {{DIR}} add -A
-    git -C {{DIR}} -c user.name=demo -c user.email=demo@localhost commit -qm "example fleet"
-    @echo
-    @echo "  console: http://127.0.0.1:8080   fleet: {{DIR}}"
-    @echo
-    ./sextant --addr 127.0.0.1:8080 --repo {{DIR}} \
-        --dev-auth --gate none --allow-unvalidated --write
+# Everything unsafe is explicit rather than defaulted: --dev-auth mints a
+# synthetic owner session (loopback only), --gate none skips the Nix
+# validation, and --allow-unvalidated makes you say out loud that you meant
+# it. Nothing leaves this machine and nothing outside DIR is written.
+#
+# WHY A DATABASE. The observed plane lives in Postgres, so without one the
+# console mounts three capabilities instead of five: no device status, and
+# /station answers 503. Measured 2026-08-20. That is half a product - the
+# imaging line and the fleet view are the two things worth showing - so the
+# demo boots a throwaway Postgres of its own, on a unix socket inside DIR,
+# with initdb and pg_ctl. No container, no port, no root, and it is deleted
+# on the way out.
+demo DIR="/tmp/sextant-demo" DEVICES="60": build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="{{DIR}}"
+    port=8080
+
+    for bin in initdb pg_ctl createdb; do
+        command -v "$bin" >/dev/null || {
+            echo "demo needs $bin on PATH (nix develop, or your distro's postgresql package)" >&2
+            exit 1
+        }
+    done
+
+
+    rm -rf "$dir"
+    mkdir -p "$dir/pg/sock"
+    # Into the demo directory, not the repo root: the simulator is a build
+    # artifact and the tree stays clean, which also means the demo cannot
+    # leave a binary behind for git to notice.
+    go build -trimpath -o "$dir/fleetsim" ./cmd/fleetsim
+
+    # One trap for everything: a demo you have to clean up by hand is a demo
+    # that leaves a Postgres running on somebody's laptop for a week.
+    cleanup() {
+        set +e
+        [ -n "${sim_pid:-}" ] && kill "$sim_pid" 2>/dev/null
+        [ -n "${console_pid:-}" ] && kill "$console_pid" 2>/dev/null
+        pg_ctl -D "$dir/pg/data" -m immediate stop >/dev/null 2>&1
+        rm -rf "$dir"
+        echo
+        echo "  demo stopped, $dir removed"
+    }
+    # Ctrl-c is how this demo is meant to end, so it exits 0. Letting bash's
+    # 130 through made `just` print "recipe failed", which reads as a broken
+    # demo to the one person you least want to confuse: someone trying it for
+    # the first time.
+    trap cleanup EXIT
+    trap 'exit 0' INT TERM
+
+    echo "  postgres..."
+    initdb -D "$dir/pg/data" -U sextant --auth=trust -E UTF8 >/dev/null
+    pg_ctl -D "$dir/pg/data" -o "-k $dir/pg/sock -h ''" -l "$dir/pg/log" -w start >/dev/null
+    createdb -h "$dir/pg/sock" -U sextant sextant
+
+    # The config plane is a git working tree, so the demo needs one: the
+    # example overlay carries the catalog, profiles and bundles, and the
+    # generator replaces its single example device with a fleet worth
+    # looking at, wave plan included.
+    echo "  fleet..."
+    cp -r examples/overlay "$dir/overlay"
+    "$dir/fleetsim" -gen {{DEVICES}} > "$dir/overlay/fleet.json"
+    git -C "$dir/overlay" init -q -b main
+    git -C "$dir/overlay" add -A
+    git -C "$dir/overlay" -c user.name=demo -c user.email=demo@localhost commit -qm "simulated fleet"
+    # A ring branch per group: this is what a device follows, and without
+    # them the simulated agents have no target to converge on.
+    for g in $(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["groups"]))' "$dir/overlay/fleet.json"); do
+        git -C "$dir/overlay" branch -q "rings/$g" main
+    done
+
+    export SEXTANT_PG_DSN="postgres://sextant@/sextant?host=$dir/pg/sock"
+    export SEXTANT_CHECKIN_TOKEN="demo-checkin-token"
+    ./sextant --addr "127.0.0.1:$port" --repo "$dir/overlay" \
+        --dev-auth --gate none --allow-unvalidated --write > "$dir/console.log" 2>&1 &
+    console_pid=$!
+
+    for _ in $(seq 30); do
+        curl -sf -o /dev/null "http://127.0.0.1:$port/devices" && break
+        sleep 0.5
+    done
+    curl -sf -o /dev/null "http://127.0.0.1:$port/devices" || {
+        echo "the console did not come up; last lines of $dir/console.log:" >&2
+        tail -20 "$dir/console.log" >&2
+        exit 1
+    }
+
+    # The simulator is what makes this a fleet rather than a list: devices
+    # beat, converge slowly, go quiet, and a few report an error. -station
+    # adds machines waiting on an imaging line, which is the part no
+    # screenshot explains.
+    "$dir/fleetsim" -fleet "$dir/overlay/fleet.json" -repo "$dir/overlay" \
+        -url "http://127.0.0.1:$port" -token "$SEXTANT_CHECKIN_TOKEN" \
+        -interval 5s -station st-1 -station-pool 4 > "$dir/fleetsim.log" 2>&1 &
+    sim_pid=$!
+
+    echo
+    echo "  console:  http://127.0.0.1:$port"
+    echo "  fleet:    $dir/overlay        logs: $dir/console.log, $dir/fleetsim.log"
+    echo "  ctrl-c to stop and clean up"
+    echo
+    wait $console_pid
 
 clean:
-    rm -f sextant sxctl coverage.out coverage.html
+    rm -f sextant sxctl fleetsim coverage.out coverage.html
 
 # What the FORGE thinks of HEAD. `just ci` passing locally is not the same
 # thing, and assuming it was left CI red for twenty commits.
