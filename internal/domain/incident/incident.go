@@ -20,12 +20,15 @@ type Kind string
 
 // The incident kinds the compliance engine emits.
 const (
-	Behind      Kind = "behind"       // running a different revision than its target
-	Offline     Kind = "offline"      // stopped checking in
-	NeverSeen   Kind = "never-seen"   // enrolled but never reported
-	Errored     Kind = "errored"      // reported a build/apply error
-	WipeFailed  Kind = "wipe-failed"  // a crypto-wipe did not complete
-	WipeRefused Kind = "wipe-refused" // a device declined a wipe intent
+	Behind    Kind = "behind"     // running a different revision than its target
+	Offline   Kind = "offline"    // stopped checking in
+	NeverSeen Kind = "never-seen" // enrolled but never reported
+	Errored   Kind = "errored"    // reported a build/apply error
+	// ErroredStale is an error from a device that has since reached its
+	// target: the failure is history, not a fault to act on now.
+	ErroredStale Kind = "errored-stale"
+	WipeFailed   Kind = "wipe-failed"  // a crypto-wipe did not complete
+	WipeRefused  Kind = "wipe-refused" // a device declined a wipe intent
 	// RolloutStalled is fleet-level: a wave was promoted and never converged.
 	RolloutStalled Kind = "rollout-stalled"
 	// UnknownConfig marks a device on a revision the config repo cannot place
@@ -352,9 +355,31 @@ func Detect(obs []Observation, now time.Time) []Incident {
 				time.Time{})
 		}
 
+		// comin's failure metrics are STICKY: the flag records the last
+		// evaluation that RAN, and a poll with nothing new to evaluate does
+		// not clear it. Measured on the station 2026-08-11: half an hour
+		// after a broken ring was reverted and the machine had deployed
+		// cleanly, the eval-failed flag was still set alongside a successful
+		// deployment of the current commit.
+		//
+		// The device cannot date its own flag - that needs the target
+		// revision, which it does not have. The console does have it, so it
+		// decides here. A device ON its target reporting an error is
+		// reporting history; a device behind target reporting one is telling
+		// you why it is behind. Those must not look the same, or a settled
+		// fleet shows critical incidents for failures that are days old and
+		// already fixed.
 		if o.Error != "" {
-			add(Errored, Critical, o.Tag+" reported an error",
-				o.Error, "Open the device and inspect the failure.", time.Time{})
+			if onTarget(o) {
+				add(ErroredStale, Warning, o.Tag+" reported an error before reaching its target",
+					o.Error,
+					"It is running the revision it should. This is the last failure it saw, not a current one - "+
+						"comin's flag stays set until something new is evaluated. Worth reading, not worth chasing.",
+					time.Time{})
+			} else {
+				add(Errored, Critical, o.Tag+" reported an error",
+					o.Error, "Open the device and inspect the failure.", time.Time{})
+			}
 		}
 
 		switch o.Ack {
@@ -370,6 +395,20 @@ func Detect(obs []Observation, now time.Time) []Incident {
 	}
 	sortBySeverity(out)
 	return out
+}
+
+// onTarget reports whether a device is running the revision it should. A
+// device pinned to a target matches that; one following HEAD matches the
+// repo's tip. Neither known means no opinion - and no opinion must never
+// soften a reported error, so this returns false.
+func onTarget(o Observation) bool {
+	if o.Deployed == "" {
+		return false
+	}
+	if o.Target != "" {
+		return o.Deployed == o.Target
+	}
+	return o.Head != "" && o.Deployed == o.Head
 }
 
 // Sort orders incidents most-urgent first, then by kind and tag. Detect and

@@ -58,8 +58,19 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request, v view) {
 		if st.Online {
 			online++
 		}
+		// Same rule the incident detector applies (issue #22): comin's failure
+		// flags are sticky, so a device that has since reached its target is
+		// reporting history. Putting that on the overview's attention list
+		// asks an operator to chase a failure that is already fixed - and an
+		// attention list that cries wolf stops being read.
 		if st.Error != "" {
-			attn = append(attn, attention{"device error", st.Tag + ": " + st.Error})
+			target := ""
+			if d, ok := f.Devices[st.Tag]; ok {
+				target = app.TargetRevision(f, d)
+			}
+			if st.Revision == "" || target == "" || st.Revision != target {
+				attn = append(attn, attention{"device error", st.Tag + ": " + st.Error})
+			}
 		}
 	}
 	openChanges := 0

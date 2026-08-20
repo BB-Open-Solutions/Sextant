@@ -23,8 +23,11 @@ func TestDetect(t *testing.T) {
 		{Tag: "vacation-1", Group: "field", Deployed: "rev-a", Target: "rev-a", Online: false, LastSeen: now.Add(-time.Hour)},
 		// never seen
 		{Tag: "new-1", Group: "field", Deployed: "", Target: "", Online: false},
-		// errored (critical)
-		{Tag: "err-1", Group: "backoffice", Deployed: "rev-a", Target: "rev-a", Online: true, LastSeen: now, Error: "build failed"},
+		// errored while ON target: comin's flag is sticky, so this is the last
+		// failure it saw and not a current one (issue #22)
+		{Tag: "err-stale", Group: "backoffice", Deployed: "rev-a", Target: "rev-a", Online: true, LastSeen: now, Error: "build failed"},
+		// errored while BEHIND target: the error is why it is behind (critical)
+		{Tag: "err-1", Group: "backoffice", Deployed: "rev-old", Target: "rev-a", Online: true, LastSeen: now, Error: "build failed"},
 		// wipe failed (critical)
 		{Tag: "wipe-1", Group: "", Deployed: "rev-a", Online: true, LastSeen: now, Ack: "wipe-failed"},
 	}
@@ -48,6 +51,22 @@ func TestDetect(t *testing.T) {
 	}
 	if kinds["new-1"] != NeverSeen {
 		t.Errorf("new-1 kind = %q", kinds["new-1"])
+	}
+	// A device can raise more than one incident, so kinds[tag] (last wins) is
+	// no good here: err-1 is both behind AND errored.
+	has := func(tag string, k Kind) bool {
+		for _, i := range got {
+			if i.Tag == tag && i.Kind == k {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("err-1", Errored) {
+		t.Error("a device behind target with an error did not report a live error")
+	}
+	if !has("err-stale", ErroredStale) || has("err-stale", Errored) {
+		t.Error("a device on target with an error should report history, not a live error")
 	}
 
 	// Critical incidents sort first.
@@ -267,5 +286,68 @@ func TestUnknownConfigSupersedesBehind(t *testing.T) {
 		if in.Kind == Behind {
 			t.Fatalf("device on an unknown revision also reported behind: %+v", in)
 		}
+	}
+}
+
+// comin's failure metrics are sticky: the flag records the last evaluation
+// that RAN, and a poll with nothing new to evaluate never clears it. Measured
+// on the station 2026-08-11, half an hour after a broken ring was reverted:
+// the eval-failed flag was still set beside a successful deployment of the
+// current commit.
+//
+// The device cannot date its own flag - that needs the target revision. The
+// console has it, so it decides. On a settled fleet the difference is between
+// a clean board and a page of critical incidents for failures already fixed.
+func TestAnErrorFromADeviceOnTargetIsHistory(t *testing.T) {
+	now := time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)
+	kindOf := func(o Observation) Kind {
+		t.Helper()
+		for _, i := range Detect([]Observation{o}, now) {
+			if i.Kind == Errored || i.Kind == ErroredStale {
+				return i.Kind
+			}
+		}
+		return ""
+	}
+
+	base := Observation{Tag: "lt-1", Group: "g", Online: true, LastSeen: now, Error: "last evaluation failed"}
+
+	onTargetPinned := base
+	onTargetPinned.Deployed, onTargetPinned.Target = "rev-a", "rev-a"
+	if got := kindOf(onTargetPinned); got != ErroredStale {
+		t.Errorf("pinned and on target = %q, want history", got)
+	}
+
+	behind := base
+	behind.Deployed, behind.Target = "rev-old", "rev-a"
+	if got := kindOf(behind); got != Errored {
+		t.Errorf("behind target = %q, want a live error", got)
+	}
+
+	// Unpinned devices follow the repo's tip, so that is their target.
+	onHead := base
+	onHead.Deployed, onHead.Head = "rev-a", "rev-a"
+	if got := kindOf(onHead); got != ErroredStale {
+		t.Errorf("unpinned and on HEAD = %q, want history", got)
+	}
+	behindHead := base
+	behindHead.Deployed, behindHead.Head = "rev-old", "rev-a"
+	if got := kindOf(behindHead); got != Errored {
+		t.Errorf("unpinned and behind HEAD = %q, want a live error", got)
+	}
+
+	// No opinion must never soften a reported error. A device whose target
+	// and head are both unknown, or that has not reported a revision at all,
+	// keeps its critical incident: guessing quiet is the one direction this
+	// rule must not fail in.
+	unknown := base
+	unknown.Deployed = "rev-a"
+	if got := kindOf(unknown); got != Errored {
+		t.Errorf("no target and no head = %q, want the error left alone", got)
+	}
+	noRevision := base
+	noRevision.Target = "rev-a"
+	if got := kindOf(noRevision); got != Errored {
+		t.Errorf("device reported no revision = %q, want the error left alone", got)
 	}
 }
