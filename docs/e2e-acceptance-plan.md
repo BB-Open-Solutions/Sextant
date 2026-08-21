@@ -328,11 +328,11 @@ silently is the worst thing this product can do.
 | # | Action | Proof |
 |---|---|---|
 | A12.1 | Audit log | **OK** (18 Aug, 0.87.0). `/audit` lists 100 entries, each with when, who (display name plus address), what (the commit subject) and the commit hash. The actors are kept apart rather than flattened into one operator: people by name, and `sextant-api`, `sextant-rollout`, `sextant-upstream`, `sextant-agent`, `sextant-station` for the machine paths. The evidence-export panel sits under it |
-| A12.2 | Evidence export | a file with the assurance configuration |
-| A12.3 | Devices CSV | matches the screen |
-| A12.4 | Policies CSV | controls are in it |
-| A12.5 | Create and use a service account | works, appears in the audit |
-| A12.6 | Fire a notification | it arrives (or mail is deliberately off - then N/A) |
+| A12.2 | Evidence export | **OK** (21 Aug, chart 0.90.0, walked against a `just demo` console). `GET /audit/evidence?from&to` returns `application/json` as an attachment named for the period, carrying the controls in force, every commit in the window with author, address, time, subject and hash, plus the change requests and the ring promotions. It exported ONE of the four assurance controls when first walked; all four now, and all four when false, so a reader can tell "not in force" from "this export does not know about it" |
+| A12.3 | Devices CSV | **OK** (21 Aug). 38 rows against 38 devices on `/devices`, same columns as the screen: tag, class, hardware, assigned user, groups, online, revision, baseline, failing criteria |
+| A12.4 | Policies CSV | **OK** (21 Aug). A policy created with `BIO 12.3.1, ISO 27002 8.24` exports them semicolon-separated in the `controls` column, beside the settings, the locked keys, the target, the filter and the devices reached. Walked with a policy deliberately created first: the export is header-only on a fleet without policies, which proves nothing |
+| A12.5 | Create and use a service account | **OK** (21 Aug), with one thing worth knowing. A token minted for an account **in a group that has a role binding** reads the API (200 on `/api/v1/devices` and `/api/v1/me`); a viewer ceiling refuses a write with `requires owner at org (you hold viewer)`; a revoked token, a forged one and no token all give 401. An account in NO group gets 403, and the page says so plainly - the ceiling caps a role, it does not grant one. **Not testable on a `--dev-auth` console**: there a forged or revoked bearer falls through to the synthetic session and reads 200, so token behaviour has to be walked on a console without it |
+| A12.6 | Fire a notification | **OK in-app** (21 Aug); mail N/A, SMTP deliberately unconfigured on the demo cell. A failed submit raised a bell entry within seconds. The body was wrong - it blamed the nix gate for a change that never reached the gate - and that is fixed in `09084e6` |
 
 ## A13. USB control and printing
 
