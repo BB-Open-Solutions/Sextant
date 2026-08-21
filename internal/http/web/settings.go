@@ -602,19 +602,28 @@ func scopeLabel(scope string) string {
 // valueLines renders a list-valued setting as one item per line, so the code
 // editor shows it the way it is edited. Non-list values yield "".
 func valueLines(v any) string {
-	items, ok := v.([]any)
-	if !ok {
-		return ""
-	}
-	parts := make([]string, 0, len(items))
-	for _, it := range items {
-		if s, ok := it.(string); ok {
-			parts = append(parts, s)
-		} else {
-			parts = append(parts, fmt.Sprintf("%v", it))
+	// Both shapes, because a list arrives as either depending on how recently
+	// it was written. Decoded from fleet.json it is []any; straight out of
+	// CatalogEntry.ParseValue, which is what a console save produces, it is
+	// []string. Handling only the first meant a list saved in the editor came
+	// back as an EMPTY box while its border still said "set here" - and the
+	// next save of that empty box would have cleared the value. It looked
+	// right again after a restart, when the document was re-read from disk.
+	switch items := v.(type) {
+	case []string:
+		return strings.Join(items, "\n")
+	case []any:
+		parts := make([]string, 0, len(items))
+		for _, it := range items {
+			if s, ok := it.(string); ok {
+				parts = append(parts, s)
+			} else {
+				parts = append(parts, fmt.Sprintf("%v", it))
+			}
 		}
+		return strings.Join(parts, "\n")
 	}
-	return strings.Join(parts, "\n")
+	return ""
 }
 
 // renderValue displays a settings value compactly (JSON keeps strings

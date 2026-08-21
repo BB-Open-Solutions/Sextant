@@ -182,3 +182,27 @@ func TestFooterStatusLinkFollowsTheListener(t *testing.T) {
 		t.Fatal("the footer links /status unconditionally again")
 	}
 }
+
+// A list saved in the editor came back as an empty box while its border still
+// said "set here", and saving that empty box would have cleared the value. It
+// looked right again after a restart, because the document was then re-read
+// from disk as []any instead of the []string a save produces.
+func TestASavedListComesBackIntoItsEditor(t *testing.T) {
+	// What CatalogEntry.ParseValue hands back on a console save.
+	fromSave := valueLines([]string{"ntp1.example.org", "ntp2.example.org"})
+	if fromSave != "ntp1.example.org\nntp2.example.org" {
+		t.Errorf("a list straight from a save renders as %q", fromSave)
+	}
+	// What a re-read of fleet.json hands back.
+	fromDisk := valueLines([]any{"ntp1.example.org", "ntp2.example.org"})
+	if fromDisk != fromSave {
+		t.Errorf("the two shapes disagree: %q vs %q", fromDisk, fromSave)
+	}
+	// Non-strings still render, and a non-list is still empty.
+	if got := valueLines([]any{1, true}); got != "1\ntrue" {
+		t.Errorf("mixed list = %q", got)
+	}
+	if got := valueLines("not a list"); got != "" {
+		t.Errorf("a scalar rendered as lines: %q", got)
+	}
+}

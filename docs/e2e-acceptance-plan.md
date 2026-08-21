@@ -232,7 +232,7 @@ generation is more dangerous than a device that lags behind.
 | A5.4 | Lock an org setting | **OK** (11 Aug). With `autoUpdate.options.pollSeconds` in the org's `enforced` list, the station evaluates to the org's 300 even though its group sets 120. Removing the lock returns it to 120, so the lock is what changed and not the order of anything else |
 | A5.5 | A dependent option without its enable | **OK** (18 Aug, 0.87.0), console half now closed. With `desktop.plasma.enable` off, "Chat client" renders dimmed and carries a broken-link marker with the sentence "Takes effect once `desktop.plasma.enable` is on - saving a value now is fine, it stays staged." Both halves of the row: it greys out AND it says when the value lands. Worth recording the nuance, because it looked like a failure at first glance: a dependent field that already holds a value stays fully editable and is marked "Modified", as `autoUpdate.options.pollSeconds` is at org. The dimming marks "nothing here yet", not "you may not type here" |
 | A5.6 | Change an image-time option | **OK** (18 Aug, 0.87.0), console half now closed. Both DiskUnlock keys carry "Image-time setting: takes effect when a device is (re)imaged, not on running devices" under the description, and the LUKS mapper field shows it alongside its takes-effect-once line, so the two kinds of "not yet" are distinguishable in one glance |
-| A5.7 | **Arrival half OK** (11 Aug). Three NTP servers set on the `infra` group arrive at `services.chrony.servers` as three separate values, with no `["[a b]"]` concatenation - the shape audit finding L2 produced. The console's line-by-line editing is the other half and is not covered here. Two earlier attempts read `networking.timeServers` and saw NixOS defaults: the wrong output path, not a wrong value |
+| A5.7 | **OK** (21 Aug, chart 0.90.0), both halves. Arrival was proved 11 Aug: three NTP servers on the `infra` group arrive at `services.chrony.servers` as three separate values, no `["[a b]"]` concatenation (audit finding L2). The console's line-by-line editing half is now walked too, and it **failed first**: three servers saved at org landed correctly in `fleet.json` and came back as an EMPTY textarea whose border still said "set here", so the next save of that box would have cleared them. `valueLines` handled `[]any` (a re-read of the document) and not `[]string` (what a save produces), which is why it looked right again after a restart. Fixed and re-walked: the three lines come back |
 | A5.8 | Set a value back to "inherit" | **OK** (11 Aug). Removing the device value put the station back on its group's 120 in the same evaluation - nothing cached, nothing stuck |
 
 ## A6. Policies and conditions
@@ -274,7 +274,7 @@ it cannot measure teaches operators to ignore the whole category.
 | A8.3 | Wait out the soak | does not promote before the time is up |
 | A8.4 | Health threshold not met | promotion stops |
 | A8.5 | Let a wave stall | after the stall window, an incident naming the devices |
-| A8.6 | `[risk:high]` in a change | extra confirmation required |
+| A8.6 | `[risk:high]` in a change | **half OK** (21 Aug). The marker survives into the commit subject where the brake reads it: `settings: update 1 at org [risk:high]`. A rollout does show a confirmation page - target, scope, wave plan, and a warning when the plan has no gated test wave - but it is the same page for every rollout and says nothing about the marked commit in the range. That matches ADR 0012, where the brake holds the AUTOMATIC flow; it is still a gap on the screen where it matters most. Filed as issue #81 |
 | A8.7 | Auto-flow on | promotes by itself up to the last ring |
 | A8.8 | Roll a ring back (pin) | devices go back, with no handwork |
 
@@ -371,7 +371,7 @@ cannot be repaired remotely.
 | # | Action | Proof |
 |---|---|---|
 | A14.1 | Turn on with a name plus a secret | local login succeeds |
-| A14.2 | Try a reserved name | refused on save |
+| A14.2 | Try a reserved name | **not walkable locally** (21 Aug). The `localAdmin.*` keys come from the overlay's catalog and the example overlay publishes none, so there is no field to type a reserved name into. The refusal would come from the overlay's own assertion through the nix gate, which a local console does not have (issue #74). Needs the real overlay and a gate-runner |
 | A14.3 | Turn off | account locked, login no longer possible |
 
 ## A15. User rights
