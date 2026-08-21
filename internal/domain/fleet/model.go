@@ -7,6 +7,7 @@ package fleet
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -295,12 +296,45 @@ func (c Condition) Valid() error {
 	if c.Metric == "" {
 		return fmt.Errorf("condition has no metric")
 	}
+	if !ConditionMetrics[c.Metric] {
+		return fmt.Errorf("condition on unknown metric %q (the observed plane supplies %s)",
+			c.Metric, strings.Join(ConditionMetricNames(), ", "))
+	}
 	switch c.Op {
 	case ">=", "<=", ">", "<", "==":
 	default:
 		return fmt.Errorf("condition on %q has unknown operator %q (use >=, <=, >, < or ==)", c.Metric, c.Op)
 	}
 	return nil
+}
+
+// ConditionMetrics is the closed vocabulary a condition may name, mirroring
+// what observed.Usage.Metrics produces. Closed for the same reason the filter
+// attributes are: a name outside it can never be present, so Holds always
+// answers "unknown", and unknown is never a violation. The policy would look
+// like governance and do nothing, with nothing on screen saying so.
+//
+// It is a literal here rather than an import because the config plane does not
+// depend on the observed plane. TestConditionMetricsMatchTheObservedPlane
+// keeps the two in step.
+var ConditionMetrics = map[string]bool{
+	"cpu.used_percent":    true,
+	"disk.free_gb":        true,
+	"disk.free_percent":   true,
+	"disk.total_gb":       true,
+	"memory.free_percent": true,
+	"memory.total_mb":     true,
+}
+
+// ConditionMetricNames lists the vocabulary, sorted, for an error message and
+// for anything offering a picker.
+func ConditionMetricNames() []string {
+	out := make([]string, 0, len(ConditionMetrics))
+	for k := range ConditionMetrics {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Holds reports whether a condition is satisfied by the observed metrics.

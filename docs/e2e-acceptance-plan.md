@@ -232,16 +232,16 @@ generation is more dangerous than a device that lags behind.
 
 | # | Action | Proof |
 |---|---|---|
-| A6.1 | Create a policy with settings | appears in `/policies` |
+| A6.1 | Create a policy with settings | **OK** (21 Aug, chart 0.90.0). `workplace-baseline` created from `/policies` with two settings, a description and two controls; it appears on the page with all of them and in `policies.csv` |
 | A6.2 | Assign to a group | **OK** (11 Aug). A policy carrying two NTP servers, assigned to `group:infra`, arrives at `services.chrony.servers` on `dawo-inspoelstraat` and does **not** reach `e2e5`, which is in another group. The negative half is the half worth having: a policy that lands everywhere would pass a test that only looks at the intended device |
 | A6.3 | Lock a key in the policy | **OK** (11 Aug), with its control case. With `timesync.options.servers` in the policy's `enforced` list, a device-level value of `eigen.server.local` loses and the policy's servers stand. Removing only the lock lets the device value win, so the lock is what decided it and not the order of anything else |
-| A6.4 | **Open the settings editor on that group** | the row names the policy; locked shows as locked |
-| A6.5 | Fill in compliance controls (BIO/ISO) | tags on the policy page, and back in the CSV export |
-| A6.6 | Add a condition (`disk.free_percent >= 15`) | the policy accepts it |
-| A6.7 | Try a broken condition | refused on save, not silently ignored |
-| A6.8 | Push a device below the threshold | a finding on `/compliance`, with the measurement |
-| A6.9 | A device that reports nothing | **no** finding - unmeasured is not a violation |
-| A6.10 | Remove the condition again | the finding disappears |
+| A6.4 | **Open the settings editor on that group** | **OK** (21 Aug). With the policy assigned to `group:kantoor-a`, the `desktop` row in `/settings?scope=group:kantoor-a` reads **Set by policy workplace-baseline**; adding the key to the policy's `enforced` list changes the same row to **Locked by policy workplace-baseline** with a lock glyph. Note the editor does not show policy-only keys such as `diskEncryption` and `usbDevices.*` - that is ADR 0017 and deliberate, so pick a key the editor renders when walking this row |
+| A6.5 | Fill in compliance controls (BIO/ISO) | **OK** (21 Aug). `BIO 12.3.1` and `ISO 27002 8.24` show on `/policies` and come back semicolon-separated in the `controls` column of `policies.csv` |
+| A6.6 | Add a condition (`disk.free_percent >= 15`) | **OK via the API** (21 Aug), and **not possible from the console**: there is no field for a condition anywhere in the settings or policy editor, and no handler parses one. `PUT /api/v1/policies/{id}` with a `conditions` array applies. Conditions are a documented feature (ADR 0017) with no console surface |
+| A6.7 | Try a broken condition | **half OK, and the other half was a defect** (21 Aug). An unknown operator is refused: `condition on "disk.free_percent" has unknown operator "maybe" (use >=, <=, >, < or ==)`. An unknown **metric** was accepted - and a metric the observed plane never supplies can never hold, so the policy looked like governance and did nothing. Fixed: the metric vocabulary is now closed the way the filter attributes already were, with a test pinning it against what `observed.Usage.Metrics` produces |
+| A6.8 | Push a device below the threshold | **OK** (21 Aug). A check-in for `kantoor-a-001` reporting 480 of 500 GB used raised a warning on `/compliance` carrying the measurement: *Less than 15% free; a nixos-rebuild needs room (disk.free_percent is 4, and this policy requires >= 15.)* plus the line that it is a condition and converging cannot fix it |
+| A6.9 | A device that reports nothing | **OK** (21 Aug). A device enrolled into the same group that has never checked in raises *has never checked in* and **no** condition finding: `does not meet Disk headroom` names only the device that was measured. Unmeasured is reported as unmeasured, not as a violation |
+| A6.10 | Remove the condition again | **OK** (21 Aug). Re-applying the policy without its `conditions` array cleared the finding on the next read of `/compliance` |
 
 A6.9 is the rule that carries the behaviour: a fleet that accuses machines
 it cannot measure teaches operators to ignore the whole category.
