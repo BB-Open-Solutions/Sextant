@@ -15,6 +15,7 @@ import (
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/state"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/change"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/fleet"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/domain/notify"
 	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
@@ -588,5 +589,84 @@ func TestFourEyesFailsClosedOnEmptySubject(t *testing.T) {
 	if _, err := cs.Merge(ctx, "anon-cr", ports.Author{Name: "Ghost"}); err == nil ||
 		!strings.Contains(err.Error(), "four-eyes") {
 		t.Fatalf("empty-subject merge = %v, want four-eyes rejection", err)
+	}
+}
+
+// The failure notification said "the nix gate refused this change" whatever
+// went wrong. That stopped being true when an empty change started being
+// refused before the gate runs: its author was told to go and read a nix
+// error that does not exist.
+func TestTheFailureNotificationSaysWhatActuallyFailed(t *testing.T) {
+	// An empty change: refused before the gate, so its own sentence survives
+	// into the notification.
+	empty := submitFailureBody(errNothingToValidate.Error())
+	if strings.Contains(empty, "nix gate") {
+		t.Errorf("an empty change is blamed on the gate: %q", empty)
+	}
+	if !strings.Contains(empty, "edit it first") {
+		t.Errorf("the empty-change body lost its instruction: %q", empty)
+	}
+
+	// A real nix trace is distilled to the line that names the fault, and
+	// keeps the pointer, because a stack trace does not belong in a bell.
+	trace := "while evaluating the attribute 'config'\n" +
+		"       error: The option `dawo.printing.enable' does not exist\n" +
+		"       (stack trace truncated; use '--show-trace')"
+	got := submitFailureBody(trace)
+	if !strings.Contains(got, "does not exist") {
+		t.Errorf("the gate's own reason was dropped: %q", got)
+	}
+	if strings.Contains(got, "while evaluating") {
+		t.Errorf("the whole trace went into the notification: %q", got)
+	}
+	if !strings.Contains(got, "Open it") {
+		t.Errorf("a gate failure lost its pointer to the change: %q", got)
+	}
+
+	// No reason at all still has to say something, and must not invent one.
+	blank := submitFailureBody("   ")
+	if blank == "" || strings.Contains(blank, "nix gate") {
+		t.Errorf("blank reason = %q", blank)
+	}
+}
+
+// And the wiring, not only the helper. Reverting the call site to the old
+// fixed sentence left the test above green, which is the whole reason this
+// one exists: a submit that fails for a reason the gate had nothing to do
+// with must say so in the bell, not just in a function nobody calls.
+func TestAnEmptySubmitNotifiesItsRealReason(t *testing.T) {
+	cs, _, _ := newChangeStack(t, nil)
+	rec := &recordingNotifier{}
+	cs = cs.WithNotifier(rec, nil)
+	ctx := context.Background()
+
+	author := ports.Author{Name: "ada", Subject: "ada-subject"}
+	if _, err := cs.Open(ctx, "cr-empty", "an empty change", author); err != nil {
+		t.Fatal(err)
+	}
+	// Submit succeeds as an operation; the CHANGE is what fails, and that is
+	// the outcome the author hears about.
+	cr, err := cs.Submit(ctx, "cr-empty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cr.Status != change.Failed {
+		t.Fatalf("status = %q, want the empty change to have failed", cr.Status)
+	}
+
+	var failed *notify.Notification
+	for i := range rec.sent {
+		if rec.sent[i].Kind == notify.GateFailed {
+			failed = &rec.sent[i]
+		}
+	}
+	if failed == nil {
+		t.Fatal("no failure notification was emitted")
+	}
+	if strings.Contains(failed.Body, "nix gate") {
+		t.Errorf("the bell blames the gate for an empty change: %q", failed.Body)
+	}
+	if !strings.Contains(failed.Body, "edit it first") {
+		t.Errorf("the bell does not say what to do: %q", failed.Body)
 	}
 }

@@ -378,6 +378,28 @@ func (s *ChangeService) beginSubmit(ctx context.Context, id string) (dir string,
 	return wt.Dir(), gateScope(wt, cr.GateHosts()), nil
 }
 
+// submitFailureBody turns a failed submit into one sentence the author can act
+// on. It used to say "the nix gate refused this change" for every failure,
+// which stopped being true the moment a submit could fail for another reason:
+// an empty change is refused before the gate ever runs, and telling its author
+// to go and read a nix error sends them looking for something that does not
+// exist.
+//
+// A nix trace is distilled to its error line and keeps the pointer to the
+// change, because the useful half of a stack trace is not in a notification.
+// Anything else is already a sentence and is passed through.
+func submitFailureBody(reason string) string {
+	const pointer = " Open it to see why and rework it."
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return "The submit failed." + pointer
+	}
+	if distilled := strings.TrimSpace(ports.DistillGateError(reason)); distilled != "" && distilled != reason {
+		return "The nix gate refused this change: " + distilled + pointer
+	}
+	return reason
+}
+
 // finishSubmit records the gate's verdict under the lock.
 //
 // It uses a context detached from the caller's: the gate has already run, so
@@ -405,7 +427,7 @@ func (s *ChangeService) finishSubmit(ctx context.Context, id string, gateErr err
 			s.notify(ctx, notify.Notification{
 				Recipient: cr.AuthorSubject, Kind: notify.GateFailed,
 				Title: fmt.Sprintf("Build failed: %s", cr.Title),
-				Body:  "The nix gate refused this change. Open it to see why and rework it.",
+				Body:  submitFailureBody(cr.Error),
 				Link:  "/pipeline",
 			})
 		}
