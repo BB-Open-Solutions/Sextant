@@ -103,6 +103,11 @@
         {{if .Await}}<p class="mb-0 mt-2 text-body-sm text-status-warn">{{$.L.T "updates.await_hint"}}</p>{{end}}
         {{if .Stragglers}}
         <details class="mt-2">
+          {{/* "holding this wave back", not "not yet updated": the list is
+               every device keeping the wave under 100%, which includes one
+               that DID update and then failed. Calling those not-updated put
+               a device on screen under a heading its own error line
+               contradicted. */}}
           <summary class="cursor-pointer text-body-sm text-text-secondary">{{len .Stragglers}} {{$.L.T "rollout.stragglers"}}</summary>
           <ul class="mb-0 mt-2 flex list-none flex-col gap-1">
             {{range .Stragglers}}

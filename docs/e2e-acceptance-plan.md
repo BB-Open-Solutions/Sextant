@@ -129,6 +129,17 @@ is the runner, not the console screens around it.
 
 ### Console plus a running device - both ends observed (about 30 rows)
 
+**A simulated fleet counts for a good deal of this.** `just demo` runs devices
+that check in, converge onto their ring branch, report usage and health, and
+can be given an error on demand - which is what the console sees of a real
+device. A8.2 to A8.4 were walked that way on 2026-08-21 and found two things
+no amount of reading would have.
+
+What it does NOT prove: anything the device itself does. A simulated device
+never evaluates nix, never switches a generation, never fails an activation for
+a real reason. So the wire contract and every console-side judgement are
+testable at a desk; the device's own behaviour is not.
+
 Needs a device online and someone watching the console. The device does not
 need hands on it.
 
@@ -270,13 +281,13 @@ it cannot measure teaches operators to ignore the whole category.
 | # | Action | Proof |
 |---|---|---|
 | A8.1 | Define rings | **OK** (18 Aug, 0.87.0). `/updates/rollout` names both waves, Testtoestel and Inspoelstraat, each with its gates (soak 0 min, min healthy 95%) and its current state. It also showed something the row does not ask for, recorded below |
-| A8.2 | Promote a wave | only ring 1 gets the revision |
-| A8.3 | Wait out the soak | does not promote before the time is up |
-| A8.4 | Health threshold not met | promotion stops |
+| A8.2 | Promote a wave | **OK** (21 Aug, chart 0.90.0, against the simulated fleet). Starting a run moved `rings/ict-test` to the release and left `rings/balie`, `depot`, `kantoor-a`, `kantoor-b` and `zaanstad` on the previous revision. Measured from git, not from the board. Note the target is not `main`: the engine's own pin commit advances main, so compare against the run's target revision |
+| A8.3 | Wait out the soak | **OK** (21 Aug). Wave 1 converged, entered Soaking with a 10-minute gate, and wave 2 stayed on the old revision for nine minutes of polling. It promoted after the soak expired, not before |
+| A8.4 | Health threshold not met | **OK** (21 Aug). A device in wave 2 reporting the target revision WITH an error (`activation failed: sssd.service entered failed state`) took the wave to **Halted here**, and `rings/kantoor-b` never moved. Walked with a device added after the simulator started, so its beat could not overwrite the error |
 | A8.5 | Let a wave stall | after the stall window, an incident naming the devices |
 | A8.6 | `[risk:high]` in a change | **half OK** (21 Aug). The marker survives into the commit subject where the brake reads it: `settings: update 1 at org [risk:high]`. A rollout does show a confirmation page - target, scope, wave plan, and a warning when the plan has no gated test wave - but it is the same page for every rollout and says nothing about the marked commit in the range. That matches ADR 0012, where the brake holds the AUTOMATIC flow; it is still a gap on the screen where it matters most. Filed as issue #81 |
 | A8.7 | Auto-flow on | promotes by itself up to the last ring |
-| A8.8 | Roll a ring back (pin) | devices go back, with no handwork |
+| A8.8 | Roll a ring back (pin) | **FAIL** (21 Aug), and it is an absence rather than a bug. Nothing can pin a ring to a chosen revision: the engine pins forward (`SetGroupPin(g, st.Target)`), the console only **un**pins (`SetGroupPin(name, "")`), and `PATCH /api/v1/groups/{name}` refuses the field. Unpinning is not a rollback - a group with no pin follows `main`, which is ahead of the release that just broke, so the one control an operator has moves the devices forward. Filed as issue #84 with three ways to settle it |
 
 **The rollout has been halted since 5 August, and the row above is how it was
 found.** `/updates/rollout` reports:
