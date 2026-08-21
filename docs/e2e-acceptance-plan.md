@@ -109,6 +109,15 @@ A7 is worth doing first: it is also gate item 6, the ref-merge fix that ships
 in production and whose behaviour nobody has re-measured. A change carrying a
 `flake.lock` bump proves both at once.
 
+**Walked 2026-08-21, and half of it cannot be walked at a desk.** A7.1 and
+A7.7 are done against a local console. A7.2 and A7.3 need a gate, and a local
+console has none: the example overlay's flake takes Sextant as `path:../..`,
+which stops resolving the moment the overlay becomes a git repository, and the
+console requires it to be one (issue #74). A7.4 and A7.5 need a second
+identity, and `--dev-auth` mints exactly one (the same limit A12.5 records for
+tokens). Those four want the real overlay, a gate-runner and an IdP - so they
+belong in the "console plus a running device" sitting, not this one.
+
 **Done for the gate half, 2026-08-18.** The overlay change
 `chore/core-follows-main` carries a `flake.lock` bump (core to 0.1.2, and with
 it nixpkgs 4 July to 9 August). The production gate-runner validated that ref
@@ -241,13 +250,13 @@ it cannot measure teaches operators to ignore the whole category.
 
 | # | Action | Proof |
 |---|---|---|
-| A7.1 | Submit a change | **OK for the queue and the diff** (18 Aug, 0.87.0). `/changes` lists 22 with id, status, author and timestamp, and the diff view names the file and its state. The change walked here was staged by the watcher rather than typed by hand, so the opening half of the row still wants a human-authored change |
+| A7.1 | Submit a change | **OK** (21 Aug, chart 0.90.0). The opening half is now walked too: with `requireChangeRequest` on, saving one setting in the editor opened `cfg-org-1` as a Draft authored by the operator, with a real `cr/cfg-org-1` branch in the overlay. Read from both sides - the console's diff view and `git diff main cr/cfg-org-1` show the same `org.settings.desktop` addition. Submitting moved it to Ready, and merging it (behind a confirmation step) put it on `main` |
 | A7.2 | The gate runs | **FAIL** (18 Aug, 0.87.0), and the failure is a diagnosis defect rather than a broken gate. Pressing Build on the staged `core-06b0d7df76c8` returns `gate-runner error (status 500): staging candidate failed: fetch cr/core-06b0d7df76c8 ... couldn't find remote ref`. The change carries no commits, so no branch was ever pushed: the diff view says "No changes on this branch yet" and `git ls-remote <overlay> 'refs/heads/cr/*'` returns nothing at all. Seven changes in this queue died with that same message since 30 July. The gate itself is healthy - `/validate` returns `ok:true` on a ref that does exist, and `/bump` returns a full lock. Filed as issue #41 |
-| A7.3 | Make the gate fail | the change cannot be merged |
-| A7.4 | Turn on four-eyes | you cannot approve your own change |
-| A7.5 | Second approver | the merge succeeds |
+| A7.3 | Make the gate fail | **not walkable locally** (21 Aug). `just demo` runs `--gate none`, and it has to: the example overlay's flake takes Sextant as `path:../..`, which stops resolving the moment the overlay is a git repository - which the console requires it to be. So a local console has no gate to fail. Needs the real overlay against a gate-runner. Filed as issue #74 |
+| A7.4 | Turn on four-eyes | **not walkable on a dev-auth console** (21 Aug). `--dev-auth` mints one synthetic owner, so there is no second identity to refuse. Needs a console behind an IdP with two accounts |
+| A7.5 | Second approver | **not walkable on a dev-auth console** (21 Aug), same reason as A7.4 |
 | A7.6 | Withdraw a change | **OK** (5 Aug, 0.82.0). Three stale core updates rejected at 17:54:11/12/14; all three `abandoned`. Afterwards **no `cr/` branch at all** in the repo, and `git worktree list` shows only `/data/overlay [main]`. Measured from both sides: console and git |
-| A7.7 | Two changes at once | the second rebases or refuses cleanly |
+| A7.7 | Two changes at once | **OK** (21 Aug). Two changes opened from the settings editor, both touching `fleet.json`, both Ready. The first merged; the second was refused with `409 Another change landed first. Reload and try again.` and `main` kept only the first - a clean refusal, nothing silently overwritten. **But the advice is wrong**: merging again repeats the 409 and re-submitting gives `400 cannot move change from ready to building`, so the only way out is Abandon and redo. The row passes; the sentence after it is filed as issue #75 |
 
 ## A8. Rollout
 
