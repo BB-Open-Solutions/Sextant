@@ -1,13 +1,103 @@
 [
-    {
-        "name": "demo-vm",
-        "vendor": "QEMU",
-        "models": ["Standard PC", "QEMU Virtual Machine"],
-        "notes": "Eval-only virtual profile used by the example overlay.",
-        "disko": "single ext4 root on /dev/vda (no encryption)",
-        "steps": [
-            { "title": "Boot the installer", "detail": "PXE-boot the VM on the imaging network." },
-            { "title": "Confirm the target disk", "detail": "The demo profile installs to /dev/vda." }
-        ]
-    }
+  {
+    "name": "demo-vm",
+    "vendor": "QEMU",
+    "models": [
+      "Standard PC",
+      "QEMU Virtual Machine"
+    ],
+    "notes": "Eval-only virtual profile used by the example overlay.",
+    "disko": "single ext4 root on /dev/vda (no encryption)",
+    "steps": [
+      {
+        "title": "Boot the installer",
+        "detail": "PXE-boot the VM on the imaging network."
+      },
+      {
+        "title": "Confirm the target disk",
+        "detail": "The demo profile installs to /dev/vda."
+      }
+    ]
+  },
+  {
+    "name": "lenovo-t14-g4",
+    "vendor": "Lenovo",
+    "models": [
+      "ThinkPad T14 Gen 4"
+    ],
+    "notes": "The workplace laptop the simulated fleet runs. Fingerprint reader needs its own driver; see the Hardware page.",
+    "disko": "LUKS2 on nvme0n1, ext4 root, 1 GiB ESP",
+    "steps": [
+      {
+        "title": "Enter the firmware",
+        "detail": "F1 during boot. Set Secure Boot to setup mode so the console can enrol its keys."
+      },
+      {
+        "title": "PXE-boot the installer",
+        "detail": "F12, pick the network entry the station serves."
+      },
+      {
+        "title": "Confirm the target disk",
+        "detail": "nvme0n1 is wiped. There is no second disk in this model."
+      },
+      {
+        "title": "Seal to the TPM",
+        "detail": "After the first boot the console seals the LUKS key; the recovery key is escrowed and the device forgets its copy."
+      }
+    ]
+  },
+  {
+    "name": "hp-elitebook-840",
+    "vendor": "HP",
+    "models": [
+      "EliteBook 840 G10"
+    ],
+    "notes": "Second workplace model. Same disk layout as the Lenovo, different firmware key.",
+    "disko": "LUKS2 on nvme0n1, ext4 root, 1 GiB ESP",
+    "steps": [
+      {
+        "title": "Enter the firmware",
+        "detail": "Esc then F10. Clear the Secure Boot keys to reach setup mode."
+      },
+      {
+        "title": "PXE-boot the installer",
+        "detail": "F9, pick the network entry."
+      },
+      {
+        "title": "Confirm the target disk",
+        "detail": "nvme0n1 is wiped."
+      },
+      {
+        "title": "Seal to the TPM",
+        "detail": "Same ceremony as every other model; the console drives it."
+      }
+    ]
+  },
+  {
+    "name": "dell-latitude-5440",
+    "vendor": "Dell",
+    "models": [
+      "Latitude 5440"
+    ],
+    "notes": "Third workplace model.",
+    "disko": "LUKS2 on nvme0n1, ext4 root, 1 GiB ESP",
+    "steps": [
+      {
+        "title": "Enter the firmware",
+        "detail": "F2 during boot; Secure Boot to setup mode."
+      },
+      {
+        "title": "PXE-boot the installer",
+        "detail": "F12, pick the network entry."
+      },
+      {
+        "title": "Confirm the target disk",
+        "detail": "nvme0n1 is wiped."
+      },
+      {
+        "title": "Seal to the TPM",
+        "detail": "Driven by the console after first boot."
+      }
+    ]
+  }
 ]

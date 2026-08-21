@@ -40,11 +40,22 @@ var demoGroups = []struct {
 }
 
 type fleetDoc struct {
-	Version int                    `json:"version"`
-	Org     map[string]any         `json:"org"`
-	Groups  map[string]struct{}    `json:"groups"`
-	Devices map[string]fleetDevice `json:"devices"`
-	Rollout *fleetRollout          `json:"rollout,omitempty"`
+	Version  int                     `json:"version"`
+	Org      map[string]any          `json:"org"`
+	Groups   map[string]struct{}     `json:"groups"`
+	Devices  map[string]fleetDevice  `json:"devices"`
+	Rollout  *fleetRollout           `json:"rollout,omitempty"`
+	Stations map[string]fleetStation `json:"stations,omitempty"`
+}
+
+// fleetStation registers the imaging station the simulator plays. Without it
+// the console answers "unknown station" and shows nothing of what the station
+// reported - the reports are accepted and stored, they just have no page.
+// Generating it here means the demo has a working imaging line from the first
+// second rather than after a manual registration nobody knew to do.
+type fleetStation struct {
+	Description string `json:"description,omitempty"`
+	Site        string `json:"site,omitempty"`
 }
 
 // fleetRollout is the generated wave plan. Without one the demo has devices
@@ -322,6 +333,9 @@ func writeDemoFleet(w *os.File, n int) error {
 		// must be whole, a first office that may leave stragglers behind, and
 		// the rest of the fleet behind a manual sign-off. Between them they
 		// show every knob the plan has.
+		Stations: map[string]fleetStation{
+			"st-1": {Description: "Simulated imaging line", Site: "demo"},
+		},
 		Rollout: &fleetRollout{Rings: []fleetRing{
 			{Group: "ict-test", Name: "Test", SoakMinutes: 10, MinHealthyPercent: 100},
 			{Group: "kantoor-a", Name: "First office", SoakMinutes: 30},
