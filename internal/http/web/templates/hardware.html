@@ -23,6 +23,18 @@
         {{if .Models}}<span class="truncate">{{range $i, $m := .Models}}{{if $i}} · {{end}}{{$m}}{{end}}</span>{{end}}
       </div>
       {{with .Notes}}<p class="muted mb-0 text-body-sm">{{.}}</p>{{end}}
+      {{/* How this model gets installed. The overlay writes it and until now
+           nothing rendered it, so the console described every model except
+           the part somebody needs standing at the machine. */}}
+      {{if or .Disko .Steps}}
+      <div class="mt-2 flex flex-col gap-1 rounded-md bg-surface-container-low p-3">
+        {{with .Disko}}<div class="flex flex-wrap items-baseline gap-2 text-label-md"><span class="text-text-tertiary">{{$.L.T "enroll.disk_layout"}}</span><span class="font-mono text-code-inline text-ink">{{.}}</span></div>{{end}}
+        {{if .Steps}}
+        <div class="text-label-md text-text-tertiary">{{$.L.T "enroll.guidance"}}</div>
+        <ol class="list-decimal pl-5 text-body-sm text-text-secondary">{{range .Steps}}<li><span class="text-ink">{{.Title}}</span>{{with .Detail}} - {{.}}{{end}}</li>{{end}}</ol>
+        {{end}}
+      </div>
+      {{end}}
     </div>
     {{if $.CanOwn}}
     <label for="hw-{{.Name}}" class="btn quiet shrink-0 !min-h-0 !py-1"><span class="material-symbols-outlined msz-18">tune</span>{{if .Configured}}{{$.L.T "common.edit"}}{{else}}{{$.L.T "hardware.configure"}}{{end}}</label>

@@ -1,11 +1,22 @@
 package web_test
 
 import (
+	"context"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/adapters/git"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/app"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/http/web"
+	"code.overheid.nl/MinBZK/DAWO-Sextant/internal/ports"
 )
 
 // A fleet with two models in one group: exactly the case the page exists for.
@@ -101,4 +112,75 @@ func get(t *testing.T, c *http.Client, u string) string {
 		t.Fatalf("%s: %d", u, resp.StatusCode)
 	}
 	return string(b)
+}
+
+// The overlay writes a disk layout and ordered steps for each model, and until
+// 2026-08-21 nothing rendered either: the enrolment page promised
+// "brand-specific guidance" and showed none, and the imaging catalog's most
+// useful field existed only in json. This asserts the rendered page, because
+// that is the half that was missing - the parsing always worked.
+func TestTheHardwarePageShowsHowAModelIsImaged(t *testing.T) {
+	ts := newConsoleWithHardwareProfiles(t, hardwareFleet, `[
+	  {"name":"demo-vm","vendor":"QEMU","models":["Standard PC"],
+	   "disko":"single ext4 root on /dev/vda (no encryption)",
+	   "steps":[{"title":"Boot the installer","detail":"PXE-boot the VM"},
+	            {"title":"Confirm the target disk","detail":"installs to /dev/vda"}]}
+	]`)
+	body := get(t, client(), ts.URL+"/hardware")
+
+	for _, want := range []string{
+		"single ext4 root on /dev/vda",
+		"Boot the installer",
+		"Confirm the target disk",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page does not show %q", want)
+		}
+	}
+}
+
+// newConsoleWithHardwareProfiles is newConsoleWithFleet plus the overlay's
+// imaging catalog, which the hardware page reads and the other harness has no
+// reason to carry.
+func newConsoleWithHardwareProfiles(t *testing.T, fleetDoc, profiles string) *httptest.Server {
+	t.Helper()
+	dir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run("init", "-q", "-b", "main")
+	for name, body := range map[string]string{
+		"fleet.json": fleetDoc, "catalog.json": seedCatalog,
+		"hardware-profiles.json": profiles,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run("add", ".")
+	run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed")
+
+	repo, err := git.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := app.NewConfigService(repo,
+		ports.GateFunc(func(context.Context, string, []string) error { return nil }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := web.New(web.Services{Config: cfg}, web.DevSessions{}, true,
+		nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	srv.Routes(mux)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	return ts
 }

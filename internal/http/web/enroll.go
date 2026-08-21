@@ -30,6 +30,10 @@ type enrollRow struct {
 	Dev     discovery.Discovered
 	Suggest string
 	Steps   []fleet.ImagingStep
+	// Disko is the profile's note of the disk layout. It is the one line an
+	// operator checks before letting a machine be wiped, so it belongs next
+	// to the machine and not only in the overlay's json.
+	Disko string
 }
 
 var slugRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
@@ -106,7 +110,7 @@ func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request, v view) {
 			row := enrollRow{Dev: d, Suggest: profiles.Suggest(d.Vendor, d.Model)}
 			if row.Suggest != "" {
 				if p, ok := profiles.Get(row.Suggest); ok {
-					row.Steps = p.Steps
+					row.Steps, row.Disko = p.Steps, p.Disko
 				}
 			}
 			rows = append(rows, row)

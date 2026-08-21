@@ -24,9 +24,15 @@ type hardwareRow struct {
 	// Vendor, Models and Notes come from the overlay's imaging catalog. Empty
 	// for a model devices carry that the overlay has not described - that is
 	// worth showing, not hiding: it means nothing can image one.
-	Vendor  string
-	Models  []string
-	Notes   string
+	Vendor string
+	Models []string
+	Notes  string
+	// Disko and Steps are the overlay's imaging guidance: the disk layout in
+	// words, and the ordered, brand-specific steps. Both were parsed and
+	// never shown anywhere, so a model page described everything about a
+	// machine except how it gets installed.
+	Disko   string
+	Steps   []fleet.ImagingStep
 	Known   bool // described by the overlay's hardware-profiles.json
 	Devices int
 	// Configured, SettingsText and Target describe the model's own settings.
@@ -67,6 +73,7 @@ func (s *Server) hardwarePage(w http.ResponseWriter, r *http.Request, v view) {
 		row := hardwareRow{Name: name, Devices: counts[name], Target: "org"}
 		if p, ok := profiles.Get(name); ok {
 			row.Known, row.Vendor, row.Models, row.Notes = true, p.Vendor, p.Models, p.Notes
+			row.Disko, row.Steps = p.Disko, p.Steps
 		}
 		if pol, a, ok := f.HardwareConfig(name); ok {
 			row.Configured = true

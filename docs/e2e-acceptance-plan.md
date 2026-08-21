@@ -174,13 +174,20 @@ a different bug from a button that is absent, and the second is the intent.
 
 ## A2. Enrolment
 
+**A station has to be registered before the console will show what it found.**
+Measured 2026-08-21: the simulated station's reports were accepted (`station
+report accepted station=st-1 devices=4`) and its machines stored, while
+`/enroll?station=st-1` answered *unknown station* and `/station` said *No
+stations registered yet*. Registering the tag made all four appear at once, so
+nothing was lost - it was invisible. Register first, then walk this section.
+
 | # | Action | Proof |
 |---|---|---|
-| A2.1 | Walk the `/enroll` wizard | device appears in `/devices` with status "never seen" |
-| A2.2 | Pick a hardware profile | profile on the device page, disko notes correct |
-| A2.3 | Attach to the test group | `/groups` counts the device |
-| A2.4 | Reuse the enrolment token | second use refused |
-| A2.5 | Device with no group | falls back to org scope, no crash |
+| A2.1 | Walk the `/enroll` wizard | **OK** (21 Aug, chart 0.90.0). A machine picked from the station's PXE list, given a name, class and group, appears in `/devices` as `never seen`. **First register the station**: the console refuses `/enroll?station=X` with *unknown station* until the tag is registered on `/station`, even though its reports are already being accepted and stored - see the note under this table |
+| A2.2 | Pick a hardware profile | **OK after a fix** (21 Aug). The profile name reaches the device page. The disko note and the imaging steps did **not** reach any page at all: `Disko` existed only as a struct field and `Steps` was carried into the enrolment row's view model and never rendered, so the page promising "brand-specific guidance" showed none. Both now render, on the Hardware page and beside the machine on the enrolment list |
+| A2.3 | Attach to the test group | **OK** (21 Aug). Enrolled into `ict-test` from the form; the device carries the group on `/devices` and the group tree lists it |
+| A2.4 | Reuse the enrolment token | **not walked** (21 Aug) - the one-time credential a station receives with a claimed job needs the station path, not the enrolment form. What the form did show: enrolling the same machine twice creates **two** device records, the second with no serial, no model and no spec, and nothing on screen says the machine already has one. Filed as issue #79 |
+| A2.5 | Device with no group | **OK** (21 Aug). Enrolled with an empty group: the device page renders and `/settings?scope=device:<tag>` renders, both 200, resolving against the organisation |
 
 ## A3. Imaging (station)
 

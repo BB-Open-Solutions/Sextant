@@ -90,6 +90,20 @@
           <span class="font-mono text-code-inline text-ink">{{.Dev.MAC}}</span>
           <span class="truncate text-text-tertiary">{{with .Dev.Vendor}}{{.}}{{end}}{{with .Dev.Model}} {{.}}{{end}}{{if .Dev.DiskGB}} · {{.Dev.DiskGB}} GB{{end}}</span>
           {{with .Suggest}}<span class="tag ok"><span class="material-symbols-outlined msz-14">auto_awesome</span>{{.}}</span>{{end}}
+          {{/* The guidance the overlay wrote for this model. It was parsed,
+               carried into this row and never rendered, so the page promised
+               brand-specific instructions and showed none. The disk layout is
+               the line worth reading before a machine is wiped. */}}
+          {{if or .Disko .Steps}}
+          <span class="hint">
+            <span class="hint-mark material-symbols-outlined msz-16" tabindex="0" role="note" aria-label="{{$.L.T "enroll.guidance"}}">info</span>
+            <span class="hint-panel">
+              {{with .Disko}}<span class="block text-label-md font-medium text-ink">{{$.L.T "enroll.disk_layout"}}</span><span class="block font-mono text-code-inline text-text-secondary">{{.}}</span>{{end}}
+              {{if .Steps}}<span class="mt-2 block text-label-md font-medium text-ink">{{$.L.T "enroll.guidance"}}</span>
+              <ol class="mt-1 list-decimal pl-4 text-label-md text-text-secondary">{{range .Steps}}<li><span class="text-ink">{{.Title}}</span>{{with .Detail}} - {{.}}{{end}}</li>{{end}}</ol>{{end}}
+            </span>
+          </span>
+          {{end}}
         </label>
         <div class="flex items-center gap-2">
           <label class="text-label-xs-caps uppercase text-text-tertiary">{{$.L.T "enroll.cmdb_name"}}</label>
