@@ -35,9 +35,27 @@ type Evidence struct {
 	Rollouts []EvidenceRollout `json:"rollouts"`
 }
 
-// EvidenceControls snapshots the audit controls in force.
+// EvidenceControls snapshots the assurance controls in force at export time.
+//
+// All four, not one. It carried only RequireFourEyes, so an auditor asking
+// "what governance was in force in this period" was told about separation of
+// duties and nothing about whether direct edits were forbidden, whether a
+// rollout could start without a gated test wave, or whether delivery-on-merge
+// was switched off. Those are the controls the question is usually about, and
+// an evidence bundle that omits them understates what the organisation had in
+// place - which is the wrong direction for a document written to be shown to
+// somebody else.
 type EvidenceControls struct {
 	RequireFourEyes bool `json:"requireFourEyes"`
+	// RequireChangeRequest forbids direct config edits: every change flows
+	// through a reviewed change request.
+	RequireChangeRequest bool `json:"requireChangeRequest"`
+	// RequireTestWave forbids starting a rollout whose plan has no gated test
+	// wave. An owner may skip it for a specific run, and that is logged.
+	RequireTestWave bool `json:"requireTestWave"`
+	// ManualRolloutOnly opts out of delivery-on-merge, so an operator starts
+	// every run by hand.
+	ManualRolloutOnly bool `json:"manualRolloutOnly"`
 }
 
 // EvidenceRollout is one ring promotion reconstructed from its commit.
@@ -74,7 +92,12 @@ func (s *EvidenceService) Export(ctx context.Context, from, to time.Time) (*Evid
 		Rollouts: []EvidenceRollout{},
 	}
 	if asr := s.cfg.Fleet().Assurance; asr != nil {
-		ev.Controls.RequireFourEyes = asr.RequireFourEyes
+		ev.Controls = EvidenceControls{
+			RequireFourEyes:      asr.RequireFourEyes,
+			RequireChangeRequest: asr.RequireChangeRequest,
+			RequireTestWave:      asr.RequireTestWave,
+			ManualRolloutOnly:    asr.ManualRolloutOnly,
+		}
 	}
 
 	entries, err := s.cfg.AuditLog(ctx, evidenceLogDepth)
