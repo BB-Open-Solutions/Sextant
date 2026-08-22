@@ -34,6 +34,17 @@ func Open(dir string) (*Store, error) {
 	// Owner-only: this is server-private control-plane state (change requests,
 	// rollout runs), not world-readable content.
 	if err := os.MkdirAll(filepath.Join(dir, "changes"), 0o700); err != nil {
+		// Say what to do, not only what failed. This is the first thing a
+		// container deployment hits: the image runs as uid 65532 and the
+		// state directory defaults to <repo>/.sextant-state, so a bind mount
+		// owned by the operator's own user stops the server before it logs
+		// anything else. "permission denied" alone sends people looking at
+		// SELinux and the database.
+		if errors.Is(err, fs.ErrPermission) {
+			return nil, fmt.Errorf("state dir %s: %w - the server needs to write here. "+
+				"Give it ownership of the directory, or point --state-dir at one it owns "+
+				"(a container image runs as its own uid, not yours)", dir, err)
+		}
 		return nil, fmt.Errorf("state dir: %w", err)
 	}
 	return &Store{dir: dir, log: slog.Default()}, nil

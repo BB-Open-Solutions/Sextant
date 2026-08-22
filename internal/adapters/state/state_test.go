@@ -181,3 +181,28 @@ func TestWriteLeavesNoTempFileBehind(t *testing.T) {
 		t.Errorf("mode %o, want 600", perm)
 	}
 }
+
+// The first thing a container deployment hits: the image runs as its own uid
+// and the state directory defaults to <repo>/.sextant-state, so a volume owned
+// by the operator stops the server before it logs anything else. "permission
+// denied" on its own sent the first person who tried it looking at SELinux and
+// the database.
+func TestAnUnwritableStateDirSaysWhatToDo(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes anywhere; this failure needs an ordinary user")
+	}
+	locked := filepath.Join(t.TempDir(), "locked")
+	if err := os.Mkdir(locked, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Open(filepath.Join(locked, "state"))
+	if err == nil {
+		t.Fatal("an unwritable state dir was accepted")
+	}
+	msg := err.Error()
+	for _, want := range []string{"--state-dir", "ownership", locked} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("the error does not mention %q: %s", want, msg)
+		}
+	}
+}
