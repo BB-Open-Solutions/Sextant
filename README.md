@@ -229,8 +229,10 @@ afternoon:
 | **An OIDC identity provider** | Console login, mapped to roles by directory group. LDAP optionally supplies the group picker. |
 | **A validation gate** | The nix evaluation that proves a change builds before it can be committed. In production this runs out-of-process in a small gate-runner, fail-closed, because the console image deliberately ships no nix. |
 
-Deployment is one Helm release plus a secret (`deploy/helm`), or the NixOS
-module, or a plain container. The devices need
+There are three ways to run it, and all three are walked end to end in
+[Three ways to run Sextant](docs/handbook/src/operators/deployment-paths.md): a
+container on any host, the NixOS module in `deploy/nixos`, or one Helm release
+plus a secret (`deploy/helm`) on Kubernetes. The devices need
 [DAWO-NixOS](https://code.overheid.nl/MinBZK/DAWO-NixOS) or your own core flake,
 and they pull with comin - the console never connects to a device.
 
