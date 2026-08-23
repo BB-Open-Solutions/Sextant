@@ -142,6 +142,17 @@
         };
       });
 
+      # A NixOS VM that boots the module, points the console at a repository
+      # and a database, and uses it. Runs with `nix build .#checks.<system>
+      # .console-on-nixos`; needs KVM.
+      checks = forAll (pkgs: {
+        # Cheap: evaluates the module and reads the unit back.
+        console-module = import ./tests/console-module.nix { inherit self pkgs nixpkgs; };
+        # Deep: boots a machine and uses the console. Needs KVM, and a warm
+        # cache - from cold it builds a whole NixOS closure.
+        console-on-nixos = import ./tests/console-on-nixos.nix { inherit self pkgs; };
+      });
+
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [
@@ -171,67 +182,10 @@
       # crypto-wipe a device (design 0004). Wipe is gated and default-off.
       nixosModules.actd = import ./deploy/nixos/actd.nix;
 
-      nixosModules.default = { config, lib, pkgs, ... }:
-        let cfg = config.services.sextant;
-        in {
-          options.services.sextant = {
-            enable = lib.mkEnableOption "Sextant fleet control-plane";
-            package = lib.mkOption {
-              type = lib.types.package;
-              default = self.packages.${pkgs.system}.sextant;
-              description = "Sextant package to run.";
-            };
-            addr = lib.mkOption {
-              type = lib.types.str;
-              default = "127.0.0.1:8080";
-              description = "HTTP listen address (put a TLS proxy in front).";
-            };
-            environmentFile = lib.mkOption {
-              type = lib.types.nullOr lib.types.path;
-              default = null;
-              description = ''
-                EnvironmentFile with secrets (SEXTANT_* variables), e.g. an
-                agenix-rendered file. Secrets never go on the command line.
-              '';
-            };
-          };
+      # The console as a systemd service. One host, your own database and
+      # proxy - the container path without the container (see
+      # docs/handbook/src/operators/deployment-paths.md).
+      nixosModules.default = import ./deploy/nixos/console.nix { inherit self; };
 
-          config = lib.mkIf cfg.enable {
-            systemd.services.sextant = {
-              description = "Sextant fleet control-plane";
-              wantedBy = [ "multi-user.target" ];
-              after = [ "network-online.target" ];
-              wants = [ "network-online.target" ];
-              path = [ pkgs.git pkgs.nix ];
-              serviceConfig = {
-                ExecStart = "${lib.getExe cfg.package} --addr ${cfg.addr}";
-                EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
-                DynamicUser = true;
-                StateDirectory = "sextant";
-                WorkingDirectory = "/var/lib/sextant";
-                # Graceful shutdown: SIGTERM, then give in-flight writes time.
-                KillSignal = "SIGTERM";
-                TimeoutStopSec = 30;
-                Restart = "on-failure";
-                RestartSec = 2;
-                # Hardening.
-                NoNewPrivileges = true;
-                ProtectSystem = "strict";
-                ProtectHome = true;
-                PrivateTmp = true;
-                PrivateDevices = true;
-                ProtectKernelTunables = true;
-                ProtectKernelModules = true;
-                ProtectControlGroups = true;
-                RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
-                RestrictNamespaces = true;
-                LockPersonality = true;
-                MemoryDenyWriteExecute = true;
-                SystemCallArchitectures = "native";
-                CapabilityBoundingSet = "";
-              };
-            };
-          };
-        };
     };
 }
