@@ -164,6 +164,12 @@ ring's revision on its own schedule.
 - Secrets with agenix, where a newly imaged device's host key is registered as
   a recipient automatically - otherwise the classic silent failure.
 - Disk-encryption recovery keys escrowed, every reveal in the audit log.
+- Hardware models are a filter, not a fourth scope. Pick a model in the console
+  and give it settings of its own, scoped to the devices that are that model.
+  The fingerprint reader driver a Lenovo in a group needs, and the Dell beside
+  it does not, is one screen rather than a fork in the tree. The disk layout and
+  imaging steps come with the model from your overlay, and the page shows
+  them.
 
 </details>
 
@@ -188,6 +194,11 @@ ring's revision on its own schedule.
 - Endpoint controls: USB device control with an allowlist, printing, and
   per-capability user rights - so somebody can join a WiFi network or approve a
   dock without anyone handing out an administrator password.
+- A device page lists every integration the fleet has switched on for that
+  device, and whether it is actually running there. Configured and running are
+  different questions, and an integration that is switched on but silent is the
+  one worth seeing. A device that has not reported yet says so, rather than
+  being read as broken.
 
 </details>
 
