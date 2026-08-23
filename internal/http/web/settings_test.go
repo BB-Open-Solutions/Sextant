@@ -39,7 +39,9 @@ const seedCatalog = `[
   {"name":"timesync.enable","type":"boolean","description":"Time sync","default":false,"label":"Time synchronisation"},
   {"name":"netbird.enable","type":"boolean","description":"Join the mesh","default":false},
   {"name":"netbird.managementUrl","type":"string","description":"Management server URL"},
-  {"name":"timesync.servers","type":"string","description":"NTP servers"}
+  {"name":"timesync.servers","type":"string","description":"NTP servers"},
+  {"name":"osquery.enable","type":"boolean","description":"Report this device to a Fleet server","default":false},
+  {"name":"osquery.server","type":"string","description":"Fleet hostname"}
 ]`
 
 const seedProfiles = `[

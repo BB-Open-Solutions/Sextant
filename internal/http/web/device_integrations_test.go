@@ -77,3 +77,29 @@ func TestReportedIntegrationsSeparatesSilenceFromEmpty(t *testing.T) {
 		t.Fatal("a device that reported an empty set counts as silent")
 	}
 }
+
+// osquery is the integration where "configured" and "running" come apart most
+// expensively: a device meant to report to Fleet but not reporting is not
+// visibly broken anywhere, it is simply absent from the estate view. So the
+// row has to exist the moment the fleet turns it on, and say nothing rather
+// than "down" when the device has not reported.
+func TestOsqueryIsReportedLikeAnyOtherIntegration(t *testing.T) {
+	f := fleetWith(map[string]any{"osquery.enable": true})
+
+	silent := deviceIntegrations(f, "lt-1", app.StatusView{})
+	if len(silent) != 1 {
+		t.Fatalf("rows = %+v, want an osquery row as soon as the fleet enables it", silent)
+	}
+	if !silent[0].Unmeasured() || silent[0].Down() {
+		t.Errorf("a device that has not reported reads as %+v; absent from Fleet is not "+
+			"the same as broken, and must not be shown as down", silent[0])
+	}
+
+	running := deviceIntegrations(f, "lt-1", app.StatusView{DeviceStatus: observed.DeviceStatus{
+		Tag:          "lt-1",
+		Integrations: observed.Integrations{"osquery": {State: "up"}},
+	}})
+	if len(running) != 1 || !running[0].Up() {
+		t.Fatalf("rows = %+v, want the reported up state", running)
+	}
+}

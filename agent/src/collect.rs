@@ -753,6 +753,7 @@ const INTEGRATION_UNITS: &[(&str, &[&str])] = &[
     ("identity", &["sssd.service"]),
     ("wazuh", &["wazuh-agent.service"]),
     ("openbao", &["openbao-secrets.service"]),
+    ("osquery", &["osqueryd.service", "osquery.service"]),
 ];
 
 /// collect_integrations asks systemd about each known integration's unit.
