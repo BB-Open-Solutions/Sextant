@@ -119,6 +119,7 @@ func main() {
 		pctSlow: *pctSlow, pctOff: *pctOff, pctErr: *pctErr,
 		client: &http.Client{Timeout: 10 * time.Second},
 		state:  map[string]*devState{},
+		creds:  newCredStore(),
 	}
 	// Spread the beats: real devices are not phase-locked, and 150 posts in
 	// one burst from one IP trips the console's rate limiter (429s that a
@@ -129,7 +130,7 @@ func main() {
 	// talks to different endpoints, and a station that stalled while 150
 	// devices checked in would be the one thing on screen not moving.
 	if *station != "" {
-		sta := newStationSim(*url, *token, *station, *staPool, *staFail, *staSB)
+		sta := newStationSim(*url, *token, *station, *staPool, *staFail, *staSB, sim.creds)
 		log.Printf("simulating imaging station %s with %d machines on its network", *station, *staPool)
 		go func() {
 			t := time.NewTicker(*interval)
@@ -170,6 +171,40 @@ type devState struct {
 	adoptAt    int
 }
 
+// credStore holds the per-device credentials the console hands out at
+// imaging time. A real device keeps its own; the shared bridge token is only
+// allowed to speak for devices that have none, so that one leaked token
+// cannot impersonate a specific machine.
+//
+// The simulator used to throw these away, which meant a device it had imaged
+// could never check in again: the console correctly refused the bridge token
+// for a device that now had a credential of its own. The demo showed three
+// such devices as never seen, permanently, and the refusal was right.
+type credStore struct {
+	mu sync.Mutex
+	by map[string]string
+}
+
+func newCredStore() *credStore { return &credStore{by: map[string]string{}} }
+
+// put records what the console issued. An empty secret is stored as such
+// rather than ignored: it means the console issued nothing for this device,
+// and then the bridge token is the right thing to send. A guard that skipped
+// the write would instead keep a credential the console no longer accepts.
+func (c *credStore) put(tag, secret string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.by[tag] = secret
+}
+
+// get returns the device's own credential, or "" when it has none and the
+// bridge token is still the right thing to send.
+func (c *credStore) get(tag string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.by[tag]
+}
+
 type simulator struct {
 	url, token, repo        string
 	pctSlow, pctOff, pctErr int
@@ -181,6 +216,7 @@ type simulator struct {
 	branches map[string]string
 	mu       sync.Mutex
 	state    map[string]*devState
+	creds    *credStore
 }
 
 // slice runs one tenth of the beat interval: the devices whose offset falls
@@ -258,7 +294,13 @@ func (s *simulator) beatOne(ctx context.Context, d device, branches map[string]s
 	if err != nil {
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+s.token)
+	// A device that was imaged through the station holds its own credential,
+	// and the console will not accept the shared bridge token for it.
+	auth := s.token
+	if own := s.creds.get(d.Tag); own != "" {
+		auth = own
+	}
+	req.Header.Set("Authorization", "Bearer "+auth)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.client.Do(req)
 	if err != nil {

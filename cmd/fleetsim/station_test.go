@@ -14,7 +14,7 @@ import (
 // This is the test that fails when somebody changes imaging.Status.
 func TestStationWalkIsATransitionTheConsoleAccepts(t *testing.T) {
 	for _, sb := range []bool{true, false} {
-		s := newStationSim("http://x", "t", "sta", 1, 0, sb)
+		s := newStationSim("http://x", "t", "sta", 1, 0, sb, newCredStore())
 		cur := imaging.Imaging
 		seen := 0
 		for {
@@ -57,7 +57,7 @@ func TestStationFailsFromAnActiveState(t *testing.T) {
 // one arrives. Without that a demo runs out of things to enrol after three
 // clicks, and with a leak it grows without bound on a long-running instance.
 func TestStationPoolStaysPut(t *testing.T) {
-	s := newStationSim("http://x", "t", "sta", 3, 0, false)
+	s := newStationSim("http://x", "t", "sta", 3, 0, false, newCredStore())
 	if len(s.machines) != 3 {
 		t.Fatalf("pool starts at %d, want 3", len(s.machines))
 	}
@@ -75,7 +75,7 @@ func TestStationPoolStaysPut(t *testing.T) {
 // real vendor's address space. 02: is the locally administered range, which is
 // what something that does not exist is entitled to.
 func TestStationMACsAreLocallyAdministered(t *testing.T) {
-	s := newStationSim("http://x", "t", "sta", 8, 0, false)
+	s := newStationSim("http://x", "t", "sta", 8, 0, false, newCredStore())
 	for mac := range s.machines {
 		if mac[:3] != "02:" {
 			t.Errorf("MAC %s is outside the locally administered range", mac)

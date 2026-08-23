@@ -70,6 +70,7 @@ type jobRun struct {
 
 type stationSim struct {
 	url, token, tag string
+	creds           *credStore
 	client          *http.Client
 	rng             *rand.Rand
 
@@ -88,9 +89,9 @@ type stationSim struct {
 	secureBoot bool
 }
 
-func newStationSim(url, token, tag string, pool, pctFail int, secureBoot bool) *stationSim {
+func newStationSim(url, token, tag string, pool, pctFail int, secureBoot bool, creds *credStore) *stationSim {
 	s := &stationSim{
-		url: url, token: token, tag: tag,
+		url: url, token: token, tag: tag, creds: creds,
 		client: &http.Client{Timeout: 10 * time.Second},
 		// Seeded from the station tag so a restart invents the same hardware
 		// rather than a fresh set of strangers, which matters when a demo is
@@ -152,10 +153,18 @@ func (s *stationSim) report(ctx context.Context) {
 
 // claim takes whatever the operator dispatched. The console answers with the
 // job plus a one-time device credential, which a real station bakes into the
-// image; the simulator throws it away deliberately - there is no image.
+// image.
+//
+// The simulator used to discard that credential, on the reasoning that there
+// is no image to bake it into. That was wrong in a way that only showed up
+// later: issuing a credential is what makes the console stop accepting the
+// shared bridge token for that device. A simulated device that had been
+// imaged could therefore never check in again, and the demo carried three of
+// them as never seen. Keeping it is also the more truthful simulation, since
+// it is the posture a real fleet has.
 func (s *stationSim) claim(ctx context.Context) {
 	var jobs []struct {
-		MAC, Tag, Hardware, Status string
+		MAC, Tag, Hardware, Status, Credential string
 	}
 	if !s.post(ctx, "/jobs/claim", map[string]any{}, &jobs) {
 		return
@@ -173,6 +182,8 @@ func (s *stationSim) claim(ctx context.Context) {
 		}
 		m.job = &jobRun{Tag: j.Tag, Status: "imaging", failAt: failAt}
 		m.Phase = "installing"
+		// Kept, not baked: from here the device speaks for itself.
+		s.creds.put(j.Tag, j.Credential)
 		log.Printf("station %s: claimed %s for %s", s.tag, j.MAC, j.Tag)
 	}
 }
