@@ -289,6 +289,9 @@ func (s *simulator) beatOne(ctx context.Context, d device, branches map[string]s
 	if behaviour(d.Tag, s.pctErr) && s.beatN%7 == 0 {
 		body["error"] = "simulated: nix-store --verify failed on /nix/store/…"
 	}
+	if ig := simulateIntegrations(d.Tag); ig != nil {
+		body["integrations"] = ig
+	}
 	buf, _ := json.Marshal(body)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/api/checkin", bytes.NewReader(buf))
 	if err != nil {
@@ -311,6 +314,40 @@ func (s *simulator) beatOne(ctx context.Context, d device, branches map[string]s
 	if resp.StatusCode >= 400 {
 		log.Printf("%s: check-in %d", d.Tag, resp.StatusCode)
 	}
+}
+
+// simulateIntegrations is what a device reports about the integrations the
+// generated fleet turned on. Deterministic per tag, so a demo looks the same
+// twice and a screenshot keeps meaning what it meant.
+//
+// It deliberately produces all three readings the console distinguishes,
+// because a demo where everything is green teaches nothing:
+//
+//   - most devices: all three up
+//   - one in eleven: wazuh down, with the detail the real agent would send
+//   - one in seventeen: nothing at all, the device that has not reported yet
+//
+// That last case is the one worth seeing. It must read as "no measurement",
+// never as "broken" - the same rule compliance already lives by. Returning
+// nil rather than an empty map is what carries it: the column stays unknown
+// instead of being written as down.
+func simulateIntegrations(tag string) map[string]map[string]string {
+	h := hash(tag)
+	if h%17 == 0 {
+		return nil
+	}
+	ig := map[string]map[string]string{
+		"netbird":  {"state": "up"},
+		"wazuh":    {"state": "up"},
+		"identity": {"state": "up"},
+	}
+	if h%11 == 0 {
+		ig["wazuh"] = map[string]string{
+			"state":  "down",
+			"detail": "wazuh-agent.service: exit-code",
+		}
+	}
+	return ig
 }
 
 // ringRevs lists every branch head of the overlay repo in one call.
@@ -368,7 +405,14 @@ func loadDevices(path string) ([]device, error) {
 func writeDemoFleet(w *os.File, n int) error {
 	doc := fleetDoc{
 		Version: 3,
-		Org:     map[string]any{"settings": map[string]any{}},
+		// Three integrations on at org level. Without them the device page
+		// has nothing to show: it lists what the fleet turned ON, so a
+		// generated fleet that turns nothing on hides the feature entirely.
+		Org: map[string]any{"settings": map[string]any{
+			"netbird.enable":  true,
+			"wazuh.enable":    true,
+			"identity.enable": true,
+		}},
 		Groups:  map[string]struct{}{},
 		Devices: map[string]fleetDevice{},
 		// Three waves, deliberately not identical: a strict test group that
