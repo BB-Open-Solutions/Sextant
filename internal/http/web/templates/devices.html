@@ -66,7 +66,14 @@
                  and squeezing both into one word is what made a settings
                  change read as "update pending". */}}
             {{if .Verdict.Known}}
-              <span class="inline-flex flex-wrap gap-1" title="{{.Revision}}">
+              {{/* The release number, which was computed for every visible
+                   row (deduped per revision, deliberately) and rendered
+                   nowhere. A commit hash answers a question nobody asked;
+                   "release 142" is the one an operator can hold against the
+                   ring's target. Falls back to nothing when unknown - the
+                   hash stays in the title where it always was. */}}
+              <span class="inline-flex flex-wrap items-baseline gap-1" title="{{.Revision}}">
+                {{if .Release}}<span class="text-label-md text-text-tertiary">{{$.L.T "devices.release_prefix"}}{{.Release}}</span>{{end}}
                 <span class="tag{{if .Verdict.UpToDate}} ok{{end}}">{{if and (not .Verdict.UpToDate) .Verdict.Moving}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{if .Verdict.UpToDate}}{{$.L.T "devices.uptodate"}}{{else}}{{$.L.T "devices.outofdate"}}{{end}}</span>
                 <span class="tag{{if .Verdict.OnSpec}} ok{{end}}">{{if and (not .Verdict.OnSpec) .Verdict.Moving}}<span class="material-symbols-outlined msz-14">autorenew</span>{{end}}{{if .Verdict.OnSpec}}{{$.L.T "devices.onspec"}}{{else}}{{$.L.T "devices.offspec"}}{{end}}</span>
               </span>
