@@ -63,6 +63,18 @@
     "diskUnlock.tpm2.enable": {
       "label": "TPM2 disk unlock"
     },
+    "displaylink.driverHash": {
+      "label": "DisplayLink driver hash"
+    },
+    "displaylink.driverUrl": {
+      "label": "DisplayLink driver URL"
+    },
+    "displaylink.enable": {
+      "label": "DisplayLink dock support"
+    },
+    "firefox.dictionaries": {
+      "label": "Firefox spelling dictionaries"
+    },
     "identity.bindDN": {
       "label": "Directory bind account"
     },
