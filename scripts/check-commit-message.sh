@@ -96,7 +96,7 @@ if [ -n "$second" ]; then
   fail "line 2 is not blank; a body needs an empty line after the subject"
 fi
 
-# House style, the mechanical half of it. CLAUDE.md forbids em dashes in
+# House style, the mechanical half of it. docs/house-rules.md forbids em dashes in
 # anything we write, and a commit message is the one piece of writing nobody
 # can edit once it is pushed.
 # The dashes are written as escapes rather than as themselves, so this script

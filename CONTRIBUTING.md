@@ -69,10 +69,10 @@ failure you have not read.
 
 ## House rules
 
-`CLAUDE.md` holds the rules this project keeps having to relearn: the
-workflow below, how we write, and what makes a test acceptable. It is the
-first thing to read, and the mechanical half of it is enforced rather than
-requested:
+[`docs/house-rules.md`](docs/house-rules.md) holds the rules this project
+keeps having to relearn: the workflow below, how we write, and what makes a
+test acceptable. It is the first thing to read, and the mechanical half of it
+is enforced rather than requested:
 
 | rule | enforced by |
 |---|---|
@@ -81,7 +81,7 @@ requested:
 | no em dash, exclamation or trailing ellipsis in added text | `scripts/check-house-style.sh`, pre-commit hook and CI |
 | coverage floor | `justfile` and CI |
 
-Everything else in `CLAUDE.md` is judgement, and it says so.
+Everything else in it is judgement, and it says so.
 
 ## Workflow
 1. **Issue first**: features, bug fixes and enhancements start as an

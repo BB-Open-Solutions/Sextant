@@ -1,7 +1,6 @@
 # House rules
 
-Loaded at the start of every session, which is the point: these are the rules
-that kept getting rediscovered and then lost again. Three of them had been
+The rules this project kept rediscovering and then losing again. Three of them had been
 written down in `CONTRIBUTING.md` since the repository opened and were
 followed by almost nobody, so the standing lesson here is not "write it
 down", it is:
