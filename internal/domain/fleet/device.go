@@ -129,6 +129,9 @@ func UpdateDevice(tag string, p DevicePatch) Mutation {
 					return fmt.Errorf("unknown group %q", g)
 				}
 			}
+			if err := f.rejectAncestorDuplication(*p.Groups); err != nil {
+				return err
+			}
 			d.Groups = *p.Groups
 		}
 		if p.Labels != nil {
@@ -243,6 +246,9 @@ func CreateGroupWithDevices(name string, g Group, tags []string) Mutation {
 				}
 			}
 			if !already {
+				if err := f.rejectAncestorDuplication(append(append([]string{}, d.Groups...), name)); err != nil {
+					return err
+				}
 				d.Groups = append(d.Groups, name)
 				f.Devices[tag] = d
 			}

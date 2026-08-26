@@ -1,5 +1,7 @@
 package fleet
 
+import "fmt"
+
 // A device may be listed in a group AND in one of that group's own ancestors.
 // That second entry adds nothing: GroupAncestry already walks the parents, so
 // the ancestor is in the scope chain either way.
@@ -74,4 +76,32 @@ func PruneRedundantGroups() func(*Fleet) error {
 		}
 		return nil
 	}
+}
+
+// rejectAncestorDuplication refuses a membership list that names a group and
+// one of its own ancestors. The ancestor is in the scope chain regardless, so
+// the entry buys nothing - and having two entries is what makes the invisible
+// array ordering decide ties.
+//
+// Refusing at the write is the cheap half of #115: it does not touch the
+// model or the nix twin, and it closes the door the demo fleet walked through
+// 27 times. The message names both groups, because "you cannot do that" is
+// useless to somebody who cannot see the hierarchy from where they stand.
+func (f *Fleet) rejectAncestorDuplication(groups []string) error {
+	for _, g := range groups {
+		for _, anc := range f.GroupAncestry(g) {
+			if anc == g {
+				continue
+			}
+			for _, other := range groups {
+				if other == anc {
+					return fmt.Errorf(
+						"group %q is already inside %q, so listing both adds nothing "+
+							"and makes the order of the list decide which one wins: "+
+							"keep %q", anc, g, g)
+				}
+			}
+		}
+	}
+	return nil
 }
