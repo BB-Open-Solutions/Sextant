@@ -15,6 +15,8 @@
 [Contributing](CONTRIBUTING.md) ·
 [Security](SECURITY.md)
 
+A [DAWO community](https://dawo.community) project, stewarded by BB Open.
+
 </div>
 <br>
 
@@ -265,9 +267,13 @@ than designing it. Expect the APIs and the fleet document schema to stay put.
 Expect rough edges where the first fleet has not pushed yet, and expect us to
 say which those are rather than pretend otherwise.
 
-**Help wanted:** developers, testers and maintainers. To collaborate, or just
-to ask whether this fits what you are doing, contact Bram Buijs at
-**b.buijs@bb-open.com**.
+**Help wanted:** developers, testers and maintainers. The place to ask whether
+this fits what you are doing - or to say it does not - is the project itself:
+open an issue on [Codeberg](https://codeberg.org/DAWO/DAWO-Sextant/issues), or
+find the wider DAWO community at [dawo.community](https://dawo.community).
+
+A question in the open is worth more than one in a mailbox. Somebody else has
+probably wondered the same thing, and the answer stays where they can find it.
 
 ## Contributing
 
