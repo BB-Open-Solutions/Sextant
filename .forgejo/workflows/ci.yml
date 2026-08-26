@@ -216,6 +216,36 @@ jobs:
       - name: Nix package
         run: cd "$GITHUB_WORKSPACE/src" && nix build .#sextant
 
+      # Every check must at least EVALUATE. The two NixOS tests landed with the
+      # console module and nothing has looked at them since: a host build does
+      # not import the checks, so CI stayed green while they could have stopped
+      # working weeks ago. The overlay had exactly this gap and its acceptance
+      # test had been unevaluable since a commit that changed three option
+      # interfaces at once.
+      #
+      # Evaluation is where interface drift shows and it is cheap, so it runs on
+      # every push. The attribute list is asserted non-empty first: a flake that
+      # exposes no checks must fail loudly rather than report a pass on nothing.
+      - name: Every check evaluates
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          names=$(nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames)
+          echo "checks: $names"
+          nix develop --command python3 - "$names" <<'EOF'
+          import json, sys
+          if not json.loads(sys.argv[1]):
+              sys.exit("no checks at all; refusing to report a pass on nothing")
+          EOF
+          nix flake check --no-build
+
+      # And then run them, on main only. console-on-nixos boots a VM with a
+      # database and posts a settings change through the web form, which is the
+      # half a unit test cannot reach - and also the reason it is too slow for
+      # every push on a single runner that also images machines.
+      - name: Run the checks
+        if: github.ref_name == 'main'
+        run: cd "$GITHUB_WORKSPACE/src" && nix flake check
+
       # The Dockerfile is otherwise exercised only at release time, which is
       # the worst moment to discover it. `go build` above already covers the
       # compile stage, so what this adds is the RUNTIME stage: that the COPY
