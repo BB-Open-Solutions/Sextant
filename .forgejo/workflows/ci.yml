@@ -184,31 +184,19 @@ jobs:
               "${interp%/lib/*}" >/dev/null
           '
           nix develop --command go test -race -coverprofile=coverage.out ./...
-          nix develop --command bash -c '
-            # The floor is measured over the logic layers. Pure-glue packages -
-            # interface-only ports, the cmd/ mains and CLIs, and the slog/mount
-            # wiring under platform/{logging,capability} - carry little that is
-            # meaningfully unit-testable and are exercised by integration paths,
-            # so counting them would understate the real coverage of domain,
-            # app, adapters and the HTTP handlers.
-            # -a plus the emptiness guard, mirroring the justfile: without them
-            # a profile grep decides is binary yields an empty file, and the
-            # check reports "coverage below the floor" when the truth is "the
-            # file was unreadable". A check that lies about why it failed sends
-            # somebody looking in the wrong place.
-            grep -a -vE "internal/ports/|/cmd/|platform/logging|platform/capability" coverage.out > coverage-logic.out
-            if [ ! -s coverage-logic.out ]; then
-              echo "coverage profile produced no logic-layer lines - refusing to report a number" >&2
-              exit 1
-            fi
-            total=$(go tool cover -func=coverage-logic.out | tail -1 | awk "{print \$3}" | tr -d "%")
-            echo "logic-layer coverage: ${total}%"
-            # Raised 70 -> 80 on 2026-08-07. The margin above it is thin (about
-            # ten statements), and that is the intent: a floor you cannot trip
-            # is not a floor. New code that arrives untested breaks this build,
-            # which is cheaper than finding out from the fleet.
-            awk -v t="$total" "BEGIN { exit (t < 80) ? 1 : 0 }" || (echo "coverage below 80% floor" && exit 1)
-          '
+          # One definition of the floor, not two. This block used to restate
+          # the justfile recipe - the same exclusion pattern, the same
+          # emptiness guard, the same 80 - under a comment asking whoever
+          # changed one to remember the other. That is a hand-kept duplicate,
+          # and the only question about those is when they drift, not whether.
+          #
+          # They were still in step when this was written, which is the moment
+          # to collapse them rather than after somebody raises the floor in one
+          # place and wonders why CI disagrees with their laptop.
+          #
+          # COV is overridden because the recipe writes to a fresh path in /tmp
+          # by design; here the profile already exists.
+          COV=coverage.out nix develop --command just COV=coverage.out coverage-floor
 
       - name: Build
         run: cd "$GITHUB_WORKSPACE/src" && nix develop --command go build -trimpath ./...
