@@ -219,11 +219,10 @@ jobs:
           cd "$GITHUB_WORKSPACE/src"
           names=$(nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames)
           echo "checks: $names"
-          nix develop --command python3 - "$names" <<'EOF'
-          import json, sys
-          if not json.loads(sys.argv[1]):
-              sys.exit("no checks at all; refusing to report a pass on nothing")
-          EOF
+          # The dev shell carries no python; jq is in it and does the same
+          # test. Measured 2026-11-04: "exec: python3: niet gevonden".
+          test "$(nix develop --command jq 'length' <<<"$names")" -gt 0 \
+            || { echo "no checks at all; refusing to report a pass on nothing" >&2; exit 1; }
           nix flake check --no-build
 
       # And then run them, on main only. console-on-nixos boots a VM with a
