@@ -1,4 +1,4 @@
-{{- if and (eq .Values.networkPolicy.engine "cilium") .Values.cnpg.enabled }}
+{{- if and (eq .Values.networkPolicy.engine "cilium") (ne (include "sextant.dbMode" .) "none") }}
 # Platform pattern (see allow-odoo-to-cnpg): once any egress policy selects
 # the pod, Cilium denies all other egress - so this policy carries the FULL
 # egress set: DNS, the CNPG cluster, and 443 for the OIDC provider.
@@ -23,7 +23,7 @@ spec:
               protocol: TCP
     - toEndpoints:
         - matchLabels:
-            cnpg.io/cluster: {{ .Values.cnpg.name }}
+            {{- include "sextant.pgSelector" . | nindent 12 }}
       toPorts:
         - ports:
             - port: "5432"

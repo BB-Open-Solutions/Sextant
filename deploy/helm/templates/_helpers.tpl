@@ -22,3 +22,36 @@ towards allowing a volume that is too small.
 {{- else -}}{{ divf $n 1073741824.0 }}
 {{- end -}}
 {{- end -}}
+
+{{/*
+sextant.dbMode resolves database.mode with the pre-0.93 behaviour as the
+fallback, so values files that only know cnpg.enabled keep rendering the same.
+*/}}
+{{- define "sextant.dbMode" -}}
+{{- if .Values.database.mode -}}{{ .Values.database.mode }}
+{{- else if .Values.cnpg.enabled -}}cnpg
+{{- else -}}none
+{{- end -}}
+{{- end -}}
+
+{{/*
+sextant.routeKind resolves route.kind the same way from ingress.enabled.
+*/}}
+{{- define "sextant.routeKind" -}}
+{{- if .Values.route.kind -}}{{ .Values.route.kind }}
+{{- else if .Values.ingress.enabled -}}ingress
+{{- else -}}none
+{{- end -}}
+{{- end -}}
+
+{{/*
+sextant.pgSelector is the label that selects the database pods, for the
+network policies: CNPG labels its instances, the embedded StatefulSet is ours.
+*/}}
+{{- define "sextant.pgSelector" -}}
+{{- if eq (include "sextant.dbMode" .) "cnpg" -}}
+cnpg.io/cluster: {{ .Values.cnpg.name }}
+{{- else -}}
+app: {{ .Release.Name }}-pg
+{{- end -}}
+{{- end -}}

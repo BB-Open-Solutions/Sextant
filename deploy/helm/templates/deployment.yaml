@@ -2,8 +2,8 @@
      that looks like it works and is not what anybody meant, so the chart
      refuses instead of shipping it. */}}
 {{- if .Values.devAuth.enabled }}
-  {{- if .Values.ingress.enabled }}
-    {{- fail "devAuth.enabled binds the console to loopback, so an Ingress in front of it can only serve 503s. Set ingress.enabled=false and reach the demo with kubectl port-forward." }}
+  {{- if ne (include "sextant.routeKind" .) "none" }}
+    {{- fail "devAuth.enabled binds the console to loopback, so an Ingress or HTTPRoute in front of it can only serve 503s. Set route.kind=none (or ingress.enabled=false) and reach the demo with kubectl port-forward." }}
   {{- end }}
   {{- if .Values.oidc.issuer }}
     {{- fail "devAuth.enabled and oidc.issuer are mutually exclusive: the server refuses to start with both, and the pod would crash-loop with the reason three levels deep in a log." }}
@@ -45,6 +45,28 @@ spec:
         fsGroup: 65532
         seccompProfile: { type: RuntimeDefault }
       initContainers:
+        {{- if and .Values.simulator.enabled (not .Values.gitRemote.url) (gt (int .Values.simulator.devices) 0) }}
+        # A fleet for the self-seeded overlay. fleetsim lives in the tools
+        # image, so this is a separate container; it writes the document the
+        # seed below commits, and only on a fresh volume.
+        - name: gen-fleet
+          image: "{{ .Values.simulator.image.repository | default .Values.image.repository }}:{{ .Values.simulator.image.tag | default (printf "%s-tools" (.Values.image.tag | default .Chart.AppVersion)) }}"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              if [ ! -d /data/overlay/.git ]; then
+                fleetsim -gen {{ int .Values.simulator.devices }} > /data/seed-fleet.json
+              fi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+        {{- end }}
         # Self-seed: an empty data volume gets a git overlay repo with a
         # minimal v3 fleet document, so the console starts standalone. An
         # existing repo is left untouched.
@@ -77,6 +99,9 @@ spec:
                 mkdir -p /data/overlay
                 cd /data/overlay
                 git init -q -b main
+                if [ -s /data/seed-fleet.json ]; then
+                  mv /data/seed-fleet.json fleet.json
+                else
                 cat > fleet.json <<'EOF'
               {
                 "version": 3,
@@ -85,6 +110,7 @@ spec:
                 "devices": {}
               }
               EOF
+                fi
                 git add fleet.json
                 git -c user.name=sextant -c user.email=seed@sextant commit -qm "seed overlay"
               fi
@@ -160,11 +186,18 @@ spec:
             # the overlay remote's credentials.
             - { name: HOME, value: /data }
             {{- end }}
-            {{- if .Values.cnpg.enabled }}
+            {{- $db := include "sextant.dbMode" . }}
+            {{- if eq $db "cnpg" }}
             - name: SEXTANT_PG_DSN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.cnpg.name }}-app
+                  key: uri
+            {{- else if eq $db "embedded" }}
+            - name: SEXTANT_PG_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-pg
                   key: uri
             {{- end }}
             # The gate-runner's bearer secret is stored unprefixed (GATE_TOKEN,
@@ -293,11 +326,18 @@ spec:
           args:
             - |
               set -eu
+              {{- if .Values.gitRemote.url }}
               git clone -q --depth 1 --branch {{ .Values.gitRemote.branch }} {{ .Values.gitRemote.url }} /tmp/overlay
+              {{- end }}
               exec fleetsim -url http://127.0.0.1:8080 \
                 -token "$SEXTANT_CHECKIN_TOKEN" \
+                {{- if .Values.gitRemote.url }}
                 -repo {{ .Values.gitRemote.url }} \
                 -fleet /tmp/overlay/fleet.json \
+                {{- else }}
+                -repo /data/overlay \
+                -fleet /data/overlay/fleet.json \
+                {{- end }}
                 -interval {{ .Values.simulator.interval | default "30s" }} \
                 {{- with .Values.simulator.station }}
                 {{- if .tag }}
@@ -315,6 +355,13 @@ spec:
           resources:
             requests: { cpu: 10m, memory: 32Mi }
             limits: { cpu: 200m, memory: 128Mi }
+          {{- if not .Values.gitRemote.url }}
+          # The console's own overlay, read-only: fleetsim only runs
+          # `git ls-remote` on it, and two writers on one working tree is
+          # how a repository gets corrupted.
+          volumeMounts:
+            - { name: data, mountPath: /data, readOnly: true }
+          {{- end }}
         {{- end }}
 
       volumes:

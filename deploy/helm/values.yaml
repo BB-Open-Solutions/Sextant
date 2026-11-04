@@ -219,6 +219,31 @@ ldap:
 networkPolicy:
   engine: cilium
 
+# Where the observed plane's Postgres comes from.
+#
+#   cnpg      a CloudNativePG Cluster; the operator must be on the cluster and
+#             the cnpg: block below configures it
+#   embedded  one Postgres StatefulSet in the release namespace, for a demo or
+#             a cell with no operator to lean on. No replication, no backup:
+#             what the comments under cnpg.backup say about the LUKS escrow
+#             applies here twice over
+#   none      no database: device status, check-ins and image jobs are off
+#
+# Empty keeps the behaviour from before this key existed: cnpg when
+# cnpg.enabled, none otherwise, so a values file written for an older chart
+# renders exactly what it did.
+database:
+  mode: ""
+  embedded:
+    image:
+      repository: docker.io/library/postgres
+      tag: 17-alpine
+    storage: 2Gi
+    storageClass: ""
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { cpu: "1", memory: 512Mi }
+
 cnpg:
   enabled: true
   name: sextant-pg
@@ -285,6 +310,24 @@ certManager:
   issuerName: letsencrypt-dns01
   issuerKind: ClusterIssuer
 
+# How the console is published.
+#
+#   ingress    an Ingress from the ingress: block, the original behaviour
+#   httproute  a Gateway API HTTPRoute attached to gateway.name in
+#              gateway.namespace. TLS terminates on the Gateway, so certManager
+#              is not consulted; ingress.host is still the console's name and
+#              the OIDC redirect URL is derived from it
+#   none       a Service only: a devAuth demo, or a platform that routes by
+#              itself
+#
+# Empty keeps the behaviour from before this key existed: ingress when
+# ingress.enabled, none otherwise.
+route:
+  kind: ""
+gateway:
+  name: ""
+  namespace: ""
+
 resources:
   requests: { cpu: 50m, memory: 128Mi }
   limits: { cpu: "1", memory: 512Mi }
@@ -306,6 +349,12 @@ devAuth:
 simulator:
   enabled: false
   interval: 30s
+  # Without gitRemote.url the console self-seeds an empty overlay, and a
+  # simulator against an empty fleet shows nothing. devices > 0 generates
+  # that many simulated devices into the seed (fleetsim -gen), so a demo
+  # with no git remote at all still shows a fleet. Ignored with a remote:
+  # that repository's fleet.json is the fleet.
+  devices: 0
   # fleetsim lives in the TOOLS image, not the console image: it can invent
   # device state from nothing but the shared check-in token, so the control
   # plane does not carry it. Empty values default to the console repository

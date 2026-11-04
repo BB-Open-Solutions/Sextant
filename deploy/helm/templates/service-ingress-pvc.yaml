@@ -21,7 +21,8 @@ spec:
     requests:
       storage: {{ .Values.persistence.size }}
 {{- end }}
-{{- if .Values.ingress.enabled }}
+{{- $route := include "sextant.routeKind" . }}
+{{- if eq $route "ingress" }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -51,7 +52,28 @@ spec:
       secretName: {{ .Release.Name }}-tls
   {{- end }}
 {{- end }}
-{{- if .Values.cnpg.enabled }}
+{{- if eq $route "httproute" }}
+---
+# Gateway API. The Gateway owns the listener and its certificate; this route
+# only claims the hostname, so certManager is not consulted here.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  parentRefs:
+    - name: {{ required "route.kind=httproute needs gateway.name" .Values.gateway.name }}
+      {{- with .Values.gateway.namespace }}
+      namespace: {{ . }}
+      {{- end }}
+  hostnames:
+    - {{ required "route.kind=httproute needs ingress.host" .Values.ingress.host | quote }}
+  rules:
+    - backendRefs:
+        - name: {{ .Release.Name }}
+          port: 80
+{{- end }}
+{{- if eq (include "sextant.dbMode" .) "cnpg" }}
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster

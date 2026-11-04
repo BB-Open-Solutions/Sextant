@@ -1,0 +1,38 @@
+# Sextant on Fundament, demo profile: everything inside one namespace, nothing
+# reachable from outside, a simulated fleet. This is what the Fundament plugin
+# renders when CONSOLE_HOST is empty, kept here so the same cell can be
+# installed with plain helm for a test:
+#
+#   kubectl create secret generic sextant-app \
+#     --from-literal=SEXTANT_SECRET_KEY=$(head -c32 /dev/urandom | base64) \
+#     --from-literal=SEXTANT_SESSION_KEY=$(head -c32 /dev/urandom | base64) \
+#     --from-literal=SEXTANT_CHECKIN_TOKEN=$(head -c24 /dev/urandom | base64) \
+#     --from-literal=SEXTANT_API_TOKEN=$(head -c24 /dev/urandom | base64)
+#   helm upgrade --install sextant deploy/helm -f deploy/helm/values-fundament-demo.yaml
+#   kubectl port-forward deploy/sextant 8080:8080
+orgName: "Fieldlab Soevereine Basis"
+defaultLocale: nl
+secretName: sextant-app
+write: true
+gateMode: none
+allowUnvalidated: true
+networkPolicy:
+  engine: kubernetes
+database:
+  mode: embedded
+route:
+  kind: none
+ingress:
+  enabled: false
+certManager:
+  enabled: false
+devAuth:
+  enabled: true
+simulator:
+  enabled: true
+  sidecar: true
+  devices: 60
+  interval: 30s
+  station:
+    tag: fieldlab-station
+    pool: 3

@@ -9,7 +9,7 @@
      space minus nothing. A cluster that needs that narrowed should govern
      egress at the namespace instead and set engine: none. Saying so here is
      better than shipping a rule that looks tighter than it is. */}}
-{{- if and (eq .Values.networkPolicy.engine "kubernetes") .Values.cnpg.enabled }}
+{{- if and (eq .Values.networkPolicy.engine "kubernetes") (ne (include "sextant.dbMode" .) "none") }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -34,7 +34,7 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              cnpg.io/cluster: {{ .Values.cnpg.name }}
+              {{- include "sextant.pgSelector" . | nindent 14 }}
       ports:
         - port: 5432
           protocol: TCP

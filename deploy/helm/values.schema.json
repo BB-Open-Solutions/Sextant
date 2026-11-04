@@ -256,6 +256,73 @@
           "type": "string"
         }
       }
+    },
+    "database": {
+      "type": "object",
+      "title": "Database",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "",
+            "cnpg",
+            "embedded",
+            "none"
+          ],
+          "title": "Database mode",
+          "description": "cnpg needs the CloudNativePG operator. embedded runs one Postgres in the release namespace, with no replication and no backup. none switches the observed plane off. Empty means cnpg when cnpg.enabled, none otherwise."
+        },
+        "embedded": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "type": "object",
+              "properties": {
+                "repository": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              }
+            },
+            "storage": {
+              "type": "string"
+            },
+            "storageClass": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "route": {
+      "type": "object",
+      "title": "Publication",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "",
+            "ingress",
+            "httproute",
+            "none"
+          ],
+          "description": "ingress, httproute (Gateway API, TLS on the Gateway) or none. Empty means ingress when ingress.enabled, none otherwise."
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Gateway an HTTPRoute attaches to."
+        },
+        "namespace": {
+          "type": "string"
+        }
+      }
     }
   }
 }
