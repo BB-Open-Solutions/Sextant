@@ -28,7 +28,9 @@ jobs:
     # Guarding on the server rather than on the secret is deliberate: absent
     # secrets fail late and loudly, and "loudly" is the part that was the
     # problem.
-    if: github.server_url == 'https://forgejo.bb-open.com'
+    # The forge answers to two names; git.edano.eu is the one it reports as
+    # its own since 2026-09, so a guard on the old name alone built nothing.
+    if: github.server_url == 'https://git.edano.eu' || github.server_url == 'https://forgejo.bb-open.com'
     steps:
       - name: Checkout tag
         run: |
