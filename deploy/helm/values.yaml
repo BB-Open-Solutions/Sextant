@@ -240,6 +240,9 @@ database:
       tag: 17-alpine
     storage: 2Gi
     storageClass: ""
+    # true keeps the database in an emptyDir: gone with the pod. A demo on a
+    # cluster without a working storage class, nothing else.
+    ephemeral: false
     resources:
       requests: { cpu: 50m, memory: 128Mi }
       limits: { cpu: "1", memory: 512Mi }
