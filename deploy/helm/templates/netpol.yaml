@@ -31,6 +31,12 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
+        # Evaluated after DNAT, so the pod port counts: Gardener's CoreDNS
+        # listens on 8053 and a rule for 53 alone leaves lookups timing out.
+        - port: 8053
+          protocol: UDP
+        - port: 8053
+          protocol: TCP
     - to:
         - podSelector:
             matchLabels:
@@ -75,6 +81,12 @@ spec:
         - port: 53
           protocol: UDP
         - port: 53
+          protocol: TCP
+        # Evaluated after DNAT, so the pod port counts: Gardener's CoreDNS
+        # listens on 8053 and a rule for 53 alone leaves lookups timing out.
+        - port: 8053
+          protocol: UDP
+        - port: 8053
           protocol: TCP
     # The overlay git remote, cache.nixos.org and the flake inputs it evaluates.
     - to:
